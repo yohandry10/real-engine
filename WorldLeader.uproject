@@ -1,0 +1,17 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "Strategy",
+	"Description": "World Leader - Modern geopolitical grand strategy. Rome Total War 2 DNA applied to modern warfare. See ROADMAP.md (GDD v2.1).",
+	"Modules": [
+		{
+			"Name": "WorldLeader",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	],
+	"Plugins": []
+}
