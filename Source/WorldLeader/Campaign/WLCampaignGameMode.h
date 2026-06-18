@@ -18,4 +18,7 @@ class WORLDLEADER_API AWLCampaignGameMode : public AGameModeBase
 
 public:
 	AWLCampaignGameMode();
+
+protected:
+	virtual void BeginPlay() override;
 };

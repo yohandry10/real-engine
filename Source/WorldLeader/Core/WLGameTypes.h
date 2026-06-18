@@ -51,6 +51,10 @@ struct FWLProvinceData
 	UPROPERTY(BlueprintReadOnly, Category = "Province") int32 Infrastructure = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Province") int32 StrategicValue = 0;
 
+	/** Coordenadas geograficas aproximadas para el mapa estrategico. */
+	UPROPERTY(BlueprintReadOnly, Category = "Map") float MapLat = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "Map") float MapLon = 0.f;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Province") bool bIsCapital = false;
 	UPROPERTY(BlueprintReadOnly, Category = "Province") bool bHasPort = false;
 	UPROPERTY(BlueprintReadOnly, Category = "Province") bool bHasAirbase = false;

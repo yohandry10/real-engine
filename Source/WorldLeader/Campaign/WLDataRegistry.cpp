@@ -116,6 +116,10 @@ bool UWLDataRegistry::LoadProvincesFromFile(const FString& FilePath)
 		if (Obj->TryGetNumberField(TEXT("infrastructure"), Tmp)) P.Infrastructure = Tmp;
 		if (Obj->TryGetNumberField(TEXT("strategic_value"), Tmp))P.StrategicValue = Tmp;
 
+		double Coord = 0.0;
+		if (Obj->TryGetNumberField(TEXT("map_lat"), Coord)) P.MapLat = static_cast<float>(Coord);
+		if (Obj->TryGetNumberField(TEXT("map_lon"), Coord)) P.MapLon = static_cast<float>(Coord);
+
 		double Pop = 0.0;
 		if (Obj->TryGetNumberField(TEXT("population"), Pop))     P.Population = static_cast<int64>(Pop);
 
