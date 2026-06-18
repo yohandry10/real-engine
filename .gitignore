@@ -11,7 +11,9 @@ Saved/
 *.opendb
 *.sdf
 *.sln
+*.slnx
 *.suo
+.vsconfig
 *.xcodeproj
 *.xcworkspace
 
@@ -35,3 +37,9 @@ Desktop.ini
 
 # Local build/install logs
 *.log
+
+# Tooling local de desarrollo (no es codigo del juego)
+# Plugin MCP de terceros (chongdashu/unreal-mcp) y su config local con rutas absolutas
+/Plugins/UnrealMCP/
+.mcp.json
+.claude/settings.local.json
