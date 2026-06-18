@@ -9,6 +9,11 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/SkyLight.h"
+#include "Camera/CameraActor.h"
+#include "GameFramework/PlayerController.h"
 #include "UObject/ConstructorHelpers.h"
 
 AWLWorldMap::AWLWorldMap()
@@ -35,6 +40,33 @@ void AWLWorldMap::BeginPlay()
 {
 	Super::BeginPlay();
 	BuildMap();
+	SetupViewAndLighting();
+}
+
+void AWLWorldMap::SetupViewAndLighting()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Luz para que el mapa se vea aunque el nivel base no tenga iluminacion.
+	World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(),
+		FVector(0.f, 0.f, 5000.f), FRotator(-60.f, 30.f, 0.f));
+	World->SpawnActor<ASkyLight>(ASkyLight::StaticClass(),
+		FVector(0.f, 0.f, 5000.f), FRotator::ZeroRotator);
+
+	// Camara cenital fijada como vista del jugador (mapa estrategico tipo Total War).
+	ACameraActor* Camera = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(),
+		FVector(0.f, 0.f, CameraHeight), FRotator(-90.f, 0.f, 0.f));
+	if (Camera)
+	{
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			PC->SetViewTargetWithBlend(Camera, 0.4f);
+		}
+	}
 }
 
 UWLDataRegistry* AWLWorldMap::GetRegistry() const
