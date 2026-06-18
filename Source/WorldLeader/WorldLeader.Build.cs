@@ -20,7 +20,8 @@ public class WorldLeader : ModuleRules
 			"Engine",
 			"InputCore",
 			"Json",
-			"JsonUtilities"
+			"JsonUtilities",
+			"ProceduralMeshComponent"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

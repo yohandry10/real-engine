@@ -7,14 +7,15 @@
 #include "WLWorldMap.generated.h"
 
 class UWLDataRegistry;
-class UStaticMesh;
+class UProceduralMeshComponent;
 class UMaterialInterface;
+class FJsonValue;
 
 /**
- * Construye el mapa estrategico en runtime: un marcador (cubo + etiqueta) por
- * provincia, situado segun sus coordenadas y coloreado por la nacion duena.
- * Lee los datos de WLDataRegistry (no hardcodea nada). Lo genera el GameMode
- * al iniciar la partida.
+ * Mapa estrategico real: lee siluetas geograficas de paises desde un GeoJSON
+ * (Natural Earth, Content/Data/Geo/), las triangula y las renderiza como
+ * mallas planas coloreadas por nacion. Sin hardcodear formas: todo viene de
+ * los datos (pipeline del roadmap: GeoJSON -> poligonos -> mallas).
  */
 UCLASS()
 class WORLDLEADER_API AWLWorldMap : public AActor
@@ -29,21 +30,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Map")
 	void BuildMap();
 
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map") float DegreeScale = 1500.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map") float OriginLat = 9.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map") float OriginLon = -69.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map") FVector MarkerScale = FVector(12.f, 12.f, 4.f);
+	/** Unidades de mundo por grado geografico. */
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map") float GeoScale = 2000.f;
 
-	/** Altura de la camara cenital sobre el mapa. */
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map") float CameraHeight = 22000.f;
+	/** Solo renderiza paises de este continente (Natural Earth CONTINENT). */
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map") FString ContinentFilter = TEXT("South America");
 
 private:
 	UPROPERTY() USceneComponent* SceneRoot = nullptr;
-	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* MapMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
+
+	int32 SectionIndex = 0;
+	FVector2D BoundsMin = FVector2D(TNumericLimits<float>::Max(), TNumericLimits<float>::Max());
+	FVector2D BoundsMax = FVector2D(TNumericLimits<float>::Lowest(), TNumericLimits<float>::Lowest());
 
 	UWLDataRegistry* GetRegistry() const;
 
-	/** Genera luz de escena y una camara cenital fijada como vista del jugador. */
-	void SetupViewAndLighting();
+	FVector2D ProjectLonLat(double Lon, double Lat) const;
+	TArray<FVector2D> RingFromJson(const TArray<TSharedPtr<FJsonValue>>& Ring) const;
+	void AddSection(const TArray<FVector2D>& Poly, const FLinearColor& Color);
+	void AddLabel(const FString& Text, const FVector2D& Pos);
+	void SetupLightingAndCamera();
 };

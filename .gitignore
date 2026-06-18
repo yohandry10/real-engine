@@ -42,4 +42,5 @@ Desktop.ini
 # Plugin MCP de terceros (chongdashu/unreal-mcp) y su config local con rutas absolutas
 /Plugins/UnrealMCP/
 .mcp.json
+.codex/
 .claude/settings.local.json
