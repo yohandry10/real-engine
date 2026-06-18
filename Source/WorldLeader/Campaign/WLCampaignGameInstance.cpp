@@ -3,6 +3,7 @@
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Military/WLMilitarySubsystem.h"
 #include "WorldLeader.h"
 
 UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
@@ -61,5 +62,60 @@ void UWLCampaignGameInstance::WLBuild(const FString& ProvinceId, const FString& 
 	if (bOk)
 	{
 		WLPrintState();
+	}
+}
+
+UWLMilitarySubsystem* UWLCampaignGameInstance::GetMilitary() const
+{
+	return GetSubsystem<UWLMilitarySubsystem>();
+}
+
+void UWLCampaignGameInstance::WLSpawnArmy(const FString& Nation, const FString& ProvinceId, const FString& UnitId, int32 Count)
+{
+	if (UWLMilitarySubsystem* Mil = GetMilitary())
+	{
+		const FString Id = Mil->CreateArmy(Nation, ProvinceId, UnitId, Count, TEXT(""));
+		if (Id.IsEmpty())
+		{
+			UE_LOG(LogWorldLeader, Warning, TEXT("WLSpawnArmy: no se pudo crear (revisa nacion/provincia/unidad)."));
+		}
+	}
+}
+
+void UWLCampaignGameInstance::WLArmies()
+{
+	const UWLMilitarySubsystem* Mil = GetMilitary();
+	if (!Mil)
+	{
+		return;
+	}
+
+	const TArray<FWLArmy> Armies = Mil->GetArmies();
+	UE_LOG(LogWorldLeader, Log, TEXT("=== Ejercitos (%d) ==="), Armies.Num());
+	for (const FWLArmy& Army : Armies)
+	{
+		UE_LOG(LogWorldLeader, Log, TEXT("  %s [%s] en %s: %d unidades (atk %d / def %d) - Gen. %s"),
+			*Army.Id, *Army.OwnerIso, *Army.ProvinceId, Army.Units.Num(),
+			Mil->GetArmyAttack(Army.Id), Mil->GetArmyDefense(Army.Id), *Army.General);
+	}
+}
+
+void UWLCampaignGameInstance::WLMove(const FString& ArmyId, const FString& ProvinceId)
+{
+	if (UWLMilitarySubsystem* Mil = GetMilitary())
+	{
+		FString Message;
+		Mil->MoveArmy(ArmyId, ProvinceId, Message);
+		UE_LOG(LogWorldLeader, Log, TEXT("WLMove: %s"), *Message);
+	}
+}
+
+void UWLCampaignGameInstance::WLBattle(const FString& AttackerId, const FString& DefenderId)
+{
+	if (UWLMilitarySubsystem* Mil = GetMilitary())
+	{
+		FString Report;
+		Mil->AutoResolveBattle(AttackerId, DefenderId, Report);
+		UE_LOG(LogWorldLeader, Log, TEXT("WLBattle: %s"), *Report);
 	}
 }

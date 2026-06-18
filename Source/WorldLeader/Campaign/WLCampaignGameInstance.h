@@ -34,7 +34,24 @@ public:
 	UFUNCTION(Exec)
 	void WLBuild(const FString& ProvinceId, const FString& BuildingId);
 
+	/** Consola: crea un ejercito. Uso: WLSpawnArmy VE VE-ZU tank 3 */
+	UFUNCTION(Exec)
+	void WLSpawnArmy(const FString& Nation, const FString& ProvinceId, const FString& UnitId, int32 Count);
+
+	/** Consola: lista los ejercitos en el mapa. */
+	UFUNCTION(Exec)
+	void WLArmies();
+
+	/** Consola: mueve un ejercito a una provincia adyacente. Uso: WLMove A1 VE-BO */
+	UFUNCTION(Exec)
+	void WLMove(const FString& ArmyId, const FString& ProvinceId);
+
+	/** Consola: auto-resuelve una batalla. Uso: WLBattle A1 A2 */
+	UFUNCTION(Exec)
+	void WLBattle(const FString& AttackerId, const FString& DefenderId);
+
 private:
 	UWLDataRegistry* GetRegistry() const;
 	UWLStrategicTickSubsystem* GetTick() const;
+	class UWLMilitarySubsystem* GetMilitary() const;
 };

@@ -120,3 +120,61 @@ struct FWLBuildingData
 
 	bool IsValid() const { return !Id.IsEmpty(); }
 };
+
+/** Tipo de unidad militar (ver roadmap "Tipos de fuerzas"). */
+UENUM(BlueprintType)
+enum class EWLUnitType : uint8
+{
+	Infantry      UMETA(DisplayName = "Infanteria"),
+	Armor         UMETA(DisplayName = "Blindado"),
+	Artillery     UMETA(DisplayName = "Artilleria"),
+	AirDefense    UMETA(DisplayName = "Defensa aerea"),
+	Air           UMETA(DisplayName = "Aviacion"),
+	Naval         UMETA(DisplayName = "Naval"),
+	Drone         UMETA(DisplayName = "Drone"),
+	SpecialForces UMETA(DisplayName = "Fuerzas especiales")
+};
+
+/** Definicion estatica de un tipo de unidad. Se carga desde Content/Data/Units/Units.json. */
+USTRUCT(BlueprintType)
+struct FWLUnitData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") FString Id;
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") FString Name;
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") EWLUnitType Type = EWLUnitType::Infantry;
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") int32 Attack = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") int32 Defense = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") int32 Strength = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") int64 Cost = 0;
+
+	bool IsValid() const { return !Id.IsEmpty(); }
+};
+
+/** Un ejercito: stack de unidades de una nacion, situado en una provincia. */
+USTRUCT(BlueprintType)
+struct FWLArmy
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Army") FString Id;
+	UPROPERTY(BlueprintReadOnly, Category = "Army") FString OwnerIso;
+	UPROPERTY(BlueprintReadOnly, Category = "Army") FString ProvinceId;
+	UPROPERTY(BlueprintReadOnly, Category = "Army") FString General;
+	/** IDs de tipos de unidad que componen el ejercito. */
+	UPROPERTY(BlueprintReadOnly, Category = "Army") TArray<FString> Units;
+
+	bool IsValid() const { return !Id.IsEmpty(); }
+};
+
+/** Resultado de una batalla por auto-resolucion (ver roadmap "Modo A"). */
+UENUM(BlueprintType)
+enum class EWLBattleResult : uint8
+{
+	AttackerDecisiveVictory UMETA(DisplayName = "Victoria decisiva atacante"),
+	AttackerVictory         UMETA(DisplayName = "Victoria atacante"),
+	Stalemate               UMETA(DisplayName = "Empate tactico"),
+	DefenderVictory         UMETA(DisplayName = "Victoria defensor"),
+	DefenderDecisiveVictory UMETA(DisplayName = "Victoria decisiva defensor")
+};

@@ -19,16 +19,18 @@ bool UWLDataRegistry::LoadGameData()
 	Provinces.Reset();
 	Nations.Reset();
 	Buildings.Reset();
+	Units.Reset();
 
 	const FString DataDir = FPaths::ProjectContentDir() / TEXT("Data");
 	const bool bProvinces = LoadProvincesFromFile(DataDir / TEXT("Provinces") / TEXT("Provinces.json"));
 	const bool bNations   = LoadNationsFromFile(DataDir / TEXT("Nations") / TEXT("Nations.json"));
 	const bool bBuildings = LoadBuildingsFromFile(DataDir / TEXT("Buildings") / TEXT("Buildings.json"));
+	const bool bUnits     = LoadUnitsFromFile(DataDir / TEXT("Units") / TEXT("Units.json"));
 
-	UE_LOG(LogWorldLeader, Log, TEXT("WLDataRegistry: %d provincias, %d naciones, %d edificios cargados."),
-		Provinces.Num(), Nations.Num(), Buildings.Num());
+	UE_LOG(LogWorldLeader, Log, TEXT("WLDataRegistry: %d provincias, %d naciones, %d edificios, %d unidades cargados."),
+		Provinces.Num(), Nations.Num(), Buildings.Num(), Units.Num());
 
-	return bProvinces && bNations && bBuildings;
+	return bProvinces && bNations && bBuildings && bUnits;
 }
 
 EWLTerrainType UWLDataRegistry::TerrainFromString(const FString& In)
@@ -56,6 +58,19 @@ EWLBuildingSlot UWLDataRegistry::SlotFromString(const FString& In)
 	if (S == TEXT("infrastructure")) return EWLBuildingSlot::Infrastructure;
 	if (S == TEXT("defensive"))      return EWLBuildingSlot::Defensive;
 	return EWLBuildingSlot::Economic;
+}
+
+EWLUnitType UWLDataRegistry::UnitTypeFromString(const FString& In)
+{
+	const FString S = In.ToLower();
+	if (S == TEXT("armor") || S == TEXT("tank"))            return EWLUnitType::Armor;
+	if (S == TEXT("artillery"))                              return EWLUnitType::Artillery;
+	if (S == TEXT("airdefense") || S == TEXT("sam"))         return EWLUnitType::AirDefense;
+	if (S == TEXT("air"))                                    return EWLUnitType::Air;
+	if (S == TEXT("naval"))                                  return EWLUnitType::Naval;
+	if (S == TEXT("drone"))                                  return EWLUnitType::Drone;
+	if (S == TEXT("special") || S == TEXT("specialforces"))  return EWLUnitType::SpecialForces;
+	return EWLUnitType::Infantry;
 }
 
 bool UWLDataRegistry::LoadProvincesFromFile(const FString& FilePath)
@@ -231,6 +246,54 @@ bool UWLDataRegistry::LoadBuildingsFromFile(const FString& FilePath)
 	return Buildings.Num() > 0;
 }
 
+bool UWLDataRegistry::LoadUnitsFromFile(const FString& FilePath)
+{
+	FString Raw;
+	if (!FFileHelper::LoadFileToString(Raw, *FilePath))
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("WLDataRegistry: no se pudo leer %s"), *FilePath);
+		return false;
+	}
+
+	TArray<TSharedPtr<FJsonValue>> Array;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+	if (!FJsonSerializer::Deserialize(Reader, Array))
+	{
+		UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: JSON de unidades invalido en %s"), *FilePath);
+		return false;
+	}
+
+	for (const TSharedPtr<FJsonValue>& Value : Array)
+	{
+		const TSharedPtr<FJsonObject>* ObjPtr = nullptr;
+		if (!Value.IsValid() || !Value->TryGetObject(ObjPtr) || !ObjPtr) continue;
+		const TSharedPtr<FJsonObject>& Obj = *ObjPtr;
+
+		FWLUnitData U;
+		Obj->TryGetStringField(TEXT("id"), U.Id);
+		Obj->TryGetStringField(TEXT("name"), U.Name);
+
+		FString TypeStr;
+		Obj->TryGetStringField(TEXT("type"), TypeStr);
+		U.Type = UnitTypeFromString(TypeStr);
+
+		int32 Tmp = 0;
+		if (Obj->TryGetNumberField(TEXT("attack"), Tmp))   U.Attack = Tmp;
+		if (Obj->TryGetNumberField(TEXT("defense"), Tmp))  U.Defense = Tmp;
+		if (Obj->TryGetNumberField(TEXT("strength"), Tmp)) U.Strength = Tmp;
+
+		double Cost = 0.0;
+		if (Obj->TryGetNumberField(TEXT("cost"), Cost)) U.Cost = static_cast<int64>(Cost);
+
+		if (U.IsValid())
+		{
+			Units.Add(U.Id, MoveTemp(U));
+		}
+	}
+
+	return Units.Num() > 0;
+}
+
 bool UWLDataRegistry::GetProvince(const FString& Id, FWLProvinceData& OutProvince) const
 {
 	if (const FWLProvinceData* Found = Provinces.Find(Id))
@@ -292,5 +355,22 @@ TArray<FWLBuildingData> UWLDataRegistry::GetAllBuildings() const
 {
 	TArray<FWLBuildingData> Out;
 	Buildings.GenerateValueArray(Out);
+	return Out;
+}
+
+bool UWLDataRegistry::GetUnit(const FString& Id, FWLUnitData& OutUnit) const
+{
+	if (const FWLUnitData* Found = Units.Find(Id))
+	{
+		OutUnit = *Found;
+		return true;
+	}
+	return false;
+}
+
+TArray<FWLUnitData> UWLDataRegistry::GetAllUnits() const
+{
+	TArray<FWLUnitData> Out;
+	Units.GenerateValueArray(Out);
 	return Out;
 }

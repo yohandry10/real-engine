@@ -1,0 +1,47 @@
+[
+	{
+		"id": "infantry",
+		"name": "Infanteria mecanizada",
+		"type": "infantry",
+		"attack": 10,
+		"defense": 12,
+		"strength": 100,
+		"cost": 1000
+	},
+	{
+		"id": "tank",
+		"name": "Tanque T-72",
+		"type": "armor",
+		"attack": 25,
+		"defense": 18,
+		"strength": 120,
+		"cost": 3000
+	},
+	{
+		"id": "artillery",
+		"name": "Artilleria autopropulsada",
+		"type": "artillery",
+		"attack": 22,
+		"defense": 6,
+		"strength": 60,
+		"cost": 2500
+	},
+	{
+		"id": "sam",
+		"name": "Defensa aerea SAM",
+		"type": "airdefense",
+		"attack": 4,
+		"defense": 14,
+		"strength": 50,
+		"cost": 2000
+	},
+	{
+		"id": "drone",
+		"name": "Drone de reconocimiento",
+		"type": "drone",
+		"attack": 8,
+		"defense": 3,
+		"strength": 30,
+		"cost": 1500
+	}
+]

@@ -56,6 +56,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Data")
 	int32 GetBuildingCount() const { return Buildings.Num(); }
 
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Data")
+	bool GetUnit(const FString& Id, FWLUnitData& OutUnit) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Data")
+	TArray<FWLUnitData> GetAllUnits() const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Data")
+	int32 GetUnitCount() const { return Units.Num(); }
+
 private:
 	UPROPERTY()
 	TMap<FString, FWLProvinceData> Provinces;
@@ -66,10 +75,15 @@ private:
 	UPROPERTY()
 	TMap<FString, FWLBuildingData> Buildings;
 
+	UPROPERTY()
+	TMap<FString, FWLUnitData> Units;
+
 	bool LoadProvincesFromFile(const FString& FilePath);
 	bool LoadNationsFromFile(const FString& FilePath);
 	bool LoadBuildingsFromFile(const FString& FilePath);
+	bool LoadUnitsFromFile(const FString& FilePath);
 
 	static EWLTerrainType TerrainFromString(const FString& In);
 	static EWLBuildingSlot SlotFromString(const FString& In);
+	static EWLUnitType UnitTypeFromString(const FString& In);
 };
