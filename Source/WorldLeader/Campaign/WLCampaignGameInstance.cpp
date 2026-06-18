@@ -46,3 +46,20 @@ void UWLCampaignGameInstance::WLPrintState()
 			Tick->GetTreasury(Nation.Iso), Tick->GetMonthlyBalance(Nation.Iso));
 	}
 }
+
+void UWLCampaignGameInstance::WLBuild(const FString& ProvinceId, const FString& BuildingId)
+{
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	if (!Tick)
+	{
+		return;
+	}
+
+	FString Message;
+	const bool bOk = Tick->BuildBuilding(ProvinceId, BuildingId, Message);
+	UE_LOG(LogWorldLeader, Log, TEXT("WLBuild: %s"), *Message);
+	if (bOk)
+	{
+		WLPrintState();
+	}
+}

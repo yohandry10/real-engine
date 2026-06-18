@@ -80,3 +80,43 @@ struct FWLNationData
 
 	bool IsValid() const { return !Iso.IsEmpty(); }
 };
+
+/** Ranura de construccion a la que pertenece un edificio (ver roadmap). */
+UENUM(BlueprintType)
+enum class EWLBuildingSlot : uint8
+{
+	Economic       UMETA(DisplayName = "Economico"),
+	Industrial     UMETA(DisplayName = "Industrial"),
+	Military       UMETA(DisplayName = "Militar"),
+	Naval          UMETA(DisplayName = "Naval"),
+	Air            UMETA(DisplayName = "Aereo"),
+	Tech           UMETA(DisplayName = "Tecnologico"),
+	Financial      UMETA(DisplayName = "Financiero"),
+	Infrastructure UMETA(DisplayName = "Infraestructura"),
+	Defensive      UMETA(DisplayName = "Defensivo")
+};
+
+/**
+ * Definicion estatica de un edificio construible. Se carga desde
+ * Content/Data/Buildings/Buildings.json. El coste se descuenta del tesoro de
+ * la nacion al construir; los bonus de recursos se suman al ingreso de la
+ * provincia (ver WLEconomyLibrary::CalculateBuildingIncome).
+ */
+USTRUCT(BlueprintType)
+struct FWLBuildingData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Building") FString Id;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") FString Name;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") EWLBuildingSlot Slot = EWLBuildingSlot::Economic;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int64 Cost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusOil = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusGas = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusFood = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusMinerals = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusIndustry = 0;
+
+	bool IsValid() const { return !Id.IsEmpty(); }
+};

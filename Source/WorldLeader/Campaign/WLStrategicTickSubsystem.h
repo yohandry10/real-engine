@@ -40,6 +40,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetMonthlyBalance(const FString& NationIso) const;
 
+	/**
+	 * Construye un edificio en una provincia: descuenta el coste del tesoro de
+	 * la nacion duena y registra el edificio. Devuelve false si faltan datos o
+	 * fondos; OutMessage explica el resultado.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Construction")
+	bool BuildBuilding(const FString& ProvinceId, const FString& BuildingId, FString& OutMessage);
+
+	/** IDs de edificios construidos en una provincia. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Construction")
+	TArray<FString> GetProvinceBuildings(const FString& ProvinceId) const;
+
 	UPROPERTY(BlueprintAssignable, Category = "WorldLeader|Campaign")
 	FWLOnMonthAdvanced OnMonthAdvanced;
 
@@ -50,8 +62,14 @@ private:
 	/** Tesoro nacional en runtime (ISO -> creditos). */
 	TMap<FString, int64> Treasuries;
 
+	/** Edificios construidos por provincia (provinceId -> lista de buildingId). */
+	TMap<FString, TArray<FString>> ProvinceBuildings;
+
 	void InitTreasuriesFromData();
 	void ApplyMonthlyEconomy();
+
+	/** Ingreso mensual extra de los edificios construidos en una provincia. */
+	int64 GetProvinceBuildingIncome(const FString& ProvinceId) const;
 
 	class UWLDataRegistry* GetDataRegistry() const;
 };

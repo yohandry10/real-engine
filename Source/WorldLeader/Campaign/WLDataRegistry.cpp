@@ -18,15 +18,17 @@ bool UWLDataRegistry::LoadGameData()
 {
 	Provinces.Reset();
 	Nations.Reset();
+	Buildings.Reset();
 
 	const FString DataDir = FPaths::ProjectContentDir() / TEXT("Data");
 	const bool bProvinces = LoadProvincesFromFile(DataDir / TEXT("Provinces") / TEXT("Provinces.json"));
 	const bool bNations   = LoadNationsFromFile(DataDir / TEXT("Nations") / TEXT("Nations.json"));
+	const bool bBuildings = LoadBuildingsFromFile(DataDir / TEXT("Buildings") / TEXT("Buildings.json"));
 
-	UE_LOG(LogWorldLeader, Log, TEXT("WLDataRegistry: %d provincias, %d naciones cargadas."),
-		Provinces.Num(), Nations.Num());
+	UE_LOG(LogWorldLeader, Log, TEXT("WLDataRegistry: %d provincias, %d naciones, %d edificios cargados."),
+		Provinces.Num(), Nations.Num(), Buildings.Num());
 
-	return bProvinces && bNations;
+	return bProvinces && bNations && bBuildings;
 }
 
 EWLTerrainType UWLDataRegistry::TerrainFromString(const FString& In)
@@ -40,6 +42,20 @@ EWLTerrainType UWLDataRegistry::TerrainFromString(const FString& In)
 	if (T.Contains(TEXT("maritime")) || T.Contains(TEXT("sea")))     return EWLTerrainType::Maritime;
 	if (T.Contains(TEXT("coast")))                                   return EWLTerrainType::Coastal;
 	return EWLTerrainType::Plain;
+}
+
+EWLBuildingSlot UWLDataRegistry::SlotFromString(const FString& In)
+{
+	const FString S = In.ToLower();
+	if (S == TEXT("industrial"))     return EWLBuildingSlot::Industrial;
+	if (S == TEXT("military"))       return EWLBuildingSlot::Military;
+	if (S == TEXT("naval"))          return EWLBuildingSlot::Naval;
+	if (S == TEXT("air"))            return EWLBuildingSlot::Air;
+	if (S == TEXT("tech"))           return EWLBuildingSlot::Tech;
+	if (S == TEXT("financial"))      return EWLBuildingSlot::Financial;
+	if (S == TEXT("infrastructure")) return EWLBuildingSlot::Infrastructure;
+	if (S == TEXT("defensive"))      return EWLBuildingSlot::Defensive;
+	return EWLBuildingSlot::Economic;
 }
 
 bool UWLDataRegistry::LoadProvincesFromFile(const FString& FilePath)
@@ -165,6 +181,56 @@ bool UWLDataRegistry::LoadNationsFromFile(const FString& FilePath)
 	return Nations.Num() > 0;
 }
 
+bool UWLDataRegistry::LoadBuildingsFromFile(const FString& FilePath)
+{
+	FString Raw;
+	if (!FFileHelper::LoadFileToString(Raw, *FilePath))
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("WLDataRegistry: no se pudo leer %s"), *FilePath);
+		return false;
+	}
+
+	TArray<TSharedPtr<FJsonValue>> Array;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+	if (!FJsonSerializer::Deserialize(Reader, Array))
+	{
+		UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: JSON de edificios invalido en %s"), *FilePath);
+		return false;
+	}
+
+	for (const TSharedPtr<FJsonValue>& Value : Array)
+	{
+		const TSharedPtr<FJsonObject>* ObjPtr = nullptr;
+		if (!Value.IsValid() || !Value->TryGetObject(ObjPtr) || !ObjPtr) continue;
+		const TSharedPtr<FJsonObject>& Obj = *ObjPtr;
+
+		FWLBuildingData B;
+		Obj->TryGetStringField(TEXT("id"), B.Id);
+		Obj->TryGetStringField(TEXT("name"), B.Name);
+
+		FString SlotStr;
+		Obj->TryGetStringField(TEXT("slot"), SlotStr);
+		B.Slot = SlotFromString(SlotStr);
+
+		double Cost = 0.0;
+		if (Obj->TryGetNumberField(TEXT("cost"), Cost)) B.Cost = static_cast<int64>(Cost);
+
+		int32 Tmp = 0;
+		if (Obj->TryGetNumberField(TEXT("bonus_oil"), Tmp))      B.BonusOil = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_gas"), Tmp))      B.BonusGas = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_food"), Tmp))     B.BonusFood = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_minerals"), Tmp)) B.BonusMinerals = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_industry"), Tmp)) B.BonusIndustry = Tmp;
+
+		if (B.IsValid())
+		{
+			Buildings.Add(B.Id, MoveTemp(B));
+		}
+	}
+
+	return Buildings.Num() > 0;
+}
+
 bool UWLDataRegistry::GetProvince(const FString& Id, FWLProvinceData& OutProvince) const
 {
 	if (const FWLProvinceData* Found = Provinces.Find(Id))
@@ -209,5 +275,22 @@ TArray<FWLProvinceData> UWLDataRegistry::GetProvincesByNation(const FString& Iso
 			Out.Add(Pair.Value);
 		}
 	}
+	return Out;
+}
+
+bool UWLDataRegistry::GetBuilding(const FString& Id, FWLBuildingData& OutBuilding) const
+{
+	if (const FWLBuildingData* Found = Buildings.Find(Id))
+	{
+		OutBuilding = *Found;
+		return true;
+	}
+	return false;
+}
+
+TArray<FWLBuildingData> UWLDataRegistry::GetAllBuildings() const
+{
+	TArray<FWLBuildingData> Out;
+	Buildings.GenerateValueArray(Out);
 	return Out;
 }

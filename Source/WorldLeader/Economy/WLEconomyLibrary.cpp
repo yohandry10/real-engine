@@ -29,3 +29,14 @@ int64 UWLEconomyLibrary::CalculateProvinceBalance(const FWLProvinceData& Provinc
 {
 	return CalculateProvinceIncome(Province) - CalculateProvinceUpkeep(Province);
 }
+
+int64 UWLEconomyLibrary::CalculateBuildingIncome(const FWLBuildingData& Building)
+{
+	using namespace WLConstants;
+
+	return   static_cast<int64>(Building.BonusOil)      * PriceOil
+	       + static_cast<int64>(Building.BonusGas)      * PriceGas
+	       + static_cast<int64>(Building.BonusFood)     * PriceFood
+	       + static_cast<int64>(Building.BonusMinerals) * PriceMinerals
+	       + static_cast<int64>(Building.BonusIndustry) * IndustryValue;
+}

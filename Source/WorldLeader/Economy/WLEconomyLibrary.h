@@ -29,4 +29,8 @@ public:
 	/** Balance neto mensual = ingreso - upkeep. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static int64 CalculateProvinceBalance(const FWLProvinceData& Province);
+
+	/** Ingreso mensual extra que aporta un edificio (sus bonus de recursos). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateBuildingIncome(const FWLBuildingData& Building);
 };

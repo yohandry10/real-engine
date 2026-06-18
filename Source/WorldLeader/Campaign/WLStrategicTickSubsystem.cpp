@@ -68,6 +68,7 @@ int64 UWLStrategicTickSubsystem::GetMonthlyBalance(const FString& NationIso) con
 	for (const FWLProvinceData& Province : Registry->GetProvincesByNation(NationIso))
 	{
 		Balance += UWLEconomyLibrary::CalculateProvinceBalance(Province);
+		Balance += GetProvinceBuildingIncome(Province.Id);
 	}
 	return Balance;
 }
@@ -76,4 +77,81 @@ int64 UWLStrategicTickSubsystem::GetTreasury(const FString& NationIso) const
 {
 	const int64* Found = Treasuries.Find(NationIso);
 	return Found ? *Found : 0;
+}
+
+int64 UWLStrategicTickSubsystem::GetProvinceBuildingIncome(const FString& ProvinceId) const
+{
+	const UWLDataRegistry* Registry = GetDataRegistry();
+	const TArray<FString>* Built = ProvinceBuildings.Find(ProvinceId);
+	if (!Registry || !Built)
+	{
+		return 0;
+	}
+
+	int64 Income = 0;
+	for (const FString& BuildingId : *Built)
+	{
+		FWLBuildingData Building;
+		if (Registry->GetBuilding(BuildingId, Building))
+		{
+			Income += UWLEconomyLibrary::CalculateBuildingIncome(Building);
+		}
+	}
+	return Income;
+}
+
+TArray<FString> UWLStrategicTickSubsystem::GetProvinceBuildings(const FString& ProvinceId) const
+{
+	if (const TArray<FString>* Built = ProvinceBuildings.Find(ProvinceId))
+	{
+		return *Built;
+	}
+	return TArray<FString>();
+}
+
+bool UWLStrategicTickSubsystem::BuildBuilding(const FString& ProvinceId, const FString& BuildingId, FString& OutMessage)
+{
+	const UWLDataRegistry* Registry = GetDataRegistry();
+	if (!Registry)
+	{
+		OutMessage = TEXT("Registro de datos no disponible.");
+		return false;
+	}
+
+	FWLProvinceData Province;
+	if (!Registry->GetProvince(ProvinceId, Province))
+	{
+		OutMessage = FString::Printf(TEXT("Provincia desconocida: %s"), *ProvinceId);
+		return false;
+	}
+
+	FWLBuildingData Building;
+	if (!Registry->GetBuilding(BuildingId, Building))
+	{
+		OutMessage = FString::Printf(TEXT("Edificio desconocido: %s"), *BuildingId);
+		return false;
+	}
+
+	const FString Nation = Province.CountryIso;
+	int64* Treasury = Treasuries.Find(Nation);
+	if (!Treasury)
+	{
+		OutMessage = FString::Printf(TEXT("Nacion sin tesoro: %s"), *Nation);
+		return false;
+	}
+
+	if (*Treasury < Building.Cost)
+	{
+		OutMessage = FString::Printf(TEXT("Fondos insuficientes en %s: cuesta %lld, tesoro %lld"),
+			*Nation, Building.Cost, *Treasury);
+		return false;
+	}
+
+	*Treasury -= Building.Cost;
+	ProvinceBuildings.FindOrAdd(ProvinceId).Add(BuildingId);
+
+	OutMessage = FString::Printf(TEXT("%s construido en %s (%s). Coste %lld. Tesoro %s: %lld"),
+		*Building.Name, *Province.Name, *ProvinceId, Building.Cost, *Nation, *Treasury);
+	UE_LOG(LogWorldLeader, Log, TEXT("%s"), *OutMessage);
+	return true;
 }

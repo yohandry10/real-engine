@@ -30,6 +30,10 @@ public:
 	UFUNCTION(Exec)
 	void WLPrintState();
 
+	/** Consola: construye un edificio en una provincia. Uso: WLBuild VE-ZU oil_well */
+	UFUNCTION(Exec)
+	void WLBuild(const FString& ProvinceId, const FString& BuildingId);
+
 private:
 	UWLDataRegistry* GetRegistry() const;
 	UWLStrategicTickSubsystem* GetTick() const;

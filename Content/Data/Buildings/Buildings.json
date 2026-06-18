@@ -1,0 +1,52 @@
+[
+	{
+		"id": "oil_well",
+		"name": "Pozo de petroleo",
+		"slot": "economic",
+		"cost": 5000,
+		"bonus_oil": 200
+	},
+	{
+		"id": "gas_plant",
+		"name": "Planta de gas",
+		"slot": "economic",
+		"cost": 4000,
+		"bonus_gas": 150
+	},
+	{
+		"id": "mine",
+		"name": "Mina",
+		"slot": "economic",
+		"cost": 3500,
+		"bonus_minerals": 120
+	},
+	{
+		"id": "farm",
+		"name": "Granja industrial",
+		"slot": "economic",
+		"cost": 2000,
+		"bonus_food": 100
+	},
+	{
+		"id": "factory",
+		"name": "Fabrica basica",
+		"slot": "industrial",
+		"cost": 4500,
+		"bonus_industry": 60
+	},
+	{
+		"id": "mega_factory",
+		"name": "Megafabrica",
+		"slot": "industrial",
+		"cost": 9000,
+		"bonus_industry": 140
+	},
+	{
+		"id": "refinery",
+		"name": "Refineria",
+		"slot": "industrial",
+		"cost": 7000,
+		"bonus_oil": 80,
+		"bonus_industry": 50
+	}
+]
