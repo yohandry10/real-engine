@@ -3,6 +3,8 @@
 #include "Presentation/WLCampaign3DView.h"
 
 #include "Campaign/WLDataRegistry.h"
+#include "Presentation/WLCampaignSettlementBuilder.h"
+#include "Presentation/WLCampaignWaterBuilder.h"
 #include "ProceduralMeshComponent.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -509,19 +511,25 @@ namespace
 
 AWLCampaign3DView::AWLCampaign3DView()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	RootComponent = SceneRoot;
 
 	SeaMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SeaMesh"));
 	SeaMesh->SetupAttachment(SceneRoot);
+	SeaDetailMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SeaDetailMesh"));
+	SeaDetailMesh->SetupAttachment(SceneRoot);
 
 	TerrainMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("TerrainMesh"));
 	TerrainMesh->SetupAttachment(SceneRoot);
 
 	BoundaryMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("BoundaryMesh"));
 	BoundaryMesh->SetupAttachment(SceneRoot);
+
+	SettlementMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SettlementMesh"));
+	SettlementMesh->SetupAttachment(SceneRoot);
 
 	SettlementBlockInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("SettlementBlockInstances"));
 	SettlementBlockInstances->SetupAttachment(SceneRoot);
@@ -596,6 +604,23 @@ void AWLCampaign3DView::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void AWLCampaign3DView::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!SeaDetailMesh || IsHidden())
+	{
+		return;
+	}
+
+	WaterAnimationTime += DeltaSeconds;
+	const FVector Drift(
+		FMath::Sin(WaterAnimationTime * 0.17f) * 520.f,
+		FMath::Cos(WaterAnimationTime * 0.13f) * 760.f,
+		FMath::Sin(WaterAnimationTime * 0.31f) * 42.f);
+	SeaDetailMesh->SetRelativeLocation(Drift);
+}
+
 void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 {
 	ActivePlayerNationIso = PlayerNationIso.TrimStartAndEnd().ToUpper();
@@ -607,6 +632,10 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	{
 		SeaMesh->ClearAllMeshSections();
 	}
+	if (SeaDetailMesh)
+	{
+		SeaDetailMesh->ClearAllMeshSections();
+	}
 	if (TerrainMesh)
 	{
 		TerrainMesh->ClearAllMeshSections();
@@ -614,6 +643,10 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	if (BoundaryMesh)
 	{
 		BoundaryMesh->ClearAllMeshSections();
+	}
+	if (SettlementMesh)
+	{
+		SettlementMesh->ClearAllMeshSections();
 	}
 	for (UStaticMeshComponent* Marker : ProvinceMarkers)
 	{
@@ -673,6 +706,7 @@ void AWLCampaign3DView::SetPresentationActive(bool bActive, bool bSetCamera)
 {
 	SetActorHiddenInGame(!bActive);
 	SetActorEnableCollision(bActive);
+	SetActorTickEnabled(bActive);
 	SetComponentSetActive(bActive);
 
 	if (ViewDirectionalLight)
@@ -796,62 +830,18 @@ UMaterialInstanceDynamic* AWLCampaign3DView::MakeColorMaterial(const FLinearColo
 
 void AWLCampaign3DView::BuildSea()
 {
-	if (!SeaMesh)
-	{
-		return;
-	}
+	FWLCampaignWaterBuildParams Params;
+	Params.Center = ProjectLonLat(TheaterCenterLonLat.X, TheaterCenterLonLat.Y);
+	Params.HalfSize = 760000.f;
+	Params.SeaZ = -2350.f;
+	Params.TileCount = 52;
+	Params.WaterMaterial = VertexColorMaterial;
+	Params.DetailMaterial = VertexColorMaterial;
 
-	const FVector Center = ProjectLonLat(TheaterCenterLonLat.X, TheaterCenterLonLat.Y);
-	const float SeaHalfSize = 760000.f;
-	const float SeaZ = -2150.f;
-	const int32 TileCount = 18;
-
-	TArray<FVector> Verts;
-	TArray<int32> Tris;
-	TArray<FVector2D> UVs;
-	TArray<FColor> Colors;
-	Verts.Reserve((TileCount + 1) * (TileCount + 1));
-	UVs.Reserve((TileCount + 1) * (TileCount + 1));
-	Colors.Reserve((TileCount + 1) * (TileCount + 1));
-	for (int32 Y = 0; Y <= TileCount; ++Y)
+	FWLCampaignWaterBuilder::Build(SeaMesh, SeaDetailMesh, Params, [this](float Lon, float Lat)
 	{
-		for (int32 X = 0; X <= TileCount; ++X)
-		{
-			const float U = static_cast<float>(X) / static_cast<float>(TileCount);
-			const float V = static_cast<float>(Y) / static_cast<float>(TileCount);
-			const float WorldX = FMath::Lerp(Center.X - SeaHalfSize, Center.X + SeaHalfSize, U);
-			const float WorldY = FMath::Lerp(Center.Y - SeaHalfSize, Center.Y + SeaHalfSize, V);
-			const float Ripple = FMath::Sin(WorldX * 0.000035f + WorldY * 0.000018f) * 90.f
-				+ FMath::Cos(WorldY * 0.000026f) * 55.f;
-			Verts.Add(FVector(WorldX, WorldY, SeaZ + Ripple));
-			UVs.Add(FVector2D(U, V));
-			const float Shelf = FMath::Clamp(0.35f + 0.23f * FMath::Sin(U * PI * 3.0f + V * 0.7f), 0.f, 1.f);
-			const FLinearColor Deep(0.004f, 0.026f, 0.041f);
-			const FLinearColor Mid(0.018f, 0.075f, 0.092f);
-			Colors.Add(ToVertexFColor(FMath::Lerp(Deep, Mid, Shelf)));
-		}
-	}
-	for (int32 Y = 0; Y < TileCount; ++Y)
-	{
-		for (int32 X = 0; X < TileCount; ++X)
-		{
-			const int32 Base = Y * (TileCount + 1) + X;
-			Tris.Add(Base);
-			Tris.Add(Base + TileCount + 1);
-			Tris.Add(Base + 1);
-			Tris.Add(Base + 1);
-			Tris.Add(Base + TileCount + 1);
-			Tris.Add(Base + TileCount + 2);
-		}
-	}
-	TArray<FVector> Normals;
-	Normals.Init(FVector::UpVector, Verts.Num());
-	TArray<FProcMeshTangent> Tangents;
-	SeaMesh->CreateMeshSection(0, Verts, Tris, Normals, UVs, Colors, Tangents, false);
-	if (VertexColorMaterial)
-	{
-		SeaMesh->SetMaterial(0, VertexColorMaterial);
-	}
+		return ProjectLonLat(Lon, Lat);
+	});
 }
 
 void AWLCampaign3DView::BuildTerrain()
@@ -1173,19 +1163,17 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddPathPolyline({ FVector2D(-67.5f, 5.4f), FVector2D(-66.0f, 6.4f), FVector2D(-64.1f, 7.2f), FVector2D(-62.5f, 8.1f), FVector2D(-61.5f, 8.7f) },
 		FLinearColor(0.040f, 0.135f, 0.175f, 1.f), 0.76f, 620.f);
 
-	AddPathPolyline({ FVector2D(-75.3f, 13.0f), FVector2D(-72.0f, 12.2f), FVector2D(-69.5f, 12.0f), FVector2D(-66.0f, 11.8f), FVector2D(-63.8f, 11.0f) },
-		FLinearColor(0.030f, 0.135f, 0.185f, 0.68f), 0.42f, 130.f);
-
-	AddSettlementCluster(TEXT("Bogota"), -74.1f, 4.6f, true, false, FLinearColor(0.96f, 0.74f, 0.28f));
-	AddSettlementCluster(TEXT("Medellin"), -75.58f, 6.25f, false, false, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Cartagena"), -75.5f, 10.4f, false, true, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Barranquilla"), -74.8f, 10.98f, false, true, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Riohacha"), -72.9f, 11.5f, false, true, FLinearColor(0.66f, 0.62f, 0.46f));
-	AddSettlementCluster(TEXT("Maracaibo"), -71.6f, 10.6f, false, true, FLinearColor(0.84f, 0.55f, 0.32f));
-	AddSettlementCluster(TEXT("Caracas"), -66.9f, 10.5f, true, false, FLinearColor(0.92f, 0.58f, 0.34f));
-	AddSettlementCluster(TEXT("Valencia"), -68.0f, 10.2f, false, false, FLinearColor(0.78f, 0.52f, 0.34f));
-	AddSettlementCluster(TEXT("Barcelona"), -64.7f, 10.1f, false, true, FLinearColor(0.78f, 0.52f, 0.34f));
-	AddSettlementCluster(TEXT("Guayana"), -62.6f, 8.3f, false, false, FLinearColor(0.62f, 0.54f, 0.36f));
+	AddSettlementCluster(TEXT("Bogota"), -74.1f, 4.6f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("Medellin"), -75.58f, 6.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("Cartagena"), -75.5f, 10.4f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("Barranquilla"), -74.8f, 10.98f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("Riohacha"), -72.9f, 11.5f, EWLCampaignSettlementType::Port, FLinearColor(0.66f, 0.62f, 0.46f));
+	AddSettlementCluster(TEXT("Cucuta"), -72.5f, 7.9f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+	AddSettlementCluster(TEXT("Maracaibo"), -71.6f, 10.6f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("Caracas"), -66.9f, 10.5f, EWLCampaignSettlementType::Capital, FLinearColor(0.92f, 0.58f, 0.34f));
+	AddSettlementCluster(TEXT("Valencia"), -68.0f, 10.2f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("Barcelona"), -64.7f, 10.1f, EWLCampaignSettlementType::Port, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("Guayana"), -62.6f, 8.3f, EWLCampaignSettlementType::Industrial, FLinearColor(0.62f, 0.54f, 0.36f));
 
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
@@ -1216,56 +1204,38 @@ void AWLCampaign3DView::AddBiomePatch(const TArray<FVector2D>& LonLatPoints, con
 	AddTerrainPatch(LonLatPoints, Color, ZOffset);
 }
 
-void AWLCampaign3DView::AddSettlementCluster(const FString& Name, float Lon, float Lat, bool bCapital, bool bPort, const FLinearColor& AccentColor)
+void AWLCampaign3DView::AddSettlementCluster(
+	const FString& Name,
+	float Lon,
+	float Lat,
+	EWLCampaignSettlementType Type,
+	const FLinearColor& AccentColor)
 {
-	const FVector Base = ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, bCapital ? 1850.f : 1500.f);
-	const float CityScale = bCapital ? 1.55f : 1.16f;
-	const FVector2D Offsets[] = {
-		FVector2D(0.f, 0.f), FVector2D(1550.f, 650.f), FVector2D(-1350.f, 520.f),
-		FVector2D(650.f, -1250.f), FVector2D(-900.f, -850.f), FVector2D(2100.f, -450.f)
-	};
-
-	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Offsets); ++Index)
-	{
-		const FVector Location = Base + FVector(Offsets[Index].X * CityScale, Offsets[Index].Y * CityScale, 0.f);
-		const FRotator Rotation(0.f, 18.f * Index + (bCapital ? 12.f : 0.f), 0.f);
-		const FVector Scale((bCapital ? 10.8f : 7.9f) + Index * 0.35f, (bCapital ? 8.2f : 6.1f), (bCapital ? 6.2f : 3.9f) + (Index % 3));
-		AddInstance(SettlementBlockInstances, Location, Rotation, Scale);
-	}
-
-	AddInstance(SettlementTowerInstances, Base + FVector(0.f, 0.f, bCapital ? 1350.f : 830.f), FRotator(0.f, 25.f, 0.f), FVector(bCapital ? 6.7f : 4.8f, bCapital ? 6.7f : 4.8f, bCapital ? 13.5f : 8.2f));
-	if (bPort)
-	{
-		const FVector PortBase = Base + FVector(0.f, -3150.f, -360.f);
-		AddInstance(PortInstances, PortBase, FRotator(0.f, 8.f, 0.f), FVector(24.f, 4.0f, 0.9f));
-		AddInstance(PortInstances, PortBase + FVector(1650.f, -840.f, 0.f), FRotator(0.f, -12.f, 0.f), FVector(13.f, 2.8f, 0.8f));
-	}
-
-	if (CityMesh)
-	{
-		UStaticMeshComponent* Beacon = NewObject<UStaticMeshComponent>(this);
-		Beacon->SetupAttachment(SceneRoot);
-		Beacon->RegisterComponent();
-		Beacon->SetStaticMesh(CityMesh);
-		Beacon->SetWorldLocation(Base + FVector(0.f, 0.f, bCapital ? 1750.f : 1180.f));
-		Beacon->SetWorldScale3D(FVector(bCapital ? 7.4f : 4.8f));
-		Beacon->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-		Beacon->SetCollisionResponseToAllChannels(ECR_Ignore);
-		Beacon->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(AccentColor))
+	FWLCampaignSettlementSpec Spec;
+	Spec.Name = Name;
+	Spec.Lon = Lon;
+	Spec.Lat = Lat;
+	Spec.Type = Type;
+	Spec.AccentColor = AccentColor;
+	FWLCampaignSettlementBuilder::AddSettlement(
+		SettlementMesh,
+		VertexColorMaterial,
+		Spec,
+		[this](float InLon, float InLat)
 		{
-			Beacon->SetMaterial(0, Mat);
-		}
-		VisualComponents.Add(Beacon);
-	}
+			return ProjectLonLat(InLon, InLat);
+		});
 
+	const bool bCapital = Type == EWLCampaignSettlementType::Capital;
+	const bool bSmall = Type == EWLCampaignSettlementType::Frontier;
+	const FVector Base = ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, bCapital ? 2450.f : 2050.f);
 	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
 	Label->SetupAttachment(SceneRoot);
 	Label->RegisterComponent();
-	Label->SetWorldLocation(Base + FVector(0.f, 0.f, bCapital ? 4500.f : 3200.f));
+	Label->SetWorldLocation(Base + FVector(0.f, 0.f, bCapital ? 2350.f : 1720.f));
 	Label->SetWorldRotation(FRotator(62.f, 0.f, 0.f));
 	Label->SetHorizontalAlignment(EHTA_Center);
-	Label->SetWorldSize(bCapital ? 720.f : 520.f);
+	Label->SetWorldSize(bCapital ? 720.f : (bSmall ? 430.f : 540.f));
 	Label->SetText(FText::FromString(Name));
 	Label->SetTextRenderColor(bCapital ? FColor(230, 210, 140) : FColor(195, 205, 190));
 	Labels.Add(Label);
@@ -1449,28 +1419,28 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 		FVector(0.f, 0.f, 26000.f),
 		FRotator::ZeroRotator);
 
-	const FVector Center = ProjectLonLat(-69.0f, 7.3f) + FVector(0.f, 0.f, 2600.f);
+	const FVector Center = ProjectLonLat(-69.3f, 7.05f) + FVector(0.f, 0.f, 2600.f);
 	ViewFog = World->SpawnActor<AExponentialHeightFog>(
 		AExponentialHeightFog::StaticClass(),
 		Center + FVector(0.f, 0.f, 1200.f),
 		FRotator::ZeroRotator);
 	if (ViewFog && ViewFog->GetComponent())
 	{
-		ViewFog->GetComponent()->SetFogDensity(0.00072f);
-		ViewFog->GetComponent()->SetFogHeightFalloff(0.075f);
-		ViewFog->GetComponent()->SetFogMaxOpacity(0.24f);
-		ViewFog->GetComponent()->SetStartDistance(72000.f);
-		ViewFog->GetComponent()->SetFogInscatteringColor(FLinearColor(0.018f, 0.030f, 0.030f));
+		ViewFog->GetComponent()->SetFogDensity(0.00034f);
+		ViewFog->GetComponent()->SetFogHeightFalloff(0.060f);
+		ViewFog->GetComponent()->SetFogMaxOpacity(0.14f);
+		ViewFog->GetComponent()->SetStartDistance(118000.f);
+		ViewFog->GetComponent()->SetFogInscatteringColor(FLinearColor(0.010f, 0.018f, 0.019f));
 	}
 
-	const FVector CameraLocation = Center + FVector(-84000.f, -135000.f, 78000.f);
+	const FVector CameraLocation = Center + FVector(-76000.f, -118000.f, 69000.f);
 	ViewCamera = World->SpawnActor<ACameraActor>(
 		ACameraActor::StaticClass(),
 		CameraLocation,
 		(Center - CameraLocation).Rotation());
 	if (ViewCamera && ViewCamera->GetCameraComponent())
 	{
-		ViewCamera->GetCameraComponent()->SetFieldOfView(46.f);
+		ViewCamera->GetCameraComponent()->SetFieldOfView(43.f);
 	}
 }
 
@@ -1505,6 +1475,11 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		SeaMesh->SetVisibility(bActive, true);
 		SeaMesh->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 	}
+	if (SeaDetailMesh)
+	{
+		SeaDetailMesh->SetVisibility(bActive, true);
+		SeaDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 	if (TerrainMesh)
 	{
 		TerrainMesh->SetVisibility(bActive, true);
@@ -1514,6 +1489,11 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	{
 		BoundaryMesh->SetVisibility(bActive, true);
 		BoundaryMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (SettlementMesh)
+	{
+		SettlementMesh->SetVisibility(bActive, true);
+		SettlementMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	for (UStaticMeshComponent* Marker : ProvinceMarkers)
 	{

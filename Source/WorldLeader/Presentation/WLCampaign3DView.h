@@ -20,6 +20,7 @@ class UStaticMesh;
 class UStaticMeshComponent;
 class UTextRenderComponent;
 class UWLDataRegistry;
+enum class EWLCampaignSettlementType : uint8;
 
 USTRUCT(BlueprintType)
 struct FWLCampaign3DProvinceView
@@ -47,6 +48,7 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign3D")
 	void BuildView(const FString& PlayerNationIso);
@@ -70,7 +72,9 @@ private:
 	UPROPERTY() USceneComponent* SceneRoot = nullptr;
 	UPROPERTY() UProceduralMeshComponent* TerrainMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SeaMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* SeaDetailMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* BoundaryMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* SettlementMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
 	UPROPERTY() UMaterialInterface* VertexColorMaterial = nullptr;
 	UPROPERTY() UStaticMesh* CityMesh = nullptr;
@@ -96,6 +100,7 @@ private:
 	FString ActivePlayerNationIso;
 	FBox2D Bounds;
 	bool bHasBuiltView = false;
+	float WaterAnimationTime = 0.f;
 
 	UWLDataRegistry* GetRegistry() const;
 	FVector ProjectLonLat(float Lon, float Lat) const;
@@ -112,7 +117,12 @@ private:
 	void AddBoundaryRibbon(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float WidthWorld, float ZOffset);
 	void AddPathPolyline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale, float ZOffset);
 	void AddBiomePatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);
-	void AddSettlementCluster(const FString& Name, float Lon, float Lat, bool bCapital, bool bPort, const FLinearColor& AccentColor);
+	void AddSettlementCluster(
+		const FString& Name,
+		float Lon,
+		float Lat,
+		EWLCampaignSettlementType Type,
+		const FLinearColor& AccentColor);
 	void AddVegetationScatter(float MinLon, float MaxLon, float MinLat, float MaxLat, int32 Columns, int32 Rows, bool bDenseJungle);
 	void AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale);
 	void ConfigureInstancedComponent(UInstancedStaticMeshComponent* Component, UStaticMesh* Mesh, const FLinearColor& Color);
