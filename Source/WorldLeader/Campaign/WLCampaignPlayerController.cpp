@@ -126,6 +126,7 @@ void AWLCampaignPlayerController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	UpdateMapCamera(DeltaSeconds);
+	UpdateCampaignForceHover();
 }
 
 void AWLCampaignPlayerController::SetupInputComponent()
@@ -296,6 +297,16 @@ void AWLCampaignPlayerController::OnSelectCountry()
 			return false;
 		}
 
+		FWLCampaign3DForceView ForceView;
+		if (Campaign3DView->TryGetForceNearWorldLocation(WorldLocation, 15000.f, ForceView))
+		{
+			SelectCampaignForce(ForceView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Fuerza seleccionada en Campaign 3D: %s."), *SelectedForceName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected force by %s: %s (%s)"), SourceLabel, *SelectedForceName, *SelectedForceId);
+			return true;
+		}
+
 		FWLCampaign3DCityView CityView;
 		if (Campaign3DView->TryGetCityNearWorldLocation(WorldLocation, 18500.f, CityView))
 		{
@@ -353,6 +364,24 @@ void AWLCampaignPlayerController::OnSelectCountry()
 		{
 			CachePresentationActors();
 		}
+		FWLCampaign3DForceView ForceView;
+		if (Campaign3DView && Campaign3DView->TryGetForceForComponent(Hit.GetComponent(), ForceView))
+		{
+			SelectCampaignForce(ForceView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Fuerza seleccionada en Campaign 3D: %s."), *SelectedForceName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected force: %s (%s)"), *SelectedForceName, *SelectedForceId);
+			return;
+		}
+		if (Campaign3DView && Campaign3DView->TryGetForceNearWorldLocation(Hit.Location, 15000.f, ForceView))
+		{
+			SelectCampaignForce(ForceView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Fuerza seleccionada en Campaign 3D: %s."), *SelectedForceName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected force by location: %s (%s)"), *SelectedForceName, *SelectedForceId);
+			return;
+		}
+
 		FWLCampaign3DCityView CityView;
 		if (Campaign3DView && Campaign3DView->TryGetCityForComponent(Hit.GetComponent(), CityView))
 		{
@@ -395,6 +424,7 @@ void AWLCampaignPlayerController::OnSelectCountry()
 			if (SelectProvince(ProvinceView.Id))
 			{
 				ClearSelectedCity();
+				ClearSelectedForce();
 				ActiveSelectionKind = EWLCampaignSelectionKind::Province;
 				SelectedPanelObjectId = SelectedProvinceId;
 				SelectedTerritoryId = SelectedProvinceId;
@@ -909,6 +939,12 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 		return true;
 	}
 
+	if (ActiveSelectionKind == EWLCampaignSelectionKind::Force)
+	{
+		SetLastActionMessage(TEXT("Acciones militares bloqueadas: esta fase solo muestra marcadores placeholder."), true);
+		return true;
+	}
+
 	const TArray<FString> SlotLabels = GetCampaignControllerPanelSlots(this);
 	const bool bCityMode = ActiveSelectionKind == EWLCampaignSelectionKind::City;
 	const EWLCampaignBuildingPanelContext Context = FWLCampaignBuildingSlotRules::ContextFromCityMode(bCityMode);
@@ -1202,6 +1238,54 @@ void AWLCampaignPlayerController::ZoomCampaignCamera(float ZoomFactor)
 		SetLastActionMessage(FString::Printf(TEXT("Zoom Campaign 3D: %s %.0fk."),
 			*Campaign3DView->GetCurrentZoomLODLabel(), Location.Z / 1000.f), true);
 	}
+}
+
+void AWLCampaignPlayerController::UpdateCampaignForceHover()
+{
+	if (!HasCampaignInput() || ActivePresentationMode != EWLCampaignPresentationMode::Campaign3D)
+	{
+		if (Campaign3DView)
+		{
+			Campaign3DView->SetHoveredForceHighlight(TEXT(""));
+		}
+		return;
+	}
+
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (!Campaign3DView)
+	{
+		return;
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY) || IsScreenPointOverCampaignHud(MouseX, MouseY))
+	{
+		Campaign3DView->SetHoveredForceHighlight(TEXT(""));
+		return;
+	}
+
+	FWLCampaign3DForceView ForceView;
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit)
+		&& Campaign3DView->TryGetForceForComponent(Hit.GetComponent(), ForceView))
+	{
+		Campaign3DView->SetHoveredForceHighlight(ForceView.Id);
+		return;
+	}
+
+	FVector GroundPoint = FVector::ZeroVector;
+	if (GetCampaignGroundPointFromScreen(MouseX, MouseY, GroundPoint)
+		&& Campaign3DView->TryGetForceNearWorldLocation(GroundPoint, 15000.f, ForceView))
+	{
+		Campaign3DView->SetHoveredForceHighlight(ForceView.Id);
+		return;
+	}
+
+	Campaign3DView->SetHoveredForceHighlight(TEXT(""));
 }
 
 FVector AWLCampaignPlayerController::GetCampaignAmericaFocusPoint() const
@@ -1560,6 +1644,28 @@ void AWLCampaignPlayerController::ClearSelectedCity()
 	SelectedCityType.Reset();
 }
 
+void AWLCampaignPlayerController::ClearSelectedForce()
+{
+	SelectedForceId.Reset();
+	SelectedForceName.Reset();
+	SelectedForceCountryIso.Reset();
+	SelectedForceCountryName.Reset();
+	SelectedForceType.Reset();
+	SelectedForceLocation.Reset();
+	SelectedForceProvinceId.Reset();
+	SelectedForceProvinceName.Reset();
+	SelectedForceNearbyCity.Reset();
+	SelectedForceMobility.Reset();
+	SelectedForceOperationalState.Reset();
+	SelectedForceSupply.Reset();
+	SelectedForceMorale.Reset();
+	SelectedForcePosture.Reset();
+	SelectedForceStrategicRole.Reset();
+	SelectedForceDetailLevel.Reset();
+	SelectedForceDisabledActions.Reset();
+	SelectedForceEstimatedStrength = 0;
+}
+
 void AWLCampaignPlayerController::ClearCampaignBuildingSelection()
 {
 	SelectedBuildingSlotKey.Reset();
@@ -1575,6 +1681,7 @@ void AWLCampaignPlayerController::ClearCampaignSelection()
 	ClearSelectedCountry();
 	ClearSelectedProvince();
 	ClearSelectedCity();
+	ClearSelectedForce();
 	ClearCampaignBuildingSelection();
 	ActiveSelectionKind = EWLCampaignSelectionKind::None;
 	SelectedPanelObjectId.Reset();
@@ -1718,6 +1825,7 @@ bool AWLCampaignPlayerController::SelectProvince(const FString& ProvinceId)
 void AWLCampaignPlayerController::SelectCampaignTerritory(const FWLCampaignTerritoryRegionView& Territory)
 {
 	ClearSelectedCity();
+	ClearSelectedForce();
 	ClearSelectedProvince();
 	ClearCampaignBuildingSelection();
 	ActiveSelectionKind = EWLCampaignSelectionKind::Province;
@@ -1743,6 +1851,7 @@ void AWLCampaignPlayerController::SelectCampaignTerritory(const FWLCampaignTerri
 void AWLCampaignPlayerController::SelectCampaignCity(const FWLCampaign3DCityView& City)
 {
 	ClearSelectedProvince();
+	ClearSelectedForce();
 	ClearCampaignBuildingSelection();
 	ActiveSelectionKind = EWLCampaignSelectionKind::City;
 	SelectedPanelObjectId = City.Id;
@@ -1764,6 +1873,46 @@ void AWLCampaignPlayerController::SelectCampaignCity(const FWLCampaign3DCityView
 	if (Campaign3DView)
 	{
 		Campaign3DView->SetSelectedCityHighlight(City.Id);
+	}
+}
+
+void AWLCampaignPlayerController::SelectCampaignForce(const FWLCampaign3DForceView& Force)
+{
+	ClearSelectedProvince();
+	ClearSelectedCity();
+	ClearCampaignBuildingSelection();
+	ActiveSelectionKind = EWLCampaignSelectionKind::Force;
+	SelectedPanelObjectId = Force.Id;
+	SelectedTerritoryId.Reset();
+	SelectedTerritoryName.Reset();
+	SelectedTerritoryCountryIso.Reset();
+	SelectedTerritoryType.Reset();
+	SelectedForceId = Force.Id;
+	SelectedForceName = Force.Name;
+	SelectedForceCountryIso = Force.CountryIso;
+	SelectedForceCountryName = Force.CountryName;
+	SelectedForceType = Force.ForceType;
+	SelectedForceLocation = Force.LocationName;
+	SelectedForceProvinceId = Force.ProvinceId;
+	SelectedForceProvinceName = Force.ProvinceName;
+	SelectedForceNearbyCity = Force.NearbyCity;
+	SelectedForceMobility = Force.Mobility;
+	SelectedForceOperationalState = Force.OperationalState;
+	SelectedForceSupply = Force.Supply;
+	SelectedForceMorale = Force.Morale;
+	SelectedForcePosture = Force.Posture;
+	SelectedForceStrategicRole = Force.StrategicRole;
+	SelectedForceDetailLevel = Force.DetailLevel;
+	SelectedForceDisabledActions = Force.DisabledActions;
+	SelectedForceEstimatedStrength = Force.EstimatedStrength;
+
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (Campaign3DView)
+	{
+		Campaign3DView->SetSelectedForceHighlight(Force.Id);
 	}
 }
 

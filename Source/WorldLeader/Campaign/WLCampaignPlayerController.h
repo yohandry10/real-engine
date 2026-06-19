@@ -14,6 +14,7 @@ class AWLWorldMap;
 class AWLCampaign3DView;
 class UWLMainMenuWidget;
 struct FWLCampaign3DCityView;
+struct FWLCampaign3DForceView;
 struct FWLCampaignTerritoryRegionView;
 struct FInputKeyEventArgs;
 
@@ -29,7 +30,8 @@ enum class EWLCampaignSelectionKind : uint8
 {
 	None,
 	Province,
-	City
+	City,
+	Force
 };
 
 /**
@@ -81,6 +83,24 @@ public:
 	const FString& GetSelectedCityTerritoryId() const { return SelectedCityTerritoryId; }
 	const FString& GetSelectedCityTerritoryName() const { return SelectedCityTerritoryName; }
 	const FString& GetSelectedCityType() const { return SelectedCityType; }
+	const FString& GetSelectedForceId() const { return SelectedForceId; }
+	const FString& GetSelectedForceName() const { return SelectedForceName; }
+	const FString& GetSelectedForceCountryIso() const { return SelectedForceCountryIso; }
+	const FString& GetSelectedForceCountryName() const { return SelectedForceCountryName; }
+	const FString& GetSelectedForceType() const { return SelectedForceType; }
+	const FString& GetSelectedForceLocation() const { return SelectedForceLocation; }
+	const FString& GetSelectedForceProvinceId() const { return SelectedForceProvinceId; }
+	const FString& GetSelectedForceProvinceName() const { return SelectedForceProvinceName; }
+	const FString& GetSelectedForceNearbyCity() const { return SelectedForceNearbyCity; }
+	const FString& GetSelectedForceMobility() const { return SelectedForceMobility; }
+	const FString& GetSelectedForceOperationalState() const { return SelectedForceOperationalState; }
+	const FString& GetSelectedForceSupply() const { return SelectedForceSupply; }
+	const FString& GetSelectedForceMorale() const { return SelectedForceMorale; }
+	const FString& GetSelectedForcePosture() const { return SelectedForcePosture; }
+	const FString& GetSelectedForceStrategicRole() const { return SelectedForceStrategicRole; }
+	const FString& GetSelectedForceDetailLevel() const { return SelectedForceDetailLevel; }
+	const TArray<FString>& GetSelectedForceDisabledActions() const { return SelectedForceDisabledActions; }
+	int32 GetSelectedForceEstimatedStrength() const { return SelectedForceEstimatedStrength; }
 	bool HasSelectedBuildingSlot() const { return !SelectedBuildingSlotKey.IsEmpty(); }
 	const FString& GetSelectedBuildingSlotKey() const { return SelectedBuildingSlotKey; }
 	const FString& GetSelectedBuildingSlotLabel() const { return SelectedBuildingSlotLabel; }
@@ -131,6 +151,7 @@ private:
 	void MoveCampaignCamera(const FVector2D& Delta);
 	void ZoomMapCamera(float ZoomFactor);
 	void ZoomCampaignCamera(float ZoomFactor);
+	void UpdateCampaignForceHover();
 	FVector GetCampaignAmericaFocusPoint() const;
 	bool GetCampaignGroundPointFromScreen(float ScreenX, float ScreenY, FVector& OutWorldPoint);
 	bool GetCampaignZoomAnchor(FVector& OutAnchor, FVector2D& OutScreenPoint);
@@ -146,6 +167,7 @@ private:
 	void ClearSelectedCountry();
 	void ClearSelectedProvince();
 	void ClearSelectedCity();
+	void ClearSelectedForce();
 	void ClearCampaignSelection();
 	void ClearCampaignBuildingSelection();
 	void SelectCampaignBuildingSlot(const FString& SlotLabel, int32 SlotIndex, bool bCityMode);
@@ -153,6 +175,7 @@ private:
 	bool SelectProvince(const FString& ProvinceId);
 	void SelectCampaignTerritory(const FWLCampaignTerritoryRegionView& Territory);
 	void SelectCampaignCity(const FWLCampaign3DCityView& City);
+	void SelectCampaignForce(const FWLCampaign3DForceView& Force);
 	bool BuildRecommendedInSelectedProvince(FString& OutMessage);
 	bool PickRecommendedBuilding(const FWLProvinceData& Province, FWLBuildingData& OutBuilding) const;
 	void SetLastActionMessage(const FString& Message, bool bSucceeded);
@@ -207,6 +230,24 @@ private:
 	FString SelectedCityTerritoryId;
 	FString SelectedCityTerritoryName;
 	FString SelectedCityType;
+	FString SelectedForceId;
+	FString SelectedForceName;
+	FString SelectedForceCountryIso;
+	FString SelectedForceCountryName;
+	FString SelectedForceType;
+	FString SelectedForceLocation;
+	FString SelectedForceProvinceId;
+	FString SelectedForceProvinceName;
+	FString SelectedForceNearbyCity;
+	FString SelectedForceMobility;
+	FString SelectedForceOperationalState;
+	FString SelectedForceSupply;
+	FString SelectedForceMorale;
+	FString SelectedForcePosture;
+	FString SelectedForceStrategicRole;
+	FString SelectedForceDetailLevel;
+	TArray<FString> SelectedForceDisabledActions;
+	int32 SelectedForceEstimatedStrength = 0;
 
 	TMap<FString, FString> CampaignPlaceholderBuildingsBySlot;
 	FString SelectedBuildingSlotKey;

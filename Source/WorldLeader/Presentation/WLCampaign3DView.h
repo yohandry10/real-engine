@@ -64,6 +64,37 @@ struct FWLCampaign3DCityView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bPort = false;
 };
 
+USTRUCT(BlueprintType)
+struct FWLCampaign3DForceView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Id;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Name;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString CountryIso;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString CountryName;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ForceType;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString MarkerCategory;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString LocationName;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ProvinceId;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ProvinceName;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString NearbyCity;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Mobility;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString OperationalState;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Supply;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Morale;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Posture;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString StrategicRole;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString DetailLevel;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") TArray<FString> DisabledActions;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FVector WorldLocation = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") float Lon = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") float Lat = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 EstimatedStrength = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bAir = false;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bNaval = false;
+};
+
 /**
  * Presentation layer principal de campania. Es una escena 3D regional
  * Colombia/Venezuela que lee datos compartidos; no contiene reglas de juego.
@@ -91,8 +122,12 @@ public:
 	bool TryGetTerritoryAtWorldLocation(const FVector& WorldLocation, FWLCampaignTerritoryRegionView& OutTerritory) const;
 	bool TryGetCityForComponent(const UPrimitiveComponent* Component, FWLCampaign3DCityView& OutCity) const;
 	bool TryGetCityNearWorldLocation(const FVector& WorldLocation, float MaxDistance, FWLCampaign3DCityView& OutCity) const;
+	bool TryGetForceForComponent(const UPrimitiveComponent* Component, FWLCampaign3DForceView& OutForce) const;
+	bool TryGetForceNearWorldLocation(const FVector& WorldLocation, float MaxDistance, FWLCampaign3DForceView& OutForce) const;
 	void SetSelectedProvinceHighlight(const FString& ProvinceId);
 	void SetSelectedCityHighlight(const FString& CityId);
+	void SetSelectedForceHighlight(const FString& ForceId);
+	void SetHoveredForceHighlight(const FString& ForceId);
 	void ClearSelectionHighlight();
 	FBox2D GetViewBounds2D() const;
 	FBox2D GetCameraBounds2D(float CameraHeight) const;
@@ -136,6 +171,9 @@ private:
 	UPROPERTY() UInstancedStaticMeshComponent* ArmyMarkerInstances = nullptr;
 	UPROPERTY() TArray<UStaticMeshComponent*> ProvinceMarkers;
 	UPROPERTY() TArray<UPrimitiveComponent*> CitySelectionMarkers;
+	UPROPERTY() TArray<UStaticMeshComponent*> ForceMarkerComponents;
+	UPROPERTY() TArray<UPrimitiveComponent*> ForceSelectionMarkers;
+	UPROPERTY() TArray<UTextRenderComponent*> ForceMarkerLabels;
 	UPROPERTY() TArray<UStaticMeshComponent*> VisualComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> RouteSegments;
 	UPROPERTY() TArray<UTextRenderComponent*> Labels;
@@ -143,6 +181,7 @@ private:
 	TArray<uint8> OverviewLabelVisibilityMasks;
 	UPROPERTY() TArray<FWLCampaign3DProvinceView> ProvinceViews;
 	UPROPERTY() TArray<FWLCampaign3DCityView> CityViews;
+	UPROPERTY() TArray<FWLCampaign3DForceView> ForceViews;
 	UPROPERTY() UWLCampaignTerritoryLayerComponent* TerritoryLayer = nullptr;
 	UPROPERTY() ADirectionalLight* ViewDirectionalLight = nullptr;
 	UPROPERTY() ASkyLight* ViewSkyLight = nullptr;
@@ -157,6 +196,10 @@ private:
 	EWLCampaign3DZoomLOD CurrentZoomLOD = EWLCampaign3DZoomLOD::Theater;
 	FString SelectedProvinceHighlightId;
 	FString SelectedCityHighlightId;
+	FString SelectedForceHighlightId;
+	FString HoveredForceHighlightId;
+	TArray<FVector> ForceMarkerBaseScales;
+	TArray<FLinearColor> ForceMarkerBaseColors;
 	bool bHasBuiltView = false;
 	float WaterAnimationTime = 0.f;
 
@@ -187,6 +230,9 @@ private:
 		EWLCampaignSettlementType Type,
 		const FLinearColor& AccentColor);
 	void AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale);
+	void AddMilitaryForceMarkers();
+	void AddMilitaryForceMarker(const FWLCampaign3DForceView& Force);
+	void RefreshMilitaryForceMarkerVisuals();
 	void RebuildPointSelectionHighlight(const FVector& Location, float Radius, const FLinearColor& Color);
 	void AddVegetationScatter(float MinLon, float MaxLon, float MinLat, float MaxLat, int32 Columns, int32 Rows, bool bDenseJungle);
 	void AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale);

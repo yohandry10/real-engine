@@ -526,6 +526,88 @@ namespace
 
 		HUD->DrawText(ShortenForPanel(Entry.DetailLevel, 46), Muted, PanelX + 18.f, PanelY + PanelH - 24.f, SmallFont, 0.70f);
 	}
+
+	void DrawCampaignForcePanel(
+		AWLCampaignHUD* HUD,
+		UCanvas* Canvas,
+		UFont* Font,
+		UFont* SmallFont,
+		const AWLCampaignPlayerController* PC)
+	{
+		if (!HUD || !Canvas || !PC || PC->GetCampaignSelectionKind() != EWLCampaignSelectionKind::Force)
+		{
+			return;
+		}
+
+		const float W = Canvas->ClipX;
+		const float H = Canvas->ClipY;
+		const float PanelW = 430.f;
+		const float PanelX = W - 468.f;
+		const float PanelY = 154.f;
+		const float PanelH = FMath::Clamp(H - PanelY - 54.f, 360.f, 690.f);
+		const FLinearColor Panel(0.010f, 0.018f, 0.022f, 0.94f);
+		const FLinearColor PanelSoft(0.020f, 0.036f, 0.042f, 0.90f);
+		const FLinearColor Gold(0.88f, 0.70f, 0.26f, 1.f);
+		const FLinearColor Text(0.88f, 0.93f, 0.94f, 1.f);
+		const FLinearColor Muted(0.55f, 0.66f, 0.68f, 1.f);
+		const FLinearColor Disabled(0.18f, 0.22f, 0.23f, 0.88f);
+
+		HUD->DrawRect(Panel, PanelX, PanelY, PanelW, PanelH);
+		HUD->DrawRect(FLinearColor(0.50f, 0.40f, 0.18f, 0.90f), PanelX, PanelY, PanelW, 3.f);
+		HUD->DrawRect(PanelSoft, PanelX + 14.f, PanelY + 14.f, PanelW - 28.f, 68.f);
+		HUD->DrawRect(FLinearColor(0.06f, 0.09f, 0.095f, 0.95f), PanelX + PanelW - 38.f, PanelY + 14.f, 24.f, 24.f);
+		HUD->DrawText(TEXT("X"), Gold, PanelX + PanelW - 32.f, PanelY + 17.f, Font, 0.74f);
+
+		float Y = PanelY + 22.f;
+		HUD->DrawText(TEXT("FUERZA MILITAR PLACEHOLDER"), Gold, PanelX + 24.f, Y, SmallFont, 0.78f);
+		Y += 19.f;
+		HUD->DrawText(ShortenForPanel(PC->GetSelectedForceName(), 30), Text, PanelX + 24.f, Y, Font, 1.08f);
+		Y += 24.f;
+		const FString Subtitle = FString::Printf(TEXT("%s  |  %s"),
+			*PC->GetSelectedForceCountryName(),
+			*PC->GetSelectedForceType());
+		HUD->DrawText(ShortenForPanel(Subtitle, 48), Muted, PanelX + 24.f, Y, SmallFont, 0.78f);
+
+		Y = PanelY + 98.f;
+		const float MetricW = (PanelW - 58.f) * 0.5f;
+		DrawMetric(HUD, SmallFont, TEXT("Ubicacion"), PC->GetSelectedForceLocation(), PanelX + 18.f, Y, MetricW);
+		DrawMetric(HUD, SmallFont, TEXT("Provincia"), PC->GetSelectedForceProvinceName(), PanelX + 30.f + MetricW, Y, MetricW);
+		Y += 50.f;
+		DrawMetric(HUD, SmallFont, TEXT("Ciudad cercana"), PC->GetSelectedForceNearbyCity(), PanelX + 18.f, Y, MetricW);
+		DrawMetric(HUD, SmallFont, TEXT("Efectivos est."), FString::Printf(TEXT("%d"), PC->GetSelectedForceEstimatedStrength()), PanelX + 30.f + MetricW, Y, MetricW);
+		Y += 50.f;
+		DrawMetric(HUD, SmallFont, TEXT("Movilidad"), PC->GetSelectedForceMobility(), PanelX + 18.f, Y, MetricW);
+		DrawMetric(HUD, SmallFont, TEXT("Abastecimiento"), PC->GetSelectedForceSupply(), PanelX + 30.f + MetricW, Y, MetricW);
+		Y += 50.f;
+		DrawMetric(HUD, SmallFont, TEXT("Moral"), PC->GetSelectedForceMorale(), PanelX + 18.f, Y, MetricW);
+		DrawMetric(HUD, SmallFont, TEXT("Estado"), PC->GetSelectedForceOperationalState(), PanelX + 30.f + MetricW, Y, MetricW);
+		Y += 58.f;
+
+		DrawSectionTitle(HUD, SmallFont, TEXT("POSTURA / ROL"), PanelX + 18.f, Y, Gold);
+		HUD->DrawText(ShortenForPanel(PC->GetSelectedForcePosture(), 54), Text, PanelX + 18.f, Y, SmallFont, 0.78f);
+		Y += 18.f;
+		HUD->DrawText(ShortenForPanel(PC->GetSelectedForceStrategicRole(), 58), Muted, PanelX + 18.f, Y, SmallFont, 0.72f);
+		Y += 30.f;
+
+		DrawSectionTitle(HUD, SmallFont, TEXT("ACCIONES BLOQUEADAS"), PanelX + 18.f, Y, Gold);
+		Y += 4.f;
+		const TArray<FString>& DisabledActions = PC->GetSelectedForceDisabledActions();
+		const float ButtonW = (PanelW - 48.f) * 0.5f;
+		const float ButtonH = 28.f;
+		const float Gap = 8.f;
+		const int32 MaxActions = FMath::Min(DisabledActions.Num(), 8);
+		for (int32 Index = 0; Index < MaxActions; ++Index)
+		{
+			const int32 Col = Index % 2;
+			const int32 Row = Index / 2;
+			const float ButtonX = PanelX + 18.f + static_cast<float>(Col) * (ButtonW + Gap);
+			const float ButtonY = Y + static_cast<float>(Row) * (ButtonH + Gap);
+			HUD->DrawRect(Disabled, ButtonX, ButtonY, ButtonW, ButtonH);
+			HUD->DrawText(ShortenForPanel(DisabledActions[Index], 20), Muted, ButtonX + 9.f, ButtonY + 7.f, SmallFont, 0.64f);
+		}
+
+		HUD->DrawText(ShortenForPanel(PC->GetSelectedForceDetailLevel(), 46), Muted, PanelX + 18.f, PanelY + PanelH - 24.f, SmallFont, 0.70f);
+	}
 }
 
 UWLDataRegistry* AWLCampaignHUD::GetRegistry() const
@@ -648,7 +730,14 @@ void AWLCampaignHUD::DrawHUD()
 
 		if (!bDiplomacy && PC->HasCampaignSelectionPanel())
 		{
-			DrawCampaignSelectionPanel(this, Canvas, Font, SmallFont, PC, Registry, Tick);
+			if (PC->GetCampaignSelectionKind() == EWLCampaignSelectionKind::Force)
+			{
+				DrawCampaignForcePanel(this, Canvas, Font, SmallFont, PC);
+			}
+			else
+			{
+				DrawCampaignSelectionPanel(this, Canvas, Font, SmallFont, PC, Registry, Tick);
+			}
 		}
 		else if (bDiplomacy && PC->HasSelectedProvince())
 		{

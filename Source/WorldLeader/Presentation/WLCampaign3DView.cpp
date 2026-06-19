@@ -104,6 +104,197 @@ namespace
 		}
 	}
 
+	FString ReadCampaignMilitaryForceStringField(
+		const TSharedPtr<FJsonObject>& Obj,
+		const TCHAR* FieldName,
+		const FString& DefaultValue = TEXT(""))
+	{
+		FString Value;
+		return Obj.IsValid() && Obj->TryGetStringField(FieldName, Value) ? Value : DefaultValue;
+	}
+
+	float ReadCampaignMilitaryForceNumberField(
+		const TSharedPtr<FJsonObject>& Obj,
+		const TCHAR* FieldName,
+		float DefaultValue = 0.f)
+	{
+		double Value = static_cast<double>(DefaultValue);
+		if (Obj.IsValid())
+		{
+			Obj->TryGetNumberField(FieldName, Value);
+		}
+		return static_cast<float>(Value);
+	}
+
+	int32 ReadCampaignMilitaryForceIntField(
+		const TSharedPtr<FJsonObject>& Obj,
+		const TCHAR* FieldName,
+		int32 DefaultValue = 0)
+	{
+		double Value = static_cast<double>(DefaultValue);
+		if (Obj.IsValid())
+		{
+			Obj->TryGetNumberField(FieldName, Value);
+		}
+		return FMath::RoundToInt(Value);
+	}
+
+	TArray<FString> ReadCampaignMilitaryForceStringArray(
+		const TSharedPtr<FJsonObject>& Obj,
+		const TCHAR* FieldName)
+	{
+		TArray<FString> Result;
+		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+		if (!Obj.IsValid() || !Obj->TryGetArrayField(FieldName, Values) || !Values)
+		{
+			return Result;
+		}
+
+		for (const TSharedPtr<FJsonValue>& Value : *Values)
+		{
+			FString Text;
+			if (Value.IsValid() && Value->TryGetString(Text) && !Text.IsEmpty())
+			{
+				Result.Add(Text);
+			}
+		}
+		return Result;
+	}
+
+	FLinearColor CampaignMilitaryForceColor(const FWLCampaign3DForceView& Force)
+	{
+		const FString Category = Force.MarkerCategory.ToLower();
+		if (Category.Contains(TEXT("naval")))
+		{
+			return FLinearColor(0.20f, 0.70f, 0.88f, 1.f);
+		}
+		if (Category.Contains(TEXT("air")))
+		{
+			return FLinearColor(0.72f, 0.86f, 0.96f, 1.f);
+		}
+		if (Category.Contains(TEXT("mechanized")))
+		{
+			return FLinearColor(0.91f, 0.62f, 0.24f, 1.f);
+		}
+		if (Category.Contains(TEXT("frontier")))
+		{
+			return FLinearColor(0.86f, 0.74f, 0.32f, 1.f);
+		}
+		if (Category.Contains(TEXT("urban")))
+		{
+			return FLinearColor(0.58f, 0.66f, 0.68f, 1.f);
+		}
+		return Force.CountryIso.Equals(TEXT("VE"), ESearchCase::IgnoreCase)
+			? FLinearColor(0.84f, 0.50f, 0.30f, 1.f)
+			: FLinearColor(0.74f, 0.68f, 0.36f, 1.f);
+	}
+
+	FVector CampaignMilitaryForceScale(const FWLCampaign3DForceView& Force)
+	{
+		const FString Category = Force.MarkerCategory.ToLower();
+		if (Category.Contains(TEXT("naval")))
+		{
+			return FVector(10.5f, 10.5f, 8.6f);
+		}
+		if (Category.Contains(TEXT("air")))
+		{
+			return FVector(9.2f, 9.2f, 10.8f);
+		}
+		if (Category.Contains(TEXT("mechanized")))
+		{
+			return FVector(9.5f, 9.5f, 14.0f);
+		}
+		if (Category.Contains(TEXT("frontier")))
+		{
+			return FVector(8.4f, 8.4f, 12.0f);
+		}
+		if (Category.Contains(TEXT("urban")))
+		{
+			return FVector(8.0f, 8.0f, 10.8f);
+		}
+		return FVector(9.0f, 9.0f, 13.0f);
+	}
+
+	void LoadCampaignMilitaryForceDefinitions(TArray<FWLCampaign3DForceView>& OutForces)
+	{
+		OutForces.Reset();
+		const FString Path = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Campaign3D") / TEXT("MilitaryForces.json");
+		FString Raw;
+		if (!FFileHelper::LoadFileToString(Raw, *Path))
+		{
+			return;
+		}
+
+		TSharedPtr<FJsonObject> Root;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+		{
+			return;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+		if (!Root->TryGetArrayField(TEXT("forces"), Values) || !Values)
+		{
+			return;
+		}
+
+		for (const TSharedPtr<FJsonValue>& Value : *Values)
+		{
+			const TSharedPtr<FJsonObject>* ObjPtr = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(ObjPtr) || !ObjPtr)
+			{
+				continue;
+			}
+
+			FWLCampaign3DForceView Force;
+			Force.Id = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("id"));
+			Force.Name = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("name"));
+			Force.CountryIso = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("country_iso")).ToUpper();
+			Force.CountryName = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("country_name"));
+			Force.ForceType = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("force_type"));
+			Force.MarkerCategory = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("marker_category"), TEXT("land"));
+			Force.LocationName = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("location"));
+			Force.ProvinceId = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("province_id"));
+			Force.ProvinceName = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("province"));
+			Force.NearbyCity = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("nearby_city"));
+			Force.Lon = ReadCampaignMilitaryForceNumberField(*ObjPtr, TEXT("lon"));
+			Force.Lat = ReadCampaignMilitaryForceNumberField(*ObjPtr, TEXT("lat"));
+			Force.EstimatedStrength = FMath::Max(0, ReadCampaignMilitaryForceIntField(*ObjPtr, TEXT("strength")));
+			Force.Mobility = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("mobility"), TEXT("media"));
+			Force.OperationalState = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("operational_state"), TEXT("placeholder"));
+			Force.Supply = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("supply"), TEXT("sin datos"));
+			Force.Morale = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("morale"), TEXT("sin datos"));
+			Force.Posture = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("posture"), TEXT("observacion"));
+			Force.StrategicRole = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("strategic_role"), TEXT("presencia militar placeholder"));
+			Force.DetailLevel = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("detail_level"), TEXT("placeholder force marker"));
+			Force.DisabledActions = ReadCampaignMilitaryForceStringArray(*ObjPtr, TEXT("disabled_actions"));
+			if (Force.DisabledActions.IsEmpty())
+			{
+				Force.DisabledActions = {
+					TEXT("Mover"),
+					TEXT("Atacar"),
+					TEXT("Reorganizar"),
+					TEXT("Reforzar"),
+					TEXT("Ver composicion"),
+					TEXT("Abrir logistica"),
+					TEXT("Auto-resolve")
+				};
+			}
+
+			const FString Category = Force.MarkerCategory.ToLower();
+			Force.bAir = Category.Contains(TEXT("air"));
+			Force.bNaval = Category.Contains(TEXT("naval"));
+			if (!Force.Id.IsEmpty()
+				&& !Force.Name.IsEmpty()
+				&& IsCampaignTheaterIso(Force.CountryIso)
+				&& !FMath::IsNearlyZero(Force.Lon)
+				&& !FMath::IsNearlyZero(Force.Lat))
+			{
+				OutForces.Add(MoveTemp(Force));
+			}
+		}
+	}
+
 	enum class EWLVisualBiome : uint8
 	{
 		Context = 0,
@@ -676,8 +867,13 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	OverviewBounds = FBox2D(ForceInit);
 	ProvinceViews.Reset();
 	CityViews.Reset();
+	ForceViews.Reset();
 	SelectedProvinceHighlightId.Reset();
 	SelectedCityHighlightId.Reset();
+	SelectedForceHighlightId.Reset();
+	HoveredForceHighlightId.Reset();
+	ForceMarkerBaseScales.Reset();
+	ForceMarkerBaseColors.Reset();
 
 	if (SeaMesh)
 	{
@@ -727,6 +923,30 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		}
 	}
 	CitySelectionMarkers.Reset();
+	for (UStaticMeshComponent* Marker : ForceMarkerComponents)
+	{
+		if (Marker)
+		{
+			Marker->DestroyComponent();
+		}
+	}
+	ForceMarkerComponents.Reset();
+	for (UPrimitiveComponent* Marker : ForceSelectionMarkers)
+	{
+		if (Marker)
+		{
+			Marker->DestroyComponent();
+		}
+	}
+	ForceSelectionMarkers.Reset();
+	for (UTextRenderComponent* Label : ForceMarkerLabels)
+	{
+		if (Label)
+		{
+			Label->DestroyComponent();
+		}
+	}
+	ForceMarkerLabels.Reset();
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{
 		if (Component)
@@ -903,10 +1123,58 @@ bool AWLCampaign3DView::TryGetCityNearWorldLocation(
 	return true;
 }
 
+bool AWLCampaign3DView::TryGetForceForComponent(const UPrimitiveComponent* Component, FWLCampaign3DForceView& OutForce) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
+	{
+		const bool bProxyHit = ForceSelectionMarkers.IsValidIndex(Index) && ForceSelectionMarkers[Index] == Component;
+		const bool bVisualHit = ForceMarkerComponents.IsValidIndex(Index) && ForceMarkerComponents[Index] == Component;
+		if (bProxyHit || bVisualHit)
+		{
+			OutForce = ForceViews[Index];
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AWLCampaign3DView::TryGetForceNearWorldLocation(
+	const FVector& WorldLocation,
+	float MaxDistance,
+	FWLCampaign3DForceView& OutForce) const
+{
+	float BestDistanceSq = FMath::Square(FMath::Max(1000.f, MaxDistance));
+	int32 BestIndex = INDEX_NONE;
+	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
+	{
+		const FWLCampaign3DForceView& Force = ForceViews[Index];
+		const float DistanceSq = FVector::DistSquared2D(WorldLocation, Force.WorldLocation);
+		if (DistanceSq < BestDistanceSq)
+		{
+			BestDistanceSq = DistanceSq;
+			BestIndex = Index;
+		}
+	}
+	if (BestIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	OutForce = ForceViews[BestIndex];
+	return true;
+}
+
 void AWLCampaign3DView::SetSelectedProvinceHighlight(const FString& ProvinceId)
 {
 	SelectedProvinceHighlightId = ProvinceId;
 	SelectedCityHighlightId.Reset();
+	SelectedForceHighlightId.Reset();
+	RefreshMilitaryForceMarkerVisuals();
 	if (TerritoryLayer)
 	{
 		TerritoryLayer->SetSelectedTerritory(ProvinceId);
@@ -941,6 +1209,8 @@ void AWLCampaign3DView::SetSelectedCityHighlight(const FString& CityId)
 {
 	SelectedCityHighlightId = CityId;
 	SelectedProvinceHighlightId.Reset();
+	SelectedForceHighlightId.Reset();
+	RefreshMilitaryForceMarkerVisuals();
 
 	for (const FWLCampaign3DCityView& City : CityViews)
 	{
@@ -962,10 +1232,52 @@ void AWLCampaign3DView::SetSelectedCityHighlight(const FString& CityId)
 	}
 }
 
+void AWLCampaign3DView::SetSelectedForceHighlight(const FString& ForceId)
+{
+	SelectedForceHighlightId = ForceId;
+	SelectedProvinceHighlightId.Reset();
+	SelectedCityHighlightId.Reset();
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->SetSelectedTerritory(TEXT(""));
+	}
+	RefreshMilitaryForceMarkerVisuals();
+
+	for (const FWLCampaign3DForceView& Force : ForceViews)
+	{
+		if (Force.Id.Equals(ForceId, ESearchCase::IgnoreCase))
+		{
+			RebuildPointSelectionHighlight(Force.WorldLocation + FVector(0.f, 0.f, 880.f),
+				Force.bNaval ? 7600.f : 6600.f,
+				Force.bAir ? FLinearColor(0.72f, 0.86f, 0.98f, 1.f) : FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
+			return;
+		}
+	}
+
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
+}
+
+void AWLCampaign3DView::SetHoveredForceHighlight(const FString& ForceId)
+{
+	if (HoveredForceHighlightId.Equals(ForceId, ESearchCase::IgnoreCase))
+	{
+		return;
+	}
+
+	HoveredForceHighlightId = ForceId;
+	RefreshMilitaryForceMarkerVisuals();
+}
+
 void AWLCampaign3DView::ClearSelectionHighlight()
 {
 	SelectedProvinceHighlightId.Reset();
 	SelectedCityHighlightId.Reset();
+	SelectedForceHighlightId.Reset();
+	HoveredForceHighlightId.Reset();
+	RefreshMilitaryForceMarkerVisuals();
 	if (TerritoryLayer)
 	{
 		TerritoryLayer->SetSelectedTerritory(TEXT(""));
@@ -1551,8 +1863,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);
 	AddVegetationScatter(-76.8f, -73.5f, 8.5f, 11.8f, 4, 3, false);
 
-	AddInstance(ArmyMarkerInstances, ProjectLonLat(-72.2f, 10.2f) + FVector(0.f, 0.f, 1700.f), FRotator(0.f, 25.f, 0.f), FVector(9.f, 9.f, 18.f));
-	AddInstance(ArmyMarkerInstances, ProjectLonLat(-73.4f, 7.8f) + FVector(0.f, 0.f, 1650.f), FRotator(0.f, -18.f, 0.f), FVector(8.f, 8.f, 16.f));
+	AddMilitaryForceMarkers();
 }
 
 void AWLCampaign3DView::AddPathPolyline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale, float ZOffset)
@@ -1652,6 +1963,135 @@ void AWLCampaign3DView::AddCitySelectionProxy(const FWLCampaign3DCityView& City,
 	Marker->ComponentTags.Add(FName(*City.Id));
 	CitySelectionMarkers.Add(Marker);
 	CityViews.Add(City);
+}
+
+void AWLCampaign3DView::AddMilitaryForceMarkers()
+{
+	TArray<FWLCampaign3DForceView> LoadedForces;
+	LoadCampaignMilitaryForceDefinitions(LoadedForces);
+	LoadedForces.Sort([](const FWLCampaign3DForceView& A, const FWLCampaign3DForceView& B)
+	{
+		return A.Id < B.Id;
+	});
+
+	for (FWLCampaign3DForceView Force : LoadedForces)
+	{
+		Force.WorldLocation = ProjectLonLat(Force.Lon, Force.Lat) + FVector(0.f, 0.f, Force.bNaval ? 2350.f : 2600.f);
+		AddMilitaryForceMarker(Force);
+	}
+}
+
+void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& Force)
+{
+	if (Force.Id.IsEmpty() || !ConeMesh)
+	{
+		return;
+	}
+
+	const int32 ForceIndex = ForceViews.Num();
+	const FLinearColor BaseColor = CampaignMilitaryForceColor(Force);
+	const FVector BaseScale = CampaignMilitaryForceScale(Force);
+
+	UStaticMeshComponent* Marker = NewObject<UStaticMeshComponent>(this);
+	if (!Marker)
+	{
+		return;
+	}
+	Marker->SetupAttachment(SceneRoot);
+	Marker->RegisterComponent();
+	Marker->SetStaticMesh(ConeMesh);
+	Marker->SetWorldLocation(Force.WorldLocation);
+	Marker->SetWorldRotation(FRotator(0.f, Force.bNaval ? 45.f : 0.f, 0.f));
+	Marker->SetWorldScale3D(BaseScale);
+	Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Marker->SetCollisionObjectType(ECC_WorldDynamic);
+	Marker->ComponentTags.Add(TEXT("WorldLeaderCampaign3DForce"));
+	Marker->ComponentTags.Add(FName(*Force.Id));
+	if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(BaseColor))
+	{
+		Marker->SetMaterial(0, Mat);
+	}
+
+	USphereComponent* SelectionProxy = NewObject<USphereComponent>(this);
+	if (!SelectionProxy)
+	{
+		Marker->DestroyComponent();
+		return;
+	}
+	SelectionProxy->SetupAttachment(SceneRoot);
+	SelectionProxy->RegisterComponent();
+	SelectionProxy->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 1400.f));
+	SelectionProxy->SetSphereRadius(Force.bNaval ? 14500.f : (Force.bAir ? 13200.f : 11800.f));
+	SelectionProxy->SetVisibility(false, true);
+	SelectionProxy->SetHiddenInGame(false, true);
+	SelectionProxy->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	SelectionProxy->SetCollisionObjectType(ECC_WorldDynamic);
+	SelectionProxy->SetCollisionResponseToAllChannels(ECR_Ignore);
+	SelectionProxy->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	SelectionProxy->ComponentTags.Add(TEXT("WorldLeaderCampaign3DForce"));
+	SelectionProxy->ComponentTags.Add(FName(*Force.Id));
+
+	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
+	if (Label)
+	{
+		Label->SetupAttachment(SceneRoot);
+		Label->RegisterComponent();
+		Label->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 2550.f));
+		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
+		Label->SetHorizontalAlignment(EHTA_Center);
+		Label->SetWorldSize(Force.bNaval ? 430.f : 390.f);
+		Label->SetText(FText::FromString(Force.NearbyCity.IsEmpty() ? Force.Name : Force.NearbyCity));
+		Label->SetTextRenderColor(Force.bAir ? FColor(200, 225, 245) : FColor(230, 214, 148));
+		Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ForceMarkerLabels.Add(Label);
+	}
+
+	ForceViews.Add(Force);
+	ForceMarkerComponents.Add(Marker);
+	ForceSelectionMarkers.Add(SelectionProxy);
+	ForceMarkerBaseScales.Add(BaseScale);
+	ForceMarkerBaseColors.Add(BaseColor);
+
+	if (ForceMarkerComponents.IsValidIndex(ForceIndex))
+	{
+		ForceMarkerComponents[ForceIndex]->SetVisibility(!IsHidden(), true);
+	}
+}
+
+void AWLCampaign3DView::RefreshMilitaryForceMarkerVisuals()
+{
+	for (int32 Index = 0; Index < ForceMarkerComponents.Num(); ++Index)
+	{
+		UStaticMeshComponent* Marker = ForceMarkerComponents[Index];
+		if (!Marker || !ForceViews.IsValidIndex(Index))
+		{
+			continue;
+		}
+
+		const FWLCampaign3DForceView& Force = ForceViews[Index];
+		const bool bSelected = !SelectedForceHighlightId.IsEmpty() && Force.Id.Equals(SelectedForceHighlightId, ESearchCase::IgnoreCase);
+		const bool bHovered = !HoveredForceHighlightId.IsEmpty() && Force.Id.Equals(HoveredForceHighlightId, ESearchCase::IgnoreCase);
+		const FVector BaseScale = ForceMarkerBaseScales.IsValidIndex(Index) ? ForceMarkerBaseScales[Index] : CampaignMilitaryForceScale(Force);
+		const FLinearColor BaseColor = ForceMarkerBaseColors.IsValidIndex(Index) ? ForceMarkerBaseColors[Index] : CampaignMilitaryForceColor(Force);
+		Marker->SetWorldScale3D(BaseScale * (bSelected ? 1.42f : (bHovered ? 1.22f : 1.0f)));
+
+		FLinearColor DisplayColor = BaseColor;
+		if (bSelected)
+		{
+			DisplayColor = (BaseColor * 0.58f) + FLinearColor(0.96f, 0.78f, 0.28f, 1.f) * 0.42f;
+			DisplayColor.A = 1.f;
+		}
+		else if (bHovered)
+		{
+			DisplayColor = (BaseColor * 0.72f) + FLinearColor(0.82f, 0.96f, 1.0f, 1.f) * 0.28f;
+			DisplayColor.A = 1.f;
+		}
+
+		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(DisplayColor))
+		{
+			Marker->SetMaterial(0, Mat);
+		}
+	}
 }
 
 void AWLCampaign3DView::RebuildPointSelectionHighlight(const FVector& Location, float Radius, const FLinearColor& Color)
@@ -2047,7 +2487,33 @@ void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 	}
 	if (SelectionHighlightMesh)
 	{
-		SelectionHighlightMesh->SetVisibility(bVisible && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty()), true);
+		SelectionHighlightMesh->SetVisibility(
+			bVisible && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty() || !SelectedForceHighlightId.IsEmpty()),
+			true);
+	}
+	for (UStaticMeshComponent* Marker : ForceMarkerComponents)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(bVisible, true);
+			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+	}
+	for (UPrimitiveComponent* Marker : ForceSelectionMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(false, true);
+			Marker->SetHiddenInGame(false, true);
+			Marker->SetCollisionEnabled(bVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+		}
+	}
+	for (UTextRenderComponent* Label : ForceMarkerLabels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bVisible, true);
+		}
 	}
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{
@@ -2169,6 +2635,30 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		ArmyMarkerInstances->SetVisibility(bFineDetail, true);
 	}
+	for (UStaticMeshComponent* Marker : ForceMarkerComponents)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(bFineDetail, true);
+			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+	}
+	for (UPrimitiveComponent* Marker : ForceSelectionMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetCollisionEnabled(bFineDetail ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetVisibility(false, true);
+			Marker->SetHiddenInGame(false, true);
+		}
+	}
+	for (UTextRenderComponent* Label : ForceMarkerLabels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bFineDetail, true);
+		}
+	}
 	if (PortInstances)
 	{
 		PortInstances->SetVisibility(bFineDetail || CurrentZoomLOD == EWLCampaign3DZoomLOD::Region, true);
@@ -2185,7 +2675,7 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	if (SelectionHighlightMesh)
 	{
 		SelectionHighlightMesh->SetVisibility(
-			bFineDetail && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty()),
+			bFineDetail && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty() || !SelectedForceHighlightId.IsEmpty()),
 			true);
 	}
 	if (TerritoryLayer)
@@ -2250,8 +2740,34 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	}
 	if (SelectionHighlightMesh)
 	{
-		SelectionHighlightMesh->SetVisibility(bActive && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty()), true);
+		SelectionHighlightMesh->SetVisibility(
+			bActive && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty() || !SelectedForceHighlightId.IsEmpty()),
+			true);
 		SelectionHighlightMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	for (UStaticMeshComponent* Marker : ForceMarkerComponents)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(bActive, true);
+			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+	}
+	for (UPrimitiveComponent* Marker : ForceSelectionMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(false, true);
+			Marker->SetHiddenInGame(false, true);
+			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+		}
+	}
+	for (UTextRenderComponent* Label : ForceMarkerLabels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bActive, true);
+		}
 	}
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{
