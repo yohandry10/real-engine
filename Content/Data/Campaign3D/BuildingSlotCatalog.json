@@ -1,0 +1,308 @@
+{
+  "slots": [
+    {
+      "id": "province_government",
+      "context": "province",
+      "label": "Gobierno regional",
+      "matches": ["Government", "Economic", "Gobierno"],
+      "default_state": "occupied",
+      "initial_building_id": "province_regional_administration",
+      "description": "Base administrativa placeholder para el territorio."
+    },
+    {
+      "id": "province_infrastructure",
+      "context": "province",
+      "label": "Infraestructura",
+      "matches": ["Infrastructure", "Infraestructura"],
+      "default_state": "empty",
+      "description": "Obras regionales, vias y soporte fisico."
+    },
+    {
+      "id": "province_security",
+      "context": "province",
+      "label": "Seguridad",
+      "matches": ["Security", "Defensa", "Seguridad"],
+      "default_state": "empty",
+      "description": "Orden publico y presencia institucional."
+    },
+    {
+      "id": "province_energy",
+      "context": "province",
+      "label": "Energia",
+      "matches": ["Energy", "Energia"],
+      "default_state": "empty",
+      "description": "Produccion o soporte energetico regional."
+    },
+    {
+      "id": "province_industry",
+      "context": "province",
+      "label": "Industria",
+      "matches": ["Industry", "Industrial", "Mining", "Resources", "Recursos"],
+      "default_state": "empty",
+      "description": "Industria, recursos y actividad productiva."
+    },
+    {
+      "id": "province_logistics",
+      "context": "province",
+      "label": "Logistica",
+      "matches": ["Logistics", "Logistica", "Border"],
+      "default_state": "empty",
+      "description": "Movimiento, frontera y cadena de suministro."
+    },
+    {
+      "id": "province_port",
+      "context": "province",
+      "label": "Puerto regional",
+      "matches": ["Port", "Puerto"],
+      "default_state": "empty",
+      "description": "Acceso maritimo o fluvial del territorio."
+    },
+    {
+      "id": "province_air_locked",
+      "context": "province",
+      "label": "Aereo",
+      "matches": ["Air", "Aereo"],
+      "default_state": "locked",
+      "description": "Slot reservado para aviacion en fases futuras."
+    },
+    {
+      "id": "city_government",
+      "context": "city",
+      "label": "Gobierno",
+      "matches": ["Government", "Gobierno"],
+      "default_state": "occupied",
+      "initial_building_id": "city_civic_hall",
+      "description": "Centro civico base del asentamiento."
+    },
+    {
+      "id": "city_services",
+      "context": "city",
+      "label": "Servicios",
+      "matches": ["Services", "Urban", "Servicios"],
+      "default_state": "empty",
+      "description": "Servicios urbanos y soporte social."
+    },
+    {
+      "id": "city_industry",
+      "context": "city",
+      "label": "Industria urbana",
+      "matches": ["Industry", "Industrial", "Industria urbana"],
+      "default_state": "empty",
+      "description": "Produccion urbana y empleo industrial."
+    },
+    {
+      "id": "city_port",
+      "context": "city",
+      "label": "Puerto",
+      "matches": ["Port", "Puerto"],
+      "default_state": "empty",
+      "description": "Infraestructura portuaria placeholder."
+    },
+    {
+      "id": "city_defense",
+      "context": "city",
+      "label": "Defensa",
+      "matches": ["Defense", "Security", "Defensa", "Seguridad"],
+      "default_state": "empty",
+      "description": "Seguridad urbana y proteccion de activos."
+    },
+    {
+      "id": "city_commerce",
+      "context": "city",
+      "label": "Comercio",
+      "matches": ["Commerce", "Logistics", "Comercio", "Logistica"],
+      "default_state": "empty",
+      "description": "Comercio, terminales y flujo urbano."
+    },
+    {
+      "id": "city_air_locked",
+      "context": "city",
+      "label": "Aereo",
+      "matches": ["Air", "Aereo"],
+      "default_state": "locked",
+      "description": "Slot reservado para aeropuerto en fases futuras."
+    }
+  ],
+  "buildings": [
+    {
+      "id": "province_regional_administration",
+      "name": "Oficina regional",
+      "context": "province",
+      "compatible_slots": ["Government", "Economic", "Infrastructure", "Industry", "Logistics", "Security"],
+      "type": "Administracion",
+      "level": 1,
+      "description": "Edificio base placeholder que representa presencia administrativa inicial.",
+      "effects": ["+Control", "+Lectura territorial"],
+      "future_cost": "Costo futuro: administrativo",
+      "requires_port": false
+    },
+    {
+      "id": "province_regional_road",
+      "name": "Carretera regional",
+      "context": "province",
+      "compatible_slots": ["Infrastructure", "Logistics"],
+      "type": "Infraestructura",
+      "level": 1,
+      "description": "Mejora placeholder para conectar ciudades, recursos y frontera.",
+      "effects": ["+Infraestructura", "+Logistica"],
+      "future_cost": "Costo futuro: obras publicas",
+      "requires_port": false
+    },
+    {
+      "id": "province_power_substation",
+      "name": "Subestacion electrica",
+      "context": "province",
+      "compatible_slots": ["Energy", "Infrastructure"],
+      "type": "Energia",
+      "level": 1,
+      "description": "Nodo energetico regional preparado para produccion futura.",
+      "effects": ["+Energia", "+Infraestructura"],
+      "future_cost": "Costo futuro: energia",
+      "requires_port": false
+    },
+    {
+      "id": "province_logistics_center",
+      "name": "Centro logistico",
+      "context": "province",
+      "compatible_slots": ["Logistics", "Border", "Infrastructure"],
+      "type": "Logistica",
+      "level": 1,
+      "description": "Centro placeholder para rutas, puertos secos y abastecimiento.",
+      "effects": ["+Logistica", "+Capacidad regional"],
+      "future_cost": "Costo futuro: logistica",
+      "requires_port": false
+    },
+    {
+      "id": "province_police_station",
+      "name": "Estacion de policia",
+      "context": "province",
+      "compatible_slots": ["Security", "Defense"],
+      "type": "Seguridad",
+      "level": 1,
+      "description": "Infraestructura de orden publico placeholder para el territorio.",
+      "effects": ["+Orden publico", "+Seguridad"],
+      "future_cost": "Costo futuro: seguridad",
+      "requires_port": false
+    },
+    {
+      "id": "province_industrial_complex",
+      "name": "Complejo industrial",
+      "context": "province",
+      "compatible_slots": ["Industry", "Industrial", "Economic"],
+      "type": "Industria",
+      "level": 1,
+      "description": "Base productiva placeholder para futuras cadenas industriales.",
+      "effects": ["+Produccion", "+Industria"],
+      "future_cost": "Costo futuro: industria",
+      "requires_port": false
+    },
+    {
+      "id": "province_oil_field",
+      "name": "Campo petrolero",
+      "context": "province",
+      "compatible_slots": ["Resources", "Energy", "Industry", "Mining"],
+      "type": "Recurso",
+      "level": 1,
+      "description": "Extraccion placeholder para territorios con rol energetico.",
+      "effects": ["+Produccion", "+Energia"],
+      "future_cost": "Costo futuro: recursos",
+      "requires_port": false
+    },
+    {
+      "id": "province_river_port",
+      "name": "Puerto fluvial",
+      "context": "province",
+      "compatible_slots": ["Port", "Logistics"],
+      "type": "Puerto",
+      "level": 1,
+      "description": "Nodo portuario fluvial placeholder preparado para logistica naval futura.",
+      "effects": ["+Capacidad portuaria", "+Logistica"],
+      "future_cost": "Costo futuro: puerto",
+      "requires_port": true
+    },
+    {
+      "id": "city_civic_hall",
+      "name": "Alcaldia / Gobernacion",
+      "context": "city",
+      "compatible_slots": ["Government", "Urban", "Services"],
+      "type": "Gobierno",
+      "level": 1,
+      "description": "Edificio civico base que ancla el panel urbano placeholder.",
+      "effects": ["+Control urbano", "+Servicios"],
+      "future_cost": "Costo futuro: administrativo",
+      "requires_port": false
+    },
+    {
+      "id": "city_commercial_zone",
+      "name": "Zona comercial",
+      "context": "city",
+      "compatible_slots": ["Commerce", "Services", "Urban", "Logistics"],
+      "type": "Comercio",
+      "level": 1,
+      "description": "Distrito comercial placeholder para actividad urbana futura.",
+      "effects": ["+Comercio", "+Actividad urbana"],
+      "future_cost": "Costo futuro: comercio",
+      "requires_port": false
+    },
+    {
+      "id": "city_hospital",
+      "name": "Hospital",
+      "context": "city",
+      "compatible_slots": ["Services", "Urban", "Government"],
+      "type": "Servicios",
+      "level": 1,
+      "description": "Servicio urbano placeholder para estabilidad y poblacion.",
+      "effects": ["+Servicios", "+Orden publico"],
+      "future_cost": "Costo futuro: servicios",
+      "requires_port": false
+    },
+    {
+      "id": "city_maritime_port",
+      "name": "Puerto maritimo",
+      "context": "city",
+      "compatible_slots": ["Port", "Logistics", "Commerce"],
+      "type": "Puerto",
+      "level": 1,
+      "description": "Puerto placeholder para ciudades costeras y rutas futuras.",
+      "effects": ["+Capacidad portuaria", "+Comercio"],
+      "future_cost": "Costo futuro: puerto",
+      "requires_port": true
+    },
+    {
+      "id": "city_industrial_park",
+      "name": "Parque industrial",
+      "context": "city",
+      "compatible_slots": ["Industry", "Industrial", "Urban"],
+      "type": "Industria urbana",
+      "level": 1,
+      "description": "Zona productiva urbana placeholder.",
+      "effects": ["+Produccion", "+Empleo industrial"],
+      "future_cost": "Costo futuro: industria urbana",
+      "requires_port": false
+    },
+    {
+      "id": "city_security_base",
+      "name": "Base de seguridad",
+      "context": "city",
+      "compatible_slots": ["Defense", "Security"],
+      "type": "Defensa",
+      "level": 1,
+      "description": "Instalacion de seguridad urbana sin unidades ni combate.",
+      "effects": ["+Seguridad", "+Orden publico"],
+      "future_cost": "Costo futuro: seguridad urbana",
+      "requires_port": false
+    },
+    {
+      "id": "city_logistics_terminal",
+      "name": "Terminal logistica",
+      "context": "city",
+      "compatible_slots": ["Logistics", "Commerce", "Port"],
+      "type": "Logistica",
+      "level": 1,
+      "description": "Terminal placeholder para flujo urbano y regional.",
+      "effects": ["+Logistica", "+Comercio"],
+      "future_cost": "Costo futuro: logistica urbana",
+      "requires_port": false
+    }
+  ]
+}

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/WLGameTypes.h"
+#include "UI/WLCampaignBuildingSlotData.h"
 #include "GameFramework/PlayerController.h"
 #include "WLCampaignPlayerController.generated.h"
 
@@ -80,6 +81,13 @@ public:
 	const FString& GetSelectedCityTerritoryId() const { return SelectedCityTerritoryId; }
 	const FString& GetSelectedCityTerritoryName() const { return SelectedCityTerritoryName; }
 	const FString& GetSelectedCityType() const { return SelectedCityType; }
+	bool HasSelectedBuildingSlot() const { return !SelectedBuildingSlotKey.IsEmpty(); }
+	const FString& GetSelectedBuildingSlotKey() const { return SelectedBuildingSlotKey; }
+	const FString& GetSelectedBuildingSlotLabel() const { return SelectedBuildingSlotLabel; }
+	const FString& GetSelectedCampaignBuildingId() const { return SelectedCampaignBuildingId; }
+	bool IsSelectedCampaignBuildingCandidate() const { return bSelectedCampaignBuildingCandidate; }
+	EWLCampaignBuildingSlotState GetCampaignBuildingSlotState(const FString& SlotLabel, int32 SlotIndex, bool bCityMode) const;
+	FString GetCampaignBuildingIdForSlot(const FString& SlotLabel, int32 SlotIndex, bool bCityMode) const;
 	bool HasLastActionMessage() const { return !LastActionMessage.IsEmpty(); }
 	const FString& GetLastActionMessage() const { return LastActionMessage; }
 	bool WasLastActionSuccessful() const { return bLastActionSucceeded; }
@@ -139,6 +147,9 @@ private:
 	void ClearSelectedProvince();
 	void ClearSelectedCity();
 	void ClearCampaignSelection();
+	void ClearCampaignBuildingSelection();
+	void SelectCampaignBuildingSlot(const FString& SlotLabel, int32 SlotIndex, bool bCityMode);
+	bool TryBuildCampaignPlaceholderBuilding(const FString& BuildingId, FString& OutMessage);
 	bool SelectProvince(const FString& ProvinceId);
 	void SelectCampaignTerritory(const FWLCampaignTerritoryRegionView& Territory);
 	void SelectCampaignCity(const FWLCampaign3DCityView& City);
@@ -196,6 +207,14 @@ private:
 	FString SelectedCityTerritoryId;
 	FString SelectedCityTerritoryName;
 	FString SelectedCityType;
+
+	TMap<FString, FString> CampaignPlaceholderBuildingsBySlot;
+	FString SelectedBuildingSlotKey;
+	FString SelectedBuildingSlotLabel;
+	FString SelectedCampaignBuildingId;
+	int32 SelectedBuildingSlotIndex = INDEX_NONE;
+	bool bSelectedBuildingSlotCityMode = false;
+	bool bSelectedCampaignBuildingCandidate = false;
 
 	FString LastActionMessage;
 	bool bLastActionSucceeded = true;

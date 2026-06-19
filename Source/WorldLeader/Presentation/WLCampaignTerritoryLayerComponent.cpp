@@ -72,7 +72,7 @@ namespace
 		return S >= 0.f && T >= 0.f && U >= 0.f;
 	}
 
-	void TriangulateSimplePolygon(const TArray<FVector2D>& Contour, TArray<int32>& OutTris)
+	void TerritoryLayerTriangulateSimplePolygon(const TArray<FVector2D>& Contour, TArray<int32>& OutTris)
 	{
 		OutTris.Reset();
 		if (Contour.Num() < 3)
@@ -570,7 +570,7 @@ void UWLCampaignTerritoryLayerComponent::BuildCountryBordersAndHitProxies(
 			if (HitMesh)
 			{
 				TArray<int32> Tris;
-				TriangulateSimplePolygon(Ring, Tris);
+				TerritoryLayerTriangulateSimplePolygon(Ring, Tris);
 				TArray<FVector> Verts;
 				TArray<FVector2D> UVs;
 				TArray<FColor> Colors;
@@ -748,7 +748,7 @@ void UWLCampaignTerritoryLayerComponent::BuildProvinceRegions(
 		if (HitMesh)
 		{
 			TArray<int32> Tris;
-			TriangulateSimplePolygon(Region.LonLatPolygon, Tris);
+			TerritoryLayerTriangulateSimplePolygon(Region.LonLatPolygon, Tris);
 			TArray<FVector> Normals;
 			Normals.Init(FVector::UpVector, Region.WorldPolygon.Num());
 			TArray<FVector2D> UVs;

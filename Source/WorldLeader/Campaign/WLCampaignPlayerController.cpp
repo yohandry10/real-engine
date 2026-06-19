@@ -8,6 +8,7 @@
 #include "Economy/WLEconomyLibrary.h"
 #include "Map/WLWorldMap.h"
 #include "Presentation/WLCampaign3DView.h"
+#include "UI/WLCampaignSelectionPanelData.h"
 #include "UI/WLMainMenuWidget.h"
 #include "WorldLeader.h"
 #include "Camera/CameraActor.h"
@@ -18,6 +19,79 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "TimerManager.h"
+
+namespace
+{
+	const FWLCampaignSelectionPanelData& GetCampaignControllerPanelData()
+	{
+		static FWLCampaignSelectionPanelData Data;
+		static bool bLoaded = false;
+		if (!bLoaded)
+		{
+			FWLCampaignSelectionPanelDataLoader::Load(Data);
+			bLoaded = true;
+		}
+		return Data;
+	}
+
+	const FWLCampaignBuildingSlotCatalog& GetCampaignControllerBuildingCatalog()
+	{
+		static FWLCampaignBuildingSlotCatalog Catalog;
+		static bool bLoaded = false;
+		if (!bLoaded)
+		{
+			FWLCampaignBuildingSlotDataLoader::Load(Catalog);
+			bLoaded = true;
+		}
+		return Catalog;
+	}
+
+	TArray<FString> GetCampaignControllerPanelSlots(const AWLCampaignPlayerController* PC)
+	{
+		TArray<FString> Slots;
+		if (!PC || !PC->HasCampaignSelectionPanel())
+		{
+			return Slots;
+		}
+
+		const FWLCampaignSelectionPanelData& PanelData = GetCampaignControllerPanelData();
+		const FString SelectionId = PC->GetCampaignSelectionId();
+		const bool bCityMode = PC->GetCampaignSelectionKind() == EWLCampaignSelectionKind::City;
+		if (bCityMode)
+		{
+			if (const FWLCampaignSelectionPanelEntry* City = PanelData.Cities.Find(SelectionId))
+			{
+				Slots = City->UrbanSlots;
+			}
+		}
+		else
+		{
+			if (const FWLCampaignSelectionPanelEntry* Province = PanelData.Provinces.Find(SelectionId))
+			{
+				Slots = Province->BuildingSlots;
+			}
+		}
+
+		if (Slots.IsEmpty())
+		{
+			Slots = bCityMode
+				? TArray<FString>{ TEXT("Government"), TEXT("Services"), TEXT("Industry"), TEXT("Security") }
+				: TArray<FString>{ TEXT("Infrastructure"), TEXT("Logistics"), TEXT("Security"), TEXT("Industry") };
+		}
+		return Slots;
+	}
+
+	float GetCampaignControllerPanelSlotStartY(float PanelY)
+	{
+		return PanelY + 383.f;
+	}
+
+	float GetCampaignControllerPanelDetailsY(float PanelY, int32 SlotCount)
+	{
+		const int32 SlotRows = FMath::Max(1, FMath::DivideAndRoundUp(FMath::Clamp(SlotCount, 1, 6), 2));
+		return GetCampaignControllerPanelSlotStartY(PanelY) + static_cast<float>(SlotRows) * 56.f + 16.f;
+	}
+}
 
 AWLCampaignPlayerController::AWLCampaignPlayerController()
 {
@@ -832,6 +906,77 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 	{
 		ClearCampaignSelection();
 		SetLastActionMessage(TEXT("Panel contextual cerrado."), true);
+		return true;
+	}
+
+	const TArray<FString> SlotLabels = GetCampaignControllerPanelSlots(this);
+	const bool bCityMode = ActiveSelectionKind == EWLCampaignSelectionKind::City;
+	const EWLCampaignBuildingPanelContext Context = FWLCampaignBuildingSlotRules::ContextFromCityMode(bCityMode);
+	const FWLCampaignBuildingSlotCatalog& Catalog = GetCampaignControllerBuildingCatalog();
+
+	const float SlotStartY = GetCampaignControllerPanelSlotStartY(PanelY);
+	const float SlotW = (PanelW - 48.f) * 0.5f;
+	const float SlotH = 48.f;
+	const float SlotGap = 8.f;
+	const float SlotX0 = PanelX + 18.f;
+	for (int32 Index = 0; Index < SlotLabels.Num() && Index < 6; ++Index)
+	{
+		const int32 Col = Index % 2;
+		const int32 Row = Index / 2;
+		const float SlotX = SlotX0 + static_cast<float>(Col) * (SlotW + SlotGap);
+		const float SlotY = SlotStartY + static_cast<float>(Row) * (SlotH + SlotGap);
+		if (MouseX >= SlotX && MouseX <= SlotX + SlotW && MouseY >= SlotY && MouseY <= SlotY + SlotH)
+		{
+			SelectCampaignBuildingSlot(SlotLabels[Index], Index, bCityMode);
+			const EWLCampaignBuildingSlotState State = GetCampaignBuildingSlotState(SlotLabels[Index], Index, bCityMode);
+			const FString DisplayLabel = FWLCampaignBuildingSlotRules::GetSlotDisplayLabel(Catalog, Context, SlotLabels[Index]);
+			if (State == EWLCampaignBuildingSlotState::Locked)
+			{
+				SetLastActionMessage(FString::Printf(TEXT("Slot bloqueado para fases futuras: %s."), *DisplayLabel), true);
+			}
+			else if (State == EWLCampaignBuildingSlotState::Occupied)
+			{
+				SetLastActionMessage(FString::Printf(TEXT("Edificio seleccionado en slot: %s."), *DisplayLabel), true);
+			}
+			else
+			{
+				SetLastActionMessage(FString::Printf(TEXT("Slot vacio seleccionado: %s."), *DisplayLabel), true);
+			}
+			return true;
+		}
+	}
+
+	if (HasSelectedBuildingSlot()
+		&& bSelectedBuildingSlotCityMode == bCityMode
+		&& GetCampaignBuildingSlotState(SelectedBuildingSlotLabel, SelectedBuildingSlotIndex, bCityMode) == EWLCampaignBuildingSlotState::Empty)
+	{
+		TArray<FWLCampaignBuildingDefinition> CompatibleBuildings;
+		FWLCampaignBuildingSlotRules::GetCompatibleBuildings(Catalog, Context, SelectedBuildingSlotLabel, CompatibleBuildings);
+		const int32 MaxOptions = FMath::Min(CompatibleBuildings.Num(), 3);
+		const float DetailY = GetCampaignControllerPanelDetailsY(PanelY, SlotLabels.Num());
+		const float OptionStartY = DetailY + 74.f;
+		const float OptionH = 46.f;
+		const float BuildW = 78.f;
+		const float BuildH = 23.f;
+		const float BuildX = PanelX + PanelW - 105.f;
+		for (int32 Index = 0; Index < MaxOptions; ++Index)
+		{
+			const float OptionY = OptionStartY + static_cast<float>(Index) * 51.f;
+			const float BuildY = OptionY + 12.f;
+			if (MouseX >= BuildX && MouseX <= BuildX + BuildW && MouseY >= BuildY && MouseY <= BuildY + BuildH)
+			{
+				FString Message;
+				if (TryBuildCampaignPlaceholderBuilding(CompatibleBuildings[Index].Id, Message))
+				{
+					SetLastActionMessage(Message, true);
+				}
+				else
+				{
+					SetLastActionMessage(Message, false);
+				}
+				return true;
+			}
+		}
 	}
 	return true;
 }
@@ -1415,11 +1560,22 @@ void AWLCampaignPlayerController::ClearSelectedCity()
 	SelectedCityType.Reset();
 }
 
+void AWLCampaignPlayerController::ClearCampaignBuildingSelection()
+{
+	SelectedBuildingSlotKey.Reset();
+	SelectedBuildingSlotLabel.Reset();
+	SelectedCampaignBuildingId.Reset();
+	SelectedBuildingSlotIndex = INDEX_NONE;
+	bSelectedBuildingSlotCityMode = false;
+	bSelectedCampaignBuildingCandidate = false;
+}
+
 void AWLCampaignPlayerController::ClearCampaignSelection()
 {
 	ClearSelectedCountry();
 	ClearSelectedProvince();
 	ClearSelectedCity();
+	ClearCampaignBuildingSelection();
 	ActiveSelectionKind = EWLCampaignSelectionKind::None;
 	SelectedPanelObjectId.Reset();
 	SelectedTerritoryId.Reset();
@@ -1434,6 +1590,112 @@ void AWLCampaignPlayerController::ClearCampaignSelection()
 	{
 		Campaign3DView->ClearSelectionHighlight();
 	}
+}
+
+EWLCampaignBuildingSlotState AWLCampaignPlayerController::GetCampaignBuildingSlotState(
+	const FString& SlotLabel,
+	int32 SlotIndex,
+	bool bCityMode) const
+{
+	const FWLCampaignBuildingSlotCatalog& Catalog = GetCampaignControllerBuildingCatalog();
+	const EWLCampaignBuildingPanelContext Context = FWLCampaignBuildingSlotRules::ContextFromCityMode(bCityMode);
+	if (FWLCampaignBuildingSlotRules::IsSlotLocked(Catalog, Context, SlotLabel))
+	{
+		return EWLCampaignBuildingSlotState::Locked;
+	}
+	return GetCampaignBuildingIdForSlot(SlotLabel, SlotIndex, bCityMode).IsEmpty()
+		? EWLCampaignBuildingSlotState::Empty
+		: EWLCampaignBuildingSlotState::Occupied;
+}
+
+FString AWLCampaignPlayerController::GetCampaignBuildingIdForSlot(
+	const FString& SlotLabel,
+	int32 SlotIndex,
+	bool bCityMode) const
+{
+	if (!HasCampaignSelectionPanel())
+	{
+		return FString();
+	}
+
+	const FString ObjectId = GetCampaignSelectionId();
+	const EWLCampaignBuildingPanelContext Context = FWLCampaignBuildingSlotRules::ContextFromCityMode(bCityMode);
+	const FString SlotKey = FWLCampaignBuildingSlotRules::MakeSlotKey(ObjectId, Context, SlotLabel, SlotIndex);
+	if (const FString* BuiltBuilding = CampaignPlaceholderBuildingsBySlot.Find(SlotKey))
+	{
+		return *BuiltBuilding;
+	}
+
+	const FWLCampaignBuildingSlotCatalog& Catalog = GetCampaignControllerBuildingCatalog();
+	return FWLCampaignBuildingSlotRules::GetInitialBuildingId(Catalog, Context, SlotLabel, SlotIndex);
+}
+
+void AWLCampaignPlayerController::SelectCampaignBuildingSlot(const FString& SlotLabel, int32 SlotIndex, bool bCityMode)
+{
+	if (!HasCampaignSelectionPanel())
+	{
+		ClearCampaignBuildingSelection();
+		return;
+	}
+
+	const EWLCampaignBuildingPanelContext Context = FWLCampaignBuildingSlotRules::ContextFromCityMode(bCityMode);
+	SelectedBuildingSlotKey = FWLCampaignBuildingSlotRules::MakeSlotKey(GetCampaignSelectionId(), Context, SlotLabel, SlotIndex);
+	SelectedBuildingSlotLabel = SlotLabel;
+	SelectedBuildingSlotIndex = SlotIndex;
+	bSelectedBuildingSlotCityMode = bCityMode;
+	bSelectedCampaignBuildingCandidate = false;
+
+	const EWLCampaignBuildingSlotState State = GetCampaignBuildingSlotState(SlotLabel, SlotIndex, bCityMode);
+	SelectedCampaignBuildingId = State == EWLCampaignBuildingSlotState::Occupied
+		? GetCampaignBuildingIdForSlot(SlotLabel, SlotIndex, bCityMode)
+		: FString();
+}
+
+bool AWLCampaignPlayerController::TryBuildCampaignPlaceholderBuilding(const FString& BuildingId, FString& OutMessage)
+{
+	if (!HasSelectedBuildingSlot() || SelectedBuildingSlotIndex == INDEX_NONE)
+	{
+		OutMessage = TEXT("Selecciona un slot primero.");
+		return false;
+	}
+
+	const bool bCityMode = ActiveSelectionKind == EWLCampaignSelectionKind::City;
+	if (bSelectedBuildingSlotCityMode != bCityMode)
+	{
+		OutMessage = TEXT("El slot seleccionado ya no pertenece al panel actual.");
+		return false;
+	}
+
+	const FWLCampaignBuildingSlotCatalog& Catalog = GetCampaignControllerBuildingCatalog();
+	const EWLCampaignBuildingPanelContext Context = FWLCampaignBuildingSlotRules::ContextFromCityMode(bCityMode);
+	if (FWLCampaignBuildingSlotRules::IsSlotLocked(Catalog, Context, SelectedBuildingSlotLabel))
+	{
+		OutMessage = TEXT("Este slot esta bloqueado para fases futuras.");
+		return false;
+	}
+	if (!GetCampaignBuildingIdForSlot(SelectedBuildingSlotLabel, SelectedBuildingSlotIndex, bCityMode).IsEmpty())
+	{
+		OutMessage = TEXT("Este slot ya tiene un edificio.");
+		return false;
+	}
+
+	const FWLCampaignBuildingDefinition* Building = Catalog.FindBuilding(BuildingId);
+	if (!Building)
+	{
+		OutMessage = FString::Printf(TEXT("Edificio placeholder desconocido: %s."), *BuildingId);
+		return false;
+	}
+	if (!FWLCampaignBuildingSlotRules::IsBuildingCompatible(*Building, Context, SelectedBuildingSlotLabel))
+	{
+		OutMessage = FString::Printf(TEXT("%s no es compatible con este slot."), *Building->Name);
+		return false;
+	}
+
+	CampaignPlaceholderBuildingsBySlot.Add(SelectedBuildingSlotKey, Building->Id);
+	SelectedCampaignBuildingId = Building->Id;
+	bSelectedCampaignBuildingCandidate = false;
+	OutMessage = FString::Printf(TEXT("Construccion placeholder completada: %s."), *Building->Name);
+	return true;
 }
 
 bool AWLCampaignPlayerController::SelectProvince(const FString& ProvinceId)
@@ -1457,6 +1719,7 @@ void AWLCampaignPlayerController::SelectCampaignTerritory(const FWLCampaignTerri
 {
 	ClearSelectedCity();
 	ClearSelectedProvince();
+	ClearCampaignBuildingSelection();
 	ActiveSelectionKind = EWLCampaignSelectionKind::Province;
 	SelectedPanelObjectId = Territory.Id;
 	SelectedTerritoryId = Territory.Id;
@@ -1480,6 +1743,7 @@ void AWLCampaignPlayerController::SelectCampaignTerritory(const FWLCampaignTerri
 void AWLCampaignPlayerController::SelectCampaignCity(const FWLCampaign3DCityView& City)
 {
 	ClearSelectedProvince();
+	ClearCampaignBuildingSelection();
 	ActiveSelectionKind = EWLCampaignSelectionKind::City;
 	SelectedPanelObjectId = City.Id;
 	SelectedTerritoryId.Reset();

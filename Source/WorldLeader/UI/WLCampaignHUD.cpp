@@ -5,6 +5,7 @@
 #include "Campaign/WLCampaignPlayerController.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "UI/WLCampaignBuildingSlotData.h"
 #include "UI/WLCampaignSelectionPanelData.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -38,6 +39,18 @@ namespace
 			bLoaded = true;
 		}
 		return Data;
+	}
+
+	const FWLCampaignBuildingSlotCatalog& GetCampaignHudBuildingSlotCatalog()
+	{
+		static FWLCampaignBuildingSlotCatalog Catalog;
+		static bool bLoaded = false;
+		if (!bLoaded)
+		{
+			FWLCampaignBuildingSlotDataLoader::Load(Catalog);
+			bLoaded = true;
+		}
+		return Catalog;
 	}
 
 	FString JoinDisplayList(const TArray<FString>& Values, const FString& EmptyText = TEXT("Sin datos placeholder"))
@@ -227,6 +240,207 @@ namespace
 		Y += 29.f;
 	}
 
+	float GetCampaignHudSlotStartY(float PanelY)
+	{
+		return PanelY + 383.f;
+	}
+
+	float GetCampaignHudDetailsY(float PanelY, int32 SlotCount)
+	{
+		const int32 SlotRows = FMath::Max(1, FMath::DivideAndRoundUp(FMath::Clamp(SlotCount, 1, 6), 2));
+		return GetCampaignHudSlotStartY(PanelY) + static_cast<float>(SlotRows) * 56.f + 16.f;
+	}
+
+	FString SlotStateText(EWLCampaignBuildingSlotState State)
+	{
+		switch (State)
+		{
+		case EWLCampaignBuildingSlotState::Occupied:
+			return TEXT("OCUPADO");
+		case EWLCampaignBuildingSlotState::Locked:
+			return TEXT("BLOQUEADO");
+		default:
+			return TEXT("VACIO");
+		}
+	}
+
+	FLinearColor SlotStateColor(EWLCampaignBuildingSlotState State, bool bSelected)
+	{
+		if (bSelected)
+		{
+			return FLinearColor(0.42f, 0.34f, 0.16f, 0.95f);
+		}
+		switch (State)
+		{
+		case EWLCampaignBuildingSlotState::Occupied:
+			return FLinearColor(0.11f, 0.17f, 0.14f, 0.93f);
+		case EWLCampaignBuildingSlotState::Locked:
+			return FLinearColor(0.08f, 0.09f, 0.095f, 0.86f);
+		default:
+			return FLinearColor(0.025f, 0.043f, 0.050f, 0.92f);
+		}
+	}
+
+	void DrawCampaignBuildingSlotCards(
+		AWLCampaignHUD* HUD,
+		UFont* SmallFont,
+		const AWLCampaignPlayerController* PC,
+		const FWLCampaignBuildingSlotCatalog& Catalog,
+		EWLCampaignBuildingPanelContext Context,
+		const TArray<FString>& Slots,
+		float PanelX,
+		float PanelY,
+		float PanelW,
+		const FLinearColor& Gold,
+		const FLinearColor& Text,
+		const FLinearColor& Muted)
+	{
+		const float SlotTitleY = GetCampaignHudSlotStartY(PanelY) - 23.f;
+		if (Context == EWLCampaignBuildingPanelContext::City)
+		{
+			HUD->DrawText(TEXT("SLOTS DE EDIFICIOS"), Gold, PanelX + 18.f, SlotTitleY, SmallFont, 0.82f);
+		}
+
+		const float SlotStartY = GetCampaignHudSlotStartY(PanelY);
+		const float SlotW = (PanelW - 48.f) * 0.5f;
+		const float SlotH = 48.f;
+		const float SlotGap = 8.f;
+		const float SlotX0 = PanelX + 18.f;
+		const bool bCityMode = Context == EWLCampaignBuildingPanelContext::City;
+
+		for (int32 Index = 0; Index < Slots.Num() && Index < 6; ++Index)
+		{
+			const FString& SlotLabel = Slots[Index];
+			const int32 Col = Index % 2;
+			const int32 Row = Index / 2;
+			const float SlotX = SlotX0 + static_cast<float>(Col) * (SlotW + SlotGap);
+			const float SlotY = SlotStartY + static_cast<float>(Row) * (SlotH + SlotGap);
+			const FString SlotKey = FWLCampaignBuildingSlotRules::MakeSlotKey(
+				PC->GetCampaignSelectionId(),
+				Context,
+				SlotLabel,
+				Index);
+			const bool bSelected = PC->GetSelectedBuildingSlotKey() == SlotKey;
+			const EWLCampaignBuildingSlotState State = PC->GetCampaignBuildingSlotState(SlotLabel, Index, bCityMode);
+			const FString BuildingId = PC->GetCampaignBuildingIdForSlot(SlotLabel, Index, bCityMode);
+			const FWLCampaignBuildingDefinition* Building = BuildingId.IsEmpty() ? nullptr : Catalog.FindBuilding(BuildingId);
+			const FString DisplayLabel = FWLCampaignBuildingSlotRules::GetSlotDisplayLabel(Catalog, Context, SlotLabel);
+			const FString Occupant = State == EWLCampaignBuildingSlotState::Locked
+				? TEXT("Fase futura")
+				: (Building ? Building->Name : TEXT("Disponible"));
+
+			HUD->DrawRect(SlotStateColor(State, bSelected), SlotX, SlotY, SlotW, SlotH);
+			if (bSelected)
+			{
+				HUD->DrawRect(FLinearColor(0.84f, 0.68f, 0.26f, 0.96f), SlotX, SlotY, SlotW, 2.f);
+			}
+			HUD->DrawText(ShortenForPanel(DisplayLabel, 20), Text, SlotX + 9.f, SlotY + 7.f, SmallFont, 0.74f);
+			HUD->DrawText(SlotStateText(State), State == EWLCampaignBuildingSlotState::Locked ? Muted : Gold,
+				SlotX + SlotW - 68.f, SlotY + 7.f, SmallFont, 0.62f);
+			HUD->DrawText(ShortenForPanel(Occupant, 24), Muted, SlotX + 9.f, SlotY + 28.f, SmallFont, 0.68f);
+		}
+	}
+
+	void DrawCampaignBuildingDetail(
+		AWLCampaignHUD* HUD,
+		UFont* SmallFont,
+		const AWLCampaignPlayerController* PC,
+		const FWLCampaignBuildingSlotCatalog& Catalog,
+		EWLCampaignBuildingPanelContext Context,
+		const TArray<FString>& Slots,
+		float PanelX,
+		float PanelY,
+		float PanelW,
+		float PanelH,
+		const FLinearColor& Gold,
+		const FLinearColor& Text,
+		const FLinearColor& Muted,
+		const FLinearColor& Disabled)
+	{
+		float Y = GetCampaignHudDetailsY(PanelY, Slots.Num());
+		if (Y > PanelY + PanelH - 92.f)
+		{
+			return;
+		}
+
+		HUD->DrawRect(FLinearColor(0.014f, 0.026f, 0.032f, 0.92f), PanelX + 18.f, Y, PanelW - 36.f, FMath::Min(PanelY + PanelH - Y - 16.f, 228.f));
+		HUD->DrawText(TEXT("CONSTRUCCION PLACEHOLDER"), Gold, PanelX + 30.f, Y + 10.f, SmallFont, 0.76f);
+		Y += 30.f;
+
+		if (!PC->HasSelectedBuildingSlot())
+		{
+			HUD->DrawText(TEXT("Selecciona un slot para ver edificios compatibles."), Muted, PanelX + 30.f, Y, SmallFont, 0.74f);
+			Y += 28.f;
+			HUD->DrawRect(Disabled, PanelX + 30.f, Y, PanelW - 60.f, 24.f);
+			HUD->DrawText(TEXT("Mejorar / demoler / gestionar - bloqueado"), Muted, PanelX + 42.f, Y + 5.f, SmallFont, 0.68f);
+			return;
+		}
+
+		const FString& SlotLabel = PC->GetSelectedBuildingSlotLabel();
+		const bool bCityMode = Context == EWLCampaignBuildingPanelContext::City;
+		const EWLCampaignBuildingSlotState State = PC->GetCampaignBuildingSlotState(SlotLabel, Slots.Find(SlotLabel), bCityMode);
+		const FString DisplayLabel = FWLCampaignBuildingSlotRules::GetSlotDisplayLabel(Catalog, Context, SlotLabel);
+		HUD->DrawText(ShortenForPanel(DisplayLabel, 30), Text, PanelX + 30.f, Y, SmallFont, 0.86f);
+		Y += 19.f;
+		HUD->DrawText(ShortenForPanel(FWLCampaignBuildingSlotRules::GetSlotDescription(Catalog, Context, SlotLabel), 58),
+			Muted, PanelX + 30.f, Y, SmallFont, 0.68f);
+		Y += 25.f;
+
+		if (State == EWLCampaignBuildingSlotState::Locked)
+		{
+			HUD->DrawRect(Disabled, PanelX + 30.f, Y, PanelW - 60.f, 30.f);
+			HUD->DrawText(TEXT("Slot bloqueado para costos, upgrades o sistemas futuros."), Muted, PanelX + 42.f, Y + 8.f, SmallFont, 0.70f);
+			return;
+		}
+
+		const FString BuildingId = PC->GetCampaignBuildingIdForSlot(SlotLabel, Slots.Find(SlotLabel), bCityMode);
+		if (!BuildingId.IsEmpty())
+		{
+			const FWLCampaignBuildingDefinition* Building = Catalog.FindBuilding(BuildingId);
+			if (!Building)
+			{
+				return;
+			}
+			HUD->DrawText(ShortenForPanel(Building->Name, 34), Text, PanelX + 30.f, Y, SmallFont, 0.88f);
+			HUD->DrawText(FString::Printf(TEXT("%s  |  Nivel %d"), *Building->TypeLabel, Building->Level),
+				Gold, PanelX + PanelW - 180.f, Y, SmallFont, 0.70f);
+			Y += 20.f;
+			HUD->DrawText(ShortenForPanel(Building->Description, 60), Muted, PanelX + 30.f, Y, SmallFont, 0.68f);
+			Y += 24.f;
+			DrawTagRow(HUD, SmallFont, Building->Effects, PanelX + 30.f, Y, PanelW - 72.f, FLinearColor(0.12f, 0.17f, 0.14f, 0.92f), Text);
+			if (Y < PanelY + PanelH - 72.f)
+			{
+				HUD->DrawRect(Disabled, PanelX + 30.f, Y, 116.f, 24.f);
+				HUD->DrawText(TEXT("Mejorar - bloqueado"), Muted, PanelX + 38.f, Y + 5.f, SmallFont, 0.64f);
+				HUD->DrawRect(Disabled, PanelX + 154.f, Y, 116.f, 24.f);
+				HUD->DrawText(TEXT("Demoler - bloqueado"), Muted, PanelX + 162.f, Y + 5.f, SmallFont, 0.64f);
+				HUD->DrawRect(Disabled, PanelX + 278.f, Y, 104.f, 24.f);
+				HUD->DrawText(TEXT("Gestionar"), Muted, PanelX + 292.f, Y + 5.f, SmallFont, 0.64f);
+			}
+			return;
+		}
+
+		TArray<FWLCampaignBuildingDefinition> CompatibleBuildings;
+		FWLCampaignBuildingSlotRules::GetCompatibleBuildings(Catalog, Context, SlotLabel, CompatibleBuildings);
+		const int32 MaxOptions = FMath::Min(CompatibleBuildings.Num(), 3);
+		if (MaxOptions == 0)
+		{
+			HUD->DrawText(TEXT("Sin edificios compatibles en este catalogo placeholder."), Muted, PanelX + 30.f, Y, SmallFont, 0.70f);
+			return;
+		}
+
+		for (int32 Index = 0; Index < MaxOptions && Y < PanelY + PanelH - 48.f; ++Index)
+		{
+			const FWLCampaignBuildingDefinition& Building = CompatibleBuildings[Index];
+			HUD->DrawRect(FLinearColor(0.020f, 0.038f, 0.044f, 0.94f), PanelX + 30.f, Y, PanelW - 60.f, 46.f);
+			HUD->DrawText(ShortenForPanel(Building.Name, 28), Text, PanelX + 40.f, Y + 7.f, SmallFont, 0.76f);
+			HUD->DrawText(ShortenForPanel(JoinDisplayList(Building.Effects), 36), Muted, PanelX + 40.f, Y + 25.f, SmallFont, 0.62f);
+			HUD->DrawRect(FLinearColor(0.50f, 0.40f, 0.18f, 0.96f), PanelX + PanelW - 105.f, Y + 12.f, 78.f, 23.f);
+			HUD->DrawText(TEXT("Construir"), Text, PanelX + PanelW - 94.f, Y + 17.f, SmallFont, 0.62f);
+			Y += 51.f;
+		}
+	}
+
 	void DrawCampaignSelectionPanel(
 		AWLCampaignHUD* HUD,
 		UCanvas* Canvas,
@@ -291,11 +505,14 @@ namespace
 		DrawSectionTitle(HUD, SmallFont, bCityMode ? TEXT("RECURSOS CONECTADOS") : TEXT("RECURSOS PRINCIPALES"), PanelX + 18.f, Y, Gold);
 		DrawTagRow(HUD, SmallFont, Entry.Resources, PanelX + 18.f, Y, PanelW - 36.f, FLinearColor(0.12f, 0.17f, 0.16f, 0.92f), Text);
 
-		DrawSectionTitle(HUD, SmallFont, bCityMode ? TEXT("SLOTS URBANOS PLACEHOLDER") : TEXT("SLOTS DE EDIFICIOS PLACEHOLDER"), PanelX + 18.f, Y, Gold);
-		DrawTagRow(HUD, SmallFont, bCityMode ? Entry.UrbanSlots : Entry.BuildingSlots, PanelX + 18.f, Y, PanelW - 36.f, FLinearColor(0.17f, 0.14f, 0.08f, 0.92f), Text);
+		const FWLCampaignBuildingSlotCatalog& SlotCatalog = GetCampaignHudBuildingSlotCatalog();
+		const EWLCampaignBuildingPanelContext SlotContext = FWLCampaignBuildingSlotRules::ContextFromCityMode(bCityMode);
+		const TArray<FString>& Slots = bCityMode ? Entry.UrbanSlots : Entry.BuildingSlots;
+		DrawCampaignBuildingSlotCards(HUD, SmallFont, PC, SlotCatalog, SlotContext, Slots, PanelX, PanelY, PanelW, Gold, Text, Muted);
 
 		if (!bCityMode)
 		{
+			Y = FMath::Max(Y, GetCampaignHudSlotStartY(PanelY) - 63.f);
 			DrawSectionTitle(HUD, SmallFont, TEXT("PUERTOS / CIUDADES"), PanelX + 18.f, Y, Gold);
 			HUD->DrawText(ShortenForPanel(FString::Printf(TEXT("Puertos: %s"), *JoinDisplayList(Entry.Ports, TEXT("No aplica"))), 58),
 				Muted, PanelX + 18.f, Y, SmallFont, 0.75f);
@@ -305,15 +522,7 @@ namespace
 			Y += 26.f;
 		}
 
-		DrawSectionTitle(HUD, SmallFont, TEXT("ACCIONES FUTURAS"), PanelX + 18.f, Y, Gold);
-		const int32 MaxActions = FMath::Min(Entry.DisabledActions.Num(), 5);
-		for (int32 Index = 0; Index < MaxActions && Y < PanelY + PanelH - 30.f; ++Index)
-		{
-			HUD->DrawRect(Disabled, PanelX + 18.f, Y, PanelW - 36.f, 24.f);
-			HUD->DrawText(ShortenForPanel(Entry.DisabledActions[Index] + TEXT("  - bloqueado"), 48),
-				Muted, PanelX + 30.f, Y + 5.f, SmallFont, 0.72f);
-			Y += 29.f;
-		}
+		DrawCampaignBuildingDetail(HUD, SmallFont, PC, SlotCatalog, SlotContext, Slots, PanelX, PanelY, PanelW, PanelH, Gold, Text, Muted, Disabled);
 
 		HUD->DrawText(ShortenForPanel(Entry.DetailLevel, 46), Muted, PanelX + 18.f, PanelY + PanelH - 24.f, SmallFont, 0.70f);
 	}

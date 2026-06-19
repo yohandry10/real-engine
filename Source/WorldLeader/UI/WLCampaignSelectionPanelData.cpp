@@ -10,13 +10,13 @@
 
 namespace
 {
-	FString ReadStringFieldOrDefault(const TSharedPtr<FJsonObject>& Obj, const TCHAR* FieldName, const FString& DefaultValue = TEXT(""))
+	FString ReadSelectionPanelStringFieldOrDefault(const TSharedPtr<FJsonObject>& Obj, const TCHAR* FieldName, const FString& DefaultValue = TEXT(""))
 	{
 		FString Value;
 		return Obj.IsValid() && Obj->TryGetStringField(FieldName, Value) ? Value : DefaultValue;
 	}
 
-	TArray<FString> ReadStringArray(const TSharedPtr<FJsonObject>& Obj, const TCHAR* FieldName)
+	TArray<FString> ReadSelectionPanelStringArray(const TSharedPtr<FJsonObject>& Obj, const TCHAR* FieldName)
 	{
 		TArray<FString> Result;
 		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
@@ -43,33 +43,33 @@ namespace
 			return false;
 		}
 
-		OutEntry.Id = ReadStringFieldOrDefault(Obj, TEXT("id"));
-		OutEntry.Name = ReadStringFieldOrDefault(Obj, TEXT("name"));
+		OutEntry.Id = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("id"));
+		OutEntry.Name = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("name"));
 		if (OutEntry.Id.IsEmpty() || OutEntry.Name.IsEmpty())
 		{
 			return false;
 		}
 
-		OutEntry.Country = ReadStringFieldOrDefault(Obj, TEXT("country"));
-		OutEntry.CountryIso = ReadStringFieldOrDefault(Obj, TEXT("country_iso"));
-		OutEntry.TypeLabel = ReadStringFieldOrDefault(Obj, TEXT("type"));
-		OutEntry.TerritoryId = ReadStringFieldOrDefault(Obj, TEXT("territory_id"));
-		OutEntry.TerritoryName = ReadStringFieldOrDefault(Obj, TEXT("territory_name"));
-		OutEntry.CapitalOrMainCity = ReadStringFieldOrDefault(Obj, TEXT("capital_or_main_city"));
-		OutEntry.Owner = ReadStringFieldOrDefault(Obj, TEXT("owner"));
-		OutEntry.Controller = ReadStringFieldOrDefault(Obj, TEXT("controller"));
-		OutEntry.Population = ReadStringFieldOrDefault(Obj, TEXT("population"));
-		OutEntry.PublicOrder = ReadStringFieldOrDefault(Obj, TEXT("public_order"));
-		OutEntry.Infrastructure = ReadStringFieldOrDefault(Obj, TEXT("infrastructure"));
-		OutEntry.StrategicImportance = ReadStringFieldOrDefault(Obj, TEXT("strategic_importance"));
-		OutEntry.DetailLevel = ReadStringFieldOrDefault(Obj, TEXT("detail_level"));
-		OutEntry.PortStatus = ReadStringFieldOrDefault(Obj, TEXT("port_status"));
-		OutEntry.Resources = ReadStringArray(Obj, TEXT("resources"));
-		OutEntry.Ports = ReadStringArray(Obj, TEXT("ports"));
-		OutEntry.Cities = ReadStringArray(Obj, TEXT("cities"));
-		OutEntry.BuildingSlots = ReadStringArray(Obj, TEXT("building_slots"));
-		OutEntry.UrbanSlots = ReadStringArray(Obj, TEXT("urban_slots"));
-		OutEntry.DisabledActions = ReadStringArray(Obj, TEXT("disabled_actions"));
+		OutEntry.Country = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("country"));
+		OutEntry.CountryIso = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("country_iso"));
+		OutEntry.TypeLabel = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("type"));
+		OutEntry.TerritoryId = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("territory_id"));
+		OutEntry.TerritoryName = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("territory_name"));
+		OutEntry.CapitalOrMainCity = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("capital_or_main_city"));
+		OutEntry.Owner = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("owner"));
+		OutEntry.Controller = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("controller"));
+		OutEntry.Population = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("population"));
+		OutEntry.PublicOrder = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("public_order"));
+		OutEntry.Infrastructure = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("infrastructure"));
+		OutEntry.StrategicImportance = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("strategic_importance"));
+		OutEntry.DetailLevel = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("detail_level"));
+		OutEntry.PortStatus = ReadSelectionPanelStringFieldOrDefault(Obj, TEXT("port_status"));
+		OutEntry.Resources = ReadSelectionPanelStringArray(Obj, TEXT("resources"));
+		OutEntry.Ports = ReadSelectionPanelStringArray(Obj, TEXT("ports"));
+		OutEntry.Cities = ReadSelectionPanelStringArray(Obj, TEXT("cities"));
+		OutEntry.BuildingSlots = ReadSelectionPanelStringArray(Obj, TEXT("building_slots"));
+		OutEntry.UrbanSlots = ReadSelectionPanelStringArray(Obj, TEXT("urban_slots"));
+		OutEntry.DisabledActions = ReadSelectionPanelStringArray(Obj, TEXT("disabled_actions"));
 		return true;
 	}
 

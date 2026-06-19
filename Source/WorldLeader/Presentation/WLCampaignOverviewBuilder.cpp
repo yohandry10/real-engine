@@ -70,7 +70,7 @@ namespace
 		return bInside;
 	}
 
-	float SignedArea(const TArray<FVector2D>& Poly)
+	float OverviewSignedArea(const TArray<FVector2D>& Poly)
 	{
 		float Area = 0.f;
 		for (int32 Index = 0; Index < Poly.Num(); ++Index)
@@ -106,7 +106,7 @@ namespace
 
 		TArray<int32> V;
 		V.Reserve(Num);
-		const bool bClockwise = SignedArea(Contour) < 0.f;
+		const bool bClockwise = OverviewSignedArea(Contour) < 0.f;
 		for (int32 Index = 0; Index < Num; ++Index)
 		{
 			V.Add(bClockwise ? (Num - 1 - Index) : Index);
