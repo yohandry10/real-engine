@@ -49,16 +49,17 @@ private:
 	void BuildLoadCampaignScreen();
 	void BuildSettingsScreen();
 	void BuildShell();
+	void AddBackgroundPolish();
 	void AddTopChrome();
 	void AddLeftNavigation();
 	void AddBrandBlock();
 	void AddBriefingPanel();
-	void AddBottomAction(const FString& Label, UButton* Button);
+	void AddBottomStatusBar(bool bHasSave);
 	UTexture2D* LoadTextureFromProjectPng(const FString& RelativeProjectPath) const;
 	void SetStatusMessage(const FString& Message, bool bSuccess);
 	void ClearTransientBindings();
 
-	UButton* AddMenuButton(UVerticalBox* Box, const FString& Label, bool bEnabled = true);
+	UButton* AddMenuButton(UVerticalBox* Box, const FString& Label, const FString& Icon, bool bEnabled = true, bool bPrimary = false);
 	UTextBlock* AddText(UVerticalBox* Box, const FString& Text, float Size, const FLinearColor& Color, float TopPadding = 0.f);
 	UWidget* MakeDivider();
 	UWLDataRegistry* GetRegistry() const;

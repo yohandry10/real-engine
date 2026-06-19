@@ -14,7 +14,7 @@ namespace
 		return In.TrimStartAndEnd().ToUpper();
 	}
 
-	FString NormalizeIso(const FString& In)
+	FString NormalizeMilitaryIso(const FString& In)
 	{
 		return In.TrimStartAndEnd().ToUpper();
 	}
@@ -91,7 +91,7 @@ FString UWLMilitarySubsystem::CreateArmy(const FString& OwnerIso, const FString&
 	const UWLDataRegistry* Reg = GetRegistry();
 	if (!Reg) return FString();
 
-	const FString NormalizedOwner = NormalizeIso(OwnerIso);
+	const FString NormalizedOwner = NormalizeMilitaryIso(OwnerIso);
 	const FString NormalizedProvinceId = NormalizeProvinceId(ProvinceId);
 	const FString NormalizedUnitId = NormalizeDataId(UnitId);
 

@@ -35,10 +35,12 @@ namespace
 	const FLinearColor WLDeepSea(0.012f, 0.04f, 0.055f, 0.96f);
 	const FLinearColor WLPanel(0.025f, 0.044f, 0.055f, 0.88f);
 	const FLinearColor WLPanelHard(0.018f, 0.029f, 0.038f, 0.94f);
+	const FLinearColor WLPanelGlass(0.012f, 0.024f, 0.031f, 0.82f);
 	const FLinearColor WLLine(0.24f, 0.56f, 0.62f, 0.24f);
 	const FLinearColor WLGhostLine(0.32f, 0.78f, 0.86f, 0.12f);
 	const FLinearColor WLGold(0.93f, 0.76f, 0.34f, 1.0f);
 	const FLinearColor WLGoldDim(0.64f, 0.50f, 0.22f, 1.0f);
+	const FLinearColor WLGoldDeep(0.34f, 0.25f, 0.09f, 0.96f);
 	const FLinearColor WLText(0.91f, 0.94f, 0.92f, 1.0f);
 	const FLinearColor WLMute(0.52f, 0.65f, 0.66f, 1.0f);
 	const FLinearColor WLError(0.92f, 0.32f, 0.26f, 1.0f);
@@ -77,6 +79,7 @@ namespace
 			Slot->SetAlignment(Alignment);
 			Slot->SetPosition(Position);
 			Slot->SetSize(Size);
+			Slot->SetZOrder(10);
 		}
 	}
 
@@ -98,6 +101,29 @@ namespace
 		}
 		Box->SetContent(Child);
 		return Box;
+	}
+
+	FSlateBrush TintedBrush(const FSlateBrush& Source, const FLinearColor& Color)
+	{
+		FSlateBrush Brush = Source;
+		Brush.TintColor = FSlateColor(Color);
+		return Brush;
+	}
+
+	FButtonStyle MakeButtonStyle(bool bPrimary, bool bEnabled)
+	{
+		FButtonStyle Style = FCoreStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("Button"));
+		const FLinearColor Normal = bPrimary ? WLGoldDeep : FLinearColor(0.014f, 0.027f, 0.034f, 0.96f);
+		const FLinearColor Hovered = bPrimary ? FLinearColor(0.62f, 0.46f, 0.16f, 1.0f) : FLinearColor(0.06f, 0.10f, 0.12f, 1.0f);
+		const FLinearColor Pressed = bPrimary ? FLinearColor(0.82f, 0.62f, 0.22f, 1.0f) : FLinearColor(0.09f, 0.13f, 0.14f, 1.0f);
+		const FLinearColor Disabled = FLinearColor(0.035f, 0.045f, 0.047f, 0.72f);
+		Style.SetNormal(TintedBrush(Style.Normal, bEnabled ? Normal : Disabled));
+		Style.SetHovered(TintedBrush(Style.Hovered, bEnabled ? Hovered : Disabled));
+		Style.SetPressed(TintedBrush(Style.Pressed, bEnabled ? Pressed : Disabled));
+		Style.SetDisabled(TintedBrush(Style.Disabled, Disabled));
+		Style.SetNormalPadding(FMargin(1.f));
+		Style.SetPressedPadding(FMargin(2.f, 3.f, 0.f, 0.f));
+		return Style;
 	}
 
 }
@@ -195,8 +221,47 @@ void UWLFrontendMenuWidget::BuildShell()
 		BackgroundSlot->SetZOrder(0);
 	}
 
+	AddBackgroundPolish();
 	AddTopChrome();
 	AddLeftNavigation();
+}
+
+void UWLFrontendMenuWidget::AddBackgroundPolish()
+{
+	UBorder* GlobalShade = MakePanel(WidgetTree, FLinearColor(0.0f, 0.006f, 0.01f, 0.24f), FMargin(0.f));
+	if (UCanvasPanelSlot* CanvasSlot = RootCanvas->AddChildToCanvas(GlobalShade))
+	{
+		CanvasSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		CanvasSlot->SetOffsets(FMargin(0.f));
+		CanvasSlot->SetZOrder(1);
+	}
+
+	UBorder* LeftReadability = MakePanel(WidgetTree, FLinearColor(0.0f, 0.0f, 0.0f, 0.36f), FMargin(0.f));
+	if (UCanvasPanelSlot* CanvasSlot = RootCanvas->AddChildToCanvas(LeftReadability))
+	{
+		CanvasSlot->SetAnchors(FAnchors(0.f, 0.f, 0.f, 1.f));
+		CanvasSlot->SetPosition(FVector2D(0.f, 0.f));
+		CanvasSlot->SetSize(FVector2D(520.f, 0.f));
+		CanvasSlot->SetZOrder(2);
+	}
+
+	UBorder* RightReadability = MakePanel(WidgetTree, FLinearColor(0.0f, 0.0f, 0.0f, 0.28f), FMargin(0.f));
+	if (UCanvasPanelSlot* CanvasSlot = RootCanvas->AddChildToCanvas(RightReadability))
+	{
+		CanvasSlot->SetAnchors(FAnchors(1.f, 0.f, 1.f, 1.f));
+		CanvasSlot->SetAlignment(FVector2D(1.f, 0.f));
+		CanvasSlot->SetPosition(FVector2D(0.f, 0.f));
+		CanvasSlot->SetSize(FVector2D(520.f, 0.f));
+		CanvasSlot->SetZOrder(2);
+	}
+
+	UBorder* BottomShade = MakePanel(WidgetTree, FLinearColor(0.0f, 0.0f, 0.0f, 0.54f), FMargin(0.f));
+	if (UCanvasPanelSlot* CanvasSlot = RootCanvas->AddChildToCanvas(BottomShade))
+	{
+		CanvasSlot->SetAnchors(FAnchors(0.f, 1.f, 1.f, 1.f));
+		CanvasSlot->SetOffsets(FMargin(0.f, -132.f, 0.f, 0.f));
+		CanvasSlot->SetZOrder(2);
+	}
 }
 
 UTexture2D* UWLFrontendMenuWidget::LoadTextureFromProjectPng(const FString& RelativeProjectPath) const
@@ -241,7 +306,7 @@ void UWLFrontendMenuWidget::AddTopChrome()
 {
 	UHorizontalBox* TopBar = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("TopChrome"));
 
-	UTextBlock* Left = MakeText(WidgetTree, TEXT("WORLD LEADER / GLOBAL DIPLOMATIC MAP"), 15.f, WLMute, true);
+	UTextBlock* Left = MakeText(WidgetTree, TEXT("WORLD LEADER / MAPA DIPLOMATICO GLOBAL"), 15.f, FLinearColor(0.72f, 0.83f, 0.86f, 0.9f), true);
 	if (UHorizontalBoxSlot* HorizontalSlot = TopBar->AddChildToHorizontalBox(Left))
 	{
 		HorizontalSlot->SetPadding(FMargin(0.f));
@@ -255,7 +320,8 @@ void UWLFrontendMenuWidget::AddTopChrome()
 		HorizontalSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 	}
 
-	UTextBlock* Right = MakeText(WidgetTree, TEXT("PRE-ALPHA 0.0.1  |  UE 5.8"), 14.f, FLinearColor(0.78f, 0.76f, 0.64f, 0.9f), true);
+	UTextBlock* Right = MakeText(WidgetTree, TEXT("ONLINE"), 14.f, FLinearColor(0.78f, 0.76f, 0.64f, 0.9f), true);
+	Right->SetAutoWrapText(false);
 	if (UHorizontalBoxSlot* HorizontalSlot = TopBar->AddChildToHorizontalBox(Right))
 	{
 		HorizontalSlot->SetHorizontalAlignment(HAlign_Right);
@@ -267,108 +333,178 @@ void UWLFrontendMenuWidget::AddTopChrome()
 
 void UWLFrontendMenuWidget::AddLeftNavigation()
 {
-	UBorder* Panel = MakePanel(WidgetTree, WLPanelHard, FMargin(22.f, 24.f, 22.f, 24.f));
+	const AWLFrontendPlayerController* PC = GetOwningPlayer<AWLFrontendPlayerController>();
+	const bool bHasSave = PC && PC->HasLocalCampaignSave();
+	const bool bHome = CurrentScreen == EWLFrontendScreen::Home;
+
+	UBorder* PanelShadow = MakePanel(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.34f), FMargin(0.f));
+	AddCanvasChild(RootCanvas, PanelShadow, FAnchors(0.f, 0.5f, 0.f, 0.5f), FVector2D(46.f, 8.f), FVector2D(398.f, 642.f), FVector2D(0.f, 0.5f));
+
+	UBorder* Panel = MakePanel(WidgetTree, WLPanelGlass, FMargin(20.f, 22.f, 20.f, 22.f));
 	LeftNavigationBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("LeftNavigation"));
 	Panel->SetContent(LeftNavigationBox);
 
-	AddText(LeftNavigationBox, TEXT("COMANDO"), 15.f, WLGold, 0.f);
-	AddText(LeftNavigationBox, TEXT("Menu principal"), 26.f, WLText, 6.f);
-	AddVBoxChild(LeftNavigationBox, MakeDivider(), 16.f);
+	AddText(LeftNavigationBox, TEXT("COMANDO CENTRAL"), 13.f, WLGold, 0.f);
+	AddText(LeftNavigationBox, TEXT("Menu principal"), 25.f, WLText, 5.f);
+	AddText(LeftNavigationBox, bHasSave ? TEXT("Sesion de campania disponible") : TEXT("Nueva orden de mando disponible"), 13.f, WLMute, 4.f);
+	AddVBoxChild(LeftNavigationBox, MakeDivider(), 12.f);
 
-	const bool bHasSave = false;
-	ContinueButton = AddMenuButton(LeftNavigationBox, TEXT("CONTINUAR CAMPANIA"), bHasSave);
+	ContinueButton = AddMenuButton(LeftNavigationBox, TEXT("CONTINUAR CAMPANIA"), TEXT("*"), bHasSave, bHome && bHasSave);
 	ContinueButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleContinueClicked);
-	NewCampaignButton = AddMenuButton(LeftNavigationBox, TEXT("NUEVA CAMPANIA"));
+	NewCampaignButton = AddMenuButton(LeftNavigationBox, TEXT("NUEVA CAMPANIA"), TEXT("O"), true, (bHome && !bHasSave) || CurrentScreen == EWLFrontendScreen::NewCampaign);
 	NewCampaignButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleNewCampaignClicked);
-	LoadButton = AddMenuButton(LeftNavigationBox, TEXT("CARGAR"));
+	LoadButton = AddMenuButton(LeftNavigationBox, TEXT("CARGAR"), TEXT("[]"), true, CurrentScreen == EWLFrontendScreen::LoadCampaign);
 	LoadButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleLoadClicked);
-	MultiplayerButton = AddMenuButton(LeftNavigationBox, TEXT("MULTIJUGADOR"), false);
-	SettingsButton = AddMenuButton(LeftNavigationBox, TEXT("OPCIONES"));
+	MultiplayerButton = AddMenuButton(LeftNavigationBox, TEXT("MULTIJUGADOR"), TEXT("OO"), false);
+	SettingsButton = AddMenuButton(LeftNavigationBox, TEXT("OPCIONES"), TEXT("o"), true, CurrentScreen == EWLFrontendScreen::Settings);
 	SettingsButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleSettingsClicked);
-	ModsButton = AddMenuButton(LeftNavigationBox, TEXT("MODS"), false);
-	QuitButton = AddMenuButton(LeftNavigationBox, TEXT("SALIR"));
+	ModsButton = AddMenuButton(LeftNavigationBox, TEXT("MODS"), TEXT("#"), false);
+	QuitButton = AddMenuButton(LeftNavigationBox, TEXT("SALIR"), TEXT("|"));
 	QuitButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleQuitClicked);
 
-	AddCanvasChild(RootCanvas, Panel, FAnchors(0.f, 0.5f, 0.f, 0.5f), FVector2D(42.f, 0.f), FVector2D(330.f, 548.f), FVector2D(0.f, 0.5f));
+	AddCanvasChild(RootCanvas, Panel, FAnchors(0.f, 0.5f, 0.f, 0.5f), FVector2D(38.f, 0.f), FVector2D(398.f, 642.f), FVector2D(0.f, 0.5f));
 }
 
 void UWLFrontendMenuWidget::AddBrandBlock()
 {
-	UBorder* BrandPanel = MakePanel(WidgetTree, FLinearColor(0.01f, 0.018f, 0.021f, 0.38f), FMargin(24.f, 20.f));
+	UBorder* BrandPanel = MakePanel(WidgetTree, FLinearColor(0.0f, 0.006f, 0.01f, 0.28f), FMargin(20.f, 14.f));
 	UVerticalBox* BrandBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("BrandBlock"));
 	BrandPanel->SetContent(BrandBox);
 
-	UTextBlock* Eyebrow = AddText(BrandBox, TEXT("MODERN GRAND STRATEGY"), 14.f, WLGold, 0.f);
-	Eyebrow->SetJustification(ETextJustify::Center);
+	UTextBlock* Crest = AddText(BrandBox, TEXT("*  O  *"), 22.f, WLGold, 0.f);
+	Crest->SetJustification(ETextJustify::Center);
 
-	UTextBlock* Title = AddText(BrandBox, TEXT("WORLD LEADER"), 54.f, WLText, 4.f);
+	UTextBlock* Title = AddText(BrandBox, TEXT("WORLD LEADER"), 62.f, WLText, 0.f);
 	Title->SetJustification(ETextJustify::Center);
+	Title->SetAutoWrapText(false);
 
-	UTextBlock* Subtitle = AddText(BrandBox, TEXT("Controla economia, alianzas, crisis y poder militar en un mapa diplomatico global."), 18.f, FLinearColor(0.75f, 0.84f, 0.83f, 1.f), 8.f);
+	UTextBlock* Eyebrow = AddText(BrandBox, TEXT("GLOBAL COMMAND STRATEGY"), 17.f, WLGold, 0.f);
+	Eyebrow->SetJustification(ETextJustify::Center);
+	Eyebrow->SetAutoWrapText(false);
+
+	UTextBlock* Rule = AddText(BrandBox, TEXT("------------------------------"), 12.f, FLinearColor(0.83f, 0.63f, 0.22f, 0.82f), 0.f);
+	Rule->SetJustification(ETextJustify::Center);
+
+	UTextBlock* Subtitle = AddText(BrandBox, TEXT("Poder, diplomacia e inteligencia en un mapa global."), 15.f, FLinearColor(0.75f, 0.84f, 0.83f, 0.92f), 8.f);
 	Subtitle->SetJustification(ETextJustify::Center);
+	Subtitle->SetAutoWrapText(false);
 
-	AddCanvasChild(RootCanvas, BrandPanel, FAnchors(0.5f, 0.5f, 0.5f, 0.5f), FVector2D(80.f, -28.f), FVector2D(520.f, 210.f), FVector2D(0.5f, 0.5f));
+	AddCanvasChild(RootCanvas, BrandPanel, FAnchors(0.36f, 0.f, 0.36f, 0.f), FVector2D(0.f, 86.f), FVector2D(860.f, 214.f), FVector2D(0.5f, 0.f));
 }
 
 void UWLFrontendMenuWidget::AddBriefingPanel()
 {
-	UBorder* Briefing = MakePanel(WidgetTree, WLPanel, FMargin(20.f, 18.f));
+	UBorder* Shadow = MakePanel(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.36f), FMargin(0.f));
+	AddCanvasChild(RootCanvas, Shadow, FAnchors(1.f, 0.5f, 1.f, 0.5f), FVector2D(-50.f, 10.f), FVector2D(430.f, 690.f), FVector2D(1.f, 0.5f));
+
+	UBorder* Briefing = MakePanel(WidgetTree, FLinearColor(0.012f, 0.025f, 0.032f, 0.89f), FMargin(22.f, 20.f));
 	UVerticalBox* BriefBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("BriefingPanel"));
 	Briefing->SetContent(BriefBox);
 
-	AddText(BriefBox, TEXT("SITUATION BRIEF"), 14.f, WLGold, 0.f);
-	AddText(BriefBox, TEXT("Orden mundial fragmentado"), 22.f, WLText, 6.f);
-	AddVBoxChild(BriefBox, MakeDivider(), 12.f);
-	AddText(BriefBox, TEXT("ENERGIA: rutas comerciales bajo presion."), 15.f, FLinearColor(0.84f, 0.88f, 0.82f, 1.f), 10.f);
-	AddText(BriefBox, TEXT("DIPLOMACIA: bloques regionales buscan influencia."), 15.f, FLinearColor(0.84f, 0.88f, 0.82f, 1.f), 8.f);
-	AddText(BriefBox, TEXT("SEGURIDAD: zonas de crisis activas en multiples teatros."), 15.f, FLinearColor(0.84f, 0.88f, 0.82f, 1.f), 8.f);
-	AddText(BriefBox, TEXT("ECONOMIA: tesoro, industria y estabilidad definen el ritmo."), 15.f, FLinearColor(0.84f, 0.88f, 0.82f, 1.f), 8.f);
+	AddText(BriefBox, TEXT("BRIEFING GLOBAL"), 14.f, WLGold, 0.f);
+	AddText(BriefBox, TEXT("Orden mundial fragmentado"), 24.f, WLText, 5.f);
+	AddText(BriefBox, TEXT("Alianzas inestables, mercados sensibles y crisis regionales activas."), 14.f, WLMute, 8.f);
+	AddVBoxChild(BriefBox, MakeDivider(), 14.f);
 
-	AddCanvasChild(RootCanvas, Briefing, FAnchors(1.f, 0.f, 1.f, 0.f), FVector2D(-44.f, 86.f), FVector2D(340.f, 300.f), FVector2D(1.f, 0.f));
+	AddText(BriefBox, TEXT("CRISIS ACTIVAS"), 15.f, WLText, 16.f);
+
+	const auto AddBriefingItem = [this, BriefBox](const FString& Severity, const FString& Title, const FString& Body, const FLinearColor& SeverityColor)
+	{
+		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+		UTextBlock* Mark = MakeText(WidgetTree, TEXT("!"), 20.f, SeverityColor, true);
+		Mark->SetJustification(ETextJustify::Center);
+		if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(MakeFixedHeight(WidgetTree, Mark, 44.f, 34.f)))
+		{
+			RowSlot->SetVerticalAlignment(VAlign_Top);
+			RowSlot->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
+		}
+
+		UVerticalBox* Copy = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		AddText(Copy, Title, 14.f, WLText, 0.f);
+		AddText(Copy, Body, 12.f, WLMute, 2.f);
+		if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(Copy))
+		{
+			RowSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			RowSlot->SetVerticalAlignment(VAlign_Center);
+		}
+
+		UTextBlock* SeverityText = MakeText(WidgetTree, Severity, 11.f, SeverityColor, true);
+		SeverityText->SetJustification(ETextJustify::Right);
+		if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(SeverityText))
+		{
+			RowSlot->SetHorizontalAlignment(HAlign_Right);
+			RowSlot->SetVerticalAlignment(VAlign_Center);
+		}
+
+		AddVBoxChild(BriefBox, Row, 12.f);
+	};
+
+	AddBriefingItem(TEXT("ALTA"), TEXT("Mar Negro"), TEXT("Movimientos navales elevan la presion regional."), WLError);
+	AddBriefingItem(TEXT("ALTA"), TEXT("Pacifico occidental"), TEXT("Disputa territorial con impacto comercial."), WLError);
+	AddBriefingItem(TEXT("MEDIA"), TEXT("Sahel"), TEXT("Inestabilidad interna y riesgo humanitario."), WLGold);
+
+	AddVBoxChild(BriefBox, MakeDivider(), 18.f);
+	AddText(BriefBox, TEXT("INTELIGENCIA RECIENTE"), 15.f, WLText, 14.f);
+	AddText(BriefBox, TEXT("02h  Operaciones ciberneticas detectadas en Europa."), 12.f, FLinearColor(0.77f, 0.84f, 0.84f, 0.92f), 10.f);
+	AddText(BriefBox, TEXT("05h  Nuevo acuerdo comercial propuesto por la UE."), 12.f, FLinearColor(0.77f, 0.84f, 0.84f, 0.92f), 7.f);
+	AddText(BriefBox, TEXT("07h  Imagen satelital actualizada: Medio Oriente."), 12.f, FLinearColor(0.77f, 0.84f, 0.84f, 0.92f), 7.f);
+
+	AddCanvasChild(RootCanvas, Briefing, FAnchors(1.f, 0.5f, 1.f, 0.5f), FVector2D(-58.f, 0.f), FVector2D(430.f, 690.f), FVector2D(1.f, 0.5f));
 }
 
-void UWLFrontendMenuWidget::AddBottomAction(const FString& Label, UButton* Button)
+void UWLFrontendMenuWidget::AddBottomStatusBar(bool bHasSave)
 {
-	UBorder* ActionPanel = MakePanel(WidgetTree, FLinearColor(0.035f, 0.035f, 0.03f, 0.82f), FMargin(16.f, 12.f));
-	ActionPanel->SetContent(Button);
+	UBorder* Bar = MakePanel(WidgetTree, FLinearColor(0.008f, 0.017f, 0.022f, 0.92f), FMargin(18.f, 12.f));
+	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("BottomStatusBar"));
+	Bar->SetContent(Row);
 
-	UTextBlock* LabelText = MakeText(WidgetTree, Label, 18.f, WLText, true);
-	LabelText->SetJustification(ETextJustify::Center);
-	Button->SetContent(MakeFixedHeight(WidgetTree, LabelText, 42.f, 330.f));
+	const auto AddCell = [this, Row](const FString& Header, const FString& Body, float MinWidth, const FLinearColor& Accent)
+	{
+		UBorder* Cell = MakePanel(WidgetTree, FLinearColor(0.018f, 0.033f, 0.04f, 0.84f), FMargin(14.f, 8.f));
+		UVerticalBox* Copy = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		Cell->SetContent(Copy);
+		AddText(Copy, Header, 11.f, Accent, 0.f);
+		AddText(Copy, Body, 12.f, WLText, 3.f);
+		if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(MakeFixedHeight(WidgetTree, Cell, 58.f, MinWidth)))
+		{
+			RowSlot->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
+			RowSlot->SetVerticalAlignment(VAlign_Center);
+		}
+	};
 
-	AddCanvasChild(RootCanvas, ActionPanel, FAnchors(0.5f, 1.f, 0.5f, 1.f), FVector2D(0.f, -34.f), FVector2D(392.f, 76.f), FVector2D(0.5f, 1.f));
+	AddCell(TEXT("ONLINE"), TEXT("Global Command Network"), 230.f, WLGood);
+	AddCell(TEXT("WORLD NEWS"), TEXT("Cumbre G20 abre nueva ronda comercial."), 420.f, WLGold);
+
+	StatusText = MakeText(WidgetTree, bHasSave ? TEXT("ENTER Seleccionar   TAB Navegar   ESC Volver") : TEXT("ENTER Nueva campania   TAB Navegar   ESC Volver"), 13.f, WLMute, true);
+	StatusText->SetJustification(ETextJustify::Center);
+	if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(StatusText))
+	{
+		RowSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		RowSlot->SetHorizontalAlignment(HAlign_Center);
+		RowSlot->SetVerticalAlignment(VAlign_Center);
+	}
+
+	AddCell(TEXT("LEGAL"), TEXT("Creditos  |  Licencias"), 190.f, WLMute);
+	AddCell(TEXT("BUILD"), TEXT("v0.1.0  UE 5.8"), 170.f, WLGold);
+
+	if (UCanvasPanelSlot* CanvasSlot = RootCanvas->AddChildToCanvas(Bar))
+	{
+		CanvasSlot->SetAnchors(FAnchors(0.f, 1.f, 1.f, 1.f));
+		CanvasSlot->SetOffsets(FMargin(36.f, -92.f, 36.f, 20.f));
+		CanvasSlot->SetZOrder(10);
+	}
 }
 
 void UWLFrontendMenuWidget::BuildHomeScreen()
 {
 	CurrentScreen = EWLFrontendScreen::Home;
+	AWLFrontendPlayerController* PC = GetOwningPlayer<AWLFrontendPlayerController>();
+	const bool bHasSave = PC && PC->HasLocalCampaignSave();
 	BuildShell();
 	AddBrandBlock();
 	AddBriefingPanel();
-
-	AWLFrontendPlayerController* PC = GetOwningPlayer<AWLFrontendPlayerController>();
-	const bool bHasSave = PC && PC->HasLocalCampaignSave();
-	if (ContinueButton)
-	{
-		ContinueButton->SetIsEnabled(bHasSave);
-	}
-
-	UButton* PrimaryButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("PrimaryAction"));
-	PrimaryButton->SetBackgroundColor(WLGoldDim);
-	if (bHasSave)
-	{
-		PrimaryButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleContinueClicked);
-		AddBottomAction(TEXT("CONTINUAR CAMPANIA"), PrimaryButton);
-	}
-	else
-	{
-		PrimaryButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleNewCampaignClicked);
-		AddBottomAction(TEXT("NUEVA CAMPANIA"), PrimaryButton);
-	}
-
-	StatusText = MakeText(WidgetTree, bHasSave ? TEXT("Save local detectado.") : TEXT("Listo para iniciar una nueva campania."), 15.f, WLMute);
-	StatusText->SetJustification(ETextJustify::Center);
-	AddCanvasChild(RootCanvas, StatusText, FAnchors(0.5f, 1.f, 0.5f, 1.f), FVector2D(0.f, -116.f), FVector2D(440.f, 28.f), FVector2D(0.5f, 1.f));
+	AddBottomStatusBar(bHasSave);
 	ApplyDefaultFocus();
 }
 
@@ -417,9 +553,9 @@ void UWLFrontendMenuWidget::BuildNewCampaignScreen()
 
 	StatusText = AddText(ContentBox, TEXT(""), 15.f, WLMute, 18.f);
 
-	StartCampaignButton = AddMenuButton(ContentBox, TEXT("COMENZAR CAMPANIA"), Nations.Num() > 0);
+	StartCampaignButton = AddMenuButton(ContentBox, TEXT("COMENZAR CAMPANIA"), TEXT(">"), Nations.Num() > 0, true);
 	StartCampaignButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleStartCampaignClicked);
-	BackButton = AddMenuButton(ContentBox, TEXT("VOLVER"));
+	BackButton = AddMenuButton(ContentBox, TEXT("VOLVER"), TEXT("<"));
 	BackButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleBackClicked);
 
 	AddCanvasChild(RootCanvas, Panel, FAnchors(0.5f, 0.5f, 0.5f, 0.5f), FVector2D(150.f, 0.f), FVector2D(620.f, 560.f), FVector2D(0.5f, 0.5f));
@@ -445,9 +581,9 @@ void UWLFrontendMenuWidget::BuildLoadCampaignScreen()
 	const bool bHasSave = PC && PC->HasLocalCampaignSave();
 	AddText(ContentBox, bHasSave ? TEXT("Save encontrado: WorldLeader_LocalCampaign") : TEXT("No hay save local disponible."), 18.f, bHasSave ? WLGood : WLError, 16.f);
 
-	ContinueButton = AddMenuButton(ContentBox, TEXT("CARGAR Y CONTINUAR"), bHasSave);
+	ContinueButton = AddMenuButton(ContentBox, TEXT("CARGAR Y CONTINUAR"), TEXT(">"), bHasSave, bHasSave);
 	ContinueButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleContinueClicked);
-	BackButton = AddMenuButton(ContentBox, TEXT("VOLVER"));
+	BackButton = AddMenuButton(ContentBox, TEXT("VOLVER"), TEXT("<"));
 	BackButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleBackClicked);
 
 	StatusText = AddText(ContentBox, TEXT(""), 15.f, WLMute, 18.f);
@@ -469,23 +605,51 @@ void UWLFrontendMenuWidget::BuildSettingsScreen()
 	AddText(ContentBox, TEXT("Pendiente para el siguiente slice: video, audio, idioma, escala de UI, teclas y accesibilidad."), 17.f, WLMute, 10.f);
 	AddVBoxChild(ContentBox, MakeDivider(), 18.f);
 
-	BackButton = AddMenuButton(ContentBox, TEXT("VOLVER"));
+	BackButton = AddMenuButton(ContentBox, TEXT("VOLVER"), TEXT("<"));
 	BackButton->OnClicked.AddDynamic(this, &UWLFrontendMenuWidget::HandleBackClicked);
 	AddCanvasChild(RootCanvas, Panel, FAnchors(0.5f, 0.5f, 0.5f, 0.5f), FVector2D(150.f, 0.f), FVector2D(620.f, 420.f), FVector2D(0.5f, 0.5f));
 	ApplyDefaultFocus();
 }
 
-UButton* UWLFrontendMenuWidget::AddMenuButton(UVerticalBox* Box, const FString& Label, bool bEnabled)
+UButton* UWLFrontendMenuWidget::AddMenuButton(UVerticalBox* Box, const FString& Label, const FString& Icon, bool bEnabled, bool bPrimary)
 {
 	UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
 	Button->SetClickMethod(EButtonClickMethod::MouseDown);
-	Button->SetBackgroundColor(bEnabled ? FLinearColor(0.12f, 0.15f, 0.15f, 0.92f) : FLinearColor(0.08f, 0.08f, 0.08f, 0.75f));
+	Button->SetStyle(MakeButtonStyle(bPrimary, bEnabled));
+	Button->SetBackgroundColor(FLinearColor::White);
 	Button->SetIsEnabled(bEnabled);
 
-	UTextBlock* LabelText = MakeText(WidgetTree, Label, 16.f, bEnabled ? WLText : FLinearColor(0.38f, 0.42f, 0.42f, 1.f), true);
-	LabelText->SetJustification(ETextJustify::Center);
-	Button->SetContent(MakeFixedHeight(WidgetTree, LabelText, 42.f, 250.f));
-	AddVBoxChild(Box, Button, 10.f);
+	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+	const FLinearColor TextColor = bEnabled ? WLText : FLinearColor(0.38f, 0.43f, 0.44f, 1.f);
+	const FLinearColor AccentColor = bPrimary ? WLGold : (bEnabled ? FLinearColor(0.68f, 0.80f, 0.82f, 0.9f) : FLinearColor(0.28f, 0.32f, 0.33f, 1.f));
+
+	UTextBlock* IconText = MakeText(WidgetTree, Icon, 19.f, AccentColor, true);
+	IconText->SetJustification(ETextJustify::Center);
+	if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(MakeFixedHeight(WidgetTree, IconText, 48.f, 42.f)))
+	{
+		RowSlot->SetPadding(FMargin(8.f, 0.f, 12.f, 0.f));
+		RowSlot->SetVerticalAlignment(VAlign_Center);
+	}
+
+	UTextBlock* LabelText = MakeText(WidgetTree, Label, 15.f, TextColor, true);
+	LabelText->SetJustification(ETextJustify::Left);
+	if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(LabelText))
+	{
+		RowSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		RowSlot->SetVerticalAlignment(VAlign_Center);
+	}
+
+	UTextBlock* ArrowText = MakeText(WidgetTree, TEXT(">"), 16.f, AccentColor, true);
+	ArrowText->SetJustification(ETextJustify::Right);
+	if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(ArrowText))
+	{
+		RowSlot->SetPadding(FMargin(8.f, 0.f, 12.f, 0.f));
+		RowSlot->SetVerticalAlignment(VAlign_Center);
+	}
+
+	Button->SetContent(MakeFixedHeight(WidgetTree, Row, bPrimary ? 56.f : 50.f, 320.f));
+	AddVBoxChild(Box, Button, bPrimary ? 12.f : 8.f);
 	return Button;
 }
 
