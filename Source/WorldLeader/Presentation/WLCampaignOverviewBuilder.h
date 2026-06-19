@@ -25,6 +25,8 @@ struct FWLCampaignOverviewLabelSpec
 	float ZOffset = 0.f;
 	float WorldSize = 1800.f;
 	FColor Color = FColor::White;
+	bool bShowInGlobal = true;
+	bool bShowInRegion = true;
 };
 
 class FWLCampaignOverviewBuilder

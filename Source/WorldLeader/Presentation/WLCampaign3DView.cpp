@@ -712,6 +712,7 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		}
 	}
 	OverviewLabels.Reset();
+	OverviewLabelVisibilityMasks.Reset();
 	for (UInstancedStaticMeshComponent* Instanced : {
 		SettlementBlockInstances,
 		SettlementTowerInstances,
@@ -963,7 +964,15 @@ void AWLCampaign3DView::BuildOverviewLayer()
 
 	for (const FWLCampaignOverviewLabelSpec& Label : OverviewLabelSpecs)
 	{
-		AddOverviewLabel(Label.Text, Label.Lon, Label.Lat, Label.ZOffset, Label.WorldSize, Label.Color);
+		AddOverviewLabel(
+			Label.Text,
+			Label.Lon,
+			Label.Lat,
+			Label.ZOffset,
+			Label.WorldSize,
+			Label.Color,
+			Label.bShowInGlobal,
+			Label.bShowInRegion);
 	}
 }
 
@@ -1447,7 +1456,9 @@ void AWLCampaign3DView::AddOverviewLabel(
 	float Lat,
 	float ZOffset,
 	float WorldSize,
-	const FColor& Color)
+	const FColor& Color,
+	bool bShowInGlobal,
+	bool bShowInRegion)
 {
 	if (!SceneRoot)
 	{
@@ -1470,6 +1481,37 @@ void AWLCampaign3DView::AddOverviewLabel(
 	Label->SetTextRenderColor(Color);
 	Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	OverviewLabels.Add(Label);
+
+	uint8 VisibilityMask = 0;
+	if (bShowInGlobal)
+	{
+		VisibilityMask |= 1;
+	}
+	if (bShowInRegion)
+	{
+		VisibilityMask |= 2;
+	}
+	OverviewLabelVisibilityMasks.Add(VisibilityMask);
+}
+
+void AWLCampaign3DView::UpdateOverviewLabelVisibility(bool bStrategicVisible)
+{
+	for (int32 Index = 0; Index < OverviewLabels.Num(); ++Index)
+	{
+		UTextRenderComponent* Label = OverviewLabels[Index];
+		if (!Label)
+		{
+			continue;
+		}
+
+		const uint8 VisibilityMask = OverviewLabelVisibilityMasks.IsValidIndex(Index)
+			? OverviewLabelVisibilityMasks[Index]
+			: 3;
+		const bool bAllowedForZoom =
+			(CurrentZoomLOD == EWLCampaign3DZoomLOD::Global && (VisibilityMask & 1) != 0)
+			|| (CurrentZoomLOD == EWLCampaign3DZoomLOD::Region && (VisibilityMask & 2) != 0);
+		Label->SetVisibility(bStrategicVisible && bAllowedForZoom, true);
+	}
 }
 
 void AWLCampaign3DView::ConfigureInstancedComponent(UInstancedStaticMeshComponent* Component, UStaticMesh* Mesh, const FLinearColor& Color)
@@ -1742,15 +1784,12 @@ void AWLCampaign3DView::SetStrategicLayerVisible(bool bVisible)
 	if (OverviewMesh)
 	{
 		OverviewMesh->SetVisibility(bVisible, true);
+		OverviewMesh->SetMeshSectionVisible(0, bVisible);
+		OverviewMesh->SetMeshSectionVisible(1, bVisible);
+		OverviewMesh->SetMeshSectionVisible(2, bVisible && CurrentZoomLOD == EWLCampaign3DZoomLOD::Region);
 		OverviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
-	for (UTextRenderComponent* Label : OverviewLabels)
-	{
-		if (Label)
-		{
-			Label->SetVisibility(bVisible, true);
-		}
-	}
+	UpdateOverviewLabelVisibility(bVisible);
 }
 
 void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)

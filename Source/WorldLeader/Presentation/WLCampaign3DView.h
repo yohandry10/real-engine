@@ -110,6 +110,7 @@ private:
 	UPROPERTY() TArray<UStaticMeshComponent*> RouteSegments;
 	UPROPERTY() TArray<UTextRenderComponent*> Labels;
 	UPROPERTY() TArray<UTextRenderComponent*> OverviewLabels;
+	TArray<uint8> OverviewLabelVisibilityMasks;
 	UPROPERTY() TArray<FWLCampaign3DProvinceView> ProvinceViews;
 	UPROPERTY() ADirectionalLight* ViewDirectionalLight = nullptr;
 	UPROPERTY() ASkyLight* ViewSkyLight = nullptr;
@@ -149,7 +150,16 @@ private:
 		const FLinearColor& AccentColor);
 	void AddVegetationScatter(float MinLon, float MaxLon, float MinLat, float MaxLat, int32 Columns, int32 Rows, bool bDenseJungle);
 	void AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale);
-	void AddOverviewLabel(const FString& Text, float Lon, float Lat, float ZOffset, float WorldSize, const FColor& Color);
+	void AddOverviewLabel(
+		const FString& Text,
+		float Lon,
+		float Lat,
+		float ZOffset,
+		float WorldSize,
+		const FColor& Color,
+		bool bShowInGlobal,
+		bool bShowInRegion);
+	void UpdateOverviewLabelVisibility(bool bStrategicVisible);
 	void ConfigureInstancedComponent(UInstancedStaticMeshComponent* Component, UStaticMesh* Mesh, const FLinearColor& Color);
 	void AddProvinceMarkers();
 	void AddProvinceMarker(const FWLProvinceData& Province);
