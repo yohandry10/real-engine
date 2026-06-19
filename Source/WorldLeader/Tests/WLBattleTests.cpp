@@ -32,6 +32,8 @@ bool FWLBattleResolveTest::RunTest(const FString& Parameters)
 		Resolve(30, 100), static_cast<int32>(EWLBattleResult::DefenderDecisiveVictory));
 	TestEqual(TEXT("Defensa 0 -> decisiva atacante"),
 		Resolve(10, 0), static_cast<int32>(EWLBattleResult::AttackerDecisiveVictory));
+	TestEqual(TEXT("Texto de resultado invalido"),
+		UWLMilitaryLibrary::BattleResultToString(EWLBattleResult::Invalid), FString(TEXT("Resultado invalido")));
 
 	// Bonus de terreno: montaña favorece claramente al defensor.
 	TestTrue(TEXT("Montaña x1.5 > llano x1.0"),

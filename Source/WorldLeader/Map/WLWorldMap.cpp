@@ -4,7 +4,9 @@
 #include "Campaign/WLDataRegistry.h"
 #include "WorldLeader.h"
 #include "ProceduralMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/GameInstance.h"
@@ -87,6 +89,31 @@ namespace
 			}
 		}
 	}
+
+	double GetSignedPolygonArea(const TArray<FVector2D>& Poly)
+	{
+		double Area = 0.0;
+		for (int32 p = Poly.Num() - 1, q = 0; q < Poly.Num(); p = q++)
+		{
+			Area += (double)Poly[p].X * Poly[q].Y - (double)Poly[q].X * Poly[p].Y;
+		}
+		return Area * 0.5;
+	}
+
+	FVector2D GetPolygonCenter(const TArray<FVector2D>& Poly)
+	{
+		if (Poly.IsEmpty())
+		{
+			return FVector2D::ZeroVector;
+		}
+
+		FVector2D Sum = FVector2D::ZeroVector;
+		for (const FVector2D& P : Poly)
+		{
+			Sum += P;
+		}
+		return Sum / Poly.Num();
+	}
 }
 
 AWLWorldMap::AWLWorldMap()
@@ -99,10 +126,18 @@ AWLWorldMap::AWLWorldMap()
 	MapMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("MapMesh"));
 	MapMesh->SetupAttachment(SceneRoot);
 
+	ContinentFilters = { TEXT("North America"), TEXT("South America") };
+
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> MatFinder(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	if (MatFinder.Succeeded())
 	{
 		BaseMaterial = MatFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MarkerMeshFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (MarkerMeshFinder.Succeeded())
+	{
+		MarkerMesh = MarkerMeshFinder.Object;
 	}
 }
 
@@ -112,16 +147,83 @@ void AWLWorldMap::BeginPlay()
 	BuildMap();
 }
 
+void AWLWorldMap::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	DestroyWorldActors();
+	Super::EndPlay(EndPlayReason);
+}
+
 UWLDataRegistry* AWLWorldMap::GetRegistry() const
 {
 	const UGameInstance* GI = GetGameInstance();
 	return GI ? GI->GetSubsystem<UWLDataRegistry>() : nullptr;
 }
 
+FBox2D AWLWorldMap::GetMapBounds2D() const
+{
+	return FBox2D(BoundsMin, BoundsMax);
+}
+
+bool AWLWorldMap::TryGetCountryForComponent(const UPrimitiveComponent* Component, FWLMapCountryView& OutCountry) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < CountryMarkers.Num() && Index < Countries.Num(); ++Index)
+	{
+		if (CountryMarkers[Index] == Component)
+		{
+			OutCountry = Countries[Index];
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool AWLWorldMap::TryGetProvinceForComponent(const UPrimitiveComponent* Component, FWLMapProvinceView& OutProvince) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < ProvinceMarkers.Num() && Index < Provinces.Num(); ++Index)
+	{
+		if (ProvinceMarkers[Index] == Component)
+		{
+			OutProvince = Provinces[Index];
+			return true;
+		}
+	}
+
+	return false;
+}
+
 FVector2D AWLWorldMap::ProjectLonLat(double Lon, double Lat) const
 {
 	// X = norte (latitud), Y = este (longitud): mapa con el norte hacia arriba.
 	return FVector2D(static_cast<float>(Lat * GeoScale), static_cast<float>(Lon * GeoScale));
+}
+
+bool AWLWorldMap::ShouldRenderContinent(const FString& Continent) const
+{
+	if (ContinentFilters.IsEmpty())
+	{
+		return true;
+	}
+
+	for (const FString& Filter : ContinentFilters)
+	{
+		if (Continent.Equals(Filter, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 TArray<FVector2D> AWLWorldMap::RingFromJson(const TArray<TSharedPtr<FJsonValue>>& Ring) const
@@ -201,13 +303,157 @@ void AWLWorldMap::AddLabel(const FString& Text, const FVector2D& Pos)
 	Label->SetRelativeRotation(FRotator(90.f, 0.f, 180.f));
 	Label->SetRelativeScale3D(FVector::OneVector);
 	Label->SetHorizontalAlignment(EHTA_Center);
-	Label->SetWorldSize(3000.f);
+	Label->SetWorldSize(CountryLabelWorldSize);
 	Label->SetText(FText::FromString(Text));
 	Label->SetTextRenderColor(FColor::White);
+	CountryLabels.Add(Label);
+}
+
+void AWLWorldMap::AddCountryMarker(const FWLMapCountryView& Country, const FLinearColor& Color)
+{
+	if (!MarkerMesh)
+	{
+		return;
+	}
+
+	UStaticMeshComponent* Marker = NewObject<UStaticMeshComponent>(this);
+	Marker->SetupAttachment(SceneRoot);
+	Marker->RegisterComponent();
+	Marker->SetStaticMesh(MarkerMesh);
+	Marker->SetRelativeLocation(Country.WorldLocation + FVector(0.f, 0.f, 160.f));
+	Marker->SetRelativeScale3D(MarkerScale);
+	Marker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	Marker->SetCollisionObjectType(ECC_WorldDynamic);
+	Marker->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Marker->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	Marker->ComponentTags.Add(TEXT("WorldLeaderCountryMarker"));
+	Marker->ComponentTags.Add(FName(*Country.Iso));
+
+	if (BaseMaterial)
+	{
+		if (UMaterialInstanceDynamic* Mat = UMaterialInstanceDynamic::Create(BaseMaterial, this))
+		{
+			const FLinearColor MarkerColor = Country.bHasLargeLabel
+				? Color.Desaturate(0.35f)
+				: FLinearColor(1.0f, 0.82f, 0.18f);
+			Mat->SetVectorParameterValue(TEXT("Color"), MarkerColor);
+			Marker->SetMaterial(0, Mat);
+		}
+	}
+
+	CountryMarkers.Add(Marker);
+	Countries.Add(Country);
+}
+
+void AWLWorldMap::AddProvinceMarker(const FWLProvinceData& Province)
+{
+	if (!MarkerMesh || Province.Id.IsEmpty())
+	{
+		return;
+	}
+	if (!RenderedCountryIsos.Contains(Province.CountryIso))
+	{
+		return;
+	}
+	if (FMath::IsNearlyZero(Province.MapLat) && FMath::IsNearlyZero(Province.MapLon))
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("GeoMap: provincia %s sin coordenadas validas."), *Province.Id);
+		return;
+	}
+
+	const FVector2D Projected = ProjectLonLat(Province.MapLon, Province.MapLat);
+	const FVector2D BoundsPadding(GeoScale * 2.f, GeoScale * 2.f);
+	if (Projected.X < BoundsMin.X - BoundsPadding.X || Projected.X > BoundsMax.X + BoundsPadding.X
+		|| Projected.Y < BoundsMin.Y - BoundsPadding.Y || Projected.Y > BoundsMax.Y + BoundsPadding.Y)
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("GeoMap: provincia %s fuera de los limites del mapa renderizado."), *Province.Id);
+		return;
+	}
+
+	FWLMapProvinceView ProvinceView;
+	ProvinceView.Id = Province.Id;
+	ProvinceView.Name = Province.Name;
+	ProvinceView.CountryIso = Province.CountryIso;
+	ProvinceView.Region = Province.Region;
+	ProvinceView.WorldLocation = FVector(Projected.X, Projected.Y, 280.f);
+
+	UStaticMeshComponent* Marker = NewObject<UStaticMeshComponent>(this);
+	Marker->SetupAttachment(SceneRoot);
+	Marker->RegisterComponent();
+	Marker->SetStaticMesh(MarkerMesh);
+	Marker->SetRelativeLocation(ProvinceView.WorldLocation);
+	Marker->SetRelativeScale3D(ProvinceMarkerScale);
+	Marker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	Marker->SetCollisionObjectType(ECC_WorldDynamic);
+	Marker->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Marker->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	Marker->ComponentTags.Add(TEXT("WorldLeaderProvinceMarker"));
+	Marker->ComponentTags.Add(FName(*Province.Id));
+
+	if (BaseMaterial)
+	{
+		if (UMaterialInstanceDynamic* Mat = UMaterialInstanceDynamic::Create(BaseMaterial, this))
+		{
+			Mat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.98f, 0.72f, 0.2f));
+			Marker->SetMaterial(0, Mat);
+		}
+	}
+
+	ProvinceMarkers.Add(Marker);
+	Provinces.Add(ProvinceView);
+}
+
+void AWLWorldMap::AddProvinceMarkers()
+{
+	const UWLDataRegistry* Registry = GetRegistry();
+	if (!Registry)
+	{
+		return;
+	}
+
+	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
+	{
+		AddProvinceMarker(Province);
+	}
 }
 
 void AWLWorldMap::BuildMap()
 {
+	if (MapMesh)
+	{
+		MapMesh->ClearAllMeshSections();
+	}
+	for (UTextRenderComponent* Label : CountryLabels)
+	{
+		if (Label)
+		{
+			Label->DestroyComponent();
+		}
+	}
+	CountryLabels.Reset();
+	for (UStaticMeshComponent* Marker : CountryMarkers)
+	{
+		if (Marker)
+		{
+			Marker->DestroyComponent();
+		}
+	}
+	CountryMarkers.Reset();
+	Countries.Reset();
+	RenderedCountryIsos.Reset();
+	for (UStaticMeshComponent* Marker : ProvinceMarkers)
+	{
+		if (Marker)
+		{
+			Marker->DestroyComponent();
+		}
+	}
+	ProvinceMarkers.Reset();
+	Provinces.Reset();
+	SectionIndex = 0;
+	BoundsMin = FVector2D(TNumericLimits<float>::Max(), TNumericLimits<float>::Max());
+	BoundsMax = FVector2D(TNumericLimits<float>::Lowest(), TNumericLimits<float>::Lowest());
+
 	const UWLDataRegistry* Registry = GetRegistry();
 
 	const FString Path = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Geo") / TEXT("Countries.geojson");
@@ -243,7 +489,7 @@ void AWLWorldMap::BuildMap()
 
 		FString Continent;
 		(*PropsObj)->TryGetStringField(TEXT("CONTINENT"), Continent);
-		if (Continent != ContinentFilter) continue;
+		if (!ShouldRenderContinent(Continent)) continue;
 
 		FString Iso, Name;
 		(*PropsObj)->TryGetStringField(TEXT("ISO_A2"), Iso);
@@ -266,7 +512,8 @@ void AWLWorldMap::BuildMap()
 		if (!(*GeomObj)->TryGetArrayField(TEXT("coordinates"), Coords)) continue;
 
 		FVector2D LabelPos(0.f, 0.f);
-		int32 LargestRing = 0;
+		double LargestArea = 0.0;
+		double TotalArea = 0.0;
 
 		auto ProcessPolygon = [&](const TArray<TSharedPtr<FJsonValue>>& Rings)
 		{
@@ -277,12 +524,12 @@ void AWLWorldMap::BuildMap()
 			TArray<FVector2D> Poly = RingFromJson(*Outer);
 			AddSection(Poly, Color);
 
-			if (Poly.Num() > LargestRing)
+			const double Area = FMath::Abs(GetSignedPolygonArea(Poly));
+			TotalArea += Area;
+			if (Area > LargestArea)
 			{
-				LargestRing = Poly.Num();
-				FVector2D Sum(0.f, 0.f);
-				for (const FVector2D& P : Poly) Sum += P;
-				LabelPos = Sum / Poly.Num();
+				LargestArea = Area;
+				LabelPos = GetPolygonCenter(Poly);
 			}
 		};
 
@@ -302,16 +549,35 @@ void AWLWorldMap::BuildMap()
 			}
 		}
 
-		if (LargestRing > 0)
+		if (LargestArea > 0.0)
 		{
-			AddLabel(Name, LabelPos);
+			FWLMapCountryView Country;
+			Country.Iso = Iso;
+			Country.Name = Name;
+			Country.Continent = Continent;
+			Country.WorldLocation = FVector(LabelPos.X, LabelPos.Y, 50.f);
+			Country.ProjectedArea = static_cast<float>(TotalArea);
+			Country.bHasLargeLabel = Country.ProjectedArea >= CountryLabelAreaThreshold;
+
+			if (Country.bHasLargeLabel)
+			{
+				AddLabel(Name, LabelPos);
+			}
+			AddCountryMarker(Country, Color);
+			RenderedCountryIsos.Add(Iso);
 		}
 		++CountryCount;
 	}
 
+	FString Scope = TEXT("World");
+	if (!ContinentFilters.IsEmpty())
+	{
+		Scope = FString::Join(ContinentFilters, TEXT("+"));
+	}
 	UE_LOG(LogWorldLeader, Log, TEXT("GeoMap: %d paises (%s) renderizados en %d secciones."),
-		CountryCount, *ContinentFilter, SectionIndex);
+		CountryCount, *Scope, SectionIndex);
 
+	AddProvinceMarkers();
 	SetupLightingAndCamera();
 }
 
@@ -323,9 +589,11 @@ void AWLWorldMap::SetupLightingAndCamera()
 		return;
 	}
 
-	World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(),
+	DestroyWorldActors();
+
+	MapDirectionalLight = World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(),
 		FVector(0.f, 0.f, 50000.f), FRotator(-60.f, 30.f, 0.f));
-	World->SpawnActor<ASkyLight>(ASkyLight::StaticClass(),
+	MapSkyLight = World->SpawnActor<ASkyLight>(ASkyLight::StaticClass(),
 		FVector(0.f, 0.f, 50000.f), FRotator::ZeroRotator);
 
 	if (BoundsMax.X < BoundsMin.X)
@@ -333,17 +601,40 @@ void AWLWorldMap::SetupLightingAndCamera()
 		return; // no se renderizo nada
 	}
 
-	const FVector2D Center = (BoundsMin + BoundsMax) * 0.5f;
+	FVector2D Center = ProjectLonLat(InitialCameraLonLat.X, InitialCameraLonLat.Y);
+	Center.X = FMath::Clamp(Center.X, BoundsMin.X, BoundsMax.X);
+	Center.Y = FMath::Clamp(Center.Y, BoundsMin.Y, BoundsMax.Y);
 	const FVector2D Span = BoundsMax - BoundsMin;
-	const float Height = FMath::Max(FMath::Max(Span.X, Span.Y) * 0.7f, 10000.f);
+	const float Height = InitialCameraHeight > 0.f
+		? InitialCameraHeight
+		: FMath::Max(FMath::Max(Span.X, Span.Y) * 0.7f, 10000.f);
 
-	ACameraActor* Camera = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(),
+	MapCamera = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(),
 		FVector(Center.X, Center.Y, Height), FRotator(-90.f, 0.f, 0.f));
-	if (Camera)
+	if (MapCamera)
 	{
 		if (APlayerController* PC = World->GetFirstPlayerController())
 		{
-			PC->SetViewTargetWithBlend(Camera, 0.4f);
+			PC->SetViewTargetWithBlend(MapCamera, 0.4f);
 		}
+	}
+}
+
+void AWLWorldMap::DestroyWorldActors()
+{
+	if (MapCamera)
+	{
+		MapCamera->Destroy();
+		MapCamera = nullptr;
+	}
+	if (MapDirectionalLight)
+	{
+		MapDirectionalLight->Destroy();
+		MapDirectionalLight = nullptr;
+	}
+	if (MapSkyLight)
+	{
+		MapSkyLight->Destroy();
+		MapSkyLight = nullptr;
 	}
 }

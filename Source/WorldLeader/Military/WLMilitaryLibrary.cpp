@@ -32,6 +32,7 @@ FString UWLMilitaryLibrary::BattleResultToString(EWLBattleResult Result)
 {
 	switch (Result)
 	{
+	case EWLBattleResult::Invalid:                 return TEXT("Resultado invalido");
 	case EWLBattleResult::AttackerDecisiveVictory: return TEXT("Victoria decisiva del atacante");
 	case EWLBattleResult::AttackerVictory:         return TEXT("Victoria del atacante");
 	case EWLBattleResult::Stalemate:               return TEXT("Empate tactico");

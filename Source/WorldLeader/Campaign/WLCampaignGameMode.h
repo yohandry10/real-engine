@@ -19,6 +19,13 @@ class WORLDLEADER_API AWLCampaignGameMode : public AGameModeBase
 public:
 	AWLCampaignGameMode();
 
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
+	void StartCampaignWorld(const FString& NationIso);
+
 protected:
 	virtual void BeginPlay() override;
+
+private:
+	UPROPERTY()
+	class AWLWorldMap* CampaignMap = nullptr;
 };

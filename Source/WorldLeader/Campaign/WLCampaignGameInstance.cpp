@@ -4,7 +4,16 @@
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Military/WLMilitarySubsystem.h"
+#include "Save/WLLocalSaveGame.h"
 #include "WorldLeader.h"
+#include "Kismet/GameplayStatics.h"
+
+namespace
+{
+	const FString WLLocalCampaignSlot = TEXT("WorldLeader_LocalCampaign");
+	constexpr int32 WLLocalCampaignUserIndex = 0;
+	constexpr int32 WLLocalCampaignSaveVersion = 3;
+}
 
 UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
 {
@@ -14,6 +23,185 @@ UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
 UWLStrategicTickSubsystem* UWLCampaignGameInstance::GetTick() const
 {
 	return GetSubsystem<UWLStrategicTickSubsystem>();
+}
+
+bool UWLCampaignGameInstance::StartNewCampaign(const FString& NationIso)
+{
+	const UWLDataRegistry* Registry = GetRegistry();
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	FWLNationData Nation;
+	const FString NormalizedIso = NationIso.TrimStartAndEnd().ToUpper();
+	if (!Registry || !Tick || !Registry->GetNation(NormalizedIso, Nation))
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("StartNewCampaign: nacion no disponible: %s"), *NationIso);
+		return false;
+	}
+
+	SelectedNationIso = Nation.Iso;
+	bHasActiveCampaign = true;
+	Tick->ResetCampaignState();
+	if (UWLMilitarySubsystem* Military = GetMilitary())
+	{
+		Military->ResetMilitaryState();
+	}
+	UE_LOG(LogWorldLeader, Log, TEXT("Campania iniciada con %s (%s)."), *Nation.Name, *Nation.Iso);
+	return true;
+}
+
+void UWLCampaignGameInstance::ResetCampaignFlow()
+{
+	bHasActiveCampaign = false;
+	SelectedNationIso.Reset();
+	if (UWLMilitarySubsystem* Military = GetMilitary())
+	{
+		Military->ResetMilitaryState();
+	}
+}
+
+bool UWLCampaignGameInstance::GetSelectedNation(FWLNationData& OutNation) const
+{
+	const UWLDataRegistry* Registry = GetRegistry();
+	return bHasActiveCampaign && Registry && Registry->GetNation(SelectedNationIso, OutNation);
+}
+
+bool UWLCampaignGameInstance::HasLocalCampaignSave() const
+{
+	return UGameplayStatics::DoesSaveGameExist(WLLocalCampaignSlot, WLLocalCampaignUserIndex);
+}
+
+bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
+{
+	if (!bHasActiveCampaign || SelectedNationIso.IsEmpty())
+	{
+		OutMessage = TEXT("No hay campania activa para guardar.");
+		return false;
+	}
+
+	const UWLDataRegistry* Registry = GetRegistry();
+	const UWLStrategicTickSubsystem* Tick = GetTick();
+	FWLNationData Nation;
+	if (!Registry || !Tick || !Registry->GetNation(SelectedNationIso, Nation))
+	{
+		OutMessage = TEXT("No se pudo validar la nacion seleccionada.");
+		return false;
+	}
+
+	UWLLocalSaveGame* Save = Cast<UWLLocalSaveGame>(
+		UGameplayStatics::CreateSaveGameObject(UWLLocalSaveGame::StaticClass()));
+	if (!Save)
+	{
+		OutMessage = TEXT("No se pudo crear el objeto SaveGame.");
+		return false;
+	}
+
+	Save->SaveVersion = WLLocalCampaignSaveVersion;
+	Save->SelectedNationIso = Nation.Iso;
+	Tick->WriteSaveSnapshot(
+		Save->CurrentYear,
+		Save->CurrentMonth,
+		Save->NationTreasuries,
+		Save->ProvinceBuildings,
+		Save->ProvinceStates);
+	if (const UWLMilitarySubsystem* Military = GetMilitary())
+	{
+		Military->WriteSaveSnapshot(Save->Armies, Save->NextArmyNumber);
+	}
+
+	const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, WLLocalCampaignSlot, WLLocalCampaignUserIndex);
+	OutMessage = bSaved
+		? FString::Printf(TEXT("Campania guardada: %s %02d/%d."), *Nation.Iso, Save->CurrentMonth, Save->CurrentYear)
+		: TEXT("SaveGameToSlot fallo.");
+	return bSaved;
+}
+
+bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
+{
+	if (!HasLocalCampaignSave())
+	{
+		OutMessage = TEXT("No hay save local de campania.");
+		return false;
+	}
+
+	UWLLocalSaveGame* Save = Cast<UWLLocalSaveGame>(
+		UGameplayStatics::LoadGameFromSlot(WLLocalCampaignSlot, WLLocalCampaignUserIndex));
+	if (!Save)
+	{
+		OutMessage = TEXT("El save local no tiene el formato esperado.");
+		return false;
+	}
+	if (Save->SaveVersion < 1 || Save->SaveVersion > WLLocalCampaignSaveVersion)
+	{
+		OutMessage = FString::Printf(TEXT("Version de save no soportada: %d."), Save->SaveVersion);
+		return false;
+	}
+
+	const UWLDataRegistry* Registry = GetRegistry();
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	FWLNationData Nation;
+	if (!Registry || !Tick || !Registry->GetNation(Save->SelectedNationIso, Nation))
+	{
+		OutMessage = FString::Printf(TEXT("Nacion guardada no disponible: %s"), *Save->SelectedNationIso);
+		return false;
+	}
+
+	FString RestoreMessage;
+	if (!Tick->RestoreSaveSnapshot(
+		Save->CurrentYear,
+		Save->CurrentMonth,
+		Save->NationTreasuries,
+		Save->ProvinceBuildings,
+		Save->ProvinceStates,
+		RestoreMessage))
+	{
+		OutMessage = RestoreMessage;
+		return false;
+	}
+
+	FString MilitaryMessage;
+	if (UWLMilitarySubsystem* Military = GetMilitary())
+	{
+		if (!Military->RestoreSaveSnapshot(Save->Armies, Save->NextArmyNumber, MilitaryMessage))
+		{
+			OutMessage = MilitaryMessage;
+			return false;
+		}
+	}
+
+	SelectedNationIso = Nation.Iso;
+	bHasActiveCampaign = true;
+	OutMessage = FString::Printf(TEXT("Campania cargada: %s (%s). %s %s"),
+		*Nation.Name, *Nation.Iso, *RestoreMessage, *MilitaryMessage);
+	return true;
+}
+
+void UWLCampaignGameInstance::WLStartCampaign(const FString& NationIso)
+{
+	if (StartNewCampaign(NationIso))
+	{
+		WLPrintState();
+	}
+}
+
+void UWLCampaignGameInstance::WLSave()
+{
+	FString Message;
+	const bool bOk = SaveLocalCampaign(Message);
+	UE_LOG(LogWorldLeader, Log, TEXT("WLSave: %s"), *Message);
+	if (!bOk)
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("WLSave fallo."));
+	}
+}
+
+void UWLCampaignGameInstance::WLLoad()
+{
+	FString Message;
+	const bool bOk = LoadLocalCampaign(Message);
+	UE_LOG(LogWorldLeader, Log, TEXT("WLLoad: %s"), *Message);
+	if (bOk)
+	{
+		WLPrintState();
+	}
 }
 
 void UWLCampaignGameInstance::WLAdvanceMonth()
@@ -50,14 +238,35 @@ void UWLCampaignGameInstance::WLPrintState()
 
 void UWLCampaignGameInstance::WLBuild(const FString& ProvinceId, const FString& BuildingId)
 {
+	if (!bHasActiveCampaign || SelectedNationIso.IsEmpty())
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("WLBuild: no hay campania activa."));
+		return;
+	}
+
+	const UWLDataRegistry* Registry = GetRegistry();
 	UWLStrategicTickSubsystem* Tick = GetTick();
-	if (!Tick)
+	if (!Registry || !Tick)
 	{
 		return;
 	}
 
+	FWLProvinceData Province;
+	if (!Registry->GetProvince(ProvinceId, Province))
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("WLBuild: provincia desconocida %s"), *ProvinceId);
+		return;
+	}
+	const FString ControllerIso = Tick->GetProvinceControllerIso(Province.Id);
+	if (ControllerIso != SelectedNationIso)
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("WLBuild: %s esta controlada por %s, no por la nacion activa %s."),
+			*Province.Id, *ControllerIso, *SelectedNationIso);
+		return;
+	}
+
 	FString Message;
-	const bool bOk = Tick->BuildBuilding(ProvinceId, BuildingId, Message);
+	const bool bOk = Tick->BuildBuilding(Province.Id, BuildingId, Message);
 	UE_LOG(LogWorldLeader, Log, TEXT("WLBuild: %s"), *Message);
 	if (bOk)
 	{

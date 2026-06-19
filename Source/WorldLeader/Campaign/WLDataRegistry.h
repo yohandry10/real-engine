@@ -82,8 +82,12 @@ private:
 	bool LoadNationsFromFile(const FString& FilePath);
 	bool LoadBuildingsFromFile(const FString& FilePath);
 	bool LoadUnitsFromFile(const FString& FilePath);
+	bool ValidateLoadedData() const;
 
 	static EWLTerrainType TerrainFromString(const FString& In);
 	static EWLBuildingSlot SlotFromString(const FString& In);
 	static EWLUnitType UnitTypeFromString(const FString& In);
+	static FString NormalizeIso(const FString& In);
+	static FString NormalizeProvinceId(const FString& In);
+	static FString NormalizeDataId(const FString& In);
 };

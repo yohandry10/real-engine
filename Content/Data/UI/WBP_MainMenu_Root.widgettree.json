@@ -1,0 +1,39 @@
+{
+  "WBP_MainMenu_Root": {
+    "BackgroundLayer": {
+      "HeroImage": "Content/Art/MenuBackgrounds/T_WL_Menu_BG_Hero_4K.png",
+      "OptionalFxOverlay": "Content/Art/MenuBackgrounds/M_WL_MenuOverlay_Subtle"
+    },
+    "TopBar": {
+      "ProfileMini": {
+        "Avatar": "placeholder_commander",
+        "NameText": "profile.display_name",
+        "StatusDot": "online"
+      },
+      "NotificationsMini": {
+        "UnreadCount": 0
+      }
+    },
+    "MainContent": {
+      "LeftColumn": {
+        "LogoBlock": "WBP_MainMenu_Logo",
+        "MenuButtonStack": {
+          "DataSource": "Content/Data/UI/DT_MenuEntries.json",
+          "ButtonWidget": "WBP_MainMenu_Button"
+        }
+      },
+      "RightColumn": {
+        "BriefingPanel": {
+          "Widget": "WBP_MainMenu_BriefingPanel",
+          "DataSource": "Content/Data/UI/DT_MenuNews.json",
+          "Modes": ["news", "campaign_state"]
+        }
+      }
+    },
+    "BottomBar": {
+      "VersionText": "v0.1.0",
+      "OnlineStatus": "menu.status.online",
+      "InputHints": ["Enter", "Esc", "GamepadFaceButtonBottom", "GamepadFaceButtonRight"]
+    }
+  }
+}

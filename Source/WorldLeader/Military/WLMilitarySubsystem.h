@@ -45,6 +45,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	EWLBattleResult AutoResolveBattle(const FString& AttackerId, const FString& DefenderId, FString& OutReport);
 
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	void ResetMilitaryState();
+
+	void WriteSaveSnapshot(TArray<FWLArmy>& OutArmies, int32& OutNextArmyNumber) const;
+	bool RestoreSaveSnapshot(const TArray<FWLArmy>& SavedArmies, int32 SavedNextArmyNumber, FString& OutMessage);
+
 private:
 	UPROPERTY()
 	TArray<FWLArmy> Armies;
@@ -52,6 +58,7 @@ private:
 	int32 NextArmyNumber = 1;
 
 	UWLDataRegistry* GetRegistry() const;
+	class UWLStrategicTickSubsystem* GetStrategicTick() const;
 	FWLArmy* FindArmy(const FString& ArmyId);
 	const FWLArmy* FindArmy(const FString& ArmyId) const;
 	int32 SumUnitStat(const FWLArmy& Army, bool bAttack) const;

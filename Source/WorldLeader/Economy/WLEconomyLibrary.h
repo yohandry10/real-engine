@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Balance/WLBalanceTypes.h"
 #include "Core/WLGameTypes.h"
 #include "WLEconomyLibrary.generated.h"
 
@@ -22,15 +23,47 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static int64 CalculateProvinceIncome(const FWLProvinceData& Province);
 
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateProvinceIncomeWithRules(const FWLProvinceData& Province, const FWLBalanceRules& Rules);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateProvinceIncomeWithState(
+		const FWLProvinceData& Province,
+		const FWLBalanceRules& Rules,
+		int64 RuntimePopulation,
+		int32 PublicOrder);
+
 	/** Gasto mensual de una provincia (mantenimiento de infraestructura). */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static int64 CalculateProvinceUpkeep(const FWLProvinceData& Province);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateProvinceUpkeepWithRules(const FWLProvinceData& Province, const FWLBalanceRules& Rules);
 
 	/** Balance neto mensual = ingreso - upkeep. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static int64 CalculateProvinceBalance(const FWLProvinceData& Province);
 
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateProvinceBalanceWithRules(const FWLProvinceData& Province, const FWLBalanceRules& Rules);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateProvinceBalanceWithState(
+		const FWLProvinceData& Province,
+		const FWLBalanceRules& Rules,
+		int64 RuntimePopulation,
+		int32 PublicOrder);
+
 	/** Ingreso mensual extra que aporta un edificio (sus bonus de recursos). */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static int64 CalculateBuildingIncome(const FWLBuildingData& Building);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateBuildingIncomeWithRules(const FWLBuildingData& Building, const FWLBalanceRules& Rules);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static double CalculatePublicOrderIncomeMultiplier(int32 PublicOrder, const FWLBalanceRules& Rules);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 ApplyPublicOrderIncomeModifier(int64 GrossIncome, int32 PublicOrder, const FWLBalanceRules& Rules);
 };

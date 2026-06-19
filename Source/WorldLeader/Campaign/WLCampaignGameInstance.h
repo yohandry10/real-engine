@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/WLGameTypes.h"
 #include "Engine/GameInstance.h"
 #include "WLCampaignGameInstance.generated.h"
 
@@ -22,6 +23,42 @@ class WORLDLEADER_API UWLCampaignGameInstance : public UGameInstance
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
+	bool StartNewCampaign(const FString& NationIso);
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
+	void ResetCampaignFlow();
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Campaign")
+	bool HasActiveCampaign() const { return bHasActiveCampaign; }
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Campaign")
+	const FString& GetSelectedNationIso() const { return SelectedNationIso; }
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
+	bool GetSelectedNation(FWLNationData& OutNation) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Save")
+	bool HasLocalCampaignSave() const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Save")
+	bool SaveLocalCampaign(FString& OutMessage) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Save")
+	bool LoadLocalCampaign(FString& OutMessage);
+
+	/** Consola: inicia campania con una nacion. Uso: WLStartCampaign VE */
+	UFUNCTION(Exec)
+	void WLStartCampaign(const FString& NationIso);
+
+	/** Consola: guarda la campania activa en slot local. */
+	UFUNCTION(Exec)
+	void WLSave();
+
+	/** Consola: carga la campania local si existe. */
+	UFUNCTION(Exec)
+	void WLLoad();
+
 	/** Consola: avanza la campania un mes y registra el nuevo estado. */
 	UFUNCTION(Exec)
 	void WLAdvanceMonth();
@@ -51,6 +88,12 @@ public:
 	void WLBattle(const FString& AttackerId, const FString& DefenderId);
 
 private:
+	UPROPERTY()
+	bool bHasActiveCampaign = false;
+
+	UPROPERTY()
+	FString SelectedNationIso;
+
 	UWLDataRegistry* GetRegistry() const;
 	UWLStrategicTickSubsystem* GetTick() const;
 	class UWLMilitarySubsystem* GetMilitary() const;

@@ -65,6 +65,20 @@ struct FWLProvinceData
 	bool IsValid() const { return !Id.IsEmpty(); }
 };
 
+/** Estado mutable de una provincia durante la campania. */
+USTRUCT(BlueprintType)
+struct FWLProvinceRuntimeState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Province") FString ProvinceId;
+	UPROPERTY(BlueprintReadOnly, Category = "Province") FString ControllerIso;
+	UPROPERTY(BlueprintReadOnly, Category = "Province") int64 Population = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Province") int32 PublicOrder = 70;
+
+	bool IsValid() const { return !ProvinceId.IsEmpty(); }
+};
+
 /**
  * Datos estaticos de una nacion jugable / visible. El tesoro y el balance
  * mensual son estado de runtime y los gestiona WLStrategicTickSubsystem.
@@ -176,6 +190,7 @@ struct FWLArmy
 UENUM(BlueprintType)
 enum class EWLBattleResult : uint8
 {
+	Invalid                 UMETA(DisplayName = "Invalido"),
 	AttackerDecisiveVictory UMETA(DisplayName = "Victoria decisiva atacante"),
 	AttackerVictory         UMETA(DisplayName = "Victoria atacante"),
 	Stalemate               UMETA(DisplayName = "Empate tactico"),

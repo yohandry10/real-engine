@@ -1,0 +1,79 @@
+[
+  {
+    "id": "continue_campaign",
+    "order": 10,
+    "loc_key": "menu.continue_campaign",
+    "action": "ContinueCampaign",
+    "icon": "star",
+    "is_primary": true,
+    "is_enabled": true,
+    "input_hint": "Enter",
+    "analytics_tag": "main_menu_continue_campaign"
+  },
+  {
+    "id": "new_campaign",
+    "order": 20,
+    "loc_key": "menu.new_campaign",
+    "action": "OpenNewCampaign",
+    "icon": "globe",
+    "is_primary": false,
+    "is_enabled": true,
+    "input_hint": "N",
+    "analytics_tag": "main_menu_new_campaign"
+  },
+  {
+    "id": "load",
+    "order": 30,
+    "loc_key": "menu.load",
+    "action": "OpenLoadCampaign",
+    "icon": "folder",
+    "is_primary": false,
+    "is_enabled": true,
+    "input_hint": "L",
+    "analytics_tag": "main_menu_load"
+  },
+  {
+    "id": "multiplayer",
+    "order": 40,
+    "loc_key": "menu.multiplayer",
+    "action": "OpenMultiplayer",
+    "icon": "users",
+    "is_primary": false,
+    "is_enabled": false,
+    "input_hint": "M",
+    "analytics_tag": "main_menu_multiplayer"
+  },
+  {
+    "id": "options",
+    "order": 50,
+    "loc_key": "menu.options",
+    "action": "OpenOptions",
+    "icon": "gear",
+    "is_primary": false,
+    "is_enabled": true,
+    "input_hint": "O",
+    "analytics_tag": "main_menu_options"
+  },
+  {
+    "id": "mods",
+    "order": 60,
+    "loc_key": "menu.mods",
+    "action": "OpenMods",
+    "icon": "blocks",
+    "is_primary": false,
+    "is_enabled": false,
+    "input_hint": "Tab",
+    "analytics_tag": "main_menu_mods"
+  },
+  {
+    "id": "exit",
+    "order": 70,
+    "loc_key": "menu.exit",
+    "action": "QuitGame",
+    "icon": "power",
+    "is_primary": false,
+    "is_enabled": true,
+    "input_hint": "Esc",
+    "analytics_tag": "main_menu_exit"
+  }
+]

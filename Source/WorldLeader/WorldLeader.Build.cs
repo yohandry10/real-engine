@@ -21,11 +21,17 @@ public class WorldLeader : ModuleRules
 			"InputCore",
 			"Json",
 			"JsonUtilities",
-			"ProceduralMeshComponent"
+			"ProceduralMeshComponent",
+			"UMG",
+			"CommonUI",
+			"DeveloperSettings"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
+			"ImageWrapper",
+			"Slate",
+			"SlateCore"
 		});
 	}
 }

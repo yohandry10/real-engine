@@ -26,11 +26,27 @@ bool UWLDataRegistry::LoadGameData()
 	const bool bNations   = LoadNationsFromFile(DataDir / TEXT("Nations") / TEXT("Nations.json"));
 	const bool bBuildings = LoadBuildingsFromFile(DataDir / TEXT("Buildings") / TEXT("Buildings.json"));
 	const bool bUnits     = LoadUnitsFromFile(DataDir / TEXT("Units") / TEXT("Units.json"));
+	const bool bValid     = ValidateLoadedData();
 
 	UE_LOG(LogWorldLeader, Log, TEXT("WLDataRegistry: %d provincias, %d naciones, %d edificios, %d unidades cargados."),
 		Provinces.Num(), Nations.Num(), Buildings.Num(), Units.Num());
 
-	return bProvinces && bNations && bBuildings && bUnits;
+	return bProvinces && bNations && bBuildings && bUnits && bValid;
+}
+
+FString UWLDataRegistry::NormalizeIso(const FString& In)
+{
+	return In.TrimStartAndEnd().ToUpper();
+}
+
+FString UWLDataRegistry::NormalizeProvinceId(const FString& In)
+{
+	return In.TrimStartAndEnd().ToUpper();
+}
+
+FString UWLDataRegistry::NormalizeDataId(const FString& In)
+{
+	return In.TrimStartAndEnd().ToLower();
 }
 
 EWLTerrainType UWLDataRegistry::TerrainFromString(const FString& In)
@@ -98,8 +114,10 @@ bool UWLDataRegistry::LoadProvincesFromFile(const FString& FilePath)
 
 		FWLProvinceData P;
 		Obj->TryGetStringField(TEXT("id"), P.Id);
+		P.Id = NormalizeProvinceId(P.Id);
 		Obj->TryGetStringField(TEXT("name"), P.Name);
 		Obj->TryGetStringField(TEXT("country_iso"), P.CountryIso);
+		P.CountryIso = NormalizeIso(P.CountryIso);
 		Obj->TryGetStringField(TEXT("region"), P.Region);
 		Obj->TryGetStringField(TEXT("capital"), P.Capital);
 
@@ -133,12 +151,17 @@ bool UWLDataRegistry::LoadProvincesFromFile(const FString& FilePath)
 			for (const TSharedPtr<FJsonValue>& N : *NeighborsArr)
 			{
 				FString NId;
-				if (N.IsValid() && N->TryGetString(NId)) P.Neighbors.Add(NId);
+				if (N.IsValid() && N->TryGetString(NId)) P.Neighbors.Add(NormalizeProvinceId(NId));
 			}
 		}
 
 		if (P.IsValid())
 		{
+			if (Provinces.Contains(P.Id))
+			{
+				UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: provincia duplicada ignorada: %s"), *P.Id);
+				continue;
+			}
 			Provinces.Add(P.Id, MoveTemp(P));
 		}
 	}
@@ -171,8 +194,10 @@ bool UWLDataRegistry::LoadNationsFromFile(const FString& FilePath)
 
 		FWLNationData N;
 		Obj->TryGetStringField(TEXT("iso"), N.Iso);
+		N.Iso = NormalizeIso(N.Iso);
 		Obj->TryGetStringField(TEXT("name"), N.Name);
 		Obj->TryGetStringField(TEXT("capital_province"), N.CapitalProvinceId);
+		N.CapitalProvinceId = NormalizeProvinceId(N.CapitalProvinceId);
 		Obj->TryGetStringField(TEXT("government"), N.GovernmentType);
 
 		double Treasury = 0.0;
@@ -193,6 +218,11 @@ bool UWLDataRegistry::LoadNationsFromFile(const FString& FilePath)
 
 		if (N.IsValid())
 		{
+			if (Nations.Contains(N.Iso))
+			{
+				UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: nacion duplicada ignorada: %s"), *N.Iso);
+				continue;
+			}
 			Nations.Add(N.Iso, MoveTemp(N));
 		}
 	}
@@ -225,6 +255,7 @@ bool UWLDataRegistry::LoadBuildingsFromFile(const FString& FilePath)
 
 		FWLBuildingData B;
 		Obj->TryGetStringField(TEXT("id"), B.Id);
+		B.Id = NormalizeDataId(B.Id);
 		Obj->TryGetStringField(TEXT("name"), B.Name);
 
 		FString SlotStr;
@@ -243,6 +274,11 @@ bool UWLDataRegistry::LoadBuildingsFromFile(const FString& FilePath)
 
 		if (B.IsValid())
 		{
+			if (Buildings.Contains(B.Id))
+			{
+				UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: edificio duplicado ignorado: %s"), *B.Id);
+				continue;
+			}
 			Buildings.Add(B.Id, MoveTemp(B));
 		}
 	}
@@ -275,6 +311,7 @@ bool UWLDataRegistry::LoadUnitsFromFile(const FString& FilePath)
 
 		FWLUnitData U;
 		Obj->TryGetStringField(TEXT("id"), U.Id);
+		U.Id = NormalizeDataId(U.Id);
 		Obj->TryGetStringField(TEXT("name"), U.Name);
 
 		FString TypeStr;
@@ -291,6 +328,11 @@ bool UWLDataRegistry::LoadUnitsFromFile(const FString& FilePath)
 
 		if (U.IsValid())
 		{
+			if (Units.Contains(U.Id))
+			{
+				UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: unidad duplicada ignorada: %s"), *U.Id);
+				continue;
+			}
 			Units.Add(U.Id, MoveTemp(U));
 		}
 	}
@@ -300,7 +342,7 @@ bool UWLDataRegistry::LoadUnitsFromFile(const FString& FilePath)
 
 bool UWLDataRegistry::GetProvince(const FString& Id, FWLProvinceData& OutProvince) const
 {
-	if (const FWLProvinceData* Found = Provinces.Find(Id))
+	if (const FWLProvinceData* Found = Provinces.Find(NormalizeProvinceId(Id)))
 	{
 		OutProvince = *Found;
 		return true;
@@ -310,7 +352,7 @@ bool UWLDataRegistry::GetProvince(const FString& Id, FWLProvinceData& OutProvinc
 
 bool UWLDataRegistry::GetNation(const FString& Iso, FWLNationData& OutNation) const
 {
-	if (const FWLNationData* Found = Nations.Find(Iso))
+	if (const FWLNationData* Found = Nations.Find(NormalizeIso(Iso)))
 	{
 		OutNation = *Found;
 		return true;
@@ -335,9 +377,10 @@ TArray<FWLNationData> UWLDataRegistry::GetAllNations() const
 TArray<FWLProvinceData> UWLDataRegistry::GetProvincesByNation(const FString& Iso) const
 {
 	TArray<FWLProvinceData> Out;
+	const FString NormalizedIso = NormalizeIso(Iso);
 	for (const TPair<FString, FWLProvinceData>& Pair : Provinces)
 	{
-		if (Pair.Value.CountryIso == Iso)
+		if (Pair.Value.CountryIso == NormalizedIso)
 		{
 			Out.Add(Pair.Value);
 		}
@@ -347,7 +390,7 @@ TArray<FWLProvinceData> UWLDataRegistry::GetProvincesByNation(const FString& Iso
 
 bool UWLDataRegistry::GetBuilding(const FString& Id, FWLBuildingData& OutBuilding) const
 {
-	if (const FWLBuildingData* Found = Buildings.Find(Id))
+	if (const FWLBuildingData* Found = Buildings.Find(NormalizeDataId(Id)))
 	{
 		OutBuilding = *Found;
 		return true;
@@ -364,7 +407,7 @@ TArray<FWLBuildingData> UWLDataRegistry::GetAllBuildings() const
 
 bool UWLDataRegistry::GetUnit(const FString& Id, FWLUnitData& OutUnit) const
 {
-	if (const FWLUnitData* Found = Units.Find(Id))
+	if (const FWLUnitData* Found = Units.Find(NormalizeDataId(Id)))
 	{
 		OutUnit = *Found;
 		return true;
@@ -377,4 +420,84 @@ TArray<FWLUnitData> UWLDataRegistry::GetAllUnits() const
 	TArray<FWLUnitData> Out;
 	Units.GenerateValueArray(Out);
 	return Out;
+}
+
+bool UWLDataRegistry::ValidateLoadedData() const
+{
+	bool bOk = true;
+
+	for (const TPair<FString, FWLNationData>& Pair : Nations)
+	{
+		const FWLNationData& Nation = Pair.Value;
+		if (!Provinces.Contains(Nation.CapitalProvinceId))
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: nacion %s referencia capital inexistente %s."),
+				*Nation.Iso, *Nation.CapitalProvinceId);
+			bOk = false;
+		}
+		if (Nation.StartingTreasury < 0)
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: nacion %s tiene tesoro inicial negativo %lld."),
+				*Nation.Iso, Nation.StartingTreasury);
+			bOk = false;
+		}
+	}
+
+	for (const TPair<FString, FWLProvinceData>& Pair : Provinces)
+	{
+		const FWLProvinceData& Province = Pair.Value;
+		if (!Nations.Contains(Province.CountryIso))
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: provincia %s referencia nacion inexistente %s."),
+				*Province.Id, *Province.CountryIso);
+			bOk = false;
+		}
+		if (Province.Population < 0 || Province.Infrastructure < 0
+			|| Province.BaseOil < 0 || Province.BaseGas < 0 || Province.BaseFood < 0
+			|| Province.BaseMinerals < 0 || Province.BaseIndustry < 0)
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: provincia %s tiene valores economicos negativos."),
+				*Province.Id);
+			bOk = false;
+		}
+		for (const FString& NeighborId : Province.Neighbors)
+		{
+			const FWLProvinceData* Neighbor = Provinces.Find(NeighborId);
+			if (!Neighbor)
+			{
+				UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: provincia %s referencia vecino inexistente %s."),
+					*Province.Id, *NeighborId);
+				bOk = false;
+				continue;
+			}
+			if (!Neighbor->Neighbors.Contains(Province.Id))
+			{
+				UE_LOG(LogWorldLeader, Warning, TEXT("WLDataRegistry: vecindad no reciproca %s -> %s."),
+					*Province.Id, *NeighborId);
+			}
+		}
+	}
+
+	for (const TPair<FString, FWLBuildingData>& Pair : Buildings)
+	{
+		const FWLBuildingData& Building = Pair.Value;
+		if (Building.Cost < 0 || Building.BonusOil < 0 || Building.BonusGas < 0
+			|| Building.BonusFood < 0 || Building.BonusMinerals < 0 || Building.BonusIndustry < 0)
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: edificio %s tiene coste/bonus negativo."), *Building.Id);
+			bOk = false;
+		}
+	}
+
+	for (const TPair<FString, FWLUnitData>& Pair : Units)
+	{
+		const FWLUnitData& Unit = Pair.Value;
+		if (Unit.Cost < 0 || Unit.Attack < 0 || Unit.Defense < 0 || Unit.Strength < 0)
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: unidad %s tiene stats/coste negativos."), *Unit.Id);
+			bOk = false;
+		}
+	}
+
+	return bOk;
 }
