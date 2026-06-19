@@ -6,6 +6,7 @@
 #include "Campaign/WLDataRegistry.h"
 #include "UI/WLCampaignHUD.h"
 #include "Map/WLWorldMap.h"
+#include "Presentation/WLCampaign3DView.h"
 #include "GameFramework/DefaultPawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
@@ -36,10 +37,15 @@ void AWLCampaignGameMode::StartCampaignWorld(const FString& NationIso)
 		return;
 	}
 
-	if (CampaignMap)
+	if (Campaign3DView)
 	{
-		CampaignMap->Destroy();
-		CampaignMap = nullptr;
+		Campaign3DView->Destroy();
+		Campaign3DView = nullptr;
+	}
+	if (DiplomacyMapView)
+	{
+		DiplomacyMapView->Destroy();
+		DiplomacyMapView = nullptr;
 	}
 
 	FVector2D InitialLonLat(-75.f, 12.f);
@@ -52,15 +58,29 @@ void AWLCampaignGameMode::StartCampaignWorld(const FString& NationIso)
 		InitialLonLat = FVector2D(Capital.MapLon, Capital.MapLat);
 	}
 
-	AWLWorldMap* NewMap = World->SpawnActorDeferred<AWLWorldMap>(
+	AWLCampaign3DView* NewCampaign3D = World->SpawnActorDeferred<AWLCampaign3DView>(
+		AWLCampaign3DView::StaticClass(),
+		FTransform::Identity);
+	if (NewCampaign3D)
+	{
+		UGameplayStatics::FinishSpawningActor(NewCampaign3D, FTransform::Identity);
+		NewCampaign3D->BuildView(NationIso);
+		NewCampaign3D->SetPresentationActive(true, true);
+		Campaign3DView = NewCampaign3D;
+	}
+
+	AWLWorldMap* NewDiplomacyMap = World->SpawnActorDeferred<AWLWorldMap>(
 		AWLWorldMap::StaticClass(),
 		FTransform::Identity);
-	if (!NewMap)
+	if (!NewDiplomacyMap)
 	{
 		return;
 	}
 
-	NewMap->InitialCameraLonLat = InitialLonLat;
-	UGameplayStatics::FinishSpawningActor(NewMap, FTransform::Identity);
-	CampaignMap = NewMap;
+	NewDiplomacyMap->InitialCameraLonLat = InitialLonLat;
+	NewDiplomacyMap->InitialCameraHeight = 165000.f;
+	NewDiplomacyMap->bActivateCameraOnBuild = false;
+	UGameplayStatics::FinishSpawningActor(NewDiplomacyMap, FTransform::Identity);
+	NewDiplomacyMap->SetPresentationActive(false, false);
+	DiplomacyMapView = NewDiplomacyMap;
 }

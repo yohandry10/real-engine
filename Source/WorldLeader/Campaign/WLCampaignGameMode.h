@@ -22,10 +22,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
 	void StartCampaignWorld(const FString& NationIso);
 
+	class AWLCampaign3DView* GetCampaign3DView() const { return Campaign3DView; }
+	class AWLWorldMap* GetDiplomacyMapView() const { return DiplomacyMapView; }
+
 protected:
 	virtual void BeginPlay() override;
 
 private:
 	UPROPERTY()
-	class AWLWorldMap* CampaignMap = nullptr;
+	class AWLCampaign3DView* Campaign3DView = nullptr;
+
+	UPROPERTY()
+	class AWLWorldMap* DiplomacyMapView = nullptr;
 };

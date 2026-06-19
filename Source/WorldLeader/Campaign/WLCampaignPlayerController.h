@@ -10,7 +10,15 @@
 class UWLStrategicTickSubsystem;
 class UWLDataRegistry;
 class AWLWorldMap;
+class AWLCampaign3DView;
 class UWLMainMenuWidget;
+
+UENUM(BlueprintType)
+enum class EWLCampaignPresentationMode : uint8
+{
+	Campaign3D,
+	Diplomacy
+};
 
 /**
  * PlayerController de campania. Input del jugador (regla del roadmap).
@@ -51,6 +59,14 @@ public:
 	bool HasLastActionMessage() const { return !LastActionMessage.IsEmpty(); }
 	const FString& GetLastActionMessage() const { return LastActionMessage; }
 	bool WasLastActionSuccessful() const { return bLastActionSucceeded; }
+	EWLCampaignPresentationMode GetPresentationMode() const { return ActivePresentationMode; }
+	bool IsDiplomacyViewActive() const { return ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy; }
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|CampaignView")
+	void ShowCampaign3DView();
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|CampaignView")
+	void ShowDiplomacyMapView();
 
 protected:
 	virtual void BeginPlay() override;
@@ -62,6 +78,7 @@ private:
 	void OnPrintState();
 	void OnSaveCampaign();
 	void OnBuildRecommended();
+	void OnToggleDiplomacyView();
 	void OnSelectCountry();
 	void OnZoomIn();
 	void OnZoomOut();
@@ -69,8 +86,12 @@ private:
 	void EndDragPan();
 	void UpdateMapCamera(float DeltaSeconds);
 	void MoveMapCamera(const FVector2D& Delta);
+	void MoveCampaignCamera(const FVector2D& Delta);
 	void ZoomMapCamera(float ZoomFactor);
+	void ZoomCampaignCamera(float ZoomFactor);
 	void CacheWorldMap();
+	void CachePresentationActors();
+	bool TryHandleViewToggleClick();
 	bool HasCampaignInput() const;
 	void EnterCampaignInputMode();
 	void ClearSelectedCountry();
@@ -94,8 +115,13 @@ private:
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float MinCameraHeight = 25000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float MaxCameraHeight = 620000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float DragPanUnitsPerPixelAt100k = 120.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignEdgePanSpeed = 36000.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMinCameraHeight = 42000.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 170000.f;
 
+	UPROPERTY() AWLCampaign3DView* Campaign3DView = nullptr;
 	UPROPERTY() AWLWorldMap* WorldMap = nullptr;
+	EWLCampaignPresentationMode ActivePresentationMode = EWLCampaignPresentationMode::Campaign3D;
 
 	bool bDragPanning = false;
 	bool bHasLastDragMouse = false;

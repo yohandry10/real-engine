@@ -202,6 +202,55 @@ bool AWLWorldMap::TryGetProvinceForComponent(const UPrimitiveComponent* Componen
 	return false;
 }
 
+void AWLWorldMap::SetPresentationActive(bool bActive, bool bSetCamera)
+{
+	SetActorHiddenInGame(!bActive);
+	SetActorEnableCollision(bActive);
+	if (MapMesh)
+	{
+		MapMesh->SetVisibility(bActive, true);
+		MapMesh->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
+	}
+	for (UTextRenderComponent* Label : CountryLabels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bActive, true);
+		}
+	}
+	for (UStaticMeshComponent* Marker : CountryMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(bActive, true);
+			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+		}
+	}
+	for (UStaticMeshComponent* Marker : ProvinceMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(bActive, true);
+			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+		}
+	}
+	if (MapDirectionalLight)
+	{
+		MapDirectionalLight->SetActorHiddenInGame(!bActive);
+	}
+	if (MapSkyLight)
+	{
+		MapSkyLight->SetActorHiddenInGame(!bActive);
+	}
+	if (bActive && bSetCamera && MapCamera)
+	{
+		if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+		{
+			PC->SetViewTargetWithBlend(MapCamera, 0.35f);
+		}
+	}
+}
+
 FVector2D AWLWorldMap::ProjectLonLat(double Lon, double Lat) const
 {
 	// X = norte (latitud), Y = este (longitud): mapa con el norte hacia arriba.
@@ -611,7 +660,7 @@ void AWLWorldMap::SetupLightingAndCamera()
 
 	MapCamera = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(),
 		FVector(Center.X, Center.Y, Height), FRotator(-90.f, 0.f, 0.f));
-	if (MapCamera)
+	if (MapCamera && bActivateCameraOnBuild)
 	{
 		if (APlayerController* PC = World->GetFirstPlayerController())
 		{

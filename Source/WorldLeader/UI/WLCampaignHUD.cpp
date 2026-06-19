@@ -5,6 +5,7 @@
 #include "Campaign/WLCampaignPlayerController.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Kismet/GameplayStatics.h"
@@ -52,56 +53,67 @@ void AWLCampaignHUD::DrawHUD()
 	}
 
 	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-	float X = 60.f;
-	float Y = 60.f;
-	const float LineHeight = 24.f;
+	UFont* SmallFont = GEngine ? GEngine->GetSmallFont() : Font;
+	const float W = Canvas->ClipX;
+	const float H = Canvas->ClipY;
+	const float LineHeight = 19.f;
+	const AWLCampaignPlayerController* PC = Cast<AWLCampaignPlayerController>(GetOwningPlayerController());
+	const bool bDiplomacy = PC && PC->IsDiplomacyViewActive();
 
-	DrawText(TEXT("WORLD LEADER  -  Campana estrategica"), FLinearColor::White, X, Y, Font, 1.3f);
-	Y += LineHeight * 1.6f;
+	const FLinearColor Ink(0.012f, 0.020f, 0.024f, 0.82f);
+	const FLinearColor InkHard(0.006f, 0.010f, 0.014f, 0.92f);
+	const FLinearColor Gold(0.88f, 0.70f, 0.26f, 1.f);
+	const FLinearColor Text(0.88f, 0.93f, 0.94f, 1.f);
+	const FLinearColor Muted(0.55f, 0.66f, 0.68f, 1.f);
+	const FLinearColor Active(0.42f, 0.33f, 0.12f, 0.94f);
 
-	DrawText(FString::Printf(TEXT("Fecha: %02d/%d"), Tick->GetCurrentMonth(), Tick->GetCurrentYear()),
-		FLinearColor(0.75f, 0.9f, 1.0f), X, Y, Font);
-	Y += LineHeight * 1.5f;
+	DrawRect(InkHard, 0.f, 0.f, W, 38.f);
+	DrawText(TEXT("WORLD LEADER"), Text, 28.f, 10.f, Font, 0.88f);
+	DrawText(bDiplomacy ? TEXT("DIPLOMACIA / MAPA POLITICO") : TEXT("CAMPAIGN 3D / TEATRO COLOMBIA-VENEZUELA"),
+		Gold, 172.f, 11.f, SmallFont, 0.92f);
+
+	const float ButtonY = 58.f;
+	const float ButtonW = 158.f;
+	const float ButtonH = 38.f;
+	const float CampaignX = W - 386.f;
+	const float DiplomacyX = W - 210.f;
+	DrawRect(bDiplomacy ? Ink : Active, CampaignX, ButtonY, ButtonW, ButtonH);
+	DrawRect(bDiplomacy ? Active : Ink, DiplomacyX, ButtonY, ButtonW, ButtonH);
+	DrawText(TEXT("Campana 3D"), bDiplomacy ? Text : Gold, CampaignX + 18.f, ButtonY + 9.f, SmallFont, 1.0f);
+	DrawText(TEXT("Diplomacia"), bDiplomacy ? Gold : Text, DiplomacyX + 25.f, ButtonY + 9.f, SmallFont, 1.0f);
+
+	float X = 36.f;
+	float Y = 62.f;
+	DrawRect(Ink, X, Y, 332.f, 112.f);
+	X += 18.f;
+	Y += 14.f;
 
 	FWLNationData SelectedNation;
 	if (CampaignGI->GetSelectedNation(SelectedNation))
 	{
-		DrawText(FString::Printf(TEXT("Nacion del jugador: %s (%s)"), *SelectedNation.Name, *SelectedNation.Iso),
-			FLinearColor(1.0f, 0.85f, 0.2f), X, Y, Font);
-		Y += LineHeight * 1.5f;
+		DrawText(FString::Printf(TEXT("%s (%s)"), *SelectedNation.Name, *SelectedNation.Iso), Gold, X, Y, Font, 0.92f);
+		Y += LineHeight * 1.25f;
 	}
 
-	TArray<FWLNationData> Nations = Registry->GetAllNations();
-	Nations.Sort([](const FWLNationData& A, const FWLNationData& B)
+	DrawText(FString::Printf(TEXT("Fecha: %02d/%d"), Tick->GetCurrentMonth(), Tick->GetCurrentYear()),
+		FLinearColor(0.75f, 0.9f, 1.0f), X, Y, SmallFont);
+	Y += LineHeight;
+
+	if (SelectedNation.IsValid())
 	{
-		return A.Iso < B.Iso;
-	});
-	for (const FWLNationData& Nation : Nations)
-	{
-		const FString Line = FString::Printf(TEXT("%s (%s)    Tesoro: %lld    Balance/mes: %+lld"),
-			*Nation.Name, *Nation.Iso,
-			Tick->GetTreasury(Nation.Iso), Tick->GetMonthlyBalance(Nation.Iso));
-		DrawText(Line, FLinearColor(1.0f, 0.85f, 0.2f), X, Y, Font);
+		DrawText(FString::Printf(TEXT("Tesoro: %lld   Balance/mes: %+lld"),
+			Tick->GetTreasury(SelectedNation.Iso), Tick->GetMonthlyBalance(SelectedNation.Iso)),
+			Text, X, Y, SmallFont);
 		Y += LineHeight;
 	}
-
-	Y += LineHeight;
-	DrawText(FString::Printf(TEXT("Provincias cargadas: %d    Naciones: %d"),
-		Registry->GetProvinceCount(), Registry->GetNationCount()),
-		FLinearColor(0.6f, 0.6f, 0.6f), X, Y, Font);
-	Y += LineHeight * 1.5f;
-
-	DrawText(TEXT("[M] Avanzar mes      [P] Imprimir estado al log      [F5] Guardar      [B] Construir"),
-		FLinearColor(0.55f, 0.8f, 0.55f), X, Y, Font);
-
-	if (const AWLCampaignPlayerController* PC = Cast<AWLCampaignPlayerController>(GetOwningPlayerController()))
+	if (PC)
 	{
 		if (PC->HasLastActionMessage())
 		{
-			Y += LineHeight * 1.2f;
+			Y += LineHeight * 0.25f;
 			DrawText(PC->GetLastActionMessage(),
 				PC->WasLastActionSuccessful() ? FLinearColor(0.55f, 0.95f, 0.55f) : FLinearColor(0.95f, 0.45f, 0.35f),
-				X, Y, Font);
+				X, Y, SmallFont, 0.86f);
 		}
 
 		if (PC->HasSelectedProvince())
@@ -109,6 +121,10 @@ void AWLCampaignHUD::DrawHUD()
 			FWLProvinceData Province;
 			if (Registry->GetProvince(PC->GetSelectedProvinceId(), Province))
 			{
+				const float PanelX = W - 442.f;
+				float PanelY = 118.f;
+				DrawRect(Ink, PanelX, PanelY, 404.f, 190.f);
+				PanelY += 18.f;
 				FWLProvinceRuntimeState ProvinceState;
 				if (!Tick->GetProvinceState(Province.Id, ProvinceState))
 				{
@@ -117,103 +133,63 @@ void AWLCampaignHUD::DrawHUD()
 					ProvinceState.PublicOrder = Tick->GetBalanceRules().InitialPublicOrder;
 				}
 
-				Y += LineHeight * 2.f;
-				DrawText(TEXT("Provincia seleccionada"), FLinearColor::White, X, Y, Font, 1.1f);
-				Y += LineHeight;
+				DrawText(TEXT("PROVINCIA SELECCIONADA"), Gold, PanelX + 18.f, PanelY, SmallFont);
+				PanelY += LineHeight * 1.2f;
 				DrawText(FString::Printf(TEXT("%s (%s)"), *Province.Name, *Province.Id),
-					FLinearColor(1.0f, 0.85f, 0.2f), X, Y, Font);
-				Y += LineHeight;
+					Text, PanelX + 18.f, PanelY, Font, 1.0f);
+				PanelY += LineHeight * 1.25f;
 				const FString ControllerIso = Tick->GetProvinceControllerIso(Province.Id);
 				DrawText(FString::Printf(TEXT("Region: %s    Pais base: %s    Control: %s    Terreno: %s"),
 					*Province.Region, *Province.CountryIso, *ControllerIso, *TerrainToText(Province.Terrain)),
-					FLinearColor(0.75f, 0.9f, 1.0f), X, Y, Font);
-				Y += LineHeight;
+					FLinearColor(0.75f, 0.9f, 1.0f), PanelX + 18.f, PanelY, SmallFont);
+				PanelY += LineHeight;
 				DrawText(FString::Printf(TEXT("Capital: %s    Poblacion: %lld    Orden publico: %d    Infra: %d"),
 					*Province.Capital, ProvinceState.Population, ProvinceState.PublicOrder, Province.Infrastructure),
-					FLinearColor(0.85f, 0.85f, 0.85f), X, Y, Font);
-				Y += LineHeight;
+					FLinearColor(0.85f, 0.85f, 0.85f), PanelX + 18.f, PanelY, SmallFont);
+				PanelY += LineHeight;
 				DrawText(FString::Printf(TEXT("Recursos  Oil:%d  Gas:%d  Food:%d  Minerals:%d  Industry:%d"),
 					Province.BaseOil, Province.BaseGas, Province.BaseFood, Province.BaseMinerals, Province.BaseIndustry),
-					FLinearColor(0.85f, 0.85f, 0.85f), X, Y, Font);
-				Y += LineHeight;
+					FLinearColor(0.85f, 0.85f, 0.85f), PanelX + 18.f, PanelY, SmallFont);
+				PanelY += LineHeight;
 				DrawText(FString::Printf(TEXT("Ingreso:%lld  Upkeep:%lld  Balance:%+lld"),
 					Tick->GetProvinceMonthlyIncome(Province.Id),
 					Tick->GetProvinceMonthlyUpkeep(Province.Id),
 					Tick->GetProvinceMonthlyBalance(Province.Id)),
-					FLinearColor(0.55f, 0.95f, 0.55f), X, Y, Font);
+					FLinearColor(0.55f, 0.95f, 0.55f), PanelX + 18.f, PanelY, SmallFont);
 
-				const TArray<FString> BuiltIds = Tick->GetProvinceBuildings(Province.Id);
-				Y += LineHeight;
-				if (BuiltIds.IsEmpty())
-				{
-					DrawText(TEXT("Edificios: ninguno"), FLinearColor(0.6f, 0.6f, 0.6f), X, Y, Font);
-				}
-				else
-				{
-					TArray<FString> BuiltNames;
-					for (const FString& BuildingId : BuiltIds)
-					{
-						FWLBuildingData Building;
-						BuiltNames.Add(Registry->GetBuilding(BuildingId, Building) ? Building.Name : BuildingId);
-					}
-					DrawText(FString::Printf(TEXT("Edificios: %s"), *FString::Join(BuiltNames, TEXT(", "))),
-						FLinearColor(0.85f, 0.85f, 0.85f), X, Y, Font);
-				}
-
-				Y += LineHeight;
 				const bool bOwnProvince = ControllerIso == CampaignGI->GetSelectedNationIso();
 				DrawText(bOwnProvince
 						? TEXT("[B] Construir edificio recomendado")
 						: TEXT("Provincia no controlada por tu nacion"),
 					bOwnProvince ? FLinearColor(1.0f, 0.85f, 0.2f) : FLinearColor(0.7f, 0.45f, 0.45f),
-					X, Y, Font);
+					PanelX + 18.f, PanelY + LineHeight, SmallFont);
 			}
 		}
-
-		if (PC->HasSelectedCountry())
+		else if (PC->HasSelectedCountry())
 		{
-			Y += LineHeight * 2.f;
-			DrawText(TEXT("Pais seleccionado"), FLinearColor::White, X, Y, Font, 1.1f);
-			Y += LineHeight;
+			const float PanelX = W - 442.f;
+			float PanelY = 118.f;
+			DrawRect(Ink, PanelX, PanelY, 404.f, 126.f);
+			PanelY += 18.f;
+			DrawText(TEXT("PAIS SELECCIONADO"), Gold, PanelX + 18.f, PanelY, SmallFont);
+			PanelY += LineHeight * 1.2f;
 			DrawText(FString::Printf(TEXT("%s (%s)"), *PC->GetSelectedCountryName(), *PC->GetSelectedCountryIso()),
-				FLinearColor(1.0f, 0.85f, 0.2f), X, Y, Font);
-			Y += LineHeight;
-			DrawText(PC->GetSelectedCountryContinent(), FLinearColor(0.75f, 0.9f, 1.0f), X, Y, Font);
+				Text, PanelX + 18.f, PanelY, Font, 1.0f);
+			PanelY += LineHeight;
+			DrawText(PC->GetSelectedCountryContinent(), FLinearColor(0.75f, 0.9f, 1.0f), PanelX + 18.f, PanelY, SmallFont);
 
 			FWLNationData Nation;
 			if (Registry->GetNation(PC->GetSelectedCountryIso(), Nation))
 			{
 				const TArray<FWLProvinceData> NationProvinces = Registry->GetProvincesByNation(Nation.Iso);
-				FString CapitalName = Nation.CapitalProvinceId;
-				FWLProvinceData Capital;
-				if (Registry->GetProvince(Nation.CapitalProvinceId, Capital))
-				{
-					CapitalName = Capital.Name;
-				}
-
-				Y += LineHeight * 1.2f;
-				DrawText(TEXT("Jugable en Phase 1"), FLinearColor(0.55f, 0.95f, 0.55f), X, Y, Font);
-				Y += LineHeight;
-				DrawText(FString::Printf(TEXT("Gobierno: %s"), *Nation.GovernmentType),
-					FLinearColor(0.85f, 0.85f, 0.85f), X, Y, Font);
-				Y += LineHeight;
-				DrawText(FString::Printf(TEXT("Capital: %s"), *CapitalName),
-					FLinearColor(0.85f, 0.85f, 0.85f), X, Y, Font);
-				Y += LineHeight;
+				PanelY += LineHeight * 1.2f;
 				DrawText(FString::Printf(TEXT("Provincias: %d"), NationProvinces.Num()),
-					FLinearColor(0.85f, 0.85f, 0.85f), X, Y, Font);
-				Y += LineHeight;
-				DrawText(FString::Printf(TEXT("Tesoro: %lld    Balance/mes: %+lld"),
-					Tick->GetTreasury(Nation.Iso), Tick->GetMonthlyBalance(Nation.Iso)),
-					FLinearColor(1.0f, 0.85f, 0.2f), X, Y, Font);
-			}
-			else
-			{
-				Y += LineHeight * 1.2f;
-				DrawText(TEXT("Visible en mapa"), FLinearColor(0.85f, 0.85f, 0.85f), X, Y, Font);
-				Y += LineHeight;
-				DrawText(TEXT("Sin datos jugables todavia"), FLinearColor(0.6f, 0.6f, 0.6f), X, Y, Font);
+					FLinearColor(0.85f, 0.85f, 0.85f), PanelX + 18.f, PanelY, SmallFont);
 			}
 		}
 	}
+
+	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
+	DrawText(TEXT("[D] Alternar vista   [M] Avanzar mes   [F5] Guardar   [B] Construir   Mouse: seleccionar"),
+		Muted, 36.f, H - 24.f, SmallFont, 0.88f);
 }

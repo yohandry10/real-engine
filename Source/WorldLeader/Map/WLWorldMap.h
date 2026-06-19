@@ -67,6 +67,10 @@ public:
 	FBox2D GetMapBounds2D() const;
 	bool TryGetCountryForComponent(const UPrimitiveComponent* Component, FWLMapCountryView& OutCountry) const;
 	bool TryGetProvinceForComponent(const UPrimitiveComponent* Component, FWLMapProvinceView& OutProvince) const;
+	ACameraActor* GetMapCamera() const { return MapCamera; }
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Map")
+	void SetPresentationActive(bool bActive, bool bSetCamera = true);
 
 	/** Unidades de mundo por grado geografico. */
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map") float GeoScale = 2000.f;
@@ -78,6 +82,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map|Camera") FVector2D InitialCameraLonLat = FVector2D(-75.f, 12.f);
 
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map|Camera") float InitialCameraHeight = 140000.f;
+
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map|Camera") bool bActivateCameraOnBuild = true;
 
 	/** Umbral de area proyectada para mostrar nombre fijo; paises menores usan marcador. */
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Map|Labels") float CountryLabelAreaThreshold = 90000000.f;

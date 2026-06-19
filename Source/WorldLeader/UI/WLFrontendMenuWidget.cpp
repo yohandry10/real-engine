@@ -53,7 +53,7 @@ namespace
 		return Info;
 	}
 
-	UTextBlock* MakeText(UWidgetTree* Tree, const FString& Text, float Size, const FLinearColor& Color, bool bBold = false)
+	UTextBlock* MakeFrontendText(UWidgetTree* Tree, const FString& Text, float Size, const FLinearColor& Color, bool bBold = false)
 	{
 		UTextBlock* TextBlock = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 		TextBlock->SetText(FText::FromString(Text));
@@ -306,7 +306,7 @@ void UWLFrontendMenuWidget::AddTopChrome()
 {
 	UHorizontalBox* TopBar = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("TopChrome"));
 
-	UTextBlock* Left = MakeText(WidgetTree, TEXT("WORLD LEADER / MAPA DIPLOMATICO GLOBAL"), 15.f, FLinearColor(0.72f, 0.83f, 0.86f, 0.9f), true);
+	UTextBlock* Left = MakeFrontendText(WidgetTree, TEXT("WORLD LEADER / MAPA DIPLOMATICO GLOBAL"), 15.f, FLinearColor(0.72f, 0.83f, 0.86f, 0.9f), true);
 	if (UHorizontalBoxSlot* HorizontalSlot = TopBar->AddChildToHorizontalBox(Left))
 	{
 		HorizontalSlot->SetPadding(FMargin(0.f));
@@ -320,7 +320,7 @@ void UWLFrontendMenuWidget::AddTopChrome()
 		HorizontalSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 	}
 
-	UTextBlock* Right = MakeText(WidgetTree, TEXT("ONLINE"), 14.f, FLinearColor(0.78f, 0.76f, 0.64f, 0.9f), true);
+	UTextBlock* Right = MakeFrontendText(WidgetTree, TEXT("ONLINE"), 14.f, FLinearColor(0.78f, 0.76f, 0.64f, 0.9f), true);
 	Right->SetAutoWrapText(false);
 	if (UHorizontalBoxSlot* HorizontalSlot = TopBar->AddChildToHorizontalBox(Right))
 	{
@@ -412,7 +412,7 @@ void UWLFrontendMenuWidget::AddBriefingPanel()
 	{
 		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
-		UTextBlock* Mark = MakeText(WidgetTree, TEXT("!"), 20.f, SeverityColor, true);
+		UTextBlock* Mark = MakeFrontendText(WidgetTree, TEXT("!"), 20.f, SeverityColor, true);
 		Mark->SetJustification(ETextJustify::Center);
 		if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(MakeFixedHeight(WidgetTree, Mark, 44.f, 34.f)))
 		{
@@ -429,7 +429,7 @@ void UWLFrontendMenuWidget::AddBriefingPanel()
 			RowSlot->SetVerticalAlignment(VAlign_Center);
 		}
 
-		UTextBlock* SeverityText = MakeText(WidgetTree, Severity, 11.f, SeverityColor, true);
+		UTextBlock* SeverityText = MakeFrontendText(WidgetTree, Severity, 11.f, SeverityColor, true);
 		SeverityText->SetJustification(ETextJustify::Right);
 		if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(SeverityText))
 		{
@@ -476,7 +476,7 @@ void UWLFrontendMenuWidget::AddBottomStatusBar(bool bHasSave)
 	AddCell(TEXT("ONLINE"), TEXT("Global Command Network"), 230.f, WLGood);
 	AddCell(TEXT("WORLD NEWS"), TEXT("Cumbre G20 abre nueva ronda comercial."), 420.f, WLGold);
 
-	StatusText = MakeText(WidgetTree, bHasSave ? TEXT("ENTER Seleccionar   TAB Navegar   ESC Volver") : TEXT("ENTER Nueva campania   TAB Navegar   ESC Volver"), 13.f, WLMute, true);
+	StatusText = MakeFrontendText(WidgetTree, bHasSave ? TEXT("ENTER Seleccionar   TAB Navegar   ESC Volver") : TEXT("ENTER Nueva campania   TAB Navegar   ESC Volver"), 13.f, WLMute, true);
 	StatusText->SetJustification(ETextJustify::Center);
 	if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(StatusText))
 	{
@@ -542,7 +542,7 @@ void UWLFrontendMenuWidget::BuildNewCampaignScreen()
 	NationCombo->OnSelectionChanged.AddDynamic(this, &UWLFrontendMenuWidget::HandleNationSelectionChanged);
 	AddVBoxChild(ContentBox, MakeFixedHeight(WidgetTree, NationCombo, 40.f, 360.f), 24.f);
 
-	NationSummaryText = MakeText(WidgetTree, TEXT(""), 16.f, WLText);
+	NationSummaryText = MakeFrontendText(WidgetTree, TEXT(""), 16.f, WLText);
 	AddVBoxChild(ContentBox, NationSummaryText, 18.f);
 
 	if (Nations.Num() > 0)
@@ -624,7 +624,7 @@ UButton* UWLFrontendMenuWidget::AddMenuButton(UVerticalBox* Box, const FString& 
 	const FLinearColor TextColor = bEnabled ? WLText : FLinearColor(0.38f, 0.43f, 0.44f, 1.f);
 	const FLinearColor AccentColor = bPrimary ? WLGold : (bEnabled ? FLinearColor(0.68f, 0.80f, 0.82f, 0.9f) : FLinearColor(0.28f, 0.32f, 0.33f, 1.f));
 
-	UTextBlock* IconText = MakeText(WidgetTree, Icon, 19.f, AccentColor, true);
+	UTextBlock* IconText = MakeFrontendText(WidgetTree, Icon, 19.f, AccentColor, true);
 	IconText->SetJustification(ETextJustify::Center);
 	if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(MakeFixedHeight(WidgetTree, IconText, 48.f, 42.f)))
 	{
@@ -632,7 +632,7 @@ UButton* UWLFrontendMenuWidget::AddMenuButton(UVerticalBox* Box, const FString& 
 		RowSlot->SetVerticalAlignment(VAlign_Center);
 	}
 
-	UTextBlock* LabelText = MakeText(WidgetTree, Label, 15.f, TextColor, true);
+	UTextBlock* LabelText = MakeFrontendText(WidgetTree, Label, 15.f, TextColor, true);
 	LabelText->SetJustification(ETextJustify::Left);
 	if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(LabelText))
 	{
@@ -640,7 +640,7 @@ UButton* UWLFrontendMenuWidget::AddMenuButton(UVerticalBox* Box, const FString& 
 		RowSlot->SetVerticalAlignment(VAlign_Center);
 	}
 
-	UTextBlock* ArrowText = MakeText(WidgetTree, TEXT(">"), 16.f, AccentColor, true);
+	UTextBlock* ArrowText = MakeFrontendText(WidgetTree, TEXT(">"), 16.f, AccentColor, true);
 	ArrowText->SetJustification(ETextJustify::Right);
 	if (UHorizontalBoxSlot* RowSlot = Row->AddChildToHorizontalBox(ArrowText))
 	{
@@ -655,7 +655,7 @@ UButton* UWLFrontendMenuWidget::AddMenuButton(UVerticalBox* Box, const FString& 
 
 UTextBlock* UWLFrontendMenuWidget::AddText(UVerticalBox* Box, const FString& Text, float Size, const FLinearColor& Color, float TopPadding)
 {
-	UTextBlock* TextBlock = MakeText(WidgetTree, Text, Size, Color, Size >= 22.f);
+	UTextBlock* TextBlock = MakeFrontendText(WidgetTree, Text, Size, Color, Size >= 22.f);
 	AddVBoxChild(Box, TextBlock, TopPadding);
 	return TextBlock;
 }

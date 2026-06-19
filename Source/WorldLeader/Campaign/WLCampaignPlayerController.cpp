@@ -7,6 +7,7 @@
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Economy/WLEconomyLibrary.h"
 #include "Map/WLWorldMap.h"
+#include "Presentation/WLCampaign3DView.h"
 #include "UI/WLMainMenuWidget.h"
 #include "WorldLeader.h"
 #include "Camera/CameraActor.h"
@@ -27,7 +28,8 @@ void AWLCampaignPlayerController::BeginPlay()
 	if (HasCampaignInput())
 	{
 		EnterCampaignInputMode();
-		CacheWorldMap();
+		CachePresentationActors();
+		ShowCampaign3DView();
 	}
 	else
 	{
@@ -51,6 +53,7 @@ void AWLCampaignPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::P, IE_Pressed, this, &AWLCampaignPlayerController::OnPrintState);
 		InputComponent->BindKey(EKeys::F5, IE_Pressed, this, &AWLCampaignPlayerController::OnSaveCampaign);
 		InputComponent->BindKey(EKeys::B, IE_Pressed, this, &AWLCampaignPlayerController::OnBuildRecommended);
+		InputComponent->BindKey(EKeys::D, IE_Pressed, this, &AWLCampaignPlayerController::OnToggleDiplomacyView);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AWLCampaignPlayerController::OnSelectCountry);
 		InputComponent->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &AWLCampaignPlayerController::OnZoomIn);
 		InputComponent->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &AWLCampaignPlayerController::OnZoomOut);
@@ -127,10 +130,57 @@ void AWLCampaignPlayerController::OnBuildRecommended()
 	}
 }
 
+void AWLCampaignPlayerController::OnToggleDiplomacyView()
+{
+	if (!HasCampaignInput())
+	{
+		return;
+	}
+
+	if (ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy)
+	{
+		ShowCampaign3DView();
+	}
+	else
+	{
+		ShowDiplomacyMapView();
+	}
+}
+
 void AWLCampaignPlayerController::OnSelectCountry()
 {
 	if (!HasCampaignInput())
 	{
+		return;
+	}
+
+	if (TryHandleViewToggleClick())
+	{
+		return;
+	}
+
+	FHitResult Hit;
+	if (!GetHitResultUnderCursor(ECC_Visibility, false, Hit))
+	{
+		return;
+	}
+
+	if (ActivePresentationMode == EWLCampaignPresentationMode::Campaign3D)
+	{
+		if (!Campaign3DView)
+		{
+			CachePresentationActors();
+		}
+		FWLCampaign3DProvinceView ProvinceView;
+		if (Campaign3DView && Campaign3DView->TryGetProvinceForComponent(Hit.GetComponent(), ProvinceView))
+		{
+			if (SelectProvince(ProvinceView.Id))
+			{
+				ClearSelectedCountry();
+				SetLastActionMessage(FString::Printf(TEXT("Provincia seleccionada en Campaign 3D: %s."), *SelectedProvinceName), true);
+				UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected province: %s (%s)"), *SelectedProvinceName, *SelectedProvinceId);
+			}
+		}
 		return;
 	}
 
@@ -139,12 +189,6 @@ void AWLCampaignPlayerController::OnSelectCountry()
 		CacheWorldMap();
 	}
 	if (!WorldMap)
-	{
-		return;
-	}
-
-	FHitResult Hit;
-	if (!GetHitResultUnderCursor(ECC_Visibility, false, Hit))
 	{
 		return;
 	}
@@ -179,7 +223,14 @@ void AWLCampaignPlayerController::OnZoomIn()
 		return;
 	}
 
-	ZoomMapCamera(0.82f);
+	if (ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy)
+	{
+		ZoomMapCamera(0.82f);
+	}
+	else
+	{
+		ZoomCampaignCamera(0.84f);
+	}
 }
 
 void AWLCampaignPlayerController::OnZoomOut()
@@ -189,7 +240,14 @@ void AWLCampaignPlayerController::OnZoomOut()
 		return;
 	}
 
-	ZoomMapCamera(1.18f);
+	if (ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy)
+	{
+		ZoomMapCamera(1.18f);
+	}
+	else
+	{
+		ZoomCampaignCamera(1.18f);
+	}
 }
 
 void AWLCampaignPlayerController::BeginDragPan()
@@ -225,6 +283,126 @@ void AWLCampaignPlayerController::CacheWorldMap()
 	}
 }
 
+void AWLCampaignPlayerController::CachePresentationActors()
+{
+	Campaign3DView = nullptr;
+	WorldMap = nullptr;
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	if (AWLCampaignGameMode* CampaignMode = World->GetAuthGameMode<AWLCampaignGameMode>())
+	{
+		Campaign3DView = CampaignMode->GetCampaign3DView();
+		WorldMap = CampaignMode->GetDiplomacyMapView();
+	}
+
+	if (!Campaign3DView)
+	{
+		for (TActorIterator<AWLCampaign3DView> It(World); It; ++It)
+		{
+			Campaign3DView = *It;
+			break;
+		}
+	}
+	if (!WorldMap)
+	{
+		CacheWorldMap();
+	}
+}
+
+void AWLCampaignPlayerController::ShowCampaign3DView()
+{
+	if (!HasCampaignInput())
+	{
+		return;
+	}
+
+	if (!Campaign3DView || !WorldMap)
+	{
+		CachePresentationActors();
+	}
+
+	if (WorldMap)
+	{
+		WorldMap->SetPresentationActive(false, false);
+	}
+	if (Campaign3DView)
+	{
+		Campaign3DView->SetPresentationActive(true, true);
+	}
+	ActivePresentationMode = EWLCampaignPresentationMode::Campaign3D;
+	SetLastActionMessage(TEXT("Vista principal: Campaign 3D."), true);
+}
+
+void AWLCampaignPlayerController::ShowDiplomacyMapView()
+{
+	if (!HasCampaignInput())
+	{
+		return;
+	}
+
+	if (!Campaign3DView || !WorldMap)
+	{
+		CachePresentationActors();
+	}
+
+	if (Campaign3DView)
+	{
+		Campaign3DView->SetPresentationActive(false, false);
+	}
+	if (WorldMap)
+	{
+		WorldMap->SetPresentationActive(true, true);
+	}
+	ActivePresentationMode = EWLCampaignPresentationMode::Diplomacy;
+	SetLastActionMessage(TEXT("Vista de diplomacia: mapa politico/cartografico."), true);
+}
+
+bool AWLCampaignPlayerController::TryHandleViewToggleClick()
+{
+	int32 ViewportX = 0;
+	int32 ViewportY = 0;
+	GetViewportSize(ViewportX, ViewportY);
+	if (ViewportX <= 0 || ViewportY <= 0)
+	{
+		return false;
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		return false;
+	}
+
+	const float Y = 58.f;
+	const float Height = 38.f;
+	const float CampaignX = static_cast<float>(ViewportX) - 386.f;
+	const float DiplomacyX = static_cast<float>(ViewportX) - 210.f;
+	const float Width = 158.f;
+
+	const bool bCampaignButton =
+		MouseX >= CampaignX && MouseX <= CampaignX + Width && MouseY >= Y && MouseY <= Y + Height;
+	const bool bDiplomacyButton =
+		MouseX >= DiplomacyX && MouseX <= DiplomacyX + Width && MouseY >= Y && MouseY <= Y + Height;
+
+	if (bCampaignButton)
+	{
+		ShowCampaign3DView();
+		return true;
+	}
+	if (bDiplomacyButton)
+	{
+		ShowDiplomacyMapView();
+		return true;
+	}
+	return false;
+}
+
 void AWLCampaignPlayerController::UpdateMapCamera(float DeltaSeconds)
 {
 	if (!HasCampaignInput())
@@ -232,9 +410,13 @@ void AWLCampaignPlayerController::UpdateMapCamera(float DeltaSeconds)
 		return;
 	}
 
-	if (!WorldMap)
+	if (ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy && !WorldMap)
 	{
-		CacheWorldMap();
+		CachePresentationActors();
+	}
+	else if (ActivePresentationMode == EWLCampaignPresentationMode::Campaign3D && !Campaign3DView)
+	{
+		CachePresentationActors();
 	}
 
 	AActor* CameraTarget = GetViewTarget();
@@ -261,7 +443,14 @@ void AWLCampaignPlayerController::UpdateMapCamera(float DeltaSeconds)
 		{
 			const FVector2D MouseDelta = CurrentMouse - LastDragMouse;
 			const float UnitsPerPixel = DragPanUnitsPerPixelAt100k * FMath::Clamp(CameraLocation.Z / 100000.f, 0.25f, 6.0f);
-			MoveMapCamera(FVector2D(-MouseDelta.Y, MouseDelta.X) * UnitsPerPixel);
+			if (ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy)
+			{
+				MoveMapCamera(FVector2D(-MouseDelta.Y, MouseDelta.X) * UnitsPerPixel);
+			}
+			else
+			{
+				MoveCampaignCamera(FVector2D(-MouseDelta.Y, MouseDelta.X) * UnitsPerPixel * 0.42f);
+			}
 		}
 		LastDragMouse = CurrentMouse;
 		bHasLastDragMouse = true;
@@ -298,7 +487,14 @@ void AWLCampaignPlayerController::UpdateMapCamera(float DeltaSeconds)
 	if (!PanDirection.IsNearlyZero())
 	{
 		PanDirection.Normalize();
-		MoveMapCamera(PanDirection * EdgePanSpeed * ZoomSpeedScale * DeltaSeconds);
+		if (ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy)
+		{
+			MoveMapCamera(PanDirection * EdgePanSpeed * ZoomSpeedScale * DeltaSeconds);
+		}
+		else
+		{
+			MoveCampaignCamera(PanDirection * CampaignEdgePanSpeed * ZoomSpeedScale * DeltaSeconds);
+		}
 	}
 }
 
@@ -327,6 +523,32 @@ void AWLCampaignPlayerController::MoveMapCamera(const FVector2D& Delta)
 	CameraTarget->SetActorLocation(Location);
 }
 
+void AWLCampaignPlayerController::MoveCampaignCamera(const FVector2D& Delta)
+{
+	AActor* CameraTarget = GetViewTarget();
+	if (!CameraTarget)
+	{
+		return;
+	}
+
+	FVector Location = CameraTarget->GetActorLocation();
+	Location.X += Delta.X;
+	Location.Y += Delta.Y;
+
+	if (Campaign3DView)
+	{
+		const FBox2D Bounds = Campaign3DView->GetViewBounds2D();
+		if (Bounds.bIsValid)
+		{
+			const FVector2D Padding(52000.f, 70000.f);
+			Location.X = FMath::Clamp(Location.X, Bounds.Min.X - Padding.X, Bounds.Max.X + Padding.X);
+			Location.Y = FMath::Clamp(Location.Y, Bounds.Min.Y - Padding.Y, Bounds.Max.Y + Padding.Y);
+		}
+	}
+
+	CameraTarget->SetActorLocation(Location);
+}
+
 void AWLCampaignPlayerController::ZoomMapCamera(float ZoomFactor)
 {
 	AActor* CameraTarget = GetViewTarget();
@@ -337,6 +559,19 @@ void AWLCampaignPlayerController::ZoomMapCamera(float ZoomFactor)
 
 	FVector Location = CameraTarget->GetActorLocation();
 	Location.Z = FMath::Clamp(Location.Z * ZoomFactor, MinCameraHeight, MaxCameraHeight);
+	CameraTarget->SetActorLocation(Location);
+}
+
+void AWLCampaignPlayerController::ZoomCampaignCamera(float ZoomFactor)
+{
+	AActor* CameraTarget = GetViewTarget();
+	if (!CameraTarget || !CameraTarget->IsA<ACameraActor>())
+	{
+		return;
+	}
+
+	FVector Location = CameraTarget->GetActorLocation();
+	Location.Z = FMath::Clamp(Location.Z * ZoomFactor, CampaignMinCameraHeight, CampaignMaxCameraHeight);
 	CameraTarget->SetActorLocation(Location);
 }
 
@@ -390,7 +625,8 @@ void AWLCampaignPlayerController::StartCampaignFromMenu(const FString& NationIso
 
 	ClearSelectedCountry();
 	ClearSelectedProvince();
-	CacheWorldMap();
+	CachePresentationActors();
+	ShowCampaign3DView();
 	EnterCampaignInputMode();
 	SetLastActionMessage(FString::Printf(TEXT("Campania iniciada con %s."), *GI->GetSelectedNationIso()), true);
 }
@@ -428,7 +664,8 @@ void AWLCampaignPlayerController::LoadCampaignFromMenu()
 
 	ClearSelectedCountry();
 	ClearSelectedProvince();
-	CacheWorldMap();
+	CachePresentationActors();
+	ShowCampaign3DView();
 	EnterCampaignInputMode();
 	SetLastActionMessage(Message, true);
 	UE_LOG(LogWorldLeader, Log, TEXT("LoadCampaignFromMenu: %s"), *Message);
