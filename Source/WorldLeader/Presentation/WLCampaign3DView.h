@@ -74,6 +74,7 @@ private:
 	UPROPERTY() UProceduralMeshComponent* SeaMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SeaDetailMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* BoundaryMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* RoadMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SettlementMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
 	UPROPERTY() UMaterialInterface* VertexColorMaterial = nullptr;

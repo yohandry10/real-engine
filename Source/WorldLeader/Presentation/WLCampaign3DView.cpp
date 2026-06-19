@@ -3,6 +3,7 @@
 #include "Presentation/WLCampaign3DView.h"
 
 #include "Campaign/WLDataRegistry.h"
+#include "Presentation/WLCampaignRouteBuilder.h"
 #include "Presentation/WLCampaignSettlementBuilder.h"
 #include "Presentation/WLCampaignWaterBuilder.h"
 #include "ProceduralMeshComponent.h"
@@ -528,6 +529,9 @@ AWLCampaign3DView::AWLCampaign3DView()
 	BoundaryMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("BoundaryMesh"));
 	BoundaryMesh->SetupAttachment(SceneRoot);
 
+	RoadMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RoadMesh"));
+	RoadMesh->SetupAttachment(SceneRoot);
+
 	SettlementMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SettlementMesh"));
 	SettlementMesh->SetupAttachment(SceneRoot);
 
@@ -643,6 +647,10 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	if (BoundaryMesh)
 	{
 		BoundaryMesh->ClearAllMeshSections();
+	}
+	if (RoadMesh)
+	{
+		RoadMesh->ClearAllMeshSections();
 	}
 	if (SettlementMesh)
 	{
@@ -1151,17 +1159,13 @@ void AWLCampaign3DView::AddBoundaryRibbon(const TArray<FVector2D>& LonLatPoints,
 
 void AWLCampaign3DView::BuildCampaignVisualLayer()
 {
-	AddPathPolyline({ FVector2D(-74.1f, 4.6f), FVector2D(-75.6f, 6.25f), FVector2D(-75.5f, 10.4f), FVector2D(-74.8f, 11.0f), FVector2D(-72.9f, 11.5f) },
-		FLinearColor(0.31f, 0.235f, 0.115f, 1.f), 1.05f, 930.f);
-	AddPathPolyline({ FVector2D(-74.1f, 4.6f), FVector2D(-73.4f, 7.8f), FVector2D(-72.5f, 8.4f), FVector2D(-71.6f, 10.6f), FVector2D(-68.0f, 10.2f), FVector2D(-66.9f, 10.5f), FVector2D(-64.7f, 10.1f) },
-		FLinearColor(0.36f, 0.255f, 0.125f, 1.f), 1.12f, 960.f);
-	AddPathPolyline({ FVector2D(-66.9f, 10.5f), FVector2D(-66.2f, 8.2f), FVector2D(-63.5f, 8.1f) },
-		FLinearColor(0.29f, 0.215f, 0.105f, 0.9f), 0.92f, 900.f);
-
-	AddPathPolyline({ FVector2D(-74.1f, 4.6f), FVector2D(-74.8f, 6.2f), FVector2D(-74.9f, 8.2f), FVector2D(-74.8f, 10.8f) },
-		FLinearColor(0.045f, 0.150f, 0.190f, 1.f), 0.72f, 650.f);
-	AddPathPolyline({ FVector2D(-67.5f, 5.4f), FVector2D(-66.0f, 6.4f), FVector2D(-64.1f, 7.2f), FVector2D(-62.5f, 8.1f), FVector2D(-61.5f, 8.7f) },
-		FLinearColor(0.040f, 0.135f, 0.175f, 1.f), 0.76f, 620.f);
+	FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
+		RoadMesh,
+		VertexColorMaterial,
+		[this](float Lon, float Lat)
+		{
+			return ProjectLonLat(Lon, Lat);
+		});
 
 	AddSettlementCluster(TEXT("Bogota"), -74.1f, 4.6f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 	AddSettlementCluster(TEXT("Medellin"), -75.58f, 6.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
@@ -1489,6 +1493,11 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	{
 		BoundaryMesh->SetVisibility(bActive, true);
 		BoundaryMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (RoadMesh)
+	{
+		RoadMesh->SetVisibility(bActive, true);
+		RoadMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (SettlementMesh)
 	{
