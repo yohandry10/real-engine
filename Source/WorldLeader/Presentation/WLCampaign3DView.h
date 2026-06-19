@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/WLGameTypes.h"
+#include "Presentation/WLCampaignTerritoryLayerComponent.h"
 #include "GameFramework/Actor.h"
 #include "WLCampaign3DView.generated.h"
 
@@ -16,9 +17,11 @@ class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UProceduralMeshComponent;
 class UPrimitiveComponent;
+class USphereComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class UWLCampaignTerritoryLayerComponent;
 class UWLDataRegistry;
 enum class EWLCampaignSettlementType : uint8;
 
@@ -41,6 +44,24 @@ struct FWLCampaign3DProvinceView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString CountryIso;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Region;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FVector WorldLocation = FVector::ZeroVector;
+};
+
+USTRUCT(BlueprintType)
+struct FWLCampaign3DCityView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Id;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Name;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString CountryIso;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString TerritoryId;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString TerritoryName;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString CityType;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString StrategicRole;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString DetailLevel;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FVector WorldLocation = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bCapital = false;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bPort = false;
 };
 
 /**
@@ -66,6 +87,13 @@ public:
 	void SetPresentationActive(bool bActive, bool bSetCamera = true);
 
 	bool TryGetProvinceForComponent(const UPrimitiveComponent* Component, FWLCampaign3DProvinceView& OutProvince) const;
+	bool TryGetTerritoryForComponent(const UPrimitiveComponent* Component, FWLCampaignTerritoryRegionView& OutTerritory) const;
+	bool TryGetTerritoryAtWorldLocation(const FVector& WorldLocation, FWLCampaignTerritoryRegionView& OutTerritory) const;
+	bool TryGetCityForComponent(const UPrimitiveComponent* Component, FWLCampaign3DCityView& OutCity) const;
+	bool TryGetCityNearWorldLocation(const FVector& WorldLocation, float MaxDistance, FWLCampaign3DCityView& OutCity) const;
+	void SetSelectedProvinceHighlight(const FString& ProvinceId);
+	void SetSelectedCityHighlight(const FString& CityId);
+	void ClearSelectionHighlight();
 	FBox2D GetViewBounds2D() const;
 	FBox2D GetCameraBounds2D(float CameraHeight) const;
 	ACameraActor* GetViewCamera() const { return ViewCamera; }
@@ -93,6 +121,7 @@ private:
 	UPROPERTY() UProceduralMeshComponent* BoundaryMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* RoadMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SettlementMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* SelectionHighlightMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
 	UPROPERTY() UMaterialInterface* VertexColorMaterial = nullptr;
 	UPROPERTY() UStaticMesh* CityMesh = nullptr;
@@ -106,12 +135,15 @@ private:
 	UPROPERTY() UInstancedStaticMeshComponent* PortInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* ArmyMarkerInstances = nullptr;
 	UPROPERTY() TArray<UStaticMeshComponent*> ProvinceMarkers;
+	UPROPERTY() TArray<UPrimitiveComponent*> CitySelectionMarkers;
 	UPROPERTY() TArray<UStaticMeshComponent*> VisualComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> RouteSegments;
 	UPROPERTY() TArray<UTextRenderComponent*> Labels;
 	UPROPERTY() TArray<UTextRenderComponent*> OverviewLabels;
 	TArray<uint8> OverviewLabelVisibilityMasks;
 	UPROPERTY() TArray<FWLCampaign3DProvinceView> ProvinceViews;
+	UPROPERTY() TArray<FWLCampaign3DCityView> CityViews;
+	UPROPERTY() UWLCampaignTerritoryLayerComponent* TerritoryLayer = nullptr;
 	UPROPERTY() ADirectionalLight* ViewDirectionalLight = nullptr;
 	UPROPERTY() ASkyLight* ViewSkyLight = nullptr;
 	UPROPERTY() AExponentialHeightFog* ViewFog = nullptr;
@@ -123,6 +155,8 @@ private:
 	FVector DefaultCameraLocation = FVector::ZeroVector;
 	FRotator DefaultCameraRotation = FRotator::ZeroRotator;
 	EWLCampaign3DZoomLOD CurrentZoomLOD = EWLCampaign3DZoomLOD::Theater;
+	FString SelectedProvinceHighlightId;
+	FString SelectedCityHighlightId;
 	bool bHasBuiltView = false;
 	float WaterAnimationTime = 0.f;
 
@@ -143,11 +177,17 @@ private:
 	void AddPathPolyline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale, float ZOffset);
 	void AddBiomePatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);
 	void AddSettlementCluster(
+		const FString& CityId,
 		const FString& Name,
+		const FString& CountryIso,
+		const FString& TerritoryId,
+		const FString& TerritoryName,
 		float Lon,
 		float Lat,
 		EWLCampaignSettlementType Type,
 		const FLinearColor& AccentColor);
+	void AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale);
+	void RebuildPointSelectionHighlight(const FVector& Location, float Radius, const FLinearColor& Color);
 	void AddVegetationScatter(float MinLon, float MaxLon, float MinLat, float MaxLat, int32 Columns, int32 Rows, bool bDenseJungle);
 	void AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale);
 	void AddOverviewLabel(

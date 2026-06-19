@@ -28,12 +28,12 @@ namespace
 		return Color.ToFColor(false);
 	}
 
-	bool BoundsIntersect(float AMinLon, float AMaxLon, float AMinLat, float AMaxLat, float BMinLon, float BMaxLon, float BMinLat, float BMaxLat)
+	bool OverviewBoundsIntersect(float AMinLon, float AMaxLon, float AMinLat, float AMaxLat, float BMinLon, float BMaxLon, float BMinLat, float BMaxLat)
 	{
 		return AMinLon <= BMaxLon && AMaxLon >= BMinLon && AMinLat <= BMaxLat && AMaxLat >= BMinLat;
 	}
 
-	void GetRingBounds(const TArray<FVector2D>& Ring, float& MinLon, float& MaxLon, float& MinLat, float& MaxLat)
+	void GetOverviewRingBounds(const TArray<FVector2D>& Ring, float& MinLon, float& MaxLon, float& MinLat, float& MaxLat)
 	{
 		MinLon = TNumericLimits<float>::Max();
 		MaxLon = -TNumericLimits<float>::Max();
@@ -82,7 +82,7 @@ namespace
 		return Area * 0.5f;
 	}
 
-	bool PointInTriangle(const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& P)
+	bool OverviewPointInTriangle(const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& P)
 	{
 		const float Area = (B.X - A.X) * (C.Y - A.Y) - (B.Y - A.Y) * (C.X - A.X);
 		if (FMath::Abs(Area) < UE_SMALL_NUMBER)
@@ -95,7 +95,7 @@ namespace
 		return S >= 0.f && T >= 0.f && U >= 0.f;
 	}
 
-	void TriangulateSimplePolygon(const TArray<FVector2D>& Contour, TArray<int32>& OutTris)
+	void TriangulateOverviewSimplePolygon(const TArray<FVector2D>& Contour, TArray<int32>& OutTris)
 	{
 		OutTris.Reset();
 		const int32 Num = Contour.Num();
@@ -137,7 +137,7 @@ namespace
 					{
 						continue;
 					}
-					if (PointInTriangle(A, B, C, Contour[OtherIndex]))
+					if (OverviewPointInTriangle(A, B, C, Contour[OtherIndex]))
 					{
 						bContainsPoint = true;
 						break;
@@ -163,7 +163,7 @@ namespace
 		}
 	}
 
-	TArray<FVector2D> RingFromJson(const TArray<TSharedPtr<FJsonValue>>& Ring)
+	TArray<FVector2D> OverviewRingFromJson(const TArray<TSharedPtr<FJsonValue>>& Ring)
 	{
 		TArray<FVector2D> Result;
 		Result.Reserve(Ring.Num());
@@ -296,7 +296,7 @@ namespace
 		TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat)
 	{
 		TArray<int32> LocalTris;
-		TriangulateSimplePolygon(Ring, LocalTris);
+		TriangulateOverviewSimplePolygon(Ring, LocalTris);
 		if (LocalTris.Num() < 3)
 		{
 			return;
@@ -335,7 +335,7 @@ namespace
 		}
 
 		float MinLon, MaxLon, MinLat, MaxLat;
-		GetRingBounds(Ring, MinLon, MaxLon, MinLat, MaxLat);
+		GetOverviewRingBounds(Ring, MinLon, MaxLon, MinLat, MaxLat);
 		const bool bCoreTheater = FWLCampaignAmericaLowDetailDataLoader::IsCoreTheaterIso(Iso);
 		const float CellDegrees = bCoreTheater ? 0.20f : (IsSouthAmericaIso(Iso) ? 0.42f : 0.58f);
 		for (float Lon = MinLon; Lon < MaxLon; Lon += CellDegrees)
@@ -661,19 +661,19 @@ namespace
 		}
 	}
 
-	bool ShouldUseRingForCountry(const FString& Iso, const TArray<FVector2D>& Ring)
+	bool ShouldUseOverviewRingForCountry(const FString& Iso, const TArray<FVector2D>& Ring)
 	{
 		float MinLon, MaxLon, MinLat, MaxLat;
-		GetRingBounds(Ring, MinLon, MaxLon, MinLat, MaxLat);
+		GetOverviewRingBounds(Ring, MinLon, MaxLon, MinLat, MaxLat);
 		if (Iso == TEXT("GF"))
 		{
-			return BoundsIntersect(MinLon, MaxLon, MinLat, MaxLat, -55.5f, -50.5f, 1.0f, 6.5f);
+			return OverviewBoundsIntersect(MinLon, MaxLon, MinLat, MaxLat, -55.5f, -50.5f, 1.0f, 6.5f);
 		}
 		if (MaxLon > -10.f || MinLon < -172.f)
 		{
 			return false;
 		}
-		return BoundsIntersect(MinLon, MaxLon, MinLat, MaxLat, -172.f, -10.f, -56.5f, 84.5f);
+		return OverviewBoundsIntersect(MinLon, MaxLon, MinLat, MaxLat, -172.f, -10.f, -56.5f, 84.5f);
 	}
 
 	bool ProcessPolygon(
@@ -695,8 +695,8 @@ namespace
 			return false;
 		}
 
-		TArray<FVector2D> Ring = SimplifyRingForCountry(Iso, RingFromJson(*Outer));
-		if (Ring.Num() < 3 || !ShouldUseRingForCountry(Iso, Ring))
+		TArray<FVector2D> Ring = SimplifyRingForCountry(Iso, OverviewRingFromJson(*Outer));
+		if (Ring.Num() < 3 || !ShouldUseOverviewRingForCountry(Iso, Ring))
 		{
 			return false;
 		}

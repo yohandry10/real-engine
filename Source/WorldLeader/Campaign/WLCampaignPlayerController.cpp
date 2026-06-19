@@ -198,14 +198,78 @@ void AWLCampaignPlayerController::OnSelectCountry()
 		return;
 	}
 
+	if (TryHandleSelectionPanelClick())
+	{
+		return;
+	}
 	if (TryHandleViewToggleClick())
 	{
 		return;
 	}
 
+	auto TrySelectCampaign3DAtWorldLocation = [this](const FVector& WorldLocation, const TCHAR* SourceLabel) -> bool
+	{
+		if (ActivePresentationMode != EWLCampaignPresentationMode::Campaign3D)
+		{
+			return false;
+		}
+		if (!Campaign3DView)
+		{
+			CachePresentationActors();
+		}
+		if (!Campaign3DView)
+		{
+			return false;
+		}
+
+		FWLCampaign3DCityView CityView;
+		if (Campaign3DView->TryGetCityNearWorldLocation(WorldLocation, 18500.f, CityView))
+		{
+			SelectCampaignCity(CityView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Ciudad seleccionada en Campaign 3D: %s."), *SelectedCityName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected city by %s: %s (%s)"), SourceLabel, *SelectedCityName, *SelectedCityId);
+			return true;
+		}
+
+		FWLCampaignTerritoryRegionView TerritoryView;
+		if (Campaign3DView->TryGetTerritoryAtWorldLocation(WorldLocation, TerritoryView) && !TerritoryView.bIsCountry)
+		{
+			SelectCampaignTerritory(TerritoryView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Territorio seleccionado en Campaign 3D: %s."), *SelectedTerritoryName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected territory by %s: %s (%s)"), SourceLabel, *SelectedTerritoryName, *SelectedTerritoryId);
+			return true;
+		}
+
+		return false;
+	};
+
+	auto TrySelectCampaign3DAtCursorPlane = [this, &TrySelectCampaign3DAtWorldLocation](const TCHAR* SourceLabel) -> bool
+	{
+		float MouseX = 0.f;
+		float MouseY = 0.f;
+		if (!GetMousePosition(MouseX, MouseY))
+		{
+			return false;
+		}
+
+		FVector GroundPoint = FVector::ZeroVector;
+		if (!GetCampaignGroundPointFromScreen(MouseX, MouseY, GroundPoint))
+		{
+			return false;
+		}
+
+		return TrySelectCampaign3DAtWorldLocation(GroundPoint, SourceLabel);
+	};
+
 	FHitResult Hit;
 	if (!GetHitResultUnderCursor(ECC_Visibility, false, Hit))
 	{
+		if (TrySelectCampaign3DAtCursorPlane(TEXT("cursor plane")))
+		{
+			return;
+		}
 		return;
 	}
 
@@ -215,15 +279,67 @@ void AWLCampaignPlayerController::OnSelectCountry()
 		{
 			CachePresentationActors();
 		}
+		FWLCampaign3DCityView CityView;
+		if (Campaign3DView && Campaign3DView->TryGetCityForComponent(Hit.GetComponent(), CityView))
+		{
+			SelectCampaignCity(CityView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Ciudad seleccionada en Campaign 3D: %s."), *SelectedCityName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected city: %s (%s)"), *SelectedCityName, *SelectedCityId);
+			return;
+		}
+		if (Campaign3DView && Campaign3DView->TryGetCityNearWorldLocation(Hit.Location, 18500.f, CityView))
+		{
+			SelectCampaignCity(CityView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Ciudad seleccionada en Campaign 3D: %s."), *SelectedCityName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected city by location: %s (%s)"), *SelectedCityName, *SelectedCityId);
+			return;
+		}
+
+		FWLCampaignTerritoryRegionView TerritoryView;
+		if (Campaign3DView && Campaign3DView->TryGetTerritoryForComponent(Hit.GetComponent(), TerritoryView) && !TerritoryView.bIsCountry)
+		{
+			SelectCampaignTerritory(TerritoryView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Territorio seleccionado en Campaign 3D: %s."), *SelectedTerritoryName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected territory: %s (%s)"), *SelectedTerritoryName, *SelectedTerritoryId);
+			return;
+		}
+		if (Campaign3DView && Campaign3DView->TryGetTerritoryAtWorldLocation(Hit.Location, TerritoryView) && !TerritoryView.bIsCountry)
+		{
+			SelectCampaignTerritory(TerritoryView);
+			ClearSelectedCountry();
+			SetLastActionMessage(FString::Printf(TEXT("Territorio seleccionado en Campaign 3D: %s."), *SelectedTerritoryName), true);
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected territory by location: %s (%s)"), *SelectedTerritoryName, *SelectedTerritoryId);
+			return;
+		}
+
 		FWLCampaign3DProvinceView ProvinceView;
 		if (Campaign3DView && Campaign3DView->TryGetProvinceForComponent(Hit.GetComponent(), ProvinceView))
 		{
 			if (SelectProvince(ProvinceView.Id))
 			{
+				ClearSelectedCity();
+				ActiveSelectionKind = EWLCampaignSelectionKind::Province;
+				SelectedPanelObjectId = SelectedProvinceId;
+				SelectedTerritoryId = SelectedProvinceId;
+				SelectedTerritoryName = SelectedProvinceName;
+				SelectedTerritoryCountryIso = SelectedProvinceCountryIso;
+				SelectedTerritoryType = TEXT("province");
+				if (Campaign3DView)
+				{
+					Campaign3DView->SetSelectedProvinceHighlight(SelectedProvinceId);
+				}
 				ClearSelectedCountry();
 				SetLastActionMessage(FString::Printf(TEXT("Provincia seleccionada en Campaign 3D: %s."), *SelectedProvinceName), true);
 				UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected province: %s (%s)"), *SelectedProvinceName, *SelectedProvinceId);
 			}
+			return;
+		}
+		if (TrySelectCampaign3DAtCursorPlane(TEXT("cursor plane fallback")))
+		{
+			return;
 		}
 		return;
 	}
@@ -604,8 +720,8 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 	const float CampaignX = static_cast<float>(ViewportX) - 386.f;
 	const float DiplomacyX = static_cast<float>(ViewportX) - 210.f;
 	const float Width = 158.f;
-	const float TopButtonPaddingY = 34.f;
-	const float TopButtonBottomPaddingY = 128.f;
+	const float TopButtonPaddingY = 12.f;
+	const float TopButtonBottomPaddingY = 12.f;
 
 	const bool bCampaignButton =
 		MouseX >= CampaignX
@@ -634,8 +750,8 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 		const float ControlY = 102.f;
 		const float ControlH = 34.f;
 		const float HitPaddingX = 9.f;
-		const float HitPaddingTopY = 28.f;
-		const float HitPaddingBottomY = 150.f;
+		const float HitPaddingTopY = 10.f;
+		const float HitPaddingBottomY = 12.f;
 		const float ZoomW = 44.f;
 		const float Gap = 8.f;
 		const float ZoomInX = static_cast<float>(ViewportX) - 444.f;
@@ -675,6 +791,49 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 		}
 	}
 	return false;
+}
+
+bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
+{
+	if (ActivePresentationMode != EWLCampaignPresentationMode::Campaign3D || !HasCampaignSelectionPanel())
+	{
+		return false;
+	}
+
+	int32 ViewportX = 0;
+	int32 ViewportY = 0;
+	GetViewportSize(ViewportX, ViewportY);
+	if (ViewportX <= 0 || ViewportY <= 0)
+	{
+		return false;
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		return false;
+	}
+
+	const float PanelW = 430.f;
+	const float PanelX = static_cast<float>(ViewportX) - 468.f;
+	const float PanelY = 154.f;
+	const float PanelH = FMath::Clamp(static_cast<float>(ViewportY) - PanelY - 54.f, 360.f, 690.f);
+	const bool bInPanel = MouseX >= PanelX && MouseX <= PanelX + PanelW && MouseY >= PanelY && MouseY <= PanelY + PanelH;
+	if (!bInPanel)
+	{
+		return false;
+	}
+
+	const float CloseX = PanelX + PanelW - 38.f;
+	const float CloseY = PanelY + 14.f;
+	const bool bClose = MouseX >= CloseX && MouseX <= CloseX + 24.f && MouseY >= CloseY && MouseY <= CloseY + 24.f;
+	if (bClose)
+	{
+		ClearCampaignSelection();
+		SetLastActionMessage(TEXT("Panel contextual cerrado."), true);
+	}
+	return true;
 }
 
 void AWLCampaignPlayerController::UpdateMapCamera(float DeltaSeconds)
@@ -992,6 +1151,18 @@ bool AWLCampaignPlayerController::IsScreenPointOverCampaignHud(float ScreenX, fl
 		return true;
 	}
 
+	if (ActivePresentationMode == EWLCampaignPresentationMode::Campaign3D && HasCampaignSelectionPanel())
+	{
+		const float PanelW = 430.f;
+		const float PanelX = static_cast<float>(ViewportX) - 468.f;
+		const float PanelY = 154.f;
+		const float PanelH = FMath::Clamp(static_cast<float>(ViewportY) - PanelY - 54.f, 360.f, 690.f);
+		if (ScreenX >= PanelX && ScreenX <= PanelX + PanelW && ScreenY >= PanelY && ScreenY <= PanelY + PanelH)
+		{
+			return true;
+		}
+	}
+
 	return ScreenX >= static_cast<float>(ViewportX) - 480.f && ScreenY <= 190.f;
 }
 
@@ -1039,6 +1210,10 @@ bool AWLCampaignPlayerController::HandleCampaignInputKey(const FInputKeyEventArg
 
 	if (Params.Key == EKeys::LeftMouseButton)
 	{
+		if (TryHandleSelectionPanelClick())
+		{
+			return true;
+		}
 		if (TryHandleViewToggleClick())
 		{
 			return true;
@@ -1123,8 +1298,7 @@ void AWLCampaignPlayerController::StartCampaignFromMenu(const FString& NationIso
 		}
 	}
 
-	ClearSelectedCountry();
-	ClearSelectedProvince();
+	ClearCampaignSelection();
 	CachePresentationActors();
 	ShowCampaign3DView();
 	EnterCampaignInputMode();
@@ -1162,8 +1336,7 @@ void AWLCampaignPlayerController::LoadCampaignFromMenu()
 		}
 	}
 
-	ClearSelectedCountry();
-	ClearSelectedProvince();
+	ClearCampaignSelection();
 	CachePresentationActors();
 	ShowCampaign3DView();
 	EnterCampaignInputMode();
@@ -1232,6 +1405,37 @@ void AWLCampaignPlayerController::ClearSelectedProvince()
 	SelectedProvinceRegion.Reset();
 }
 
+void AWLCampaignPlayerController::ClearSelectedCity()
+{
+	SelectedCityId.Reset();
+	SelectedCityName.Reset();
+	SelectedCityCountryIso.Reset();
+	SelectedCityTerritoryId.Reset();
+	SelectedCityTerritoryName.Reset();
+	SelectedCityType.Reset();
+}
+
+void AWLCampaignPlayerController::ClearCampaignSelection()
+{
+	ClearSelectedCountry();
+	ClearSelectedProvince();
+	ClearSelectedCity();
+	ActiveSelectionKind = EWLCampaignSelectionKind::None;
+	SelectedPanelObjectId.Reset();
+	SelectedTerritoryId.Reset();
+	SelectedTerritoryName.Reset();
+	SelectedTerritoryCountryIso.Reset();
+	SelectedTerritoryType.Reset();
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (Campaign3DView)
+	{
+		Campaign3DView->ClearSelectionHighlight();
+	}
+}
+
 bool AWLCampaignPlayerController::SelectProvince(const FString& ProvinceId)
 {
 	const UWLDataRegistry* Registry = GetRegistry();
@@ -1247,6 +1451,56 @@ bool AWLCampaignPlayerController::SelectProvince(const FString& ProvinceId)
 	SelectedProvinceCountryIso = Province.CountryIso;
 	SelectedProvinceRegion = Province.Region;
 	return true;
+}
+
+void AWLCampaignPlayerController::SelectCampaignTerritory(const FWLCampaignTerritoryRegionView& Territory)
+{
+	ClearSelectedCity();
+	ClearSelectedProvince();
+	ActiveSelectionKind = EWLCampaignSelectionKind::Province;
+	SelectedPanelObjectId = Territory.Id;
+	SelectedTerritoryId = Territory.Id;
+	SelectedTerritoryName = Territory.Name;
+	SelectedTerritoryCountryIso = Territory.CountryIso;
+	SelectedTerritoryType = Territory.ProvinceType.IsEmpty() ? TEXT("province") : Territory.ProvinceType;
+
+	// Keep legacy province state available when this territory also exists in the core registry.
+	SelectProvince(Territory.Id);
+
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (Campaign3DView)
+	{
+		Campaign3DView->SetSelectedProvinceHighlight(Territory.Id);
+	}
+}
+
+void AWLCampaignPlayerController::SelectCampaignCity(const FWLCampaign3DCityView& City)
+{
+	ClearSelectedProvince();
+	ActiveSelectionKind = EWLCampaignSelectionKind::City;
+	SelectedPanelObjectId = City.Id;
+	SelectedTerritoryId.Reset();
+	SelectedTerritoryName.Reset();
+	SelectedTerritoryCountryIso.Reset();
+	SelectedTerritoryType.Reset();
+	SelectedCityId = City.Id;
+	SelectedCityName = City.Name;
+	SelectedCityCountryIso = City.CountryIso;
+	SelectedCityTerritoryId = City.TerritoryId;
+	SelectedCityTerritoryName = City.TerritoryName;
+	SelectedCityType = City.CityType;
+
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (Campaign3DView)
+	{
+		Campaign3DView->SetSelectedCityHighlight(City.Id);
+	}
 }
 
 bool AWLCampaignPlayerController::BuildRecommendedInSelectedProvince(FString& OutMessage)

@@ -12,6 +12,8 @@ class UWLDataRegistry;
 class AWLWorldMap;
 class AWLCampaign3DView;
 class UWLMainMenuWidget;
+struct FWLCampaign3DCityView;
+struct FWLCampaignTerritoryRegionView;
 struct FInputKeyEventArgs;
 
 UENUM(BlueprintType)
@@ -19,6 +21,14 @@ enum class EWLCampaignPresentationMode : uint8
 {
 	Campaign3D,
 	Diplomacy
+};
+
+UENUM(BlueprintType)
+enum class EWLCampaignSelectionKind : uint8
+{
+	None,
+	Province,
+	City
 };
 
 /**
@@ -57,6 +67,19 @@ public:
 	const FString& GetSelectedProvinceName() const { return SelectedProvinceName; }
 	const FString& GetSelectedProvinceCountryIso() const { return SelectedProvinceCountryIso; }
 	const FString& GetSelectedProvinceRegion() const { return SelectedProvinceRegion; }
+	EWLCampaignSelectionKind GetCampaignSelectionKind() const { return ActiveSelectionKind; }
+	bool HasCampaignSelectionPanel() const { return ActiveSelectionKind != EWLCampaignSelectionKind::None; }
+	const FString& GetCampaignSelectionId() const { return SelectedPanelObjectId; }
+	const FString& GetSelectedTerritoryId() const { return SelectedTerritoryId; }
+	const FString& GetSelectedTerritoryName() const { return SelectedTerritoryName; }
+	const FString& GetSelectedTerritoryCountryIso() const { return SelectedTerritoryCountryIso; }
+	const FString& GetSelectedTerritoryType() const { return SelectedTerritoryType; }
+	const FString& GetSelectedCityId() const { return SelectedCityId; }
+	const FString& GetSelectedCityName() const { return SelectedCityName; }
+	const FString& GetSelectedCityCountryIso() const { return SelectedCityCountryIso; }
+	const FString& GetSelectedCityTerritoryId() const { return SelectedCityTerritoryId; }
+	const FString& GetSelectedCityTerritoryName() const { return SelectedCityTerritoryName; }
+	const FString& GetSelectedCityType() const { return SelectedCityType; }
 	bool HasLastActionMessage() const { return !LastActionMessage.IsEmpty(); }
 	const FString& GetLastActionMessage() const { return LastActionMessage; }
 	bool WasLastActionSuccessful() const { return bLastActionSucceeded; }
@@ -109,11 +132,16 @@ private:
 	void CacheWorldMap();
 	void CachePresentationActors();
 	bool TryHandleViewToggleClick();
+	bool TryHandleSelectionPanelClick();
 	bool HasCampaignInput() const;
 	void EnterCampaignInputMode();
 	void ClearSelectedCountry();
 	void ClearSelectedProvince();
+	void ClearSelectedCity();
+	void ClearCampaignSelection();
 	bool SelectProvince(const FString& ProvinceId);
+	void SelectCampaignTerritory(const FWLCampaignTerritoryRegionView& Territory);
+	void SelectCampaignCity(const FWLCampaign3DCityView& City);
 	bool BuildRecommendedInSelectedProvince(FString& OutMessage);
 	bool PickRecommendedBuilding(const FWLProvinceData& Province, FWLBuildingData& OutBuilding) const;
 	void SetLastActionMessage(const FString& Message, bool bSucceeded);
@@ -155,6 +183,19 @@ private:
 	FString SelectedProvinceName;
 	FString SelectedProvinceCountryIso;
 	FString SelectedProvinceRegion;
+
+	EWLCampaignSelectionKind ActiveSelectionKind = EWLCampaignSelectionKind::None;
+	FString SelectedPanelObjectId;
+	FString SelectedTerritoryId;
+	FString SelectedTerritoryName;
+	FString SelectedTerritoryCountryIso;
+	FString SelectedTerritoryType;
+	FString SelectedCityId;
+	FString SelectedCityName;
+	FString SelectedCityCountryIso;
+	FString SelectedCityTerritoryId;
+	FString SelectedCityTerritoryName;
+	FString SelectedCityType;
 
 	FString LastActionMessage;
 	bool bLastActionSucceeded = true;

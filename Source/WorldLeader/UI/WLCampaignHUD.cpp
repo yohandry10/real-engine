@@ -5,6 +5,7 @@
 #include "Campaign/WLCampaignPlayerController.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "UI/WLCampaignSelectionPanelData.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -25,6 +26,296 @@ namespace
 		case EWLTerrainType::Maritime: return TEXT("Maritima");
 		default: return TEXT("Llano");
 		}
+	}
+
+	const FWLCampaignSelectionPanelData& GetSelectionPanelData()
+	{
+		static FWLCampaignSelectionPanelData Data;
+		static bool bLoaded = false;
+		if (!bLoaded)
+		{
+			FWLCampaignSelectionPanelDataLoader::Load(Data);
+			bLoaded = true;
+		}
+		return Data;
+	}
+
+	FString JoinDisplayList(const TArray<FString>& Values, const FString& EmptyText = TEXT("Sin datos placeholder"))
+	{
+		if (Values.IsEmpty())
+		{
+			return EmptyText;
+		}
+		return FString::Join(Values, TEXT("  |  "));
+	}
+
+	FString ShortenForPanel(const FString& Text, int32 MaxChars)
+	{
+		if (Text.Len() <= MaxChars)
+		{
+			return Text;
+		}
+		return Text.Left(FMath::Max(0, MaxChars - 3)) + TEXT("...");
+	}
+
+	FWLCampaignSelectionPanelEntry MakeProvinceFallbackEntry(
+		const AWLCampaignPlayerController* PC,
+		const UWLDataRegistry* Registry,
+		const UWLStrategicTickSubsystem* Tick)
+	{
+		FWLCampaignSelectionPanelEntry Entry;
+		if (!PC)
+		{
+			return Entry;
+		}
+
+		const FString Id = PC->GetCampaignSelectionId();
+		FWLProvinceData Province;
+		if (Registry && Registry->GetProvince(Id, Province))
+		{
+			Entry.Id = Province.Id;
+			Entry.Name = Province.Name;
+			Entry.CountryIso = Province.CountryIso;
+			Entry.Country = Province.CountryIso;
+			Entry.TypeLabel = Province.bIsCapital ? TEXT("capital province") : TEXT("province");
+			Entry.CapitalOrMainCity = Province.Capital;
+			Entry.Owner = Province.CountryIso;
+			Entry.Controller = Tick ? Tick->GetProvinceControllerIso(Province.Id) : Province.CountryIso;
+			Entry.Population = FString::Printf(TEXT("%lld placeholder"), Province.Population);
+			Entry.PublicOrder = TEXT("70 / 100");
+			Entry.Infrastructure = FString::Printf(TEXT("%d / 100"), Province.Infrastructure);
+			Entry.StrategicImportance = FString::Printf(TEXT("Strategic value %d"), Province.StrategicValue);
+			Entry.DetailLevel = (Province.CountryIso.Equals(TEXT("CO"), ESearchCase::IgnoreCase)
+				|| Province.CountryIso.Equals(TEXT("VE"), ESearchCase::IgnoreCase))
+					? TEXT("high-detail theater")
+					: TEXT("low-detail");
+			if (Province.BaseOil > 0) Entry.Resources.Add(TEXT("oil"));
+			if (Province.BaseGas > 0) Entry.Resources.Add(TEXT("gas"));
+			if (Province.BaseFood > 0) Entry.Resources.Add(TEXT("food"));
+			if (Province.BaseMinerals > 0) Entry.Resources.Add(TEXT("minerals"));
+			if (Province.BaseIndustry > 0) Entry.Resources.Add(TEXT("industry"));
+			if (Province.bHasPort) Entry.Ports.Add(Province.Capital);
+			Entry.Cities.Add(Province.Capital);
+			Entry.BuildingSlots = { TEXT("Economic"), TEXT("Infrastructure"), TEXT("Security"), TEXT("Logistics") };
+			Entry.DisabledActions = { TEXT("Administrar edificios"), TEXT("Reclutar"), TEXT("Mejorar infraestructura"), TEXT("Gestionar orden publico") };
+			return Entry;
+		}
+
+		Entry.Id = Id;
+		Entry.Name = PC->GetSelectedTerritoryName();
+		Entry.CountryIso = PC->GetSelectedTerritoryCountryIso();
+		Entry.Country = Entry.CountryIso;
+		Entry.TypeLabel = PC->GetSelectedTerritoryType();
+		Entry.CapitalOrMainCity = TEXT("Ciudad principal placeholder");
+		Entry.Owner = Entry.CountryIso;
+		Entry.Controller = Entry.CountryIso;
+		Entry.Population = TEXT("Placeholder");
+		Entry.PublicOrder = TEXT("70 / 100");
+		Entry.Infrastructure = TEXT("50 / 100");
+		Entry.StrategicImportance = TEXT("Lectura estrategica placeholder");
+		Entry.DetailLevel = TEXT("theater placeholder");
+		Entry.Resources = { TEXT("regional"), TEXT("logistics") };
+		Entry.Cities = { Entry.CapitalOrMainCity };
+		Entry.BuildingSlots = { TEXT("Infrastructure"), TEXT("Logistics"), TEXT("Security") };
+		Entry.DisabledActions = { TEXT("Administrar edificios"), TEXT("Mejorar infraestructura"), TEXT("Gestionar orden publico") };
+		return Entry;
+	}
+
+	FWLCampaignSelectionPanelEntry MakeCityFallbackEntry(const AWLCampaignPlayerController* PC)
+	{
+		FWLCampaignSelectionPanelEntry Entry;
+		if (!PC)
+		{
+			return Entry;
+		}
+		Entry.Id = PC->GetSelectedCityId();
+		Entry.Name = PC->GetSelectedCityName();
+		Entry.CountryIso = PC->GetSelectedCityCountryIso();
+		Entry.Country = Entry.CountryIso;
+		Entry.TypeLabel = PC->GetSelectedCityType();
+		Entry.TerritoryId = PC->GetSelectedCityTerritoryId();
+		Entry.TerritoryName = PC->GetSelectedCityTerritoryName();
+		Entry.Population = TEXT("Placeholder");
+		Entry.Infrastructure = TEXT("55 / 100");
+		Entry.StrategicImportance = TEXT("Ciudad estrategica placeholder");
+		Entry.PortStatus = Entry.TypeLabel.Contains(TEXT("port")) ? TEXT("Port placeholder active") : TEXT("No port");
+		Entry.Resources = { TEXT("urban"), TEXT("logistics") };
+		Entry.UrbanSlots = { TEXT("Urban"), TEXT("Infrastructure"), TEXT("Security") };
+		Entry.DisabledActions = { TEXT("Administrar edificios"), TEXT("Reclutar"), TEXT("Mejorar infraestructura") };
+		return Entry;
+	}
+
+	bool BuildSelectionPanelEntry(
+		const AWLCampaignPlayerController* PC,
+		const UWLDataRegistry* Registry,
+		const UWLStrategicTickSubsystem* Tick,
+		FWLCampaignSelectionPanelEntry& OutEntry,
+		bool& bOutCityMode)
+	{
+		if (!PC || !PC->HasCampaignSelectionPanel())
+		{
+			return false;
+		}
+
+		const FWLCampaignSelectionPanelData& Data = GetSelectionPanelData();
+		const FString Id = PC->GetCampaignSelectionId();
+		bOutCityMode = PC->GetCampaignSelectionKind() == EWLCampaignSelectionKind::City;
+		if (bOutCityMode)
+		{
+			if (const FWLCampaignSelectionPanelEntry* Found = Data.Cities.Find(Id))
+			{
+				OutEntry = *Found;
+			}
+			else
+			{
+				OutEntry = MakeCityFallbackEntry(PC);
+			}
+		}
+		else
+		{
+			if (const FWLCampaignSelectionPanelEntry* Found = Data.Provinces.Find(Id))
+			{
+				OutEntry = *Found;
+			}
+			else
+			{
+				OutEntry = MakeProvinceFallbackEntry(PC, Registry, Tick);
+			}
+		}
+		return !OutEntry.Id.IsEmpty() && !OutEntry.Name.IsEmpty();
+	}
+
+	void DrawSectionTitle(AWLCampaignHUD* HUD, UFont* Font, const FString& Text, float X, float& Y, const FLinearColor& Color)
+	{
+		HUD->DrawText(Text, Color, X, Y, Font, 0.82f);
+		Y += 18.f;
+	}
+
+	void DrawMetric(AWLCampaignHUD* HUD, UFont* Font, const FString& Label, const FString& Value, float X, float Y, float W)
+	{
+		const FLinearColor Card(0.018f, 0.032f, 0.038f, 0.88f);
+		const FLinearColor Muted(0.55f, 0.66f, 0.68f, 1.f);
+		const FLinearColor Text(0.88f, 0.93f, 0.94f, 1.f);
+		HUD->DrawRect(Card, X, Y, W, 42.f);
+		HUD->DrawText(Label, Muted, X + 9.f, Y + 6.f, Font, 0.72f);
+		HUD->DrawText(ShortenForPanel(Value, 24), Text, X + 9.f, Y + 22.f, Font, 0.78f);
+	}
+
+	void DrawTagRow(AWLCampaignHUD* HUD, UFont* Font, const TArray<FString>& Values, float X, float& Y, float MaxW, const FLinearColor& Fill, const FLinearColor& TextColor)
+	{
+		if (Values.IsEmpty())
+		{
+			HUD->DrawText(TEXT("Sin datos placeholder"), FLinearColor(0.55f, 0.66f, 0.68f, 1.f), X, Y, Font, 0.76f);
+			Y += 21.f;
+			return;
+		}
+
+		float CursorX = X;
+		for (const FString& Value : Values)
+		{
+			const FString Label = ShortenForPanel(Value, 18);
+			const float W = FMath::Clamp(48.f + Label.Len() * 6.0f, 76.f, 150.f);
+			if (CursorX + W > X + MaxW)
+			{
+				CursorX = X;
+				Y += 27.f;
+			}
+			HUD->DrawRect(Fill, CursorX, Y, W, 22.f);
+			HUD->DrawText(Label, TextColor, CursorX + 8.f, Y + 4.f, Font, 0.70f);
+			CursorX += W + 7.f;
+		}
+		Y += 29.f;
+	}
+
+	void DrawCampaignSelectionPanel(
+		AWLCampaignHUD* HUD,
+		UCanvas* Canvas,
+		UFont* Font,
+		UFont* SmallFont,
+		const AWLCampaignPlayerController* PC,
+		const UWLDataRegistry* Registry,
+		const UWLStrategicTickSubsystem* Tick)
+	{
+		FWLCampaignSelectionPanelEntry Entry;
+		bool bCityMode = false;
+		if (!BuildSelectionPanelEntry(PC, Registry, Tick, Entry, bCityMode))
+		{
+			return;
+		}
+
+		const float W = Canvas->ClipX;
+		const float H = Canvas->ClipY;
+		const float PanelW = 430.f;
+		const float PanelX = W - 468.f;
+		const float PanelY = 154.f;
+		const float PanelH = FMath::Clamp(H - PanelY - 54.f, 360.f, 690.f);
+		const FLinearColor Panel(0.010f, 0.018f, 0.022f, 0.94f);
+		const FLinearColor PanelSoft(0.020f, 0.036f, 0.042f, 0.90f);
+		const FLinearColor Gold(0.88f, 0.70f, 0.26f, 1.f);
+		const FLinearColor Text(0.88f, 0.93f, 0.94f, 1.f);
+		const FLinearColor Muted(0.55f, 0.66f, 0.68f, 1.f);
+		const FLinearColor Disabled(0.18f, 0.22f, 0.23f, 0.88f);
+
+		HUD->DrawRect(Panel, PanelX, PanelY, PanelW, PanelH);
+		HUD->DrawRect(FLinearColor(0.50f, 0.40f, 0.18f, 0.90f), PanelX, PanelY, PanelW, 3.f);
+		HUD->DrawRect(PanelSoft, PanelX + 14.f, PanelY + 14.f, PanelW - 28.f, 62.f);
+		HUD->DrawRect(FLinearColor(0.06f, 0.09f, 0.095f, 0.95f), PanelX + PanelW - 38.f, PanelY + 14.f, 24.f, 24.f);
+		HUD->DrawText(TEXT("X"), Gold, PanelX + PanelW - 32.f, PanelY + 17.f, Font, 0.74f);
+
+		float Y = PanelY + 22.f;
+		const FString ModeLabel = bCityMode ? TEXT("CIUDAD / ASENTAMIENTO") : TEXT("PROVINCIA / DEPARTAMENTO");
+		HUD->DrawText(ModeLabel, Gold, PanelX + 24.f, Y, SmallFont, 0.80f);
+		Y += 19.f;
+		HUD->DrawText(ShortenForPanel(Entry.Name, 30), Text, PanelX + 24.f, Y, Font, 1.12f);
+		Y += 24.f;
+		const FString Subtitle = bCityMode
+			? FString::Printf(TEXT("%s  |  %s"), *Entry.Country, *Entry.TypeLabel)
+			: FString::Printf(TEXT("%s  |  %s"), *Entry.Country, *Entry.TypeLabel);
+		HUD->DrawText(ShortenForPanel(Subtitle, 48), Muted, PanelX + 24.f, Y, SmallFont, 0.78f);
+
+		Y = PanelY + 92.f;
+		const float MetricW = (PanelW - 58.f) * 0.5f;
+		DrawMetric(HUD, SmallFont, bCityMode ? TEXT("Territorio") : TEXT("Capital / principal"),
+			bCityMode ? Entry.TerritoryName : Entry.CapitalOrMainCity, PanelX + 18.f, Y, MetricW);
+		DrawMetric(HUD, SmallFont, bCityMode ? TEXT("Puerto") : TEXT("Control"),
+			bCityMode ? Entry.PortStatus : Entry.Controller, PanelX + 30.f + MetricW, Y, MetricW);
+		Y += 50.f;
+		DrawMetric(HUD, SmallFont, TEXT("Poblacion"), Entry.Population, PanelX + 18.f, Y, MetricW);
+		DrawMetric(HUD, SmallFont, TEXT("Infraestructura"), Entry.Infrastructure, PanelX + 30.f + MetricW, Y, MetricW);
+		Y += 58.f;
+
+		DrawSectionTitle(HUD, SmallFont, TEXT("IMPORTANCIA ESTRATEGICA"), PanelX + 18.f, Y, Gold);
+		HUD->DrawText(ShortenForPanel(Entry.StrategicImportance, 58), Text, PanelX + 18.f, Y, SmallFont, 0.78f);
+		Y += 25.f;
+
+		DrawSectionTitle(HUD, SmallFont, bCityMode ? TEXT("RECURSOS CONECTADOS") : TEXT("RECURSOS PRINCIPALES"), PanelX + 18.f, Y, Gold);
+		DrawTagRow(HUD, SmallFont, Entry.Resources, PanelX + 18.f, Y, PanelW - 36.f, FLinearColor(0.12f, 0.17f, 0.16f, 0.92f), Text);
+
+		DrawSectionTitle(HUD, SmallFont, bCityMode ? TEXT("SLOTS URBANOS PLACEHOLDER") : TEXT("SLOTS DE EDIFICIOS PLACEHOLDER"), PanelX + 18.f, Y, Gold);
+		DrawTagRow(HUD, SmallFont, bCityMode ? Entry.UrbanSlots : Entry.BuildingSlots, PanelX + 18.f, Y, PanelW - 36.f, FLinearColor(0.17f, 0.14f, 0.08f, 0.92f), Text);
+
+		if (!bCityMode)
+		{
+			DrawSectionTitle(HUD, SmallFont, TEXT("PUERTOS / CIUDADES"), PanelX + 18.f, Y, Gold);
+			HUD->DrawText(ShortenForPanel(FString::Printf(TEXT("Puertos: %s"), *JoinDisplayList(Entry.Ports, TEXT("No aplica"))), 58),
+				Muted, PanelX + 18.f, Y, SmallFont, 0.75f);
+			Y += 18.f;
+			HUD->DrawText(ShortenForPanel(FString::Printf(TEXT("Ciudades: %s"), *JoinDisplayList(Entry.Cities)), 58),
+				Muted, PanelX + 18.f, Y, SmallFont, 0.75f);
+			Y += 26.f;
+		}
+
+		DrawSectionTitle(HUD, SmallFont, TEXT("ACCIONES FUTURAS"), PanelX + 18.f, Y, Gold);
+		const int32 MaxActions = FMath::Min(Entry.DisabledActions.Num(), 5);
+		for (int32 Index = 0; Index < MaxActions && Y < PanelY + PanelH - 30.f; ++Index)
+		{
+			HUD->DrawRect(Disabled, PanelX + 18.f, Y, PanelW - 36.f, 24.f);
+			HUD->DrawText(ShortenForPanel(Entry.DisabledActions[Index] + TEXT("  - bloqueado"), 48),
+				Muted, PanelX + 30.f, Y + 5.f, SmallFont, 0.72f);
+			Y += 29.f;
+		}
+
+		HUD->DrawText(ShortenForPanel(Entry.DetailLevel, 46), Muted, PanelX + 18.f, PanelY + PanelH - 24.f, SmallFont, 0.70f);
 	}
 }
 
@@ -146,7 +437,11 @@ void AWLCampaignHUD::DrawHUD()
 				X, Y, SmallFont, 0.86f);
 		}
 
-		if (PC->HasSelectedProvince())
+		if (!bDiplomacy && PC->HasCampaignSelectionPanel())
+		{
+			DrawCampaignSelectionPanel(this, Canvas, Font, SmallFont, PC, Registry, Tick);
+		}
+		else if (bDiplomacy && PC->HasSelectedProvince())
 		{
 			FWLProvinceData Province;
 			if (Registry->GetProvince(PC->GetSelectedProvinceId(), Province))
@@ -195,7 +490,7 @@ void AWLCampaignHUD::DrawHUD()
 					PanelX + 18.f, PanelY + LineHeight, SmallFont);
 			}
 		}
-		else if (PC->HasSelectedCountry())
+		else if (bDiplomacy && PC->HasSelectedCountry())
 		{
 			const float PanelX = W - 442.f;
 			float PanelY = bDiplomacy ? 118.f : 154.f;

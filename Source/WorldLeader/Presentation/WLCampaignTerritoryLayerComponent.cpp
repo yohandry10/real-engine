@@ -192,6 +192,84 @@ namespace
 		return AMinLon <= BMaxLon && AMaxLon >= BMinLon && AMinLat <= BMaxLat && AMaxLat >= BMinLat;
 	}
 
+	bool PointInWorldPolygonXY(const TArray<FVector>& Polygon, const FVector& Point)
+	{
+		bool bInside = false;
+		const int32 Count = Polygon.Num();
+		if (Count < 3)
+		{
+			return false;
+		}
+
+		for (int32 Index = 0, Previous = Count - 1; Index < Count; Previous = Index++)
+		{
+			const FVector& A = Polygon[Index];
+			const FVector& B = Polygon[Previous];
+			const bool bCrossesY = (A.Y > Point.Y) != (B.Y > Point.Y);
+			if (!bCrossesY)
+			{
+				continue;
+			}
+
+			const float Denominator = B.Y - A.Y;
+			if (FMath::Abs(Denominator) < UE_SMALL_NUMBER)
+			{
+				continue;
+			}
+
+			const float CrossX = ((B.X - A.X) * (Point.Y - A.Y) / Denominator) + A.X;
+			if (Point.X < CrossX)
+			{
+				bInside = !bInside;
+			}
+		}
+		return bInside;
+	}
+
+	bool WorldPolygonBoundsContainsXY(const TArray<FVector>& Polygon, const FVector& Point, float Padding)
+	{
+		if (Polygon.IsEmpty())
+		{
+			return false;
+		}
+
+		float MinX = TNumericLimits<float>::Max();
+		float MaxX = TNumericLimits<float>::Lowest();
+		float MinY = TNumericLimits<float>::Max();
+		float MaxY = TNumericLimits<float>::Lowest();
+		for (const FVector& Vertex : Polygon)
+		{
+			MinX = FMath::Min(MinX, Vertex.X);
+			MaxX = FMath::Max(MaxX, Vertex.X);
+			MinY = FMath::Min(MinY, Vertex.Y);
+			MaxY = FMath::Max(MaxY, Vertex.Y);
+		}
+
+		return Point.X >= MinX - Padding && Point.X <= MaxX + Padding
+			&& Point.Y >= MinY - Padding && Point.Y <= MaxY + Padding;
+	}
+
+	float WorldPolygonBoundsAreaXY(const TArray<FVector>& Polygon)
+	{
+		if (Polygon.IsEmpty())
+		{
+			return TNumericLimits<float>::Max();
+		}
+
+		float MinX = TNumericLimits<float>::Max();
+		float MaxX = TNumericLimits<float>::Lowest();
+		float MinY = TNumericLimits<float>::Max();
+		float MaxY = TNumericLimits<float>::Lowest();
+		for (const FVector& Vertex : Polygon)
+		{
+			MinX = FMath::Min(MinX, Vertex.X);
+			MaxX = FMath::Max(MaxX, Vertex.X);
+			MinY = FMath::Min(MinY, Vertex.Y);
+			MaxY = FMath::Max(MaxY, Vertex.Y);
+		}
+		return FMath::Max(1.f, MaxX - MinX) * FMath::Max(1.f, MaxY - MinY);
+	}
+
 	bool ShouldUseRingForCountry(const FString& Iso, const TArray<FVector2D>& Ring)
 	{
 		float MinLon, MaxLon, MinLat, MaxLat;
@@ -352,6 +430,10 @@ UProceduralMeshComponent* UWLCampaignTerritoryLayerComponent::NewProceduralMesh(
 	Mesh->SetCollisionObjectType(ECC_WorldDynamic);
 	Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Mesh->SetCollisionResponseToChannel(ECC_Visibility, bCollision ? ECR_Block : ECR_Ignore);
+	if (bCollision)
+	{
+		Mesh->SetRenderInMainPass(false);
+	}
 	if (VertexColorMaterial)
 	{
 		Mesh->SetMaterial(0, VertexColorMaterial);
@@ -454,8 +536,9 @@ void UWLCampaignTerritoryLayerComponent::BuildCountryBordersAndHitProxies(
 		UProceduralMeshComponent* HitMesh = NewProceduralMesh(Parent, FName(*FString::Printf(TEXT("CountryHit_%s"), *Iso)), true);
 		if (HitMesh)
 		{
-			HitMesh->SetVisibility(false, true);
-			HitMesh->SetHiddenInGame(true, true);
+			HitMesh->SetVisibility(true, true);
+			HitMesh->SetHiddenInGame(false, true);
+			HitMesh->SetRenderInMainPass(false);
 		}
 
 		auto ProcessPolygon = [&](const TArray<TSharedPtr<FJsonValue>>& Rings)
@@ -676,8 +759,9 @@ void UWLCampaignTerritoryLayerComponent::BuildProvinceRegions(
 				Colors.Add(ToFColor(FLinearColor(0.f, 0.f, 0.f, 0.f)));
 			}
 			HitMesh->CreateMeshSection(0, Region.WorldPolygon, Tris, Normals, UVs, Colors, TArray<FProcMeshTangent>(), true);
-			HitMesh->SetVisibility(false, true);
-			HitMesh->SetHiddenInGame(true, true);
+			HitMesh->SetVisibility(true, true);
+			HitMesh->SetHiddenInGame(false, true);
+			HitMesh->SetRenderInMainPass(false);
 			Region.HitComponent = HitMesh;
 		}
 
@@ -824,13 +908,13 @@ void UWLCampaignTerritoryLayerComponent::ApplyVisibility(float CameraHeight)
 	LastCameraHeight = CameraHeight;
 	const bool bGlobal = CameraHeight >= 360000.f;
 	const bool bRegion = CameraHeight >= 185000.f && !bGlobal;
-	const bool bFine = CameraHeight < 185000.f;
+	const bool bDetailedTerritoryVisible = CameraHeight < 115000.f;
 
-	const bool bNationalVisible = bLayerActive && bShowBorders;
-	const bool bProvinceVisible = bLayerActive && bShowBorders && bShowProvinces && !bGlobal;
-	const bool bCountryLabelsVisible = bLayerActive && bShowLabels && (bGlobal || bRegion);
-	const bool bProvinceLabelsVisible = bLayerActive && bShowLabels && bShowProvinces && bFine;
-	const bool bResourcesVisible = bLayerActive && bShowResources && bShowProvinces && bFine;
+	const bool bNationalVisible = bLayerActive && bShowBorders && bGlobal;
+	const bool bProvinceVisible = bLayerActive && bShowBorders && bShowProvinces && bDetailedTerritoryVisible;
+	const bool bCountryLabelsVisible = bLayerActive && bShowLabels && bGlobal;
+	const bool bProvinceLabelsVisible = bLayerActive && bShowLabels && bShowProvinces && bDetailedTerritoryVisible;
+	const bool bResourcesVisible = bLayerActive && bShowResources && bShowProvinces && bDetailedTerritoryVisible;
 
 	if (NationalBorderMesh)
 	{
@@ -878,8 +962,9 @@ void UWLCampaignTerritoryLayerComponent::ApplyVisibility(float CameraHeight)
 			? (bLayerActive && (bGlobal || bRegion))
 			: (bLayerActive && bShowProvinces && !bGlobal);
 		Region.HitComponent->SetCollisionEnabled(bHitEnabled ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
-		Region.HitComponent->SetVisibility(false, true);
-		Region.HitComponent->SetHiddenInGame(true, true);
+		Region.HitComponent->SetVisibility(true, true);
+		Region.HitComponent->SetHiddenInGame(false, true);
+		Region.HitComponent->SetRenderInMainPass(false);
 	}
 }
 
@@ -922,6 +1007,90 @@ bool UWLCampaignTerritoryLayerComponent::TryGetTerritoryForComponent(
 
 	OutRegion = Regions[*RegionIndex].View;
 	return OutRegion.bSelectable;
+}
+
+bool UWLCampaignTerritoryLayerComponent::TryGetTerritoryAtWorldLocation(
+	const FVector& WorldLocation,
+	bool bRequireProvince,
+	FWLCampaignTerritoryRegionView& OutRegion) const
+{
+	for (const FRegionRecord& Region : Regions)
+	{
+		if (Region.bCountry || !Region.View.bSelectable)
+		{
+			continue;
+		}
+		if (PointInWorldPolygonXY(Region.WorldPolygon, WorldLocation))
+		{
+			OutRegion = Region.View;
+			return true;
+		}
+	}
+
+	const FRegionRecord* BoundsMatchedProvince = nullptr;
+	float BoundsMatchedArea = TNumericLimits<float>::Max();
+	for (const FRegionRecord& Region : Regions)
+	{
+		if (Region.bCountry || !Region.View.bSelectable)
+		{
+			continue;
+		}
+		if (!WorldPolygonBoundsContainsXY(Region.WorldPolygon, WorldLocation, 1500.f))
+		{
+			continue;
+		}
+		const float Area = WorldPolygonBoundsAreaXY(Region.WorldPolygon);
+		if (Area < BoundsMatchedArea)
+		{
+			BoundsMatchedArea = Area;
+			BoundsMatchedProvince = &Region;
+		}
+	}
+	if (BoundsMatchedProvince)
+	{
+		OutRegion = BoundsMatchedProvince->View;
+		return true;
+	}
+
+	const FRegionRecord* NearestProvince = nullptr;
+	float NearestDistanceSq = FMath::Square(260000.f);
+	for (const FRegionRecord& Region : Regions)
+	{
+		if (Region.bCountry || !Region.View.bSelectable)
+		{
+			continue;
+		}
+		const float DistanceSq = FVector::DistSquared2D(Region.View.WorldLocation, WorldLocation);
+		if (DistanceSq < NearestDistanceSq)
+		{
+			NearestDistanceSq = DistanceSq;
+			NearestProvince = &Region;
+		}
+	}
+	if (NearestProvince)
+	{
+		OutRegion = NearestProvince->View;
+		return true;
+	}
+
+	if (bRequireProvince)
+	{
+		return false;
+	}
+
+	for (const FRegionRecord& Region : Regions)
+	{
+		if (!Region.bCountry || !Region.View.bSelectable)
+		{
+			continue;
+		}
+		if (PointInWorldPolygonXY(Region.WorldPolygon, WorldLocation))
+		{
+			OutRegion = Region.View;
+			return true;
+		}
+	}
+	return false;
 }
 
 bool UWLCampaignTerritoryLayerComponent::GetRegionById(const FString& RegionId, FWLCampaignTerritoryRegionView& OutRegion) const

@@ -12,6 +12,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/DirectionalLight.h"
@@ -75,6 +76,32 @@ namespace
 			|| Iso.Equals(TEXT("HT"), ESearchCase::IgnoreCase)
 			|| Iso.Equals(TEXT("DO"), ESearchCase::IgnoreCase)
 			|| Iso.Equals(TEXT("PR"), ESearchCase::IgnoreCase);
+	}
+
+	FString SettlementTypeToPanelText(EWLCampaignSettlementType Type)
+	{
+		switch (Type)
+		{
+		case EWLCampaignSettlementType::Capital: return TEXT("capital");
+		case EWLCampaignSettlementType::LargeCity: return TEXT("large city");
+		case EWLCampaignSettlementType::Port: return TEXT("port");
+		case EWLCampaignSettlementType::Frontier: return TEXT("border city");
+		case EWLCampaignSettlementType::Industrial: return TEXT("industrial city");
+		default: return TEXT("settlement");
+		}
+	}
+
+	FString SettlementStrategicRole(EWLCampaignSettlementType Type)
+	{
+		switch (Type)
+		{
+		case EWLCampaignSettlementType::Capital: return TEXT("capital command hub");
+		case EWLCampaignSettlementType::LargeCity: return TEXT("urban economic hub");
+		case EWLCampaignSettlementType::Port: return TEXT("port and coastal logistics");
+		case EWLCampaignSettlementType::Frontier: return TEXT("border control point");
+		case EWLCampaignSettlementType::Industrial: return TEXT("industry and energy hub");
+		default: return TEXT("regional settlement");
+		}
 	}
 
 	enum class EWLVisualBiome : uint8
@@ -546,6 +573,11 @@ AWLCampaign3DView::AWLCampaign3DView()
 	SettlementMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SettlementMesh"));
 	SettlementMesh->SetupAttachment(SceneRoot);
 
+	SelectionHighlightMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SelectionHighlightMesh"));
+	SelectionHighlightMesh->SetupAttachment(SceneRoot);
+
+	TerritoryLayer = CreateDefaultSubobject<UWLCampaignTerritoryLayerComponent>(TEXT("TerritoryLayer"));
+
 	SettlementBlockInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("SettlementBlockInstances"));
 	SettlementBlockInstances->SetupAttachment(SceneRoot);
 	SettlementTowerInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("SettlementTowerInstances"));
@@ -643,6 +675,9 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	Bounds = FBox2D(ForceInit);
 	OverviewBounds = FBox2D(ForceInit);
 	ProvinceViews.Reset();
+	CityViews.Reset();
+	SelectedProvinceHighlightId.Reset();
+	SelectedCityHighlightId.Reset();
 
 	if (SeaMesh)
 	{
@@ -672,6 +707,10 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	{
 		SettlementMesh->ClearAllMeshSections();
 	}
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
 	for (UStaticMeshComponent* Marker : ProvinceMarkers)
 	{
 		if (Marker)
@@ -680,6 +719,14 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		}
 	}
 	ProvinceMarkers.Reset();
+	for (UPrimitiveComponent* Marker : CitySelectionMarkers)
+	{
+		if (Marker)
+		{
+			Marker->DestroyComponent();
+		}
+	}
+	CitySelectionMarkers.Reset();
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{
 		if (Component)
@@ -713,6 +760,10 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	}
 	OverviewLabels.Reset();
 	OverviewLabelVisibilityMasks.Reset();
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->ClearLayer();
+	}
 	for (UInstancedStaticMeshComponent* Instanced : {
 		SettlementBlockInstances,
 		SettlementTowerInstances,
@@ -728,11 +779,18 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		}
 	}
 
+	SetupLightingAndCamera();
 	BuildSea();
 	BuildOverviewLayer();
 	BuildTerrain();
 	BuildCampaignVisualLayer();
-	SetupLightingAndCamera();
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->BuildLayer(SceneRoot, VertexColorMaterial, [this](float Lon, float Lat)
+		{
+			return ProjectLonLat(Lon, Lat);
+		});
+	}
 	ApplyZoomLOD(DefaultCameraLocation.Z);
 	SetPresentationActive(true, true);
 }
@@ -743,6 +801,10 @@ void AWLCampaign3DView::SetPresentationActive(bool bActive, bool bSetCamera)
 	SetActorEnableCollision(bActive);
 	SetActorTickEnabled(bActive);
 	SetComponentSetActive(bActive);
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->SetPresentationActive(bActive);
+	}
 
 	if (ViewDirectionalLight)
 	{
@@ -781,6 +843,137 @@ bool AWLCampaign3DView::TryGetProvinceForComponent(const UPrimitiveComponent* Co
 		}
 	}
 	return false;
+}
+
+bool AWLCampaign3DView::TryGetTerritoryForComponent(
+	const UPrimitiveComponent* Component,
+	FWLCampaignTerritoryRegionView& OutTerritory) const
+{
+	return TerritoryLayer && TerritoryLayer->TryGetTerritoryForComponent(Component, OutTerritory);
+}
+
+bool AWLCampaign3DView::TryGetTerritoryAtWorldLocation(
+	const FVector& WorldLocation,
+	FWLCampaignTerritoryRegionView& OutTerritory) const
+{
+	return TerritoryLayer && TerritoryLayer->TryGetTerritoryAtWorldLocation(WorldLocation, true, OutTerritory);
+}
+
+bool AWLCampaign3DView::TryGetCityForComponent(const UPrimitiveComponent* Component, FWLCampaign3DCityView& OutCity) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < CitySelectionMarkers.Num() && Index < CityViews.Num(); ++Index)
+	{
+		if (CitySelectionMarkers[Index] == Component)
+		{
+			OutCity = CityViews[Index];
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AWLCampaign3DView::TryGetCityNearWorldLocation(
+	const FVector& WorldLocation,
+	float MaxDistance,
+	FWLCampaign3DCityView& OutCity) const
+{
+	float BestDistanceSq = FMath::Square(FMath::Max(1000.f, MaxDistance));
+	int32 BestIndex = INDEX_NONE;
+	for (int32 Index = 0; Index < CityViews.Num(); ++Index)
+	{
+		const FWLCampaign3DCityView& City = CityViews[Index];
+		const float DistanceSq = FVector::DistSquared2D(WorldLocation, City.WorldLocation);
+		if (DistanceSq < BestDistanceSq)
+		{
+			BestDistanceSq = DistanceSq;
+			BestIndex = Index;
+		}
+	}
+	if (BestIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	OutCity = CityViews[BestIndex];
+	return true;
+}
+
+void AWLCampaign3DView::SetSelectedProvinceHighlight(const FString& ProvinceId)
+{
+	SelectedProvinceHighlightId = ProvinceId;
+	SelectedCityHighlightId.Reset();
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->SetSelectedTerritory(ProvinceId);
+	}
+
+	for (const FWLCampaign3DProvinceView& Province : ProvinceViews)
+	{
+		if (Province.Id.Equals(ProvinceId, ESearchCase::IgnoreCase))
+		{
+			RebuildPointSelectionHighlight(Province.WorldLocation + FVector(0.f, 0.f, 820.f), 6200.f, FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
+			return;
+		}
+	}
+
+	if (TerritoryLayer)
+	{
+		FWLCampaignTerritoryRegionView Territory;
+		if (TerritoryLayer->GetRegionById(ProvinceId, Territory))
+		{
+			RebuildPointSelectionHighlight(Territory.WorldLocation + FVector(0.f, 0.f, 900.f), 5200.f, FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
+			return;
+		}
+	}
+
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
+}
+
+void AWLCampaign3DView::SetSelectedCityHighlight(const FString& CityId)
+{
+	SelectedCityHighlightId = CityId;
+	SelectedProvinceHighlightId.Reset();
+
+	for (const FWLCampaign3DCityView& City : CityViews)
+	{
+		if (City.Id.Equals(CityId, ESearchCase::IgnoreCase))
+		{
+			if (TerritoryLayer && !City.TerritoryId.IsEmpty())
+			{
+				TerritoryLayer->SetSelectedTerritory(City.TerritoryId);
+			}
+			RebuildPointSelectionHighlight(City.WorldLocation + FVector(0.f, 0.f, 1240.f), City.bCapital ? 7600.f : 6200.f,
+				City.bPort ? FLinearColor(0.46f, 0.82f, 0.86f, 1.f) : FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
+			return;
+		}
+	}
+
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
+}
+
+void AWLCampaign3DView::ClearSelectionHighlight()
+{
+	SelectedProvinceHighlightId.Reset();
+	SelectedCityHighlightId.Reset();
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->SetSelectedTerritory(TEXT(""));
+	}
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
 }
 
 FBox2D AWLCampaign3DView::GetViewBounds2D() const
@@ -1335,23 +1528,23 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddTheaterCountryLabel(TEXT("COLOMBIA"), -74.2f, 5.7f, FColor(232, 206, 126));
 	AddTheaterCountryLabel(TEXT("VENEZUELA"), -66.4f, 7.8f, FColor(232, 206, 126));
 
-	AddSettlementCluster(TEXT("Bogota"), -74.1f, 4.6f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
-	AddSettlementCluster(TEXT("Medellin"), -75.58f, 6.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Cali"), -76.53f, 3.45f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Cartagena"), -75.5f, 10.4f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Barranquilla"), -74.8f, 10.98f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Santa Marta"), -74.2f, 11.24f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Bucaramanga"), -73.12f, 7.12f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
-	AddSettlementCluster(TEXT("Riohacha"), -72.9f, 11.5f, EWLCampaignSettlementType::Port, FLinearColor(0.66f, 0.62f, 0.46f));
-	AddSettlementCluster(TEXT("Cucuta"), -72.5f, 7.9f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
-	AddSettlementCluster(TEXT("Maracaibo"), -71.6f, 10.6f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
-	AddSettlementCluster(TEXT("Caracas"), -66.9f, 10.5f, EWLCampaignSettlementType::Capital, FLinearColor(0.92f, 0.58f, 0.34f));
-	AddSettlementCluster(TEXT("Valencia"), -68.0f, 10.2f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
-	AddSettlementCluster(TEXT("Barquisimeto"), -69.32f, 10.07f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
-	AddSettlementCluster(TEXT("Maracay"), -67.60f, 10.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
-	AddSettlementCluster(TEXT("San Cristobal"), -72.23f, 7.77f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.62f, 0.34f));
-	AddSettlementCluster(TEXT("Puerto La Cruz"), -64.63f, 10.21f, EWLCampaignSettlementType::Port, FLinearColor(0.78f, 0.52f, 0.34f));
-	AddSettlementCluster(TEXT("Ciudad Guayana"), -62.6f, 8.3f, EWLCampaignSettlementType::Industrial, FLinearColor(0.62f, 0.54f, 0.36f));
+	AddSettlementCluster(TEXT("CO-BOGOTA"), TEXT("Bogota"), TEXT("CO"), TEXT("CO-DC"), TEXT("Bogota D.C."), -74.1f, 4.6f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("CO-MEDELLIN"), TEXT("Medellin"), TEXT("CO"), TEXT("CO-ANT"), TEXT("Antioquia"), -75.58f, 6.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-CALI"), TEXT("Cali"), TEXT("CO"), TEXT("CO-VAC"), TEXT("Valle del Cauca"), -76.53f, 3.45f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-CARTAGENA"), TEXT("Cartagena"), TEXT("CO"), TEXT("CO-BOL"), TEXT("Bolivar"), -75.5f, 10.4f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-BARRANQUILLA"), TEXT("Barranquilla"), TEXT("CO"), TEXT("CO-ATL"), TEXT("Atlantico"), -74.8f, 10.98f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-SANTA-MARTA"), TEXT("Santa Marta"), TEXT("CO"), TEXT("CO-MAG"), TEXT("Magdalena"), -74.2f, 11.24f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-BUCARAMANGA"), TEXT("Bucaramanga"), TEXT("CO"), TEXT("CO-SAN"), TEXT("Santander"), -73.12f, 7.12f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-RIOHACHA"), TEXT("Riohacha"), TEXT("CO"), TEXT("CO-LGJ"), TEXT("La Guajira"), -72.9f, 11.5f, EWLCampaignSettlementType::Port, FLinearColor(0.66f, 0.62f, 0.46f));
+	AddSettlementCluster(TEXT("CO-CUCUTA"), TEXT("Cucuta"), TEXT("CO"), TEXT("CO-NSA"), TEXT("Norte de Santander"), -72.5f, 7.9f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+	AddSettlementCluster(TEXT("VE-MARACAIBO"), TEXT("Maracaibo"), TEXT("VE"), TEXT("VE-ZU"), TEXT("Zulia"), -71.6f, 10.6f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("VE-CARACAS"), TEXT("Caracas"), TEXT("VE"), TEXT("VE-DC"), TEXT("Distrito Capital"), -66.9f, 10.5f, EWLCampaignSettlementType::Capital, FLinearColor(0.92f, 0.58f, 0.34f));
+	AddSettlementCluster(TEXT("VE-VALENCIA"), TEXT("Valencia"), TEXT("VE"), TEXT("VE-CAR"), TEXT("Carabobo"), -68.0f, 10.2f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("VE-BARQUISIMETO"), TEXT("Barquisimeto"), TEXT("VE"), TEXT("VE-LAR"), TEXT("Lara"), -69.32f, 10.07f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("VE-MARACAY"), TEXT("Maracay"), TEXT("VE"), TEXT("VE-ARA"), TEXT("Aragua"), -67.60f, 10.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("VE-SAN-CRISTOBAL"), TEXT("San Cristobal"), TEXT("VE"), TEXT("VE-TAC"), TEXT("Tachira"), -72.23f, 7.77f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.62f, 0.34f));
+	AddSettlementCluster(TEXT("VE-PUERTO-LA-CRUZ"), TEXT("Puerto La Cruz"), TEXT("VE"), TEXT("VE-ANZ"), TEXT("Anzoategui"), -64.63f, 10.21f, EWLCampaignSettlementType::Port, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("VE-CIUDAD-GUAYANA"), TEXT("Ciudad Guayana"), TEXT("VE"), TEXT("VE-BO"), TEXT("Bolivar"), -62.6f, 8.3f, EWLCampaignSettlementType::Industrial, FLinearColor(0.62f, 0.54f, 0.36f));
 
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
@@ -1383,7 +1576,11 @@ void AWLCampaign3DView::AddBiomePatch(const TArray<FVector2D>& LonLatPoints, con
 }
 
 void AWLCampaign3DView::AddSettlementCluster(
+	const FString& CityId,
 	const FString& Name,
+	const FString& CountryIso,
+	const FString& TerritoryId,
+	const FString& TerritoryName,
 	float Lon,
 	float Lat,
 	EWLCampaignSettlementType Type,
@@ -1407,6 +1604,20 @@ void AWLCampaign3DView::AddSettlementCluster(
 	const bool bCapital = Type == EWLCampaignSettlementType::Capital;
 	const bool bSmall = Type == EWLCampaignSettlementType::Frontier;
 	const FVector Base = ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, bCapital ? 2450.f : 2050.f);
+	FWLCampaign3DCityView City;
+	City.Id = CityId;
+	City.Name = Name;
+	City.CountryIso = CountryIso;
+	City.TerritoryId = TerritoryId;
+	City.TerritoryName = TerritoryName;
+	City.CityType = SettlementTypeToPanelText(Type);
+	City.StrategicRole = SettlementStrategicRole(Type);
+	City.DetailLevel = TEXT("high-detail theater");
+	City.WorldLocation = Base;
+	City.bCapital = bCapital;
+	City.bPort = Type == EWLCampaignSettlementType::Port;
+	AddCitySelectionProxy(City, bCapital ? 1.28f : (City.bPort ? 1.16f : 1.0f));
+
 	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
 	Label->SetupAttachment(SceneRoot);
 	Label->RegisterComponent();
@@ -1417,6 +1628,85 @@ void AWLCampaign3DView::AddSettlementCluster(
 	Label->SetText(FText::FromString(Name));
 	Label->SetTextRenderColor(bCapital ? FColor(230, 210, 140) : FColor(195, 205, 190));
 	Labels.Add(Label);
+}
+
+void AWLCampaign3DView::AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale)
+{
+	if (City.Id.IsEmpty())
+	{
+		return;
+	}
+
+	USphereComponent* Marker = NewObject<USphereComponent>(this);
+	Marker->SetupAttachment(SceneRoot);
+	Marker->RegisterComponent();
+	Marker->SetWorldLocation(City.WorldLocation + FVector(0.f, 0.f, City.bCapital ? 2400.f : 1800.f));
+	Marker->SetSphereRadius((City.bCapital ? 12500.f : 9800.f) * FMath::Max(0.65f, RadiusScale));
+	Marker->SetVisibility(false, true);
+	Marker->SetHiddenInGame(false, true);
+	Marker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	Marker->SetCollisionObjectType(ECC_WorldDynamic);
+	Marker->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Marker->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	Marker->ComponentTags.Add(TEXT("WorldLeaderCampaign3DCity"));
+	Marker->ComponentTags.Add(FName(*City.Id));
+	CitySelectionMarkers.Add(Marker);
+	CityViews.Add(City);
+}
+
+void AWLCampaign3DView::RebuildPointSelectionHighlight(const FVector& Location, float Radius, const FLinearColor& Color)
+{
+	if (!SelectionHighlightMesh)
+	{
+		return;
+	}
+
+	SelectionHighlightMesh->ClearAllMeshSections();
+	const int32 Segments = 36;
+	const float OuterRadius = FMath::Max(1200.f, Radius);
+	const float InnerRadius = OuterRadius * 0.74f;
+	TArray<FVector> Verts;
+	TArray<int32> Tris;
+	TArray<FVector> Normals;
+	TArray<FVector2D> UVs;
+	TArray<FColor> Colors;
+	TArray<FProcMeshTangent> Tangents;
+	Verts.Reserve(Segments * 2);
+	Normals.Reserve(Segments * 2);
+	UVs.Reserve(Segments * 2);
+	Colors.Reserve(Segments * 2);
+
+	const FColor VertexColor = Color.ToFColor(false);
+	for (int32 Index = 0; Index < Segments; ++Index)
+	{
+		const float Angle = (static_cast<float>(Index) / static_cast<float>(Segments)) * 2.f * PI;
+		const FVector Direction(FMath::Cos(Angle), FMath::Sin(Angle), 0.f);
+		Verts.Add(Location + Direction * OuterRadius);
+		Verts.Add(Location + Direction * InnerRadius);
+		Normals.Add(FVector::UpVector);
+		Normals.Add(FVector::UpVector);
+		UVs.Add(FVector2D(1.f, 0.f));
+		UVs.Add(FVector2D(0.f, 0.f));
+		Colors.Add(VertexColor);
+		Colors.Add(VertexColor);
+	}
+	for (int32 Index = 0; Index < Segments; ++Index)
+	{
+		const int32 Next = (Index + 1) % Segments;
+		const int32 A = Index * 2;
+		const int32 B = A + 1;
+		const int32 C = Next * 2;
+		const int32 D = C + 1;
+		Tris.Append({ A, C, B, B, C, D });
+	}
+
+	SelectionHighlightMesh->CreateMeshSection(0, Verts, Tris, Normals, UVs, Colors, Tangents, false);
+	if (VertexColorMaterial)
+	{
+		SelectionHighlightMesh->SetMaterial(0, VertexColorMaterial);
+	}
+	SelectionHighlightMesh->SetVisibility(!IsHidden(), true);
+	SelectionHighlightMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 void AWLCampaign3DView::AddVegetationScatter(float MinLon, float MaxLon, float MinLat, float MaxLat, int32 Columns, int32 Rows, bool bDenseJungle)
@@ -1693,6 +1983,10 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 
 void AWLCampaign3DView::DestroyPresentationActors()
 {
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->ClearLayer();
+	}
 	if (ViewCamera)
 	{
 		ViewCamera->Destroy();
@@ -1741,6 +2035,19 @@ void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 			Marker->SetVisibility(bVisible, true);
 			Marker->SetCollisionEnabled(bVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
+	}
+	for (UPrimitiveComponent* Marker : CitySelectionMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(false, true);
+			Marker->SetHiddenInGame(false, true);
+			Marker->SetCollisionEnabled(bVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+		}
+	}
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->SetVisibility(bVisible && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty()), true);
 	}
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{
@@ -1866,6 +2173,25 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		PortInstances->SetVisibility(bFineDetail || CurrentZoomLOD == EWLCampaign3DZoomLOD::Region, true);
 	}
+	for (UPrimitiveComponent* Marker : CitySelectionMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetCollisionEnabled(bFineDetail ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetVisibility(false, true);
+			Marker->SetHiddenInGame(false, true);
+		}
+	}
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->SetVisibility(
+			bFineDetail && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty()),
+			true);
+	}
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->ApplyVisibility(CameraHeight);
+	}
 }
 
 void AWLCampaign3DView::SetComponentSetActive(bool bActive)
@@ -1912,6 +2238,20 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 			Marker->SetVisibility(bActive, true);
 			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
+	}
+	for (UPrimitiveComponent* Marker : CitySelectionMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(false, true);
+			Marker->SetHiddenInGame(false, true);
+			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+		}
+	}
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->SetVisibility(bActive && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty()), true);
+		SelectionHighlightMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{

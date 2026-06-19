@@ -68,6 +68,7 @@ public:
 	void SetSelectedTerritory(const FString& RegionId);
 
 	bool TryGetTerritoryForComponent(const UPrimitiveComponent* Component, FWLCampaignTerritoryRegionView& OutRegion) const;
+	bool TryGetTerritoryAtWorldLocation(const FVector& WorldLocation, bool bRequireProvince, FWLCampaignTerritoryRegionView& OutRegion) const;
 	bool GetRegionById(const FString& RegionId, FWLCampaignTerritoryRegionView& OutRegion) const;
 
 	bool AreBordersVisible() const { return bShowBorders; }
