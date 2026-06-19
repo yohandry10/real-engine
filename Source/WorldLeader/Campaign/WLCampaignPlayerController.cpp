@@ -91,6 +91,16 @@ namespace
 		const int32 SlotRows = FMath::Max(1, FMath::DivideAndRoundUp(FMath::Clamp(SlotCount, 1, 6), 2));
 		return GetCampaignControllerPanelSlotStartY(PanelY) + static_cast<float>(SlotRows) * 56.f + 16.f;
 	}
+
+	float GetCampaignControllerForceActionStartY(float PanelY)
+	{
+		return PanelY + 412.f;
+	}
+
+	bool IsPointInControllerRect(float MouseX, float MouseY, float X, float Y, float W, float H)
+	{
+		return MouseX >= X && MouseX <= X + W && MouseY >= Y && MouseY <= Y + H;
+	}
 }
 
 AWLCampaignPlayerController::AWLCampaignPlayerController()
@@ -126,7 +136,14 @@ void AWLCampaignPlayerController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	UpdateMapCamera(DeltaSeconds);
-	UpdateCampaignForceHover();
+	if (IsForceMovementModeActive())
+	{
+		UpdateCampaignMovementDestinationHover();
+	}
+	else
+	{
+		UpdateCampaignForceHover();
+	}
 }
 
 void AWLCampaignPlayerController::SetupInputComponent()
@@ -279,6 +296,11 @@ void AWLCampaignPlayerController::OnSelectCountry()
 	}
 	if (TryHandleViewToggleClick())
 	{
+		return;
+	}
+	if (IsForceMovementModeActive())
+	{
+		TryHandleForceMovementDestinationClick();
 		return;
 	}
 
@@ -941,7 +963,35 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 
 	if (ActiveSelectionKind == EWLCampaignSelectionKind::Force)
 	{
-		SetLastActionMessage(TEXT("Acciones militares bloqueadas: esta fase solo muestra marcadores placeholder."), true);
+		const float ButtonW = (PanelW - 48.f) * 0.5f;
+		const float ButtonH = 28.f;
+		const float ButtonGap = 8.f;
+		const float ActionY = GetCampaignControllerForceActionStartY(PanelY);
+		const float ButtonX0 = PanelX + 18.f;
+		const float ButtonX1 = ButtonX0 + ButtonW + ButtonGap;
+
+		if (IsPointInControllerRect(MouseX, MouseY, ButtonX0, ActionY, ButtonW, ButtonH))
+		{
+			BeginForceMovementOrder();
+			return true;
+		}
+
+		if (IsForceMovementModeActive())
+		{
+			const float ConfirmY = ActionY + 86.f;
+			if (IsPointInControllerRect(MouseX, MouseY, ButtonX0, ConfirmY, ButtonW, ButtonH))
+			{
+				ConfirmForceMovementOrder();
+				return true;
+			}
+			if (IsPointInControllerRect(MouseX, MouseY, ButtonX1, ConfirmY, ButtonW, ButtonH))
+			{
+				CancelForceMovementOrder();
+				return true;
+			}
+		}
+
+		SetLastActionMessage(TEXT("Seleccion militar activa. Solo Mover esta habilitado en esta fase."), true);
 		return true;
 	}
 
@@ -1014,6 +1064,52 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 			}
 		}
 	}
+	return true;
+}
+
+bool AWLCampaignPlayerController::TryHandleForceMovementDestinationClick()
+{
+	if (ActivePresentationMode != EWLCampaignPresentationMode::Campaign3D
+		|| ActiveSelectionKind != EWLCampaignSelectionKind::Force
+		|| !IsForceMovementModeActive())
+	{
+		return false;
+	}
+
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (!Campaign3DView)
+	{
+		return false;
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY) || IsScreenPointOverCampaignHud(MouseX, MouseY))
+	{
+		return false;
+	}
+
+	FWLCampaign3DMovementNodeView Destination;
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit)
+		&& Campaign3DView->TryGetMovementDestinationForComponent(Hit.GetComponent(), Destination))
+	{
+		SetForceMovementDestination(Destination);
+		return true;
+	}
+
+	FVector GroundPoint = FVector::ZeroVector;
+	if (GetCampaignGroundPointFromScreen(MouseX, MouseY, GroundPoint)
+		&& Campaign3DView->TryGetMovementDestinationNearWorldLocation(GroundPoint, 15000.f, Destination))
+	{
+		SetForceMovementDestination(Destination);
+		return true;
+	}
+
+	SetLastActionMessage(TEXT("Destino invalido. Elige un nodo resaltado del teatro Colombia/Venezuela."), false);
 	return true;
 }
 
@@ -1286,6 +1382,53 @@ void AWLCampaignPlayerController::UpdateCampaignForceHover()
 	}
 
 	Campaign3DView->SetHoveredForceHighlight(TEXT(""));
+}
+
+void AWLCampaignPlayerController::UpdateCampaignMovementDestinationHover()
+{
+	if (!HasCampaignInput()
+		|| ActivePresentationMode != EWLCampaignPresentationMode::Campaign3D
+		|| ActiveSelectionKind != EWLCampaignSelectionKind::Force
+		|| ForceMovementOrderMode == EWLCampaignForceMovementOrderMode::DestinationSelected)
+	{
+		return;
+	}
+
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (!Campaign3DView)
+	{
+		return;
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY) || IsScreenPointOverCampaignHud(MouseX, MouseY))
+	{
+		Campaign3DView->SetMovementDestinationPreview(SelectedForceId, TEXT(""));
+		return;
+	}
+
+	FWLCampaign3DMovementNodeView Destination;
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit)
+		&& Campaign3DView->TryGetMovementDestinationForComponent(Hit.GetComponent(), Destination))
+	{
+		Campaign3DView->SetMovementDestinationPreview(SelectedForceId, Destination.Id);
+		return;
+	}
+
+	FVector GroundPoint = FVector::ZeroVector;
+	if (GetCampaignGroundPointFromScreen(MouseX, MouseY, GroundPoint)
+		&& Campaign3DView->TryGetMovementDestinationNearWorldLocation(GroundPoint, 15000.f, Destination))
+	{
+		Campaign3DView->SetMovementDestinationPreview(SelectedForceId, Destination.Id);
+		return;
+	}
+
+	Campaign3DView->SetMovementDestinationPreview(SelectedForceId, TEXT(""));
 }
 
 FVector AWLCampaignPlayerController::GetCampaignAmericaFocusPoint() const
@@ -1664,6 +1807,9 @@ void AWLCampaignPlayerController::ClearSelectedForce()
 	SelectedForceDetailLevel.Reset();
 	SelectedForceDisabledActions.Reset();
 	SelectedForceEstimatedStrength = 0;
+	bSelectedForceMovable = true;
+	SelectedForceMovementNodeId.Reset();
+	SelectedForceMovementStatus.Reset();
 }
 
 void AWLCampaignPlayerController::ClearCampaignBuildingSelection()
@@ -1676,6 +1822,147 @@ void AWLCampaignPlayerController::ClearCampaignBuildingSelection()
 	bSelectedCampaignBuildingCandidate = false;
 }
 
+void AWLCampaignPlayerController::ClearForceMovementOrderState(bool bClearViewPreview)
+{
+	ForceMovementOrderMode = EWLCampaignForceMovementOrderMode::None;
+	PendingForceMoveDestinationNodeId.Reset();
+	PendingForceMoveDestinationName.Reset();
+	PendingForceMoveRouteSummary.Reset();
+	PendingForceMoveEstimatedTurns = 0;
+	if (bClearViewPreview)
+	{
+		if (!Campaign3DView)
+		{
+			CachePresentationActors();
+		}
+		if (Campaign3DView)
+		{
+			Campaign3DView->ClearMovementPreview();
+		}
+	}
+}
+
+void AWLCampaignPlayerController::BeginForceMovementOrder()
+{
+	if (ActiveSelectionKind != EWLCampaignSelectionKind::Force || SelectedForceId.IsEmpty())
+	{
+		return;
+	}
+	if (!bSelectedForceMovable)
+	{
+		SetLastActionMessage(TEXT("Esta fuerza esta fija y no puede moverse en esta fase."), false);
+		return;
+	}
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (!Campaign3DView)
+	{
+		SetLastActionMessage(TEXT("Campaign 3D no disponible para orden de movimiento."), false);
+		return;
+	}
+
+	ForceMovementOrderMode = EWLCampaignForceMovementOrderMode::SelectingDestination;
+	PendingForceMoveDestinationNodeId.Reset();
+	PendingForceMoveDestinationName.Reset();
+	PendingForceMoveRouteSummary.Reset();
+	PendingForceMoveEstimatedTurns = 0;
+	SelectedForceMovementStatus = TEXT("esperando destino");
+	Campaign3DView->ShowMovementDestinationOptions(SelectedForceId);
+	SetLastActionMessage(TEXT("Modo movimiento activo: elige un destino resaltado."), true);
+}
+
+void AWLCampaignPlayerController::SetForceMovementDestination(const FWLCampaign3DMovementNodeView& Destination)
+{
+	if (ActiveSelectionKind != EWLCampaignSelectionKind::Force || SelectedForceId.IsEmpty())
+	{
+		return;
+	}
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (!Campaign3DView)
+	{
+		return;
+	}
+
+	TArray<FWLCampaign3DMovementNodeView> RouteNodes;
+	int32 EstimatedTurns = 0;
+	if (!Campaign3DView->BuildMovementRouteForForce(SelectedForceId, Destination.Id, RouteNodes, EstimatedTurns))
+	{
+		SetLastActionMessage(TEXT("No hay ruta valida para esa fuerza."), false);
+		return;
+	}
+
+	TArray<FString> RouteNames;
+	for (const FWLCampaign3DMovementNodeView& Node : RouteNodes)
+	{
+		RouteNames.Add(Node.Name);
+	}
+
+	ForceMovementOrderMode = EWLCampaignForceMovementOrderMode::DestinationSelected;
+	PendingForceMoveDestinationNodeId = Destination.Id;
+	PendingForceMoveDestinationName = Destination.Name;
+	PendingForceMoveRouteSummary = FString::Join(RouteNames, TEXT(" -> "));
+	PendingForceMoveEstimatedTurns = EstimatedTurns;
+	SelectedForceMovementStatus = TEXT("destino seleccionado");
+	Campaign3DView->SetMovementDestinationPreview(SelectedForceId, Destination.Id);
+	SetLastActionMessage(FString::Printf(TEXT("Destino seleccionado: %s. Confirma o cancela el movimiento."), *Destination.Name), true);
+}
+
+void AWLCampaignPlayerController::ConfirmForceMovementOrder()
+{
+	if (ActiveSelectionKind != EWLCampaignSelectionKind::Force || SelectedForceId.IsEmpty())
+	{
+		return;
+	}
+	if (ForceMovementOrderMode != EWLCampaignForceMovementOrderMode::DestinationSelected || PendingForceMoveDestinationNodeId.IsEmpty())
+	{
+		SetLastActionMessage(TEXT("Selecciona un destino valido antes de confirmar."), false);
+		return;
+	}
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (!Campaign3DView)
+	{
+		return;
+	}
+
+	FWLCampaign3DForceView UpdatedForce;
+	if (!Campaign3DView->UpdateForceMovementLocation(SelectedForceId, PendingForceMoveDestinationNodeId, UpdatedForce))
+	{
+		SetLastActionMessage(TEXT("No se pudo ejecutar el movimiento placeholder."), false);
+		return;
+	}
+
+	const FString DestinationName = PendingForceMoveDestinationName;
+	SelectedForceLocation = UpdatedForce.LocationName;
+	SelectedForceProvinceId = UpdatedForce.ProvinceId;
+	SelectedForceProvinceName = UpdatedForce.ProvinceName;
+	SelectedForceNearbyCity = UpdatedForce.NearbyCity;
+	SelectedForceOperationalState = UpdatedForce.OperationalState;
+	SelectedForcePosture = UpdatedForce.Posture;
+	SelectedForceMovementNodeId = UpdatedForce.MovementNodeId;
+	SelectedForceMovementStatus = UpdatedForce.MovementStatus;
+	ClearForceMovementOrderState(true);
+	SetLastActionMessage(FString::Printf(TEXT("Movimiento confirmado hacia %s."), *DestinationName), true);
+}
+
+void AWLCampaignPlayerController::CancelForceMovementOrder()
+{
+	if (!IsForceMovementModeActive())
+	{
+		return;
+	}
+	ClearForceMovementOrderState(true);
+	SelectedForceMovementStatus = TEXT("detenido");
+	SetLastActionMessage(TEXT("Movimiento cancelado."), true);
+}
+
 void AWLCampaignPlayerController::ClearCampaignSelection()
 {
 	ClearSelectedCountry();
@@ -1683,6 +1970,7 @@ void AWLCampaignPlayerController::ClearCampaignSelection()
 	ClearSelectedCity();
 	ClearSelectedForce();
 	ClearCampaignBuildingSelection();
+	ClearForceMovementOrderState(true);
 	ActiveSelectionKind = EWLCampaignSelectionKind::None;
 	SelectedPanelObjectId.Reset();
 	SelectedTerritoryId.Reset();
@@ -1828,6 +2116,7 @@ void AWLCampaignPlayerController::SelectCampaignTerritory(const FWLCampaignTerri
 	ClearSelectedForce();
 	ClearSelectedProvince();
 	ClearCampaignBuildingSelection();
+	ClearForceMovementOrderState(true);
 	ActiveSelectionKind = EWLCampaignSelectionKind::Province;
 	SelectedPanelObjectId = Territory.Id;
 	SelectedTerritoryId = Territory.Id;
@@ -1853,6 +2142,7 @@ void AWLCampaignPlayerController::SelectCampaignCity(const FWLCampaign3DCityView
 	ClearSelectedProvince();
 	ClearSelectedForce();
 	ClearCampaignBuildingSelection();
+	ClearForceMovementOrderState(true);
 	ActiveSelectionKind = EWLCampaignSelectionKind::City;
 	SelectedPanelObjectId = City.Id;
 	SelectedTerritoryId.Reset();
@@ -1881,6 +2171,7 @@ void AWLCampaignPlayerController::SelectCampaignForce(const FWLCampaign3DForceVi
 	ClearSelectedProvince();
 	ClearSelectedCity();
 	ClearCampaignBuildingSelection();
+	ClearForceMovementOrderState(true);
 	ActiveSelectionKind = EWLCampaignSelectionKind::Force;
 	SelectedPanelObjectId = Force.Id;
 	SelectedTerritoryId.Reset();
@@ -1905,6 +2196,9 @@ void AWLCampaignPlayerController::SelectCampaignForce(const FWLCampaign3DForceVi
 	SelectedForceDetailLevel = Force.DetailLevel;
 	SelectedForceDisabledActions = Force.DisabledActions;
 	SelectedForceEstimatedStrength = Force.EstimatedStrength;
+	bSelectedForceMovable = Force.bMovable;
+	SelectedForceMovementNodeId = Force.MovementNodeId;
+	SelectedForceMovementStatus = Force.MovementStatus;
 
 	if (!Campaign3DView)
 	{

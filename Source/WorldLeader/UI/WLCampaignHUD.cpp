@@ -587,21 +587,66 @@ namespace
 		HUD->DrawText(ShortenForPanel(PC->GetSelectedForcePosture(), 54), Text, PanelX + 18.f, Y, SmallFont, 0.78f);
 		Y += 18.f;
 		HUD->DrawText(ShortenForPanel(PC->GetSelectedForceStrategicRole(), 58), Muted, PanelX + 18.f, Y, SmallFont, 0.72f);
-		Y += 30.f;
+		Y += 18.f;
+		HUD->DrawText(ShortenForPanel(FString::Printf(TEXT("Movimiento: %s"), *PC->GetForceMovementStatus()), 58),
+			Muted, PanelX + 18.f, Y, SmallFont, 0.70f);
+		if (PC->IsForceMovementModeActive())
+		{
+			Y += 17.f;
+			const FString Destination = PC->HasForceMovementDestination()
+				? PC->GetForceMovementDestinationName()
+				: TEXT("elige un destino resaltado");
+			HUD->DrawText(ShortenForPanel(FString::Printf(TEXT("Destino: %s"), *Destination), 58),
+				Text, PanelX + 18.f, Y, SmallFont, 0.70f);
+		}
 
-		DrawSectionTitle(HUD, SmallFont, TEXT("ACCIONES BLOQUEADAS"), PanelX + 18.f, Y, Gold);
-		Y += 4.f;
-		const TArray<FString>& DisabledActions = PC->GetSelectedForceDisabledActions();
 		const float ButtonW = (PanelW - 48.f) * 0.5f;
 		const float ButtonH = 28.f;
 		const float Gap = 8.f;
-		const int32 MaxActions = FMath::Min(DisabledActions.Num(), 8);
+		const float ButtonX0 = PanelX + 18.f;
+		const float ButtonX1 = ButtonX0 + ButtonW + Gap;
+		const float ActionY = PanelY + 412.f;
+		HUD->DrawText(TEXT("ORDEN DE MOVIMIENTO"), Gold, PanelX + 18.f, ActionY - 24.f, SmallFont, 0.78f);
+		HUD->DrawRect(PC->CanSelectedForceMove() ? FLinearColor(0.50f, 0.40f, 0.18f, 0.96f) : Disabled,
+			ButtonX0, ActionY, ButtonW, ButtonH);
+		HUD->DrawText(PC->IsForceMovementModeActive() ? TEXT("Cambiar destino") : TEXT("Mover"),
+			PC->CanSelectedForceMove() ? Text : Muted, ButtonX0 + 9.f, ActionY + 7.f, SmallFont, 0.66f);
+
+		float DisabledStartY = ActionY + 40.f;
+		if (PC->IsForceMovementModeActive())
+		{
+			const FString RouteText = PC->HasForceMovementDestination()
+				? FString::Printf(TEXT("Ruta: %s (%d turno placeholder)"), *PC->GetForceMovementRouteSummary(), PC->GetForceMovementEstimatedTurns())
+				: TEXT("Hover/click en destino valido para previsualizar ruta.");
+			HUD->DrawText(ShortenForPanel(RouteText, 60), Muted, PanelX + 18.f, ActionY + 38.f, SmallFont, 0.64f);
+
+			const float ConfirmY = ActionY + 86.f;
+			HUD->DrawRect(PC->HasForceMovementDestination() ? FLinearColor(0.38f, 0.52f, 0.32f, 0.96f) : Disabled,
+				ButtonX0, ConfirmY, ButtonW, ButtonH);
+			HUD->DrawText(TEXT("Confirmar movimiento"),
+				PC->HasForceMovementDestination() ? Text : Muted, ButtonX0 + 9.f, ConfirmY + 7.f, SmallFont, 0.64f);
+			HUD->DrawRect(FLinearColor(0.36f, 0.26f, 0.22f, 0.96f), ButtonX1, ConfirmY, ButtonW, ButtonH);
+			HUD->DrawText(TEXT("Cancelar"), Text, ButtonX1 + 9.f, ConfirmY + 7.f, SmallFont, 0.64f);
+			DisabledStartY = ConfirmY + 40.f;
+		}
+
+		HUD->DrawText(TEXT("ACCIONES BLOQUEADAS"), Gold, PanelX + 18.f, DisabledStartY, SmallFont, 0.76f);
+		DisabledStartY += 22.f;
+		TArray<FString> DisabledActions;
+		for (const FString& Action : PC->GetSelectedForceDisabledActions())
+		{
+			if (!Action.Equals(TEXT("Mover"), ESearchCase::IgnoreCase))
+			{
+				DisabledActions.Add(Action);
+			}
+		}
+		const int32 MaxActions = FMath::Min(DisabledActions.Num(), PC->IsForceMovementModeActive() ? 4 : 6);
 		for (int32 Index = 0; Index < MaxActions; ++Index)
 		{
 			const int32 Col = Index % 2;
 			const int32 Row = Index / 2;
-			const float ButtonX = PanelX + 18.f + static_cast<float>(Col) * (ButtonW + Gap);
-			const float ButtonY = Y + static_cast<float>(Row) * (ButtonH + Gap);
+			const float ButtonX = ButtonX0 + static_cast<float>(Col) * (ButtonW + Gap);
+			const float ButtonY = DisabledStartY + static_cast<float>(Row) * (ButtonH + Gap);
 			HUD->DrawRect(Disabled, ButtonX, ButtonY, ButtonW, ButtonH);
 			HUD->DrawText(ShortenForPanel(DisabledActions[Index], 20), Muted, ButtonX + 9.f, ButtonY + 7.f, SmallFont, 0.64f);
 		}

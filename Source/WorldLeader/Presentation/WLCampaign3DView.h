@@ -75,6 +75,8 @@ struct FWLCampaign3DForceView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString CountryName;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ForceType;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString MarkerCategory;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString MovementNodeId;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString MovementStatus;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString LocationName;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ProvinceId;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ProvinceName;
@@ -93,6 +95,24 @@ struct FWLCampaign3DForceView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 EstimatedStrength = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bAir = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bNaval = false;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bMovable = true;
+};
+
+USTRUCT(BlueprintType)
+struct FWLCampaign3DMovementNodeView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Id;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Name;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString CountryIso;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ProvinceId;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ProvinceName;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString NodeType;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FVector WorldLocation = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") float Lon = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") float Lat = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bPort = false;
 };
 
 /**
@@ -122,8 +142,16 @@ public:
 	bool TryGetTerritoryAtWorldLocation(const FVector& WorldLocation, FWLCampaignTerritoryRegionView& OutTerritory) const;
 	bool TryGetCityForComponent(const UPrimitiveComponent* Component, FWLCampaign3DCityView& OutCity) const;
 	bool TryGetCityNearWorldLocation(const FVector& WorldLocation, float MaxDistance, FWLCampaign3DCityView& OutCity) const;
+	bool TryGetForceById(const FString& ForceId, FWLCampaign3DForceView& OutForce) const;
 	bool TryGetForceForComponent(const UPrimitiveComponent* Component, FWLCampaign3DForceView& OutForce) const;
 	bool TryGetForceNearWorldLocation(const FVector& WorldLocation, float MaxDistance, FWLCampaign3DForceView& OutForce) const;
+	bool TryGetMovementDestinationForComponent(const UPrimitiveComponent* Component, FWLCampaign3DMovementNodeView& OutNode) const;
+	bool TryGetMovementDestinationNearWorldLocation(const FVector& WorldLocation, float MaxDistance, FWLCampaign3DMovementNodeView& OutNode) const;
+	bool BuildMovementRouteForForce(const FString& ForceId, const FString& DestinationNodeId, TArray<FWLCampaign3DMovementNodeView>& OutRouteNodes, int32& OutEstimatedTurns) const;
+	bool UpdateForceMovementLocation(const FString& ForceId, const FString& DestinationNodeId, FWLCampaign3DForceView& OutForce);
+	void ShowMovementDestinationOptions(const FString& ForceId);
+	void SetMovementDestinationPreview(const FString& ForceId, const FString& DestinationNodeId);
+	void ClearMovementPreview();
 	void SetSelectedProvinceHighlight(const FString& ProvinceId);
 	void SetSelectedCityHighlight(const FString& CityId);
 	void SetSelectedForceHighlight(const FString& ForceId);
@@ -157,6 +185,7 @@ private:
 	UPROPERTY() UProceduralMeshComponent* RoadMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SettlementMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SelectionHighlightMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* MovementRoutePreviewMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
 	UPROPERTY() UMaterialInterface* VertexColorMaterial = nullptr;
 	UPROPERTY() UStaticMesh* CityMesh = nullptr;
@@ -174,6 +203,9 @@ private:
 	UPROPERTY() TArray<UStaticMeshComponent*> ForceMarkerComponents;
 	UPROPERTY() TArray<UPrimitiveComponent*> ForceSelectionMarkers;
 	UPROPERTY() TArray<UTextRenderComponent*> ForceMarkerLabels;
+	UPROPERTY() TArray<UStaticMeshComponent*> MovementDestinationComponents;
+	UPROPERTY() TArray<UPrimitiveComponent*> MovementDestinationSelectionMarkers;
+	UPROPERTY() TArray<UTextRenderComponent*> MovementDestinationLabels;
 	UPROPERTY() TArray<UStaticMeshComponent*> VisualComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> RouteSegments;
 	UPROPERTY() TArray<UTextRenderComponent*> Labels;
@@ -182,6 +214,8 @@ private:
 	UPROPERTY() TArray<FWLCampaign3DProvinceView> ProvinceViews;
 	UPROPERTY() TArray<FWLCampaign3DCityView> CityViews;
 	UPROPERTY() TArray<FWLCampaign3DForceView> ForceViews;
+	UPROPERTY() TArray<FWLCampaign3DMovementNodeView> MovementNodes;
+	UPROPERTY() TArray<FWLCampaign3DMovementNodeView> ActiveMovementDestinations;
 	UPROPERTY() UWLCampaignTerritoryLayerComponent* TerritoryLayer = nullptr;
 	UPROPERTY() ADirectionalLight* ViewDirectionalLight = nullptr;
 	UPROPERTY() ASkyLight* ViewSkyLight = nullptr;
@@ -200,6 +234,9 @@ private:
 	FString HoveredForceHighlightId;
 	TArray<FVector> ForceMarkerBaseScales;
 	TArray<FLinearColor> ForceMarkerBaseColors;
+	TMap<FString, TArray<FString>> MovementAdjacency;
+	FString ActiveMovementForceId;
+	FString PreviewMovementDestinationNodeId;
 	bool bHasBuiltView = false;
 	float WaterAnimationTime = 0.f;
 
@@ -233,6 +270,16 @@ private:
 	void AddMilitaryForceMarkers();
 	void AddMilitaryForceMarker(const FWLCampaign3DForceView& Force);
 	void RefreshMilitaryForceMarkerVisuals();
+	void BuildMovementNodesAndEdges();
+	void AddMovementEdge(const FString& A, const FString& B);
+	const FWLCampaign3DMovementNodeView* FindMovementNodeById(const FString& NodeId) const;
+	FString FindNearestMovementNodeId(const FWLCampaign3DForceView& Force) const;
+	void GetValidMovementDestinations(const FWLCampaign3DForceView& Force, TArray<FWLCampaign3DMovementNodeView>& OutDestinations) const;
+	void RebuildMovementDestinationMarkers(const TArray<FWLCampaign3DMovementNodeView>& Destinations);
+	void RebuildMovementRoutePreview(const TArray<FWLCampaign3DMovementNodeView>& RouteNodes);
+	void AddMovementRoutePreviewSegment(const FVector& Start, const FVector& End, const FLinearColor& Color, int32 SectionIndex);
+	void DestroyMovementDestinationMarkers();
+	FVector GetForceMarkerLocationForNode(const FWLCampaign3DForceView& Force, const FWLCampaign3DMovementNodeView& Node) const;
 	void RebuildPointSelectionHighlight(const FVector& Location, float Radius, const FLinearColor& Color);
 	void AddVegetationScatter(float MinLon, float MaxLon, float MinLat, float MaxLat, int32 Columns, int32 Rows, bool bDenseJungle);
 	void AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale);

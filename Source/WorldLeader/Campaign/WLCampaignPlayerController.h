@@ -15,6 +15,7 @@ class AWLCampaign3DView;
 class UWLMainMenuWidget;
 struct FWLCampaign3DCityView;
 struct FWLCampaign3DForceView;
+struct FWLCampaign3DMovementNodeView;
 struct FWLCampaignTerritoryRegionView;
 struct FInputKeyEventArgs;
 
@@ -32,6 +33,13 @@ enum class EWLCampaignSelectionKind : uint8
 	Province,
 	City,
 	Force
+};
+
+enum class EWLCampaignForceMovementOrderMode : uint8
+{
+	None,
+	SelectingDestination,
+	DestinationSelected
 };
 
 /**
@@ -101,6 +109,13 @@ public:
 	const FString& GetSelectedForceDetailLevel() const { return SelectedForceDetailLevel; }
 	const TArray<FString>& GetSelectedForceDisabledActions() const { return SelectedForceDisabledActions; }
 	int32 GetSelectedForceEstimatedStrength() const { return SelectedForceEstimatedStrength; }
+	bool CanSelectedForceMove() const { return bSelectedForceMovable; }
+	bool IsForceMovementModeActive() const { return ForceMovementOrderMode != EWLCampaignForceMovementOrderMode::None; }
+	bool HasForceMovementDestination() const { return ForceMovementOrderMode == EWLCampaignForceMovementOrderMode::DestinationSelected; }
+	const FString& GetForceMovementDestinationName() const { return PendingForceMoveDestinationName; }
+	const FString& GetForceMovementRouteSummary() const { return PendingForceMoveRouteSummary; }
+	const FString& GetForceMovementStatus() const { return SelectedForceMovementStatus; }
+	int32 GetForceMovementEstimatedTurns() const { return PendingForceMoveEstimatedTurns; }
 	bool HasSelectedBuildingSlot() const { return !SelectedBuildingSlotKey.IsEmpty(); }
 	const FString& GetSelectedBuildingSlotKey() const { return SelectedBuildingSlotKey; }
 	const FString& GetSelectedBuildingSlotLabel() const { return SelectedBuildingSlotLabel; }
@@ -152,6 +167,7 @@ private:
 	void ZoomMapCamera(float ZoomFactor);
 	void ZoomCampaignCamera(float ZoomFactor);
 	void UpdateCampaignForceHover();
+	void UpdateCampaignMovementDestinationHover();
 	FVector GetCampaignAmericaFocusPoint() const;
 	bool GetCampaignGroundPointFromScreen(float ScreenX, float ScreenY, FVector& OutWorldPoint);
 	bool GetCampaignZoomAnchor(FVector& OutAnchor, FVector2D& OutScreenPoint);
@@ -162,6 +178,7 @@ private:
 	void CachePresentationActors();
 	bool TryHandleViewToggleClick();
 	bool TryHandleSelectionPanelClick();
+	bool TryHandleForceMovementDestinationClick();
 	bool HasCampaignInput() const;
 	void EnterCampaignInputMode();
 	void ClearSelectedCountry();
@@ -170,6 +187,11 @@ private:
 	void ClearSelectedForce();
 	void ClearCampaignSelection();
 	void ClearCampaignBuildingSelection();
+	void ClearForceMovementOrderState(bool bClearViewPreview = true);
+	void BeginForceMovementOrder();
+	void SetForceMovementDestination(const FWLCampaign3DMovementNodeView& Destination);
+	void ConfirmForceMovementOrder();
+	void CancelForceMovementOrder();
 	void SelectCampaignBuildingSlot(const FString& SlotLabel, int32 SlotIndex, bool bCityMode);
 	bool TryBuildCampaignPlaceholderBuilding(const FString& BuildingId, FString& OutMessage);
 	bool SelectProvince(const FString& ProvinceId);
@@ -248,6 +270,14 @@ private:
 	FString SelectedForceDetailLevel;
 	TArray<FString> SelectedForceDisabledActions;
 	int32 SelectedForceEstimatedStrength = 0;
+	bool bSelectedForceMovable = true;
+	FString SelectedForceMovementNodeId;
+	FString SelectedForceMovementStatus;
+	EWLCampaignForceMovementOrderMode ForceMovementOrderMode = EWLCampaignForceMovementOrderMode::None;
+	FString PendingForceMoveDestinationNodeId;
+	FString PendingForceMoveDestinationName;
+	FString PendingForceMoveRouteSummary;
+	int32 PendingForceMoveEstimatedTurns = 0;
 
 	TMap<FString, FString> CampaignPlaceholderBuildingsBySlot;
 	FString SelectedBuildingSlotKey;
