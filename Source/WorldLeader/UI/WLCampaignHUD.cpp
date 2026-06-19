@@ -82,6 +82,32 @@ void AWLCampaignHUD::DrawHUD()
 	DrawText(TEXT("Campana 3D"), bDiplomacy ? Text : Gold, CampaignX + 18.f, ButtonY + 9.f, SmallFont, 1.0f);
 	DrawText(TEXT("Diplomacia"), bDiplomacy ? Gold : Text, DiplomacyX + 25.f, ButtonY + 9.f, SmallFont, 1.0f);
 
+	if (PC && !bDiplomacy)
+	{
+		const float ControlY = 102.f;
+		const float ControlH = 34.f;
+		const float ZoomW = 44.f;
+		const float Gap = 8.f;
+		const float ZoomInX = W - 386.f;
+		const float ZoomOutX = ZoomInX + ZoomW + Gap;
+		const float ResetX = ZoomOutX + ZoomW + Gap;
+		const float ResetW = 96.f;
+		const float FocusX = ResetX + ResetW + Gap;
+		const float FocusW = 146.f;
+		const FLinearColor ControlFill(0.018f, 0.032f, 0.038f, 0.86f);
+		const FLinearColor ControlAccent(0.56f, 0.45f, 0.20f, 0.74f);
+		DrawRect(ControlFill, ZoomInX, ControlY, ZoomW, ControlH);
+		DrawRect(ControlFill, ZoomOutX, ControlY, ZoomW, ControlH);
+		DrawRect(ControlFill, ResetX, ControlY, ResetW, ControlH);
+		DrawRect(ControlAccent, FocusX, ControlY, FocusW, ControlH);
+		DrawText(TEXT("+"), Gold, ZoomInX + 16.f, ControlY + 5.f, Font, 0.86f);
+		DrawText(TEXT("-"), Text, ZoomOutX + 18.f, ControlY + 5.f, Font, 0.86f);
+		DrawText(TEXT("Reset"), Text, ResetX + 20.f, ControlY + 8.f, SmallFont, 0.94f);
+		DrawText(TEXT("Teatro activo"), Gold, FocusX + 18.f, ControlY + 8.f, SmallFont, 0.94f);
+		DrawText(FString::Printf(TEXT("Zoom: %s"), *PC->GetCampaignZoomLODLabel()),
+			Muted, ZoomInX, ControlY + ControlH + 8.f, SmallFont, 0.82f);
+	}
+
 	float X = 36.f;
 	float Y = 62.f;
 	DrawRect(Ink, X, Y, 332.f, 112.f);
@@ -122,7 +148,7 @@ void AWLCampaignHUD::DrawHUD()
 			if (Registry->GetProvince(PC->GetSelectedProvinceId(), Province))
 			{
 				const float PanelX = W - 442.f;
-				float PanelY = 118.f;
+				float PanelY = bDiplomacy ? 118.f : 154.f;
 				DrawRect(Ink, PanelX, PanelY, 404.f, 190.f);
 				PanelY += 18.f;
 				FWLProvinceRuntimeState ProvinceState;
@@ -168,7 +194,7 @@ void AWLCampaignHUD::DrawHUD()
 		else if (PC->HasSelectedCountry())
 		{
 			const float PanelX = W - 442.f;
-			float PanelY = 118.f;
+			float PanelY = bDiplomacy ? 118.f : 154.f;
 			DrawRect(Ink, PanelX, PanelY, 404.f, 126.f);
 			PanelY += 18.f;
 			DrawText(TEXT("PAIS SELECCIONADO"), Gold, PanelX + 18.f, PanelY, SmallFont);
@@ -190,6 +216,6 @@ void AWLCampaignHUD::DrawHUD()
 	}
 
 	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
-	DrawText(TEXT("[D] Alternar vista   [M] Avanzar mes   [F5] Guardar   [B] Construir   Mouse: seleccionar"),
+	DrawText(TEXT("[D] Alternar vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [M] Mes   [F5] Guardar   [B] Construir"),
 		Muted, 36.f, H - 24.f, SmallFont, 0.88f);
 }

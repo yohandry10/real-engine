@@ -61,6 +61,8 @@ public:
 	bool WasLastActionSuccessful() const { return bLastActionSucceeded; }
 	EWLCampaignPresentationMode GetPresentationMode() const { return ActivePresentationMode; }
 	bool IsDiplomacyViewActive() const { return ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy; }
+	FString GetCampaignZoomLODLabel() const;
+	float GetCampaignCameraHeight() const;
 
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|CampaignView")
 	void ShowCampaign3DView();
@@ -82,6 +84,12 @@ private:
 	void OnSelectCountry();
 	void OnZoomIn();
 	void OnZoomOut();
+	void OnPanNorth();
+	void OnPanSouth();
+	void OnPanWest();
+	void OnPanEast();
+	void ResetCampaignCamera();
+	void FocusCampaignTheater();
 	void BeginDragPan();
 	void EndDragPan();
 	void UpdateMapCamera(float DeltaSeconds);
@@ -117,7 +125,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float DragPanUnitsPerPixelAt100k = 120.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignEdgePanSpeed = 36000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMinCameraHeight = 42000.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 170000.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 620000.f;
 
 	UPROPERTY() AWLCampaign3DView* Campaign3DView = nullptr;
 	UPROPERTY() AWLWorldMap* WorldMap = nullptr;

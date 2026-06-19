@@ -22,6 +22,15 @@ class UTextRenderComponent;
 class UWLDataRegistry;
 enum class EWLCampaignSettlementType : uint8;
 
+UENUM(BlueprintType)
+enum class EWLCampaign3DZoomLOD : uint8
+{
+	Close,
+	Theater,
+	Region,
+	Global
+};
+
 USTRUCT(BlueprintType)
 struct FWLCampaign3DProvinceView
 {
@@ -58,7 +67,14 @@ public:
 
 	bool TryGetProvinceForComponent(const UPrimitiveComponent* Component, FWLCampaign3DProvinceView& OutProvince) const;
 	FBox2D GetViewBounds2D() const;
+	FBox2D GetCameraBounds2D(float CameraHeight) const;
 	ACameraActor* GetViewCamera() const { return ViewCamera; }
+	FVector GetDefaultCameraLocation() const { return DefaultCameraLocation; }
+	FRotator GetDefaultCameraRotation() const { return DefaultCameraRotation; }
+	FVector GetTheaterFocusPoint() const;
+	EWLCampaign3DZoomLOD GetCurrentZoomLOD() const { return CurrentZoomLOD; }
+	FString GetCurrentZoomLODLabel() const;
+	void ApplyZoomLOD(float CameraHeight);
 
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") FVector2D TheaterCenterLonLat = FVector2D(-68.6f, 7.2f);
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float GeoScale = 9000.f;
@@ -73,6 +89,7 @@ private:
 	UPROPERTY() UProceduralMeshComponent* TerrainMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SeaMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SeaDetailMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* OverviewMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* BoundaryMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* RoadMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SettlementMesh = nullptr;
@@ -92,6 +109,7 @@ private:
 	UPROPERTY() TArray<UStaticMeshComponent*> VisualComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> RouteSegments;
 	UPROPERTY() TArray<UTextRenderComponent*> Labels;
+	UPROPERTY() TArray<UTextRenderComponent*> OverviewLabels;
 	UPROPERTY() TArray<FWLCampaign3DProvinceView> ProvinceViews;
 	UPROPERTY() ADirectionalLight* ViewDirectionalLight = nullptr;
 	UPROPERTY() ASkyLight* ViewSkyLight = nullptr;
@@ -100,6 +118,10 @@ private:
 
 	FString ActivePlayerNationIso;
 	FBox2D Bounds;
+	FBox2D OverviewBounds;
+	FVector DefaultCameraLocation = FVector::ZeroVector;
+	FRotator DefaultCameraRotation = FRotator::ZeroRotator;
+	EWLCampaign3DZoomLOD CurrentZoomLOD = EWLCampaign3DZoomLOD::Theater;
 	bool bHasBuiltView = false;
 	float WaterAnimationTime = 0.f;
 
@@ -109,6 +131,7 @@ private:
 	FLinearColor TerrainColor(EWLTerrainType Terrain, const FString& CountryIso) const;
 	UMaterialInstanceDynamic* MakeColorMaterial(const FLinearColor& Color);
 	void BuildSea();
+	void BuildOverviewLayer();
 	void BuildTerrain();
 	void BuildCampaignVisualLayer();
 	void AddCountryTerrain(const TArray<TArray<FVector2D>>& Rings, const FLinearColor& Color, bool bCoreCountry);
@@ -126,6 +149,7 @@ private:
 		const FLinearColor& AccentColor);
 	void AddVegetationScatter(float MinLon, float MaxLon, float MinLat, float MaxLat, int32 Columns, int32 Rows, bool bDenseJungle);
 	void AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale);
+	void AddOverviewLabel(const FString& Text, float Lon, float Lat, float ZOffset, float WorldSize, const FColor& Color);
 	void ConfigureInstancedComponent(UInstancedStaticMeshComponent* Component, UStaticMesh* Mesh, const FLinearColor& Color);
 	void AddProvinceMarkers();
 	void AddProvinceMarker(const FWLProvinceData& Province);
@@ -134,4 +158,6 @@ private:
 	void SetupLightingAndCamera();
 	void DestroyPresentationActors();
 	void SetComponentSetActive(bool bActive);
+	void SetDetailedLayerVisible(bool bVisible);
+	void SetStrategicLayerVisible(bool bVisible);
 };

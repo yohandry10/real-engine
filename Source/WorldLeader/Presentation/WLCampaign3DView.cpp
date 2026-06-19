@@ -3,6 +3,7 @@
 #include "Presentation/WLCampaign3DView.h"
 
 #include "Campaign/WLDataRegistry.h"
+#include "Presentation/WLCampaignOverviewBuilder.h"
 #include "Presentation/WLCampaignRouteBuilder.h"
 #include "Presentation/WLCampaignSettlementBuilder.h"
 #include "Presentation/WLCampaignWaterBuilder.h"
@@ -523,6 +524,9 @@ AWLCampaign3DView::AWLCampaign3DView()
 	SeaDetailMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SeaDetailMesh"));
 	SeaDetailMesh->SetupAttachment(SceneRoot);
 
+	OverviewMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("OverviewMesh"));
+	OverviewMesh->SetupAttachment(SceneRoot);
+
 	TerrainMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("TerrainMesh"));
 	TerrainMesh->SetupAttachment(SceneRoot);
 
@@ -630,6 +634,7 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	ActivePlayerNationIso = PlayerNationIso.TrimStartAndEnd().ToUpper();
 	bHasBuiltView = true;
 	Bounds = FBox2D(ForceInit);
+	OverviewBounds = FBox2D(ForceInit);
 	ProvinceViews.Reset();
 
 	if (SeaMesh)
@@ -639,6 +644,10 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	if (SeaDetailMesh)
 	{
 		SeaDetailMesh->ClearAllMeshSections();
+	}
+	if (OverviewMesh)
+	{
+		OverviewMesh->ClearAllMeshSections();
 	}
 	if (TerrainMesh)
 	{
@@ -688,6 +697,14 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		}
 	}
 	Labels.Reset();
+	for (UTextRenderComponent* Label : OverviewLabels)
+	{
+		if (Label)
+		{
+			Label->DestroyComponent();
+		}
+	}
+	OverviewLabels.Reset();
 	for (UInstancedStaticMeshComponent* Instanced : {
 		SettlementBlockInstances,
 		SettlementTowerInstances,
@@ -704,9 +721,11 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	}
 
 	BuildSea();
+	BuildOverviewLayer();
 	BuildTerrain();
 	BuildCampaignVisualLayer();
 	SetupLightingAndCamera();
+	ApplyZoomLOD(DefaultCameraLocation.Z);
 	SetPresentationActive(true, true);
 }
 
@@ -759,6 +778,55 @@ bool AWLCampaign3DView::TryGetProvinceForComponent(const UPrimitiveComponent* Co
 FBox2D AWLCampaign3DView::GetViewBounds2D() const
 {
 	return Bounds;
+}
+
+FBox2D AWLCampaign3DView::GetCameraBounds2D(float CameraHeight) const
+{
+	if (!OverviewBounds.bIsValid)
+	{
+		return Bounds;
+	}
+
+	if (!Bounds.bIsValid)
+	{
+		return OverviewBounds;
+	}
+
+	if (CameraHeight < 155000.f)
+	{
+		return Bounds;
+	}
+
+	FBox2D Combined = Bounds;
+	const float Blend = FMath::Clamp((CameraHeight - 155000.f) / 350000.f, 0.f, 1.f);
+	const FVector2D Center = Bounds.GetCenter();
+	const FVector2D OverviewMin = FMath::Lerp(Bounds.Min, OverviewBounds.Min, Blend);
+	const FVector2D OverviewMax = FMath::Lerp(Bounds.Max, OverviewBounds.Max, Blend);
+	Combined.Min = FVector2D(FMath::Min(OverviewMin.X, Center.X), FMath::Min(OverviewMin.Y, Center.Y));
+	Combined.Max = FVector2D(FMath::Max(OverviewMax.X, Center.X), FMath::Max(OverviewMax.Y, Center.Y));
+	return Combined;
+}
+
+FVector AWLCampaign3DView::GetTheaterFocusPoint() const
+{
+	return ProjectLonLat(-69.3f, 7.05f) + FVector(0.f, 0.f, 2600.f);
+}
+
+FString AWLCampaign3DView::GetCurrentZoomLODLabel() const
+{
+	switch (CurrentZoomLOD)
+	{
+	case EWLCampaign3DZoomLOD::Close:
+		return TEXT("Cercano");
+	case EWLCampaign3DZoomLOD::Theater:
+		return TEXT("Teatro");
+	case EWLCampaign3DZoomLOD::Region:
+		return TEXT("Region");
+	case EWLCampaign3DZoomLOD::Global:
+		return TEXT("America");
+	default:
+		return TEXT("Teatro");
+	}
 }
 
 UWLDataRegistry* AWLCampaign3DView::GetRegistry() const
@@ -850,6 +918,42 @@ void AWLCampaign3DView::BuildSea()
 	{
 		return ProjectLonLat(Lon, Lat);
 	});
+}
+
+void AWLCampaign3DView::BuildOverviewLayer()
+{
+	if (!OverviewMesh)
+	{
+		return;
+	}
+
+	FWLCampaignOverviewBuildParams Params;
+	Params.Material = VertexColorMaterial;
+	Params.LandZ = -520.f;
+	Params.BorderZ = -160.f;
+	Params.BorderWidth = 560.f;
+	FWLCampaignOverviewBuilder::Build(OverviewMesh, Params, [this](float Lon, float Lat)
+	{
+		return ProjectLonLat(Lon, Lat);
+	});
+	OverviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	const TArray<FVector2D> OverviewCorners = {
+		FVector2D(-139.f, 69.f),
+		FVector2D(-39.f, 69.f),
+		FVector2D(-39.f, -55.f),
+		FVector2D(-139.f, -55.f)
+	};
+	for (const FVector2D& Corner : OverviewCorners)
+	{
+		const FVector P = ProjectLonLat(Corner.X, Corner.Y);
+		OverviewBounds += FVector2D(P.X, P.Y);
+	}
+
+	AddOverviewLabel(TEXT("AMERICA"), -92.f, 34.f, 5200.f, 5200.f, FColor(112, 151, 148));
+	AddOverviewLabel(TEXT("CARIBE"), -74.f, 19.f, 4700.f, 3200.f, FColor(142, 177, 174));
+	AddOverviewLabel(TEXT("COLOMBIA"), -74.3f, 5.4f, 5400.f, 2600.f, FColor(218, 194, 116));
+	AddOverviewLabel(TEXT("VENEZUELA"), -66.2f, 8.2f, 5400.f, 2600.f, FColor(218, 194, 116));
 }
 
 void AWLCampaign3DView::BuildTerrain()
@@ -1276,6 +1380,37 @@ void AWLCampaign3DView::AddInstance(UInstancedStaticMeshComponent* Component, co
 	Component->AddInstance(FTransform(Rotation, Location, Scale));
 }
 
+void AWLCampaign3DView::AddOverviewLabel(
+	const FString& Text,
+	float Lon,
+	float Lat,
+	float ZOffset,
+	float WorldSize,
+	const FColor& Color)
+{
+	if (!SceneRoot)
+	{
+		return;
+	}
+
+	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
+	if (!Label)
+	{
+		return;
+	}
+
+	Label->SetupAttachment(SceneRoot);
+	Label->RegisterComponent();
+	Label->SetWorldLocation(ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, ZOffset));
+	Label->SetWorldRotation(FRotator(62.f, 0.f, 0.f));
+	Label->SetHorizontalAlignment(EHTA_Center);
+	Label->SetWorldSize(WorldSize);
+	Label->SetText(FText::FromString(Text));
+	Label->SetTextRenderColor(Color);
+	Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	OverviewLabels.Add(Label);
+}
+
 void AWLCampaign3DView::ConfigureInstancedComponent(UInstancedStaticMeshComponent* Component, UStaticMesh* Mesh, const FLinearColor& Color)
 {
 	if (!Component || !Mesh)
@@ -1438,10 +1573,12 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 	}
 
 	const FVector CameraLocation = Center + FVector(-76000.f, -118000.f, 69000.f);
+	DefaultCameraLocation = CameraLocation;
+	DefaultCameraRotation = (Center - CameraLocation).Rotation();
 	ViewCamera = World->SpawnActor<ACameraActor>(
 		ACameraActor::StaticClass(),
 		CameraLocation,
-		(Center - CameraLocation).Rotation());
+		DefaultCameraRotation);
 	if (ViewCamera && ViewCamera->GetCameraComponent())
 	{
 		ViewCamera->GetCameraComponent()->SetFieldOfView(43.f);
@@ -1472,6 +1609,162 @@ void AWLCampaign3DView::DestroyPresentationActors()
 	}
 }
 
+void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
+{
+	if (TerrainMesh)
+	{
+		TerrainMesh->SetVisibility(bVisible, true);
+		TerrainMesh->SetCollisionEnabled(bVisible ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
+	}
+	if (BoundaryMesh)
+	{
+		BoundaryMesh->SetVisibility(bVisible, true);
+	}
+	if (RoadMesh)
+	{
+		RoadMesh->SetVisibility(bVisible, true);
+	}
+	if (SettlementMesh)
+	{
+		SettlementMesh->SetVisibility(bVisible, true);
+	}
+	for (UStaticMeshComponent* Marker : ProvinceMarkers)
+	{
+		if (Marker)
+		{
+			Marker->SetVisibility(bVisible, true);
+			Marker->SetCollisionEnabled(bVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+		}
+	}
+	for (UStaticMeshComponent* Component : VisualComponents)
+	{
+		if (Component)
+		{
+			Component->SetVisibility(bVisible, true);
+		}
+	}
+	for (UStaticMeshComponent* Route : RouteSegments)
+	{
+		if (Route)
+		{
+			Route->SetVisibility(bVisible, true);
+		}
+	}
+	for (UTextRenderComponent* Label : Labels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bVisible, true);
+		}
+	}
+	for (UInstancedStaticMeshComponent* Instanced : {
+		SettlementBlockInstances,
+		SettlementTowerInstances,
+		TreeInstances,
+		BrushInstances,
+		PortInstances,
+		ArmyMarkerInstances
+	})
+	{
+		if (Instanced)
+		{
+			Instanced->SetVisibility(bVisible, true);
+		}
+	}
+}
+
+void AWLCampaign3DView::SetStrategicLayerVisible(bool bVisible)
+{
+	if (OverviewMesh)
+	{
+		OverviewMesh->SetVisibility(bVisible, true);
+		OverviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	for (UTextRenderComponent* Label : OverviewLabels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bVisible, true);
+		}
+	}
+}
+
+void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
+{
+	const bool bActive = !IsHidden();
+	if (CameraHeight >= 360000.f)
+	{
+		CurrentZoomLOD = EWLCampaign3DZoomLOD::Global;
+	}
+	else if (CameraHeight >= 185000.f)
+	{
+		CurrentZoomLOD = EWLCampaign3DZoomLOD::Region;
+	}
+	else if (CameraHeight <= 62000.f)
+	{
+		CurrentZoomLOD = EWLCampaign3DZoomLOD::Close;
+	}
+	else
+	{
+		CurrentZoomLOD = EWLCampaign3DZoomLOD::Theater;
+	}
+
+	const bool bStrategic = bActive
+		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Region || CurrentZoomLOD == EWLCampaign3DZoomLOD::Global);
+	const bool bTheaterTerrain = bActive && CurrentZoomLOD != EWLCampaign3DZoomLOD::Global;
+	const bool bFineDetail = bActive
+		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Close || CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater);
+
+	SetStrategicLayerVisible(bStrategic);
+	SetDetailedLayerVisible(bTheaterTerrain);
+
+	if (RoadMesh)
+	{
+		RoadMesh->SetVisibility(bActive && CurrentZoomLOD != EWLCampaign3DZoomLOD::Global, true);
+	}
+	if (SettlementMesh)
+	{
+		SettlementMesh->SetVisibility(bFineDetail, true);
+	}
+	for (UStaticMeshComponent* Component : VisualComponents)
+	{
+		if (Component)
+		{
+			Component->SetVisibility(bFineDetail, true);
+		}
+	}
+	for (UStaticMeshComponent* Route : RouteSegments)
+	{
+		if (Route)
+		{
+			Route->SetVisibility(bFineDetail, true);
+		}
+	}
+	for (UTextRenderComponent* Label : Labels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bFineDetail || CurrentZoomLOD == EWLCampaign3DZoomLOD::Region, true);
+		}
+	}
+	if (TreeInstances)
+	{
+		TreeInstances->SetVisibility(bFineDetail, true);
+	}
+	if (BrushInstances)
+	{
+		BrushInstances->SetVisibility(bFineDetail, true);
+	}
+	if (ArmyMarkerInstances)
+	{
+		ArmyMarkerInstances->SetVisibility(bFineDetail, true);
+	}
+	if (PortInstances)
+	{
+		PortInstances->SetVisibility(bFineDetail || CurrentZoomLOD == EWLCampaign3DZoomLOD::Region, true);
+	}
+}
+
 void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 {
 	if (SeaMesh)
@@ -1483,6 +1776,11 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	{
 		SeaDetailMesh->SetVisibility(bActive, true);
 		SeaDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (OverviewMesh)
+	{
+		OverviewMesh->SetVisibility(bActive, true);
+		OverviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (TerrainMesh)
 	{
@@ -1548,5 +1846,23 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		{
 			Label->SetVisibility(bActive, true);
 		}
+	}
+	for (UTextRenderComponent* Label : OverviewLabels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bActive, true);
+		}
+	}
+
+	if (bActive)
+	{
+		const float CameraHeight = ViewCamera ? ViewCamera->GetActorLocation().Z : DefaultCameraLocation.Z;
+		ApplyZoomLOD(CameraHeight);
+	}
+	else
+	{
+		SetDetailedLayerVisible(false);
+		SetStrategicLayerVisible(false);
 	}
 }

@@ -176,7 +176,8 @@ Para cambios C++:
 
 Para cambios visuales:
 
-- Abrir standalone o viewport limpio.
+- En este repo, usar Standalone Game como regla para validar gameplay/UI runtime.
+- No aceptar capturas del editor, del viewport con paneles, ni del escritorio como evidencia final.
 - Capturar evidencia visual.
 - Verificar que no haya paneles del editor tapando el resultado.
 - Si el cambio empeora la lectura visual, revertir o ajustar antes de cerrar.
