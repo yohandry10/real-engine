@@ -417,7 +417,7 @@ namespace
 		}
 	}
 
-	bool PointInTriangle(const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& P)
+	bool CampaignPointInTriangle(const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& P)
 	{
 		const float Area = (B.X - A.X) * (C.Y - A.Y) - (B.Y - A.Y) * (C.X - A.X);
 		const float S = ((A.Y - C.Y) * (P.X - C.X) + (C.X - A.X) * (P.Y - C.Y)) / Area;
@@ -481,7 +481,7 @@ namespace
 					{
 						continue;
 					}
-					if (PointInTriangle(A, B, C, Contour[TestIndex]))
+					if (CampaignPointInTriangle(A, B, C, Contour[TestIndex]))
 					{
 						bEar = false;
 						break;
