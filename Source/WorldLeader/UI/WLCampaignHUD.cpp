@@ -88,23 +88,27 @@ void AWLCampaignHUD::DrawHUD()
 		const float ControlH = 34.f;
 		const float ZoomW = 44.f;
 		const float Gap = 8.f;
-		const float ZoomInX = W - 386.f;
+		const float ZoomInX = W - 444.f;
 		const float ZoomOutX = ZoomInX + ZoomW + Gap;
 		const float ResetX = ZoomOutX + ZoomW + Gap;
-		const float ResetW = 96.f;
+		const float ResetW = 84.f;
 		const float FocusX = ResetX + ResetW + Gap;
-		const float FocusW = 146.f;
+		const float FocusW = 104.f;
+		const float AmericaX = FocusX + FocusW + Gap;
+		const float AmericaW = 112.f;
 		const FLinearColor ControlFill(0.018f, 0.032f, 0.038f, 0.86f);
 		const FLinearColor ControlAccent(0.56f, 0.45f, 0.20f, 0.74f);
 		DrawRect(ControlFill, ZoomInX, ControlY, ZoomW, ControlH);
 		DrawRect(ControlFill, ZoomOutX, ControlY, ZoomW, ControlH);
 		DrawRect(ControlFill, ResetX, ControlY, ResetW, ControlH);
 		DrawRect(ControlAccent, FocusX, ControlY, FocusW, ControlH);
+		DrawRect(ControlAccent, AmericaX, ControlY, AmericaW, ControlH);
 		DrawText(TEXT("+"), Gold, ZoomInX + 16.f, ControlY + 5.f, Font, 0.86f);
 		DrawText(TEXT("-"), Text, ZoomOutX + 18.f, ControlY + 5.f, Font, 0.86f);
-		DrawText(TEXT("Reset"), Text, ResetX + 20.f, ControlY + 8.f, SmallFont, 0.94f);
-		DrawText(TEXT("Teatro activo"), Gold, FocusX + 18.f, ControlY + 8.f, SmallFont, 0.94f);
-		DrawText(FString::Printf(TEXT("Zoom: %s"), *PC->GetCampaignZoomLODLabel()),
+		DrawText(TEXT("Reset"), Text, ResetX + 15.f, ControlY + 8.f, SmallFont, 0.94f);
+		DrawText(TEXT("Teatro"), Gold, FocusX + 18.f, ControlY + 8.f, SmallFont, 0.94f);
+		DrawText(TEXT("America"), Gold, AmericaX + 17.f, ControlY + 8.f, SmallFont, 0.94f);
+		DrawText(FString::Printf(TEXT("Zoom: %s  %.0fk"), *PC->GetCampaignZoomLODLabel(), PC->GetCampaignCameraHeight() / 1000.f),
 			Muted, ZoomInX, ControlY + ControlH + 8.f, SmallFont, 0.82f);
 	}
 
@@ -216,6 +220,6 @@ void AWLCampaignHUD::DrawHUD()
 	}
 
 	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
-	DrawText(TEXT("[D] Alternar vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [M] Mes   [F5] Guardar   [B] Construir"),
+	DrawText(TEXT("[D] Alternar vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [G] America   [M] Mes   [F5] Guardar   [B] Construir"),
 		Muted, 36.f, H - 24.f, SmallFont, 0.88f);
 }

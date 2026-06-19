@@ -78,10 +78,10 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") FVector2D TheaterCenterLonLat = FVector2D(-68.6f, 7.2f);
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float GeoScale = 9000.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLon = -77.5f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLon = -59.0f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLat = 0.0f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLat = 13.2f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLon = -82.6f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLon = -57.0f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLat = -5.2f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLat = 17.0f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") bool bAutoBuildOnBeginPlay = false;
 
 private:

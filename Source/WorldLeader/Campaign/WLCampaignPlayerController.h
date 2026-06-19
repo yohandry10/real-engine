@@ -12,6 +12,7 @@ class UWLDataRegistry;
 class AWLWorldMap;
 class AWLCampaign3DView;
 class UWLMainMenuWidget;
+struct FInputKeyEventArgs;
 
 UENUM(BlueprintType)
 enum class EWLCampaignPresentationMode : uint8
@@ -74,6 +75,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupInputComponent() override;
+	virtual bool InputKey(const FInputKeyEventArgs& Params) override;
 
 private:
 	void OnAdvanceMonth();
@@ -90,6 +92,7 @@ private:
 	void OnPanEast();
 	void ResetCampaignCamera();
 	void FocusCampaignTheater();
+	void FocusCampaignAmerica();
 	void BeginDragPan();
 	void EndDragPan();
 	void UpdateMapCamera(float DeltaSeconds);
@@ -97,6 +100,12 @@ private:
 	void MoveCampaignCamera(const FVector2D& Delta);
 	void ZoomMapCamera(float ZoomFactor);
 	void ZoomCampaignCamera(float ZoomFactor);
+	FVector GetCampaignAmericaFocusPoint() const;
+	bool GetCampaignGroundPointFromScreen(float ScreenX, float ScreenY, FVector& OutWorldPoint);
+	bool GetCampaignZoomAnchor(FVector& OutAnchor, FVector2D& OutScreenPoint);
+	bool IsScreenPointOverCampaignHud(float ScreenX, float ScreenY);
+	void ClampCampaignCameraLocation(FVector& Location) const;
+	bool HandleCampaignInputKey(const FInputKeyEventArgs& Params);
 	void CacheWorldMap();
 	void CachePresentationActors();
 	bool TryHandleViewToggleClick();
@@ -125,7 +134,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float DragPanUnitsPerPixelAt100k = 120.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignEdgePanSpeed = 36000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMinCameraHeight = 42000.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 620000.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 4200000.f;
 
 	UPROPERTY() AWLCampaign3DView* Campaign3DView = nullptr;
 	UPROPERTY() AWLWorldMap* WorldMap = nullptr;
@@ -134,6 +143,7 @@ private:
 	bool bDragPanning = false;
 	bool bHasLastDragMouse = false;
 	FVector2D LastDragMouse = FVector2D::ZeroVector;
+	FVector DragPanAnchorWorld = FVector::ZeroVector;
 
 	bool bHasSelectedCountry = false;
 	FString SelectedCountryName;

@@ -39,7 +39,8 @@ Visual representation is split into two presentation layers:
 Campaign 3D uses a multi-scale presentation stack:
 
 - Sea/water base remains visible at every campaign zoom.
-- `FWLCampaignOverviewBuilder` adds low-detail America/Caribbean landmasses for far zooms.
+- `FWLCampaignOverviewBuilder` adds low-detail North America, Central America, Caribbean and South America landmasses for far zooms.
+- `Content/Data/Campaign3D/AmericaLowDetail.json` owns the approved Campaign 3D low-detail country and city marker list.
 - Detailed Colombia/Venezuela terrain remains the only high-detail theatre.
 - Roads, settlement meshes, trees, ports and army markers are hidden progressively as the camera moves away.
 
@@ -58,9 +59,7 @@ Visual/runtime verification for this repo must use Standalone Game. Editor viewp
 
 ## Known Follow-Up
 
-The zoom-out controls and LOD hooks are now present, but the far zoom is still visually limited by the lack of a proper America-scale campaign landmass/asset. The current overview layer is only a low-detail placeholder so future work can connect a real America map without mixing it with the detailed Colombia/Venezuela theatre.
-
-Next iteration should replace the placeholder overview with the approved America-scale map data/art, then retune camera max height, focus points, and LOD thresholds against that asset.
+The overview layer now reads approved America-scale low-detail data and real GeoJSON country silhouettes, with clean placeholders only if a listed territory cannot be read from the local GeoJSON. Future work can improve art direction with bespoke meshes/materials, but should keep Colombia/Venezuela as the only high-detail theatre until the scope changes.
 
 ## Reused Assets And Data
 
@@ -76,8 +75,11 @@ Reused:
 New:
 - `Source/WorldLeader/Presentation/WLCampaign3DView.h`
 - `Source/WorldLeader/Presentation/WLCampaign3DView.cpp`
+- `Source/WorldLeader/Presentation/WLCampaignAmericaLowDetailData.h`
+- `Source/WorldLeader/Presentation/WLCampaignAmericaLowDetailData.cpp`
 - `Source/WorldLeader/Presentation/WLCampaignOverviewBuilder.h`
 - `Source/WorldLeader/Presentation/WLCampaignOverviewBuilder.cpp`
+- `Content/Data/Campaign3D/AmericaLowDetail.json`
 
 Changed:
 - `AWLCampaignGameMode` now orchestrates both presentation layers.
@@ -88,7 +90,7 @@ Changed:
 
 ## Current Slice Scope
 
-This slice intentionally covers only Colombia and Venezuela in Campaign 3D.
-Neighboring geography is contextual only. The existing America political map remains the source for Diplomacy.
+This slice keeps Colombia and Venezuela as the high-detail Campaign 3D theatre.
+The rest of North America, Central America, Caribbean and South America appears only as low-detail campaign context: country silhouettes/placeholders, national borders, country labels and simple city markers.
 
-No battle, diplomacy mechanics, AI, campaign rules, or save format changes were added in this slice.
+No battle, diplomacy mechanics, country selection, AI, campaign rules, menu flow or save format changes were added in this slice.

@@ -67,7 +67,14 @@ namespace
 			|| Iso.Equals(TEXT("BR"), ESearchCase::IgnoreCase)
 			|| Iso.Equals(TEXT("GY"), ESearchCase::IgnoreCase)
 			|| Iso.Equals(TEXT("SR"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("TT"), ESearchCase::IgnoreCase);
+			|| Iso.Equals(TEXT("FR"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("TT"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("AW"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("CW"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("JM"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("HT"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("DO"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("PR"), ESearchCase::IgnoreCase);
 	}
 
 	enum class EWLVisualBiome : uint8
@@ -180,13 +187,13 @@ namespace
 	{
 		if (Iso.Equals(TEXT("CO"), ESearchCase::IgnoreCase))
 		{
-			return FLinearColor(0.075f, 0.155f, 0.085f);
+			return FLinearColor(0.235f, 0.345f, 0.185f);
 		}
 		if (Iso.Equals(TEXT("VE"), ESearchCase::IgnoreCase))
 		{
-			return FLinearColor(0.090f, 0.150f, 0.080f);
+			return FLinearColor(0.215f, 0.335f, 0.175f);
 		}
-		return FLinearColor(0.038f, 0.075f, 0.055f);
+		return FLinearColor(0.095f, 0.160f, 0.115f);
 	}
 
 	bool LonLatBoundsIntersect(
@@ -908,9 +915,9 @@ void AWLCampaign3DView::BuildSea()
 {
 	FWLCampaignWaterBuildParams Params;
 	Params.Center = ProjectLonLat(TheaterCenterLonLat.X, TheaterCenterLonLat.Y);
-	Params.HalfSize = 760000.f;
+	Params.HalfSize = 3600000.f;
 	Params.SeaZ = -2350.f;
-	Params.TileCount = 52;
+	Params.TileCount = 60;
 	Params.WaterMaterial = VertexColorMaterial;
 	Params.DetailMaterial = VertexColorMaterial;
 
@@ -929,20 +936,24 @@ void AWLCampaign3DView::BuildOverviewLayer()
 
 	FWLCampaignOverviewBuildParams Params;
 	Params.Material = VertexColorMaterial;
-	Params.LandZ = -520.f;
-	Params.BorderZ = -160.f;
-	Params.BorderWidth = 560.f;
-	FWLCampaignOverviewBuilder::Build(OverviewMesh, Params, [this](float Lon, float Lat)
+	Params.LandZ = 9000.f;
+	Params.BorderZ = 11800.f;
+	Params.BorderWidth = 900.f;
+	Params.CityZ = 14800.f;
+	Params.CityMarkerSize = 3000.f;
+
+	TArray<FWLCampaignOverviewLabelSpec> OverviewLabelSpecs;
+	FWLCampaignOverviewBuilder::Build(OverviewMesh, Params, OverviewLabelSpecs, [this](float Lon, float Lat)
 	{
 		return ProjectLonLat(Lon, Lat);
 	});
 	OverviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	const TArray<FVector2D> OverviewCorners = {
-		FVector2D(-139.f, 69.f),
-		FVector2D(-39.f, 69.f),
-		FVector2D(-39.f, -55.f),
-		FVector2D(-139.f, -55.f)
+		FVector2D(-172.f, 84.f),
+		FVector2D(-10.f, 84.f),
+		FVector2D(-10.f, -56.f),
+		FVector2D(-172.f, -56.f)
 	};
 	for (const FVector2D& Corner : OverviewCorners)
 	{
@@ -950,10 +961,10 @@ void AWLCampaign3DView::BuildOverviewLayer()
 		OverviewBounds += FVector2D(P.X, P.Y);
 	}
 
-	AddOverviewLabel(TEXT("AMERICA"), -92.f, 34.f, 5200.f, 5200.f, FColor(112, 151, 148));
-	AddOverviewLabel(TEXT("CARIBE"), -74.f, 19.f, 4700.f, 3200.f, FColor(142, 177, 174));
-	AddOverviewLabel(TEXT("COLOMBIA"), -74.3f, 5.4f, 5400.f, 2600.f, FColor(218, 194, 116));
-	AddOverviewLabel(TEXT("VENEZUELA"), -66.2f, 8.2f, 5400.f, 2600.f, FColor(218, 194, 116));
+	for (const FWLCampaignOverviewLabelSpec& Label : OverviewLabelSpecs)
+	{
+		AddOverviewLabel(Label.Text, Label.Lon, Label.Lat, Label.ZOffset, Label.WorldSize, Label.Color);
+	}
 }
 
 void AWLCampaign3DView::BuildTerrain()
@@ -972,6 +983,13 @@ void AWLCampaign3DView::BuildTerrain()
 	for (const FWLRegionalCountryGeometry& Country : Countries)
 	{
 		AddCountryTerrain(Country.Rings, Country.Color, Country.bCoreCountry);
+		for (const TArray<FVector2D>& Ring : Country.Rings)
+		{
+			const FLinearColor Outline = Country.bCoreCountry
+				? FLinearColor(0.78f, 0.77f, 0.64f, 0.88f)
+				: FLinearColor(0.16f, 0.28f, 0.24f, 0.70f);
+			AddBoundaryRibbon(Ring, Outline, Country.bCoreCountry ? 260.f : 180.f, Country.bCoreCountry ? 2300.f : 920.f);
+		}
 	}
 }
 
@@ -990,7 +1008,7 @@ void AWLCampaign3DView::AddCountryTerrain(const TArray<TArray<FVector2D>>& Rings
 		TArray<FColor> Colors;
 	};
 	TStaticArray<FSectionBuffer, static_cast<int32>(EWLVisualBiome::Count)> Buffers;
-	const float CellDegrees = bCoreCountry ? 0.075f : 0.18f;
+	const float CellDegrees = bCoreCountry ? 0.040f : 0.16f;
 
 	for (const TArray<FVector2D>& Ring : Rings)
 	{
@@ -1016,9 +1034,11 @@ void AWLCampaign3DView::AddCountryTerrain(const TArray<TArray<FVector2D>>& Rings
 					continue;
 				}
 
-				const EWLVisualBiome Biome = ClassifyVisualBiome(Center.X, Center.Y, bCoreCountry);
+				const EWLVisualBiome Biome = bCoreCountry
+					? EWLVisualBiome::Context
+					: ClassifyVisualBiome(Center.X, Center.Y, bCoreCountry);
 				FSectionBuffer& Buffer = Buffers[static_cast<int32>(Biome)];
-				const float ZOffset = VisualBiomeZOffset(Biome, bCoreCountry);
+				const float ZOffset = bCoreCountry ? 145.f : VisualBiomeZOffset(Biome, bCoreCountry);
 				const int32 Base = Buffer.Verts.Num();
 				FVector A = ProjectLonLat(Lon, Lat);
 				FVector B = ProjectLonLat(Lon + CellDegrees, Lat);
@@ -1037,7 +1057,7 @@ void AWLCampaign3DView::AddCountryTerrain(const TArray<TArray<FVector2D>>& Rings
 				Buffer.UVs.Add(FVector2D(1.f, 0.f));
 				Buffer.UVs.Add(FVector2D(1.f, 1.f));
 				Buffer.UVs.Add(FVector2D(0.f, 1.f));
-				const FLinearColor CellBaseColor = bCoreCountry ? VisualBiomeColor(Biome) : Color;
+				const FLinearColor CellBaseColor = Color;
 				Buffer.Colors.Add(ToVertexFColor(ShadeTerrainVertex(CellBaseColor, Lon, Lat, A.Z)));
 				Buffer.Colors.Add(ToVertexFColor(ShadeTerrainVertex(CellBaseColor, Lon + CellDegrees, Lat, B.Z)));
 				Buffer.Colors.Add(ToVertexFColor(ShadeTerrainVertex(CellBaseColor, Lon + CellDegrees, Lat + CellDegrees, C.Z)));
@@ -1263,6 +1283,19 @@ void AWLCampaign3DView::AddBoundaryRibbon(const TArray<FVector2D>& LonLatPoints,
 
 void AWLCampaign3DView::BuildCampaignVisualLayer()
 {
+	AddBiomePatch({
+		FVector2D(-72.05f, 10.92f),
+		FVector2D(-71.52f, 10.74f),
+		FVector2D(-71.05f, 10.30f),
+		FVector2D(-70.70f, 9.65f),
+		FVector2D(-70.86f, 9.05f),
+		FVector2D(-71.25f, 8.62f),
+		FVector2D(-71.76f, 8.48f),
+		FVector2D(-72.20f, 8.82f),
+		FVector2D(-72.42f, 9.38f),
+		FVector2D(-72.36f, 10.10f)
+	}, FLinearColor(0.020f, 0.430f, 0.520f, 0.92f), 3600.f);
+
 	FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 		RoadMesh,
 		VertexColorMaterial,
@@ -1271,17 +1304,45 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 			return ProjectLonLat(Lon, Lat);
 		});
 
+	const auto AddTheaterCountryLabel = [this](const FString& Text, float Lon, float Lat, const FColor& Color)
+	{
+		UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
+		if (!Label)
+		{
+			return;
+		}
+		Label->SetupAttachment(SceneRoot);
+		Label->RegisterComponent();
+		Label->SetWorldLocation(ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, 11800.f));
+		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
+		Label->SetHorizontalAlignment(EHTA_Center);
+		Label->SetWorldSize(1650.f);
+		Label->SetText(FText::FromString(Text));
+		Label->SetTextRenderColor(Color);
+		Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Labels.Add(Label);
+	};
+
+	AddTheaterCountryLabel(TEXT("COLOMBIA"), -74.2f, 5.7f, FColor(232, 206, 126));
+	AddTheaterCountryLabel(TEXT("VENEZUELA"), -66.4f, 7.8f, FColor(232, 206, 126));
+
 	AddSettlementCluster(TEXT("Bogota"), -74.1f, 4.6f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 	AddSettlementCluster(TEXT("Medellin"), -75.58f, 6.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("Cali"), -76.53f, 3.45f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
 	AddSettlementCluster(TEXT("Cartagena"), -75.5f, 10.4f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
 	AddSettlementCluster(TEXT("Barranquilla"), -74.8f, 10.98f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("Santa Marta"), -74.2f, 11.24f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("Bucaramanga"), -73.12f, 7.12f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
 	AddSettlementCluster(TEXT("Riohacha"), -72.9f, 11.5f, EWLCampaignSettlementType::Port, FLinearColor(0.66f, 0.62f, 0.46f));
 	AddSettlementCluster(TEXT("Cucuta"), -72.5f, 7.9f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
 	AddSettlementCluster(TEXT("Maracaibo"), -71.6f, 10.6f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
 	AddSettlementCluster(TEXT("Caracas"), -66.9f, 10.5f, EWLCampaignSettlementType::Capital, FLinearColor(0.92f, 0.58f, 0.34f));
 	AddSettlementCluster(TEXT("Valencia"), -68.0f, 10.2f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
-	AddSettlementCluster(TEXT("Barcelona"), -64.7f, 10.1f, EWLCampaignSettlementType::Port, FLinearColor(0.78f, 0.52f, 0.34f));
-	AddSettlementCluster(TEXT("Guayana"), -62.6f, 8.3f, EWLCampaignSettlementType::Industrial, FLinearColor(0.62f, 0.54f, 0.36f));
+	AddSettlementCluster(TEXT("Barquisimeto"), -69.32f, 10.07f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("Maracay"), -67.60f, 10.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("San Cristobal"), -72.23f, 7.77f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.62f, 0.34f));
+	AddSettlementCluster(TEXT("Puerto La Cruz"), -64.63f, 10.21f, EWLCampaignSettlementType::Port, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("Ciudad Guayana"), -62.6f, 8.3f, EWLCampaignSettlementType::Industrial, FLinearColor(0.62f, 0.54f, 0.36f));
 
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
@@ -1341,7 +1402,7 @@ void AWLCampaign3DView::AddSettlementCluster(
 	Label->SetupAttachment(SceneRoot);
 	Label->RegisterComponent();
 	Label->SetWorldLocation(Base + FVector(0.f, 0.f, bCapital ? 2350.f : 1720.f));
-	Label->SetWorldRotation(FRotator(62.f, 0.f, 0.f));
+	Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 	Label->SetHorizontalAlignment(EHTA_Center);
 	Label->SetWorldSize(bCapital ? 720.f : (bSmall ? 430.f : 540.f));
 	Label->SetText(FText::FromString(Name));
@@ -1402,7 +1463,7 @@ void AWLCampaign3DView::AddOverviewLabel(
 	Label->SetupAttachment(SceneRoot);
 	Label->RegisterComponent();
 	Label->SetWorldLocation(ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, ZOffset));
-	Label->SetWorldRotation(FRotator(62.f, 0.f, 0.f));
+	Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 	Label->SetHorizontalAlignment(EHTA_Center);
 	Label->SetWorldSize(WorldSize);
 	Label->SetText(FText::FromString(Text));
@@ -1486,16 +1547,19 @@ void AWLCampaign3DView::AddProvinceMarker(const FWLProvinceData& Province)
 	ProvinceMarkers.Add(Marker);
 	ProvinceViews.Add(View);
 
-	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
-	Label->SetupAttachment(SceneRoot);
-	Label->RegisterComponent();
-	Label->SetWorldLocation(Location + FVector(0.f, 0.f, 1500.f));
-	Label->SetWorldRotation(FRotator(63.f, 0.f, 0.f));
-	Label->SetHorizontalAlignment(EHTA_Center);
-	Label->SetWorldSize(Province.bIsCapital ? 1050.f : 780.f);
-	Label->SetText(FText::FromString(Province.Capital));
-	Label->SetTextRenderColor(Province.bIsCapital ? FColor(235, 210, 120) : FColor(210, 220, 220));
-	Labels.Add(Label);
+	if (Province.bIsCapital)
+	{
+		UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
+		Label->SetupAttachment(SceneRoot);
+		Label->RegisterComponent();
+		Label->SetWorldLocation(Location + FVector(0.f, 0.f, 1500.f));
+		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
+		Label->SetHorizontalAlignment(EHTA_Center);
+		Label->SetWorldSize(920.f);
+		Label->SetText(FText::FromString(Province.Capital));
+		Label->SetTextRenderColor(FColor(235, 210, 120));
+		Labels.Add(Label);
+	}
 }
 
 void AWLCampaign3DView::AddRoutes()
@@ -1572,16 +1636,16 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 		ViewFog->GetComponent()->SetFogInscatteringColor(FLinearColor(0.010f, 0.018f, 0.019f));
 	}
 
-	const FVector CameraLocation = Center + FVector(-76000.f, -118000.f, 69000.f);
+	const FVector CameraLocation(Center.X, Center.Y, 320000.f);
 	DefaultCameraLocation = CameraLocation;
-	DefaultCameraRotation = (Center - CameraLocation).Rotation();
+	DefaultCameraRotation = FRotator(-90.f, 0.f, 0.f);
 	ViewCamera = World->SpawnActor<ACameraActor>(
 		ACameraActor::StaticClass(),
 		CameraLocation,
 		DefaultCameraRotation);
 	if (ViewCamera && ViewCamera->GetCameraComponent())
 	{
-		ViewCamera->GetCameraComponent()->SetFieldOfView(43.f);
+		ViewCamera->GetCameraComponent()->SetFieldOfView(46.f);
 	}
 }
 
@@ -1692,15 +1756,15 @@ void AWLCampaign3DView::SetStrategicLayerVisible(bool bVisible)
 void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 {
 	const bool bActive = !IsHidden();
-	if (CameraHeight >= 360000.f)
+	if (CameraHeight >= 1200000.f)
 	{
 		CurrentZoomLOD = EWLCampaign3DZoomLOD::Global;
 	}
-	else if (CameraHeight >= 185000.f)
+	else if (CameraHeight >= 620000.f)
 	{
 		CurrentZoomLOD = EWLCampaign3DZoomLOD::Region;
 	}
-	else if (CameraHeight <= 62000.f)
+	else if (CameraHeight <= 76000.f)
 	{
 		CurrentZoomLOD = EWLCampaign3DZoomLOD::Close;
 	}
@@ -1774,7 +1838,7 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	}
 	if (SeaDetailMesh)
 	{
-		SeaDetailMesh->SetVisibility(bActive, true);
+		SeaDetailMesh->SetVisibility(bActive && CurrentZoomLOD != EWLCampaign3DZoomLOD::Global, true);
 		SeaDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (OverviewMesh)

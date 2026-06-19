@@ -13,12 +13,18 @@
 #include "Camera/CameraActor.h"
 #include "Components/InputComponent.h"
 #include "EngineUtils.h"
+#include "InputKeyEventArgs.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "TimerManager.h"
 
 AWLCampaignPlayerController::AWLCampaignPlayerController()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	bShowMouseCursor = true;
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
 }
 
 void AWLCampaignPlayerController::BeginPlay()
@@ -30,6 +36,11 @@ void AWLCampaignPlayerController::BeginPlay()
 		EnterCampaignInputMode();
 		CachePresentationActors();
 		ShowCampaign3DView();
+		if (FParse::Param(FCommandLine::Get(), TEXT("WLAmericaView")))
+		{
+			FTimerHandle AmericaViewTimer;
+			GetWorldTimerManager().SetTimer(AmericaViewTimer, this, &AWLCampaignPlayerController::FocusCampaignAmerica, 0.45f, false);
+		}
 	}
 	else
 	{
@@ -71,7 +82,17 @@ void AWLCampaignPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::Subtract, IE_Pressed, this, &AWLCampaignPlayerController::OnZoomOut);
 		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &AWLCampaignPlayerController::ResetCampaignCamera);
 		InputComponent->BindKey(EKeys::F, IE_Pressed, this, &AWLCampaignPlayerController::FocusCampaignTheater);
+		InputComponent->BindKey(EKeys::G, IE_Pressed, this, &AWLCampaignPlayerController::FocusCampaignAmerica);
 	}
+}
+
+bool AWLCampaignPlayerController::InputKey(const FInputKeyEventArgs& Params)
+{
+	if (HandleCampaignInputKey(Params))
+	{
+		return true;
+	}
+	return Super::InputKey(Params);
 }
 
 UWLStrategicTickSubsystem* AWLCampaignPlayerController::GetTick() const
@@ -252,7 +273,7 @@ void AWLCampaignPlayerController::OnZoomIn()
 	}
 	else
 	{
-		ZoomCampaignCamera(0.84f);
+		ZoomCampaignCamera(0.82f);
 	}
 }
 
@@ -269,7 +290,7 @@ void AWLCampaignPlayerController::OnZoomOut()
 	}
 	else
 	{
-		ZoomCampaignCamera(1.18f);
+		ZoomCampaignCamera(1.22f);
 	}
 }
 
@@ -389,7 +410,58 @@ void AWLCampaignPlayerController::FocusCampaignTheater()
 	{
 		ShowCampaign3DView();
 	}
-	ResetCampaignCamera();
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+
+	ACameraActor* Camera = Campaign3DView ? Campaign3DView->GetViewCamera() : nullptr;
+	if (!Camera)
+	{
+		return;
+	}
+
+	const FVector FocusPoint = Campaign3DView->GetTheaterFocusPoint();
+	const float DesiredZ = FMath::Clamp(320000.f, CampaignMinCameraHeight, CampaignMaxCameraHeight);
+	Camera->SetActorLocation(FVector(FocusPoint.X, FocusPoint.Y, DesiredZ));
+	Camera->SetActorRotation(FRotator(-90.f, 0.f, 0.f));
+	SetViewTargetWithBlend(Camera, 0.20f);
+	Campaign3DView->ApplyZoomLOD(Camera->GetActorLocation().Z);
+	SetLastActionMessage(TEXT("Vista Teatro: Colombia/Venezuela."), true);
+}
+
+void AWLCampaignPlayerController::FocusCampaignAmerica()
+{
+	if (!HasCampaignInput())
+	{
+		return;
+	}
+
+	if (ActivePresentationMode != EWLCampaignPresentationMode::Campaign3D)
+	{
+		ShowCampaign3DView();
+	}
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+
+	ACameraActor* Camera = Campaign3DView ? Campaign3DView->GetViewCamera() : nullptr;
+	if (!Camera)
+	{
+		return;
+	}
+
+	const FVector FocusPoint = GetCampaignAmericaFocusPoint();
+	const float DesiredZ = FMath::Clamp(4000000.f, CampaignMinCameraHeight, CampaignMaxCameraHeight);
+	const FRotator Rotation(-90.f, 0.f, 0.f);
+	const FVector Location(FocusPoint.X, FocusPoint.Y, DesiredZ);
+
+	Camera->SetActorLocation(Location);
+	Camera->SetActorRotation(Rotation);
+	SetViewTargetWithBlend(Camera, 0.20f);
+	Campaign3DView->ApplyZoomLOD(Camera->GetActorLocation().Z);
+	SetLastActionMessage(TEXT("Vista America: paises y ciudades low-detail."), true);
 }
 
 void AWLCampaignPlayerController::BeginDragPan()
@@ -401,12 +473,14 @@ void AWLCampaignPlayerController::BeginDragPan()
 
 	bDragPanning = true;
 	bHasLastDragMouse = false;
+	DragPanAnchorWorld = FVector::ZeroVector;
 }
 
 void AWLCampaignPlayerController::EndDragPan()
 {
 	bDragPanning = false;
 	bHasLastDragMouse = false;
+	DragPanAnchorWorld = FVector::ZeroVector;
 }
 
 void AWLCampaignPlayerController::CacheWorldMap()
@@ -530,11 +604,19 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 	const float CampaignX = static_cast<float>(ViewportX) - 386.f;
 	const float DiplomacyX = static_cast<float>(ViewportX) - 210.f;
 	const float Width = 158.f;
+	const float TopButtonPaddingY = 34.f;
+	const float TopButtonBottomPaddingY = 128.f;
 
 	const bool bCampaignButton =
-		MouseX >= CampaignX && MouseX <= CampaignX + Width && MouseY >= Y && MouseY <= Y + Height;
+		MouseX >= CampaignX
+		&& MouseX <= CampaignX + Width
+		&& MouseY >= Y - TopButtonPaddingY
+		&& MouseY <= Y + Height + TopButtonBottomPaddingY;
 	const bool bDiplomacyButton =
-		MouseX >= DiplomacyX && MouseX <= DiplomacyX + Width && MouseY >= Y && MouseY <= Y + Height;
+		MouseX >= DiplomacyX
+		&& MouseX <= DiplomacyX + Width
+		&& MouseY >= Y - TopButtonPaddingY
+		&& MouseY <= Y + Height + TopButtonBottomPaddingY;
 
 	if (bCampaignButton)
 	{
@@ -551,34 +633,44 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 	{
 		const float ControlY = 102.f;
 		const float ControlH = 34.f;
+		const float HitPaddingX = 9.f;
+		const float HitPaddingTopY = 28.f;
+		const float HitPaddingBottomY = 150.f;
 		const float ZoomW = 44.f;
 		const float Gap = 8.f;
-		const float ZoomInX = static_cast<float>(ViewportX) - 386.f;
+		const float ZoomInX = static_cast<float>(ViewportX) - 444.f;
 		const float ZoomOutX = ZoomInX + ZoomW + Gap;
 		const float ResetX = ZoomOutX + ZoomW + Gap;
-		const float ResetW = 96.f;
+		const float ResetW = 84.f;
 		const float FocusX = ResetX + ResetW + Gap;
-		const float FocusW = 146.f;
+		const float FocusW = 104.f;
+		const float AmericaX = FocusX + FocusW + Gap;
+		const float AmericaW = 112.f;
 
-		const bool bInControlRow = MouseY >= ControlY && MouseY <= ControlY + ControlH;
-		if (bInControlRow && MouseX >= ZoomInX && MouseX <= ZoomInX + ZoomW)
+		const bool bInControlRow = MouseY >= ControlY - HitPaddingTopY && MouseY <= ControlY + ControlH + HitPaddingBottomY;
+		if (bInControlRow && MouseX >= ZoomInX - HitPaddingX && MouseX <= ZoomInX + ZoomW + HitPaddingX)
 		{
 			OnZoomIn();
 			return true;
 		}
-		if (bInControlRow && MouseX >= ZoomOutX && MouseX <= ZoomOutX + ZoomW)
+		if (bInControlRow && MouseX >= ZoomOutX - HitPaddingX && MouseX <= ZoomOutX + ZoomW + HitPaddingX)
 		{
 			OnZoomOut();
 			return true;
 		}
-		if (bInControlRow && MouseX >= ResetX && MouseX <= ResetX + ResetW)
+		if (bInControlRow && MouseX >= ResetX - HitPaddingX && MouseX <= ResetX + ResetW + HitPaddingX)
 		{
 			ResetCampaignCamera();
 			return true;
 		}
-		if (bInControlRow && MouseX >= FocusX && MouseX <= FocusX + FocusW)
+		if (bInControlRow && MouseX >= FocusX - HitPaddingX && MouseX <= FocusX + FocusW + HitPaddingX)
 		{
 			FocusCampaignTheater();
+			return true;
+		}
+		if (bInControlRow && MouseX >= AmericaX - HitPaddingX && MouseX <= AmericaX + AmericaW + HitPaddingX)
+		{
+			FocusCampaignAmerica();
 			return true;
 		}
 	}
@@ -621,6 +713,33 @@ void AWLCampaignPlayerController::UpdateMapCamera(float DeltaSeconds)
 	if (bDragPanning)
 	{
 		const FVector2D CurrentMouse(MouseX, MouseY);
+		if (ActivePresentationMode == EWLCampaignPresentationMode::Campaign3D)
+		{
+			FVector CurrentGroundPoint = FVector::ZeroVector;
+			if (GetCampaignGroundPointFromScreen(MouseX, MouseY, CurrentGroundPoint))
+			{
+				if (!bHasLastDragMouse)
+				{
+					DragPanAnchorWorld = CurrentGroundPoint;
+					bHasLastDragMouse = true;
+					LastDragMouse = CurrentMouse;
+					return;
+				}
+
+				FVector Location = CameraTarget->GetActorLocation();
+				Location.X += DragPanAnchorWorld.X - CurrentGroundPoint.X;
+				Location.Y += DragPanAnchorWorld.Y - CurrentGroundPoint.Y;
+				ClampCampaignCameraLocation(Location);
+				CameraTarget->SetActorLocation(Location);
+				if (Campaign3DView)
+				{
+					Campaign3DView->ApplyZoomLOD(Location.Z);
+				}
+				LastDragMouse = CurrentMouse;
+				return;
+			}
+		}
+
 		if (bHasLastDragMouse)
 		{
 			const FVector2D MouseDelta = CurrentMouse - LastDragMouse;
@@ -717,23 +836,7 @@ void AWLCampaignPlayerController::MoveCampaignCamera(const FVector2D& Delta)
 	Location.X += Delta.X;
 	Location.Y += Delta.Y;
 
-	if (Campaign3DView)
-	{
-		const FBox2D Bounds = Campaign3DView->GetCameraBounds2D(Location.Z);
-		if (Bounds.bIsValid)
-		{
-			const float ZoomAlpha = FMath::Clamp(
-				(Location.Z - CampaignMinCameraHeight) / (CampaignMaxCameraHeight - CampaignMinCameraHeight),
-				0.f,
-				1.f);
-			const FVector2D Padding(
-				FMath::Lerp(52000.f, 210000.f, ZoomAlpha),
-				FMath::Lerp(70000.f, 320000.f, ZoomAlpha));
-			Location.X = FMath::Clamp(Location.X, Bounds.Min.X - Padding.X, Bounds.Max.X + Padding.X);
-			Location.Y = FMath::Clamp(Location.Y, Bounds.Min.Y - Padding.Y, Bounds.Max.Y + Padding.Y);
-		}
-	}
-
+	ClampCampaignCameraLocation(Location);
 	CameraTarget->SetActorLocation(Location);
 	if (Campaign3DView)
 	{
@@ -762,31 +865,214 @@ void AWLCampaignPlayerController::ZoomCampaignCamera(float ZoomFactor)
 		return;
 	}
 
+	FVector AnchorBefore = FVector::ZeroVector;
+	FVector2D AnchorScreenPoint = FVector2D::ZeroVector;
+	const bool bHasAnchor = GetCampaignZoomAnchor(AnchorBefore, AnchorScreenPoint);
+
 	FVector Location = CameraTarget->GetActorLocation();
 	const float DesiredZ = FMath::Clamp(Location.Z * ZoomFactor, CampaignMinCameraHeight, CampaignMaxCameraHeight);
-
-	const FVector Forward = CameraTarget->GetActorForwardVector().GetSafeNormal();
-	const float FocusPlaneZ = Campaign3DView ? Campaign3DView->GetTheaterFocusPoint().Z : 0.f;
-	if (Forward.Z < -0.02f)
+	if (FMath::IsNearlyEqual(Location.Z, DesiredZ, 1.f))
 	{
-		const float FocusDistance = (FocusPlaneZ - Location.Z) / Forward.Z;
-		const FVector FocusPoint = FocusDistance > 0.f
-			? Location + Forward * FocusDistance
-			: (Campaign3DView ? Campaign3DView->GetTheaterFocusPoint() : FVector::ZeroVector);
-		const float NewDistance = (DesiredZ - FocusPoint.Z) / -Forward.Z;
-		Location = FocusPoint - Forward * FMath::Max(NewDistance, 1000.f);
-	}
-	else
-	{
-		Location.Z = DesiredZ;
+		return;
 	}
 
+	Location.Z = DesiredZ;
+	CameraTarget->SetActorLocation(Location);
+
+	if (bHasAnchor)
+	{
+		FVector AnchorAfter = FVector::ZeroVector;
+		if (GetCampaignGroundPointFromScreen(AnchorScreenPoint.X, AnchorScreenPoint.Y, AnchorAfter))
+		{
+			Location = CameraTarget->GetActorLocation();
+			Location.X += AnchorBefore.X - AnchorAfter.X;
+			Location.Y += AnchorBefore.Y - AnchorAfter.Y;
+		}
+	}
+
+	ClampCampaignCameraLocation(Location);
 	CameraTarget->SetActorLocation(Location);
 	if (Campaign3DView)
 	{
 		Campaign3DView->ApplyZoomLOD(Location.Z);
-		MoveCampaignCamera(FVector2D::ZeroVector);
+		SetLastActionMessage(FString::Printf(TEXT("Zoom Campaign 3D: %s %.0fk."),
+			*Campaign3DView->GetCurrentZoomLODLabel(), Location.Z / 1000.f), true);
 	}
+}
+
+FVector AWLCampaignPlayerController::GetCampaignAmericaFocusPoint() const
+{
+	FVector FocusPoint = Campaign3DView ? Campaign3DView->GetTheaterFocusPoint() : FVector::ZeroVector;
+	if (!Campaign3DView)
+	{
+		return FocusPoint;
+	}
+
+	const FBox2D AmericaBounds = Campaign3DView->GetCameraBounds2D(CampaignMaxCameraHeight);
+	if (AmericaBounds.bIsValid)
+	{
+		const FVector2D Center = AmericaBounds.GetCenter();
+		FocusPoint.X = Center.X;
+		FocusPoint.Y = Center.Y;
+	}
+	return FocusPoint;
+}
+
+bool AWLCampaignPlayerController::GetCampaignGroundPointFromScreen(float ScreenX, float ScreenY, FVector& OutWorldPoint)
+{
+	FVector RayOrigin = FVector::ZeroVector;
+	FVector RayDirection = FVector::ZeroVector;
+	if (!DeprojectScreenPositionToWorld(ScreenX, ScreenY, RayOrigin, RayDirection))
+	{
+		return false;
+	}
+
+	if (FMath::Abs(RayDirection.Z) < UE_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	const float PlaneZ = Campaign3DView ? Campaign3DView->GetTheaterFocusPoint().Z : 0.f;
+	const float T = (PlaneZ - RayOrigin.Z) / RayDirection.Z;
+	if (T <= 0.f)
+	{
+		return false;
+	}
+
+	OutWorldPoint = RayOrigin + RayDirection * T;
+	OutWorldPoint.Z = PlaneZ;
+	return true;
+}
+
+bool AWLCampaignPlayerController::GetCampaignZoomAnchor(FVector& OutAnchor, FVector2D& OutScreenPoint)
+{
+	int32 ViewportX = 0;
+	int32 ViewportY = 0;
+	GetViewportSize(ViewportX, ViewportY);
+	if (ViewportX <= 0 || ViewportY <= 0)
+	{
+		return false;
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (GetMousePosition(MouseX, MouseY)
+		&& MouseX >= 0.f && MouseX <= static_cast<float>(ViewportX)
+		&& MouseY >= 0.f && MouseY <= static_cast<float>(ViewportY)
+		&& !IsScreenPointOverCampaignHud(MouseX, MouseY))
+	{
+		OutScreenPoint = FVector2D(MouseX, MouseY);
+	}
+	else
+	{
+		OutScreenPoint = FVector2D(static_cast<float>(ViewportX) * 0.5f, static_cast<float>(ViewportY) * 0.5f);
+	}
+
+	if (GetCampaignGroundPointFromScreen(OutScreenPoint.X, OutScreenPoint.Y, OutAnchor))
+	{
+		return true;
+	}
+
+	OutScreenPoint = FVector2D(static_cast<float>(ViewportX) * 0.5f, static_cast<float>(ViewportY) * 0.5f);
+	return GetCampaignGroundPointFromScreen(OutScreenPoint.X, OutScreenPoint.Y, OutAnchor);
+}
+
+bool AWLCampaignPlayerController::IsScreenPointOverCampaignHud(float ScreenX, float ScreenY)
+{
+	int32 ViewportX = 0;
+	int32 ViewportY = 0;
+	GetViewportSize(ViewportX, ViewportY);
+	if (ViewportX <= 0 || ViewportY <= 0)
+	{
+		return false;
+	}
+
+	if (ScreenY <= 156.f || ScreenY >= static_cast<float>(ViewportY) - 56.f)
+	{
+		return true;
+	}
+
+	return ScreenX >= static_cast<float>(ViewportX) - 480.f && ScreenY <= 190.f;
+}
+
+void AWLCampaignPlayerController::ClampCampaignCameraLocation(FVector& Location) const
+{
+	Location.Z = FMath::Clamp(Location.Z, CampaignMinCameraHeight, CampaignMaxCameraHeight);
+	if (!Campaign3DView)
+	{
+		return;
+	}
+
+	const FBox2D Bounds = Campaign3DView->GetCameraBounds2D(Location.Z);
+	if (!Bounds.bIsValid)
+	{
+		return;
+	}
+
+	const float HeightRange = FMath::Max(1.f, CampaignMaxCameraHeight - CampaignMinCameraHeight);
+	const float ZoomAlpha = FMath::Clamp((Location.Z - CampaignMinCameraHeight) / HeightRange, 0.f, 1.f);
+	const FVector2D Padding(
+		FMath::Lerp(52000.f, 260000.f, ZoomAlpha),
+		FMath::Lerp(70000.f, 380000.f, ZoomAlpha));
+	Location.X = FMath::Clamp(Location.X, Bounds.Min.X - Padding.X, Bounds.Max.X + Padding.X);
+	Location.Y = FMath::Clamp(Location.Y, Bounds.Min.Y - Padding.Y, Bounds.Max.Y + Padding.Y);
+}
+
+bool AWLCampaignPlayerController::HandleCampaignInputKey(const FInputKeyEventArgs& Params)
+{
+	if (!HasCampaignInput())
+	{
+		return false;
+	}
+
+	if (Params.Key == EKeys::MouseWheelAxis && Params.Event == IE_Axis && !FMath::IsNearlyZero(Params.AmountDepressed))
+	{
+		Params.AmountDepressed > 0.f ? OnZoomIn() : OnZoomOut();
+		return true;
+	}
+
+	const bool bPressed = Params.Event == IE_Pressed || Params.Event == IE_Repeat;
+	if (!bPressed)
+	{
+		return false;
+	}
+
+	if (Params.Key == EKeys::LeftMouseButton)
+	{
+		if (TryHandleViewToggleClick())
+		{
+			return true;
+		}
+		OnSelectCountry();
+		return true;
+	}
+	if (Params.Key == EKeys::MouseScrollUp || Params.Key == EKeys::Equals || Params.Key == EKeys::Add || Params.Key == EKeys::PageUp)
+	{
+		OnZoomIn();
+		return true;
+	}
+	if (Params.Key == EKeys::MouseScrollDown || Params.Key == EKeys::Hyphen || Params.Key == EKeys::Subtract || Params.Key == EKeys::PageDown)
+	{
+		OnZoomOut();
+		return true;
+	}
+	if (Params.Key == EKeys::R)
+	{
+		ResetCampaignCamera();
+		return true;
+	}
+	if (Params.Key == EKeys::F)
+	{
+		FocusCampaignTheater();
+		return true;
+	}
+	if (Params.Key == EKeys::G)
+	{
+		FocusCampaignAmerica();
+		return true;
+	}
+
+	return false;
 }
 
 void AWLCampaignPlayerController::ShowMainMenu()
@@ -922,8 +1208,11 @@ void AWLCampaignPlayerController::EnterCampaignInputMode()
 {
 	FInputModeGameAndUI InputMode;
 	InputMode.SetHideCursorDuringCapture(false);
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputMode);
 	bShowMouseCursor = true;
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
 }
 
 void AWLCampaignPlayerController::ClearSelectedCountry()

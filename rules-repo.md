@@ -181,6 +181,11 @@ Para cambios visuales:
 - Capturar evidencia visual.
 - Verificar que no haya paneles del editor tapando el resultado.
 - Si el cambio empeora la lectura visual, revertir o ajustar antes de cerrar.
+- Regla permanente del proyecto: despues de cada cambio relevante, revisar el diff/estado,
+  compilar y validar el resultado en runtime. Para Campaign 3D, la validacion aceptable es
+  Standalone Game con zoom, pan y controles basicos probados.
+- Si Unreal Editor, Live Coding o un binario bloqueado impiden linkear/compilar, no contar
+  esa revision como exitosa; cerrar/desbloquear el proceso y volver a compilar antes de cerrar.
 
 ## 10. Git
 
