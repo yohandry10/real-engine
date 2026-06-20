@@ -67,6 +67,30 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 	{
 		return EWLVisualBiome::Coast; // vertiente del Pacifico
 	}
+
+	// Sudamerica oriental (Brasil y tierras bajas del este). Solo Lon > -60, asi que
+	// no afecta a los paises andinos (CO/VE/EC/PE/BO estan al oeste de -60).
+	if (Lon > -60.f)
+	{
+		if (Lat > -6.f)
+		{
+			return EWLVisualBiome::Jungle; // Amazonia (norte)
+		}
+		if (Lat < -28.f)
+		{
+			return EWLVisualBiome::Llanos; // pampa / sur subtropical
+		}
+		if (Lat > -16.f && Lon > -44.f)
+		{
+			return EWLVisualBiome::Coast; // caatinga (nordeste semiarido)
+		}
+		if (Lon > -50.f && Lat < -16.f)
+		{
+			return EWLVisualBiome::Jungle; // Mata Atlantica (SE/S)
+		}
+		return EWLVisualBiome::Llanos; // cerrado (sabana central)
+	}
+
 	if (Lat >= 4.f && Lat < 9.7f && Lon < -64.f)
 	{
 		return EWLVisualBiome::Llanos; // llanos del Orinoco

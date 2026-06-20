@@ -1636,6 +1636,20 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("BO-ORURO"), TEXT("Oruro"), TEXT("BO"), TEXT("BO-ORU"), TEXT("Oruro"), -67.10f, -17.98f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
 	AddSettlementCluster(TEXT("BO-TARIJA"), TEXT("Tarija"), TEXT("BO"), TEXT("BO-TJA"), TEXT("Tarija"), -64.73f, -21.53f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
 
+	// Lote 2 - Brasil.
+	AddTheaterCountryLabel(TEXT("BRASIL"), -50.0f, -10.0f, FColor(232, 206, 126));
+	AddSettlementCluster(TEXT("BR-BRASILIA"), TEXT("Brasilia"), TEXT("BR"), TEXT("BR-DF"), TEXT("Distrito Federal"), -47.88f, -15.79f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("BR-SAO-PAULO"), TEXT("Sao Paulo"), TEXT("BR"), TEXT("BR-SP"), TEXT("Sao Paulo"), -46.63f, -23.55f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("BR-RIO"), TEXT("Rio de Janeiro"), TEXT("BR"), TEXT("BR-RJ"), TEXT("Rio de Janeiro"), -43.20f, -22.91f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("BR-BELO-HORIZONTE"), TEXT("Belo Horizonte"), TEXT("BR"), TEXT("BR-MG"), TEXT("Minas Gerais"), -43.94f, -19.92f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("BR-SALVADOR"), TEXT("Salvador"), TEXT("BR"), TEXT("BR-BA"), TEXT("Bahia"), -38.51f, -12.97f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("BR-FORTALEZA"), TEXT("Fortaleza"), TEXT("BR"), TEXT("BR-CE"), TEXT("Ceara"), -38.54f, -3.73f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("BR-RECIFE"), TEXT("Recife"), TEXT("BR"), TEXT("BR-PE"), TEXT("Pernambuco"), -34.88f, -8.05f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("BR-MANAUS"), TEXT("Manaus"), TEXT("BR"), TEXT("BR-AM"), TEXT("Amazonas"), -60.02f, -3.10f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("BR-BELEM"), TEXT("Belem"), TEXT("BR"), TEXT("BR-PA"), TEXT("Para"), -48.50f, -1.46f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("BR-PORTO-ALEGRE"), TEXT("Porto Alegre"), TEXT("BR"), TEXT("BR-RS"), TEXT("Rio Grande do Sul"), -51.23f, -30.03f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("BR-CURITIBA"), TEXT("Curitiba"), TEXT("BR"), TEXT("BR-PR"), TEXT("Parana"), -49.27f, -25.43f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
 	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);
