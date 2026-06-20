@@ -522,6 +522,11 @@ namespace
 		const FWLCampaignOverviewBuildParams& Params,
 		TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat)
 	{
+		if (Params.CityMarkerSize <= 0.f)
+		{
+			return;
+		}
+
 		const FVector Center = OverviewPoint(FVector2D(City.Lon, City.Lat), Params.CityZ, ProjectLonLat);
 		const float Size = Params.CityMarkerSize * CityMarkerScale(City);
 		AddCityMarkerShape(CityVisibleAtGlobal(City) ? GlobalMarkerBuffer : RegionalMarkerBuffer, City, Center, Size);
@@ -557,10 +562,6 @@ namespace
 		AddPolylineRibbon(Buffer, {
 			FVector2D(-72.f, -40.f), FVector2D(-68.f, -45.f), FVector2D(-67.f, -51.f)
 		}, FLinearColor(0.085f, 0.130f, 0.125f, 0.78f), PatchZ + 120.f, 1050.f, ProjectLonLat);
-		AddPolylineRibbon(Buffer, {
-			FVector2D(-49.f, -1.f), FVector2D(-39.f, -12.f), FVector2D(-43.f, -23.f),
-			FVector2D(-48.f, -30.f)
-		}, FLinearColor(0.080f, 0.190f, 0.100f, 0.74f), PatchZ + 220.f, 980.f, ProjectLonLat);
 	}
 
 	void AddCountryLabels(const TArray<FWLCampaignAmericaCountrySpec>& Countries, TArray<FWLCampaignOverviewLabelSpec>& OutLabels)
@@ -574,38 +575,25 @@ namespace
 				|| Country.Iso == TEXT("PE") || Country.Iso == TEXT("EC") || Country.Iso == TEXT("BO")
 				|| Country.Iso == TEXT("PA") || Country.Iso == TEXT("CU") || Country.Iso == TEXT("JM")
 				|| Country.Iso == TEXT("TT") || Country.Iso == TEXT("GY");
+			const bool bCaribbean = FieldEquals(Country.ContinentalRegion, TEXT("Caribbean"));
 
-			if (bGlobalPriority)
-			{
-				FWLCampaignOverviewLabelSpec GlobalLabel;
-				GlobalLabel.Text = Country.DisplayName;
-				GlobalLabel.Lon = Country.LabelLon;
-				GlobalLabel.Lat = Country.LabelLat;
-				GlobalLabel.ZOffset = bCoreTheater ? 36000.f : 32000.f;
-				GlobalLabel.WorldSize = bCoreTheater ? 22000.f : (IsSouthAmericaIso(Country.Iso) ? 16000.f : 14500.f);
-				GlobalLabel.Color = bCoreTheater ? FColor(235, 214, 126) : FColor(186, 210, 184);
-				GlobalLabel.bShowInGlobal = true;
-				GlobalLabel.bShowInRegion = false;
-				OutLabels.Add(GlobalLabel);
-			}
-
-			FWLCampaignOverviewLabelSpec RegionLabel;
-			RegionLabel.Text = Country.DisplayName;
-			RegionLabel.Lon = Country.LabelLon;
-			RegionLabel.Lat = Country.LabelLat;
-			RegionLabel.ZOffset = bCoreTheater ? 34200.f : 31200.f;
-			RegionLabel.WorldSize = bCoreTheater
-				? 9800.f
-				: (bGlobalPriority ? (IsSouthAmericaIso(Country.Iso) ? 7200.f : 6500.f) : 3600.f);
-			if (FieldEquals(Country.ContinentalRegion, TEXT("Caribbean")) && !bGlobalPriority)
-			{
-				RegionLabel.WorldSize = 2600.f;
-				RegionLabel.ZOffset = 32200.f;
-			}
-			RegionLabel.Color = bCoreTheater ? FColor(230, 210, 130) : FColor(170, 194, 166);
-			RegionLabel.bShowInGlobal = false;
-			RegionLabel.bShowInRegion = true;
-			OutLabels.Add(RegionLabel);
+			// Estandar de etiquetas: los nombres de PAIS solo se muestran en el zoom
+			// lejano (Global / "America"). Al acercarse (Region) se ocultan y aparecen
+			// las ciudades, para que nunca se encimen pais + ciudad.
+			FWLCampaignOverviewLabelSpec Label;
+			Label.Text = Country.DisplayName;
+			Label.Lon = Country.LabelLon;
+			Label.Lat = Country.LabelLat;
+			Label.ZOffset = bCoreTheater ? 36000.f : 32000.f;
+			Label.WorldSize = bCoreTheater
+				? 22000.f
+				: (bGlobalPriority
+					? (IsSouthAmericaIso(Country.Iso) ? 16000.f : 14500.f)
+					: (bCaribbean ? 8000.f : 11000.f));
+			Label.Color = bCoreTheater ? FColor(235, 214, 126) : FColor(190, 212, 188);
+			Label.bShowInGlobal = true;
+			Label.bShowInRegion = false;
+			OutLabels.Add(Label);
 		}
 	}
 
@@ -613,14 +601,14 @@ namespace
 	{
 		for (const FWLCampaignAmericaCitySpec& City : Cities)
 		{
-			const bool bGlobal = CityVisibleAtGlobal(City);
 			const bool bRegionalLabel = City.bCapital || City.bMajor || City.bPort || FieldEquals(City.MarkerType, TEXT("border"));
-			if (!bGlobal && !bRegionalLabel)
+			if (!bRegionalLabel)
 			{
 				continue;
 			}
 			if (FieldEquals(City.Region, TEXT("Caribbean"))
-				&& !bGlobal
+				&& !City.bCapital
+				&& !City.bMajor
 				&& !City.CountryIso.Equals(TEXT("PA"), ESearchCase::IgnoreCase)
 				&& !City.CountryIso.Equals(TEXT("CU"), ESearchCase::IgnoreCase)
 				&& !City.CountryIso.Equals(TEXT("DO"), ESearchCase::IgnoreCase)
@@ -632,32 +620,20 @@ namespace
 				continue;
 			}
 
-			if (bGlobal)
-			{
-				FWLCampaignOverviewLabelSpec GlobalLabel;
-				GlobalLabel.Text = City.Name;
-				GlobalLabel.Lon = City.Lon;
-				GlobalLabel.Lat = City.Lat;
-				GlobalLabel.ZOffset = City.bCapital ? 40200.f : 38200.f;
-				GlobalLabel.WorldSize = City.bCapital ? 7600.f : 6500.f;
-				GlobalLabel.Color = City.bCapital ? FColor(224, 205, 130) : FColor(205, 214, 190);
-				GlobalLabel.bShowInGlobal = true;
-				GlobalLabel.bShowInRegion = false;
-				OutLabels.Add(GlobalLabel);
-			}
-
-			FWLCampaignOverviewLabelSpec RegionLabel;
-			RegionLabel.Text = City.Name;
-			RegionLabel.Lon = City.Lon;
-			RegionLabel.Lat = City.Lat;
-			RegionLabel.ZOffset = City.bCapital ? 38200.f : 36200.f;
-			RegionLabel.WorldSize = City.bCapital ? 3300.f : (City.bMajor ? 3000.f : 2500.f);
-			RegionLabel.Color = City.bCapital
-				? FColor(224, 205, 130)
-				: (City.bPort ? FColor(160, 215, 218) : FColor(205, 214, 190));
-			RegionLabel.bShowInGlobal = false;
-			RegionLabel.bShowInRegion = true;
-			OutLabels.Add(RegionLabel);
+			// Las CIUDADES solo aparecen al acercarse (Region); en Global se ven paises.
+			// Mas grandes y con mas contraste para leerse bien sobre el terreno verde.
+			FWLCampaignOverviewLabelSpec Label;
+			Label.Text = City.Name;
+			Label.Lon = City.Lon;
+			Label.Lat = City.Lat;
+			Label.ZOffset = City.bCapital ? 38600.f : 36600.f;
+			Label.WorldSize = City.bCapital ? 4800.f : (City.bMajor ? 4200.f : 3800.f);
+			Label.Color = City.bCapital
+				? FColor(245, 224, 142)
+				: (City.bPort ? FColor(150, 228, 234) : FColor(238, 242, 234));
+			Label.bShowInGlobal = false;
+			Label.bShowInRegion = true;
+			OutLabels.Add(Label);
 		}
 	}
 
