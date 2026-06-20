@@ -15,9 +15,9 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 	// llanos del Orinoco (sabana) y Amazonia/escudo guayanes (jungla).
 	auto AndesCrestLon = [](float L) -> float
 	{
-		const float Lats[] = { 11.0f, 9.0f, 7.0f, 5.0f, 2.5f, 0.0f, -2.5f, -5.5f, -8.0f, -11.0f, -14.0f, -16.5f, -19.0f };
-		const float Lons[] = { -72.0f, -71.0f, -73.0f, -74.6f, -76.3f, -78.4f, -79.0f, -79.4f, -77.8f, -76.3f, -73.0f, -71.0f, -69.6f };
-		const int32 N = 13;
+		const float Lats[] = { 11.0f, 9.0f, 7.0f, 5.0f, 2.5f, 0.0f, -2.5f, -5.5f, -8.0f, -11.0f, -14.0f, -17.0f, -20.0f, -23.0f };
+		const float Lons[] = { -72.0f, -71.0f, -73.0f, -74.6f, -76.3f, -78.4f, -79.0f, -79.4f, -77.8f, -76.3f, -72.8f, -69.0f, -67.5f, -66.5f };
+		const int32 N = 14;
 		if (L >= Lats[0]) return Lons[0];
 		if (L <= Lats[N - 1]) return Lons[N - 1];
 		for (int32 i = 0; i < N - 1; ++i)
@@ -56,7 +56,7 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 	}
 	else
 	{
-		AndesBand = FMath::Min(1.8f, 0.9f + (-6.f - Lat) * 0.07f);
+		AndesBand = FMath::Min(2.5f, 0.9f + (-6.f - Lat) * 0.105f);
 	}
 
 	if (FMath::Abs(DeltaToAndes) <= AndesBand)

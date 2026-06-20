@@ -38,7 +38,8 @@ bool FWLCampaignRegionGeometry::IsTheaterIso(const FString& Iso)
 	return Iso.Equals(TEXT("CO"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("VE"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("EC"), ESearchCase::IgnoreCase)
-		|| Iso.Equals(TEXT("PE"), ESearchCase::IgnoreCase);
+		|| Iso.Equals(TEXT("PE"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("BO"), ESearchCase::IgnoreCase);
 }
 
 bool FWLCampaignRegionGeometry::IsContextIso(const FString& Iso)
@@ -57,7 +58,11 @@ bool FWLCampaignRegionGeometry::IsContextIso(const FString& Iso)
 		|| Iso.Equals(TEXT("JM"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("HT"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("DO"), ESearchCase::IgnoreCase)
-		|| Iso.Equals(TEXT("PR"), ESearchCase::IgnoreCase);
+		|| Iso.Equals(TEXT("PR"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("PY"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("CL"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("AR"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("UY"), ESearchCase::IgnoreCase);
 }
 
 bool FWLCampaignRegionGeometry::LoadCountries(

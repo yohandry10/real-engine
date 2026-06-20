@@ -1626,6 +1626,16 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("PE-IQUITOS"), TEXT("Iquitos"), TEXT("PE"), TEXT("PE-LOR"), TEXT("Loreto"), -73.25f, -3.75f, EWLCampaignSettlementType::Port, FLinearColor(0.66f, 0.62f, 0.46f));
 	AddSettlementCluster(TEXT("PE-PUNO"), TEXT("Puno"), TEXT("PE"), TEXT("PE-PUN"), TEXT("Puno"), -70.02f, -15.84f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
 
+	// Lote 1 (Andes norte) - Bolivia. Mediterranea (sin puertos).
+	AddTheaterCountryLabel(TEXT("BOLIVIA"), -65.0f, -17.4f, FColor(232, 206, 126));
+	AddSettlementCluster(TEXT("BO-LA-PAZ"), TEXT("La Paz"), TEXT("BO"), TEXT("BO-LPZ"), TEXT("La Paz"), -68.15f, -16.50f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("BO-SANTA-CRUZ"), TEXT("Santa Cruz"), TEXT("BO"), TEXT("BO-SCZ"), TEXT("Santa Cruz"), -63.18f, -17.78f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("BO-COCHABAMBA"), TEXT("Cochabamba"), TEXT("BO"), TEXT("BO-CBB"), TEXT("Cochabamba"), -66.16f, -17.39f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("BO-SUCRE"), TEXT("Sucre"), TEXT("BO"), TEXT("BO-CHU"), TEXT("Chuquisaca"), -65.26f, -19.03f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("BO-POTOSI"), TEXT("Potosi"), TEXT("BO"), TEXT("BO-PTS"), TEXT("Potosi"), -65.75f, -19.58f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("BO-ORURO"), TEXT("Oruro"), TEXT("BO"), TEXT("BO-ORU"), TEXT("Oruro"), -67.10f, -17.98f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("BO-TARIJA"), TEXT("Tarija"), TEXT("BO"), TEXT("BO-TJA"), TEXT("Tarija"), -64.73f, -21.53f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
 	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);
