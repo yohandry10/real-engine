@@ -4,8 +4,11 @@
 
 #include "Campaign/WLDataRegistry.h"
 #include "Presentation/WLCampaignOverviewBuilder.h"
+#include "Presentation/WLCampaignRegionGeometry.h"
 #include "Presentation/WLCampaignRouteBuilder.h"
 #include "Presentation/WLCampaignSettlementBuilder.h"
+#include "Presentation/WLCampaignTerrainBuilder.h"
+#include "Presentation/WLCampaignVisualStyle.h"
 #include "Presentation/WLCampaignWaterBuilder.h"
 #include "ProceduralMeshComponent.h"
 #include "Camera/CameraActor.h"
@@ -33,49 +36,9 @@
 
 namespace
 {
-	struct FWLRegionalCountryGeometry
-	{
-		FString Iso;
-		FString Name;
-		TArray<TArray<FVector2D>> Rings;
-		FLinearColor Color = FLinearColor::White;
-		bool bCoreCountry = false;
-	};
-
 	FString RouteKey(const FString& A, const FString& B)
 	{
 		return A < B ? FString::Printf(TEXT("%s|%s"), *A, *B) : FString::Printf(TEXT("%s|%s"), *B, *A);
-	}
-
-	bool IsRegionalProvince(const FWLProvinceData& Province)
-	{
-		return Province.CountryIso.Equals(TEXT("CO"), ESearchCase::IgnoreCase)
-			|| Province.CountryIso.Equals(TEXT("VE"), ESearchCase::IgnoreCase);
-	}
-
-	bool IsCampaignTheaterIso(const FString& Iso)
-	{
-		return Iso.Equals(TEXT("CO"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("VE"), ESearchCase::IgnoreCase);
-	}
-
-	bool IsCampaignContextIso(const FString& Iso)
-	{
-		return IsCampaignTheaterIso(Iso)
-			|| Iso.Equals(TEXT("PA"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("EC"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("PE"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("BR"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("GY"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("SR"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("FR"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("TT"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("AW"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("CW"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("JM"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("HT"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("DO"), ESearchCase::IgnoreCase)
-			|| Iso.Equals(TEXT("PR"), ESearchCase::IgnoreCase);
 	}
 
 	FString SettlementTypeToPanelText(EWLCampaignSettlementType Type)
@@ -302,363 +265,12 @@ namespace
 			Force.bMovable = ReadCampaignMilitaryForceBoolField(*ObjPtr, TEXT("movable"), !Force.bAir);
 			if (!Force.Id.IsEmpty()
 				&& !Force.Name.IsEmpty()
-				&& IsCampaignTheaterIso(Force.CountryIso)
+				&& FWLCampaignRegionGeometry::IsTheaterIso(Force.CountryIso)
 				&& !FMath::IsNearlyZero(Force.Lon)
 				&& !FMath::IsNearlyZero(Force.Lat))
 			{
 				OutForces.Add(MoveTemp(Force));
 			}
-		}
-	}
-
-	enum class EWLVisualBiome : uint8
-	{
-		Context = 0,
-		Coast,
-		Jungle,
-		Llanos,
-		Mountain,
-		UrbanInfluence,
-		Count
-	};
-
-	EWLVisualBiome ClassifyVisualBiome(float Lon, float Lat, bool bCoreCountry)
-	{
-		if (!bCoreCountry)
-		{
-			return EWLVisualBiome::Context;
-		}
-		const bool bAndes = Lon < -71.4f && Lon > -77.2f && Lat < 11.6f;
-		const bool bCaribbeanCoast = Lat > 9.8f;
-		const bool bGuajiraDry = Lon < -71.0f && Lon > -74.3f && Lat > 10.1f;
-		const bool bAmazonOrGuiana = Lat < 6.4f || (Lon > -67.0f && Lat < 8.4f);
-		const bool bLlanos = Lon > -72.6f && Lon < -64.0f && Lat >= 6.1f && Lat < 9.9f;
-		const bool bUrbanCorridor = (Lon < -73.2f && Lon > -76.2f && Lat > 4.1f && Lat < 7.0f)
-			|| (Lon > -69.0f && Lon < -66.1f && Lat > 9.7f && Lat < 10.8f);
-
-		if (bUrbanCorridor)
-		{
-			return EWLVisualBiome::UrbanInfluence;
-		}
-		if (bAndes)
-		{
-			return EWLVisualBiome::Mountain;
-		}
-		if (bGuajiraDry || bCaribbeanCoast)
-		{
-			return EWLVisualBiome::Coast;
-		}
-		if (bLlanos)
-		{
-			return EWLVisualBiome::Llanos;
-		}
-		if (bAmazonOrGuiana)
-		{
-			return EWLVisualBiome::Jungle;
-		}
-		return EWLVisualBiome::Jungle;
-	}
-
-	FLinearColor VisualBiomeColor(EWLVisualBiome Biome)
-	{
-		switch (Biome)
-		{
-		case EWLVisualBiome::Coast:
-			return FLinearColor(0.50f, 0.40f, 0.20f);
-		case EWLVisualBiome::Jungle:
-			return FLinearColor(0.025f, 0.230f, 0.070f);
-		case EWLVisualBiome::Llanos:
-			return FLinearColor(0.285f, 0.300f, 0.105f);
-		case EWLVisualBiome::Mountain:
-			return FLinearColor(0.385f, 0.330f, 0.215f);
-		case EWLVisualBiome::UrbanInfluence:
-			return FLinearColor(0.300f, 0.285f, 0.205f);
-		default:
-			return FLinearColor(0.050f, 0.105f, 0.070f);
-		}
-	}
-
-	FLinearColor ShadeTerrainVertex(const FLinearColor& Base, float Lon, float Lat, float Height)
-	{
-		const float Relief = FMath::Clamp(Height / 14500.f, 0.f, 1.f);
-		const float Noise = 0.07f * FMath::Sin(Lon * 4.7f + Lat * 1.3f) + 0.05f * FMath::Cos(Lon * 2.1f - Lat * 3.4f);
-		const float Light = FMath::Clamp(0.82f + Relief * 0.42f + Noise, 0.55f, 1.38f);
-		FLinearColor Color(Base.R * Light, Base.G * Light, Base.B * Light, 1.f);
-		Color += FLinearColor(Relief * 0.13f, Relief * 0.105f, Relief * 0.065f, 0.f);
-		Color.R = FMath::Clamp(Color.R, 0.f, 1.f);
-		Color.G = FMath::Clamp(Color.G, 0.f, 1.f);
-		Color.B = FMath::Clamp(Color.B, 0.f, 1.f);
-		return Color;
-	}
-
-	FColor ToVertexFColor(const FLinearColor& Color)
-	{
-		return Color.ToFColor(true);
-	}
-
-	float VisualBiomeZOffset(EWLVisualBiome Biome, bool bCoreCountry)
-	{
-		if (!bCoreCountry)
-		{
-			return -120.f;
-		}
-		switch (Biome)
-		{
-		case EWLVisualBiome::Mountain:
-			return 560.f;
-		case EWLVisualBiome::Coast:
-			return 95.f;
-		case EWLVisualBiome::Llanos:
-			return 135.f;
-		case EWLVisualBiome::UrbanInfluence:
-			return 210.f;
-		default:
-			return 165.f;
-		}
-	}
-
-	FLinearColor CountryTerrainColor(const FString& Iso)
-	{
-		if (Iso.Equals(TEXT("CO"), ESearchCase::IgnoreCase))
-		{
-			return FLinearColor(0.235f, 0.345f, 0.185f);
-		}
-		if (Iso.Equals(TEXT("VE"), ESearchCase::IgnoreCase))
-		{
-			return FLinearColor(0.215f, 0.335f, 0.175f);
-		}
-		return FLinearColor(0.095f, 0.160f, 0.115f);
-	}
-
-	bool LonLatBoundsIntersect(
-		float AMinLon, float AMaxLon, float AMinLat, float AMaxLat,
-		float BMinLon, float BMaxLon, float BMinLat, float BMaxLat)
-	{
-		return AMinLon <= BMaxLon && AMaxLon >= BMinLon && AMinLat <= BMaxLat && AMaxLat >= BMinLat;
-	}
-
-	void GetLonLatBounds(const TArray<FVector2D>& Ring, float& OutMinLon, float& OutMaxLon, float& OutMinLat, float& OutMaxLat)
-	{
-		OutMinLon = TNumericLimits<float>::Max();
-		OutMaxLon = TNumericLimits<float>::Lowest();
-		OutMinLat = TNumericLimits<float>::Max();
-		OutMaxLat = TNumericLimits<float>::Lowest();
-		for (const FVector2D& P : Ring)
-		{
-			OutMinLon = FMath::Min(OutMinLon, P.X);
-			OutMaxLon = FMath::Max(OutMaxLon, P.X);
-			OutMinLat = FMath::Min(OutMinLat, P.Y);
-			OutMaxLat = FMath::Max(OutMaxLat, P.Y);
-		}
-	}
-
-	bool PointInLonLatRing(const FVector2D& P, const TArray<FVector2D>& Ring)
-	{
-		bool bInside = false;
-		for (int32 Index = 0, Prev = Ring.Num() - 1; Index < Ring.Num(); Prev = Index++)
-		{
-			const FVector2D& A = Ring[Index];
-			const FVector2D& B = Ring[Prev];
-			const float Denom = B.Y - A.Y;
-			if (FMath::Abs(Denom) < KINDA_SMALL_NUMBER)
-			{
-				continue;
-			}
-			const bool bCrosses = ((A.Y > P.Y) != (B.Y > P.Y))
-				&& (P.X < (B.X - A.X) * (P.Y - A.Y) / Denom + A.X);
-			if (bCrosses)
-			{
-				bInside = !bInside;
-			}
-		}
-		return bInside;
-	}
-
-	bool PointInAnyLonLatRing(const FVector2D& P, const TArray<TArray<FVector2D>>& Rings)
-	{
-		for (const TArray<FVector2D>& Ring : Rings)
-		{
-			if (Ring.Num() >= 3 && PointInLonLatRing(P, Ring))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	TArray<FVector2D> LonLatRingFromJson(const TArray<TSharedPtr<FJsonValue>>& Ring)
-	{
-		TArray<FVector2D> Result;
-		Result.Reserve(Ring.Num());
-		for (const TSharedPtr<FJsonValue>& CoordVal : Ring)
-		{
-			const TArray<TSharedPtr<FJsonValue>>* Pair = nullptr;
-			if (CoordVal.IsValid() && CoordVal->TryGetArray(Pair) && Pair && Pair->Num() >= 2)
-			{
-				Result.Add(FVector2D(static_cast<float>((*Pair)[0]->AsNumber()), static_cast<float>((*Pair)[1]->AsNumber())));
-			}
-		}
-		return Result;
-	}
-
-	bool RingIntersectsCampaignRegion(const TArray<FVector2D>& Ring, float MinLon, float MaxLon, float MinLat, float MaxLat)
-	{
-		if (Ring.Num() < 3)
-		{
-			return false;
-		}
-
-		float RingMinLon, RingMaxLon, RingMinLat, RingMaxLat;
-		GetLonLatBounds(Ring, RingMinLon, RingMaxLon, RingMinLat, RingMaxLat);
-		return LonLatBoundsIntersect(RingMinLon, RingMaxLon, RingMinLat, RingMaxLat, MinLon, MaxLon, MinLat, MaxLat);
-	}
-
-	bool LoadRegionalCountryGeometry(float RegionMinLon, float RegionMaxLon, float RegionMinLat, float RegionMaxLat, TArray<FWLRegionalCountryGeometry>& OutCountries)
-	{
-		OutCountries.Reset();
-
-		const FString Path = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Geo") / TEXT("Countries.geojson");
-		FString Raw;
-		if (!FFileHelper::LoadFileToString(Raw, *Path))
-		{
-			return false;
-		}
-
-		TSharedPtr<FJsonObject> Root;
-		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
-		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
-		{
-			return false;
-		}
-
-		const TArray<TSharedPtr<FJsonValue>>* Features = nullptr;
-		if (!Root->TryGetArrayField(TEXT("features"), Features))
-		{
-			return false;
-		}
-
-		for (const TSharedPtr<FJsonValue>& FeatVal : *Features)
-		{
-			const TSharedPtr<FJsonObject>* FeatObj = nullptr;
-			if (!FeatVal.IsValid() || !FeatVal->TryGetObject(FeatObj))
-			{
-				continue;
-			}
-
-			const TSharedPtr<FJsonObject>* PropsObj = nullptr;
-			if (!(*FeatObj)->TryGetObjectField(TEXT("properties"), PropsObj))
-			{
-				continue;
-			}
-
-			FString Iso;
-			(*PropsObj)->TryGetStringField(TEXT("ISO_A2"), Iso);
-			if (!IsCampaignContextIso(Iso))
-			{
-				continue;
-			}
-
-			FString Name;
-			(*PropsObj)->TryGetStringField(TEXT("ADMIN"), Name);
-
-			const TSharedPtr<FJsonObject>* GeomObj = nullptr;
-			if (!(*FeatObj)->TryGetObjectField(TEXT("geometry"), GeomObj))
-			{
-				continue;
-			}
-
-			FString GeomType;
-			(*GeomObj)->TryGetStringField(TEXT("type"), GeomType);
-			const TArray<TSharedPtr<FJsonValue>>* Coords = nullptr;
-			if (!(*GeomObj)->TryGetArrayField(TEXT("coordinates"), Coords))
-			{
-				continue;
-			}
-
-			FWLRegionalCountryGeometry Country;
-			Country.Iso = Iso;
-			Country.Name = Name;
-			Country.bCoreCountry = IsCampaignTheaterIso(Iso);
-			Country.Color = CountryTerrainColor(Iso);
-
-			auto ProcessPolygon = [&](const TArray<TSharedPtr<FJsonValue>>& Rings)
-			{
-				if (Rings.Num() == 0)
-				{
-					return;
-				}
-				const TArray<TSharedPtr<FJsonValue>>* Outer = nullptr;
-				if (!Rings[0]->TryGetArray(Outer) || !Outer)
-				{
-					return;
-				}
-
-				TArray<FVector2D> Ring = LonLatRingFromJson(*Outer);
-				if (RingIntersectsCampaignRegion(Ring, RegionMinLon, RegionMaxLon, RegionMinLat, RegionMaxLat))
-				{
-					Country.Rings.Add(MoveTemp(Ring));
-				}
-			};
-
-			if (GeomType == TEXT("Polygon"))
-			{
-				ProcessPolygon(*Coords);
-			}
-			else if (GeomType == TEXT("MultiPolygon"))
-			{
-				for (const TSharedPtr<FJsonValue>& PolyVal : *Coords)
-				{
-					const TArray<TSharedPtr<FJsonValue>>* PolyRings = nullptr;
-					if (PolyVal.IsValid() && PolyVal->TryGetArray(PolyRings) && PolyRings)
-					{
-						ProcessPolygon(*PolyRings);
-					}
-				}
-			}
-
-			if (!Country.Rings.IsEmpty())
-			{
-				OutCountries.Add(MoveTemp(Country));
-			}
-		}
-
-		OutCountries.Sort([](const FWLRegionalCountryGeometry& A, const FWLRegionalCountryGeometry& B)
-		{
-			if (A.bCoreCountry != B.bCoreCountry)
-			{
-				return !A.bCoreCountry;
-			}
-			return A.Iso < B.Iso;
-		});
-
-		return !OutCountries.IsEmpty();
-	}
-
-	void BuildNormals(const TArray<FVector>& Verts, const TArray<int32>& Tris, TArray<FVector>& OutNormals)
-	{
-		OutNormals.Reset();
-		OutNormals.SetNumZeroed(Verts.Num());
-		for (int32 Index = 0; Index + 2 < Tris.Num(); Index += 3)
-		{
-			const int32 A = Tris[Index];
-			const int32 B = Tris[Index + 1];
-			const int32 C = Tris[Index + 2];
-			if (!Verts.IsValidIndex(A) || !Verts.IsValidIndex(B) || !Verts.IsValidIndex(C))
-			{
-				continue;
-			}
-			FVector Normal = FVector::CrossProduct(Verts[B] - Verts[A], Verts[C] - Verts[A]).GetSafeNormal();
-			if (Normal.Z < 0.f)
-			{
-				Normal *= -1.f;
-			}
-			OutNormals[A] += Normal;
-			OutNormals[B] += Normal;
-			OutNormals[C] += Normal;
-		}
-		for (FVector& Normal : OutNormals)
-		{
-			Normal = Normal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
 		}
 	}
 
@@ -935,7 +547,7 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		MovementRoutePreviewMesh->ClearAllMeshSections();
 	}
 	DestroyMovementDestinationMarkers();
-	for (UStaticMeshComponent* Marker : ProvinceMarkers)
+	for (UPrimitiveComponent* Marker : ProvinceMarkers)
 	{
 		if (Marker)
 		{
@@ -1762,7 +1374,7 @@ void AWLCampaign3DView::BuildOverviewLayer()
 	Params.BorderZ = 11800.f;
 	Params.BorderWidth = 900.f;
 	Params.CityZ = 14800.f;
-	Params.CityMarkerSize = 3000.f;
+	Params.CityMarkerSize = 0.f;
 
 	TArray<FWLCampaignOverviewLabelSpec> OverviewLabelSpecs;
 	FWLCampaignOverviewBuilder::Build(OverviewMesh, Params, OverviewLabelSpecs, [this](float Lon, float Lat)
@@ -1799,129 +1411,23 @@ void AWLCampaign3DView::BuildOverviewLayer()
 
 void AWLCampaign3DView::BuildTerrain()
 {
-	if (!TerrainMesh)
-	{
-		return;
-	}
+	FWLCampaignTerrainBuildParams Params;
+	Params.RegionMinLon = RegionMinLon;
+	Params.RegionMaxLon = RegionMaxLon;
+	Params.RegionMinLat = RegionMinLat;
+	Params.RegionMaxLat = RegionMaxLat;
+	Params.TerrainMaterial = VertexColorMaterial;
+	Params.BoundaryMaterial = VertexColorMaterial;
 
-	TArray<FWLRegionalCountryGeometry> Countries;
-	if (!LoadRegionalCountryGeometry(RegionMinLon - 3.f, RegionMaxLon + 3.f, RegionMinLat - 3.f, RegionMaxLat + 3.f, Countries))
-	{
-		return;
-	}
-
-	for (const FWLRegionalCountryGeometry& Country : Countries)
-	{
-		AddCountryTerrain(Country.Rings, Country.Color, Country.bCoreCountry);
-		for (const TArray<FVector2D>& Ring : Country.Rings)
+	FWLCampaignTerrainBuilder::Build(
+		TerrainMesh,
+		BoundaryMesh,
+		Params,
+		[this](float Lon, float Lat)
 		{
-			const FLinearColor Outline = Country.bCoreCountry
-				? FLinearColor(0.78f, 0.77f, 0.64f, 0.88f)
-				: FLinearColor(0.16f, 0.28f, 0.24f, 0.70f);
-			AddBoundaryRibbon(Ring, Outline, Country.bCoreCountry ? 260.f : 180.f, Country.bCoreCountry ? 2300.f : 920.f);
-		}
-	}
-}
-
-void AWLCampaign3DView::AddCountryTerrain(const TArray<TArray<FVector2D>>& Rings, const FLinearColor& Color, bool bCoreCountry)
-{
-	if (!TerrainMesh || Rings.IsEmpty())
-	{
-		return;
-	}
-
-	struct FSectionBuffer
-	{
-		TArray<FVector> Verts;
-		TArray<int32> Tris;
-		TArray<FVector2D> UVs;
-		TArray<FColor> Colors;
-	};
-	TStaticArray<FSectionBuffer, static_cast<int32>(EWLVisualBiome::Count)> Buffers;
-	const float CellDegrees = bCoreCountry ? 0.040f : 0.16f;
-
-	for (const TArray<FVector2D>& Ring : Rings)
-	{
-		if (Ring.Num() < 3)
-		{
-			continue;
-		}
-
-		float RingMinLon, RingMaxLon, RingMinLat, RingMaxLat;
-		GetLonLatBounds(Ring, RingMinLon, RingMaxLon, RingMinLat, RingMaxLat);
-		const float MinLon = FMath::Max(RingMinLon, RegionMinLon - 2.2f);
-		const float MaxLon = FMath::Min(RingMaxLon, RegionMaxLon + 2.2f);
-		const float MinLat = FMath::Max(RingMinLat, RegionMinLat - 2.2f);
-		const float MaxLat = FMath::Min(RingMaxLat, RegionMaxLat + 2.2f);
-
-		for (float Lon = MinLon; Lon < MaxLon; Lon += CellDegrees)
-		{
-			for (float Lat = MinLat; Lat < MaxLat; Lat += CellDegrees)
-			{
-				const FVector2D Center(Lon + CellDegrees * 0.5f, Lat + CellDegrees * 0.5f);
-				if (!PointInLonLatRing(Center, Ring))
-				{
-					continue;
-				}
-
-				const EWLVisualBiome Biome = bCoreCountry
-					? EWLVisualBiome::Context
-					: ClassifyVisualBiome(Center.X, Center.Y, bCoreCountry);
-				FSectionBuffer& Buffer = Buffers[static_cast<int32>(Biome)];
-				const float ZOffset = bCoreCountry ? 145.f : VisualBiomeZOffset(Biome, bCoreCountry);
-				const int32 Base = Buffer.Verts.Num();
-				FVector A = ProjectLonLat(Lon, Lat);
-				FVector B = ProjectLonLat(Lon + CellDegrees, Lat);
-				FVector C = ProjectLonLat(Lon + CellDegrees, Lat + CellDegrees);
-				FVector D = ProjectLonLat(Lon, Lat + CellDegrees);
-				A.Z += ZOffset;
-				B.Z += ZOffset;
-				C.Z += ZOffset;
-				D.Z += ZOffset;
-
-				Buffer.Verts.Add(A);
-				Buffer.Verts.Add(B);
-				Buffer.Verts.Add(C);
-				Buffer.Verts.Add(D);
-				Buffer.UVs.Add(FVector2D(0.f, 0.f));
-				Buffer.UVs.Add(FVector2D(1.f, 0.f));
-				Buffer.UVs.Add(FVector2D(1.f, 1.f));
-				Buffer.UVs.Add(FVector2D(0.f, 1.f));
-				const FLinearColor CellBaseColor = Color;
-				Buffer.Colors.Add(ToVertexFColor(ShadeTerrainVertex(CellBaseColor, Lon, Lat, A.Z)));
-				Buffer.Colors.Add(ToVertexFColor(ShadeTerrainVertex(CellBaseColor, Lon + CellDegrees, Lat, B.Z)));
-				Buffer.Colors.Add(ToVertexFColor(ShadeTerrainVertex(CellBaseColor, Lon + CellDegrees, Lat + CellDegrees, C.Z)));
-				Buffer.Colors.Add(ToVertexFColor(ShadeTerrainVertex(CellBaseColor, Lon, Lat + CellDegrees, D.Z)));
-				Buffer.Tris.Add(Base);
-				Buffer.Tris.Add(Base + 2);
-				Buffer.Tris.Add(Base + 1);
-				Buffer.Tris.Add(Base);
-				Buffer.Tris.Add(Base + 3);
-				Buffer.Tris.Add(Base + 2);
-				Bounds += FVector2D(A.X, A.Y);
-				Bounds += FVector2D(C.X, C.Y);
-			}
-		}
-	}
-
-	for (int32 Section = 0; Section < Buffers.Num(); ++Section)
-	{
-		const FSectionBuffer& Buffer = Buffers[Section];
-		if (Buffer.Verts.IsEmpty() || Buffer.Tris.IsEmpty())
-		{
-			continue;
-		}
-
-		TArray<FVector> Normals;
-		BuildNormals(Buffer.Verts, Buffer.Tris, Normals);
-		TArray<FProcMeshTangent> Tangents;
-		const int32 SectionIndex = TerrainMesh->GetNumSections();
-		TerrainMesh->CreateMeshSection(SectionIndex, Buffer.Verts, Buffer.Tris, Normals, Buffer.UVs, Buffer.Colors, Tangents, true);
-		if (VertexColorMaterial)
-		{
-			TerrainMesh->SetMaterial(SectionIndex, VertexColorMaterial);
-		}
-	}
+			return ProjectLonLat(Lon, Lat);
+		},
+		Bounds);
 }
 
 void AWLCampaign3DView::AddTerrainPatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset)
@@ -1966,7 +1472,7 @@ void AWLCampaign3DView::AddTerrainPatch(const TArray<FVector2D>& LonLatPoints, c
 	TArray<FVector> Normals;
 	Normals.Init(FVector::UpVector, Verts.Num());
 	TArray<FColor> Colors;
-	Colors.Init(ToVertexFColor(Color), Verts.Num());
+	Colors.Init(FWLCampaignVisualStyle::ToVertexFColor(Color), Verts.Num());
 	TArray<FProcMeshTangent> Tangents;
 	const int32 SectionIndex = TerrainMesh->GetNumSections();
 	TerrainMesh->CreateMeshSection(SectionIndex, Verts, FinalTris, Normals, UVs, Colors, Tangents, true);
@@ -2008,7 +1514,7 @@ void AWLCampaign3DView::AddPolylineSegment(const FVector& Start, const FVector& 
 	Normals.Init(FVector::UpVector, Verts.Num());
 	TArray<FVector2D> UVs = { FVector2D(0.f, 0.f), FVector2D(0.f, 1.f), FVector2D(1.f, 1.f), FVector2D(1.f, 0.f) };
 	TArray<FColor> Colors;
-	Colors.Init(ToVertexFColor(Color), Verts.Num());
+	Colors.Init(FWLCampaignVisualStyle::ToVertexFColor(Color), Verts.Num());
 	TArray<FProcMeshTangent> Tangents;
 	const int32 SectionIndex = BoundaryMesh->GetNumSections();
 	BoundaryMesh->CreateMeshSection(SectionIndex, Verts, Tris, Normals, UVs, Colors, Tangents, false);
@@ -2032,82 +1538,6 @@ void AWLCampaign3DView::AddCoastline(const TArray<FVector2D>& LonLatPoints, cons
 		const FVector Start = ProjectLonLat(A.X, A.Y) + FVector(0.f, 0.f, 320.f);
 		const FVector End = ProjectLonLat(B.X, B.Y) + FVector(0.f, 0.f, 320.f);
 		AddPolylineSegment(Start, End, Color, RadiusScale);
-	}
-}
-
-void AWLCampaign3DView::AddBoundaryRibbon(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float WidthWorld, float ZOffset)
-{
-	if (!BoundaryMesh || LonLatPoints.Num() < 2)
-	{
-		return;
-	}
-
-	TArray<FVector> Verts;
-	TArray<int32> Tris;
-	TArray<FVector2D> UVs;
-	Verts.Reserve(LonLatPoints.Num() * 4);
-	Tris.Reserve(LonLatPoints.Num() * 6);
-
-	const float MinLon = RegionMinLon - 2.5f;
-	const float MaxLon = RegionMaxLon + 2.5f;
-	const float MinLat = RegionMinLat - 2.5f;
-	const float MaxLat = RegionMaxLat + 2.5f;
-
-	for (int32 Index = 0; Index < LonLatPoints.Num(); ++Index)
-	{
-		const FVector2D& A = LonLatPoints[Index];
-		const FVector2D& B = LonLatPoints[(Index + 1) % LonLatPoints.Num()];
-		const float SegmentMinLon = FMath::Min(A.X, B.X);
-		const float SegmentMaxLon = FMath::Max(A.X, B.X);
-		const float SegmentMinLat = FMath::Min(A.Y, B.Y);
-		const float SegmentMaxLat = FMath::Max(A.Y, B.Y);
-		if (!LonLatBoundsIntersect(SegmentMinLon, SegmentMaxLon, SegmentMinLat, SegmentMaxLat, MinLon, MaxLon, MinLat, MaxLat))
-		{
-			continue;
-		}
-
-		const FVector StartCenter = ProjectLonLat(A.X, A.Y) + FVector(0.f, 0.f, ZOffset);
-		const FVector EndCenter = ProjectLonLat(B.X, B.Y) + FVector(0.f, 0.f, ZOffset);
-		const FVector Direction = EndCenter - StartCenter;
-		const FVector FlatDirection(Direction.X, Direction.Y, 0.f);
-		if (FlatDirection.SizeSquared() < 1.f)
-		{
-			continue;
-		}
-
-		const FVector Side = FVector::CrossProduct(FVector::UpVector, FlatDirection.GetSafeNormal()) * (WidthWorld * 0.5f);
-		const int32 Base = Verts.Num();
-		Verts.Add(StartCenter - Side);
-		Verts.Add(StartCenter + Side);
-		Verts.Add(EndCenter + Side);
-		Verts.Add(EndCenter - Side);
-		UVs.Add(FVector2D(0.f, 0.f));
-		UVs.Add(FVector2D(0.f, 1.f));
-		UVs.Add(FVector2D(1.f, 1.f));
-		UVs.Add(FVector2D(1.f, 0.f));
-		Tris.Add(Base);
-		Tris.Add(Base + 1);
-		Tris.Add(Base + 2);
-		Tris.Add(Base);
-		Tris.Add(Base + 2);
-		Tris.Add(Base + 3);
-	}
-
-	if (Verts.IsEmpty())
-	{
-		return;
-	}
-
-	TArray<FVector> Normals;
-	Normals.Init(FVector::UpVector, Verts.Num());
-	TArray<FColor> Colors;
-	Colors.Init(ToVertexFColor(Color), Verts.Num());
-	TArray<FProcMeshTangent> Tangents;
-	const int32 SectionIndex = BoundaryMesh->GetNumSections();
-	BoundaryMesh->CreateMeshSection(SectionIndex, Verts, Tris, Normals, UVs, Colors, Tangents, false);
-	if (VertexColorMaterial)
-	{
-		BoundaryMesh->SetMaterial(SectionIndex, VertexColorMaterial);
 	}
 }
 
@@ -2173,6 +1603,17 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("VE-SAN-CRISTOBAL"), TEXT("San Cristobal"), TEXT("VE"), TEXT("VE-TAC"), TEXT("Tachira"), -72.23f, 7.77f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.62f, 0.34f));
 	AddSettlementCluster(TEXT("VE-PUERTO-LA-CRUZ"), TEXT("Puerto La Cruz"), TEXT("VE"), TEXT("VE-ANZ"), TEXT("Anzoategui"), -64.63f, 10.21f, EWLCampaignSettlementType::Port, FLinearColor(0.78f, 0.52f, 0.34f));
 	AddSettlementCluster(TEXT("VE-CIUDAD-GUAYANA"), TEXT("Ciudad Guayana"), TEXT("VE"), TEXT("VE-BO"), TEXT("Bolivar"), -62.6f, 8.3f, EWLCampaignSettlementType::Industrial, FLinearColor(0.62f, 0.54f, 0.36f));
+
+	// Lote 1 (Andes norte) - Ecuador. Mismo pipeline que CO/VE; CO/VE quedan intactos.
+	AddTheaterCountryLabel(TEXT("ECUADOR"), -78.3f, -1.45f, FColor(232, 206, 126));
+	AddSettlementCluster(TEXT("EC-QUITO"), TEXT("Quito"), TEXT("EC"), TEXT("EC-PIC"), TEXT("Pichincha"), -78.52f, -0.22f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("EC-GUAYAQUIL"), TEXT("Guayaquil"), TEXT("EC"), TEXT("EC-GUA"), TEXT("Guayas"), -79.90f, -2.19f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("EC-CUENCA"), TEXT("Cuenca"), TEXT("EC"), TEXT("EC-AZU"), TEXT("Azuay"), -79.00f, -2.90f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("EC-SANTO-DOMINGO"), TEXT("Santo Domingo"), TEXT("EC"), TEXT("EC-SDT"), TEXT("Santo Domingo"), -79.17f, -0.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("EC-MANTA"), TEXT("Manta"), TEXT("EC"), TEXT("EC-MAN"), TEXT("Manabi"), -80.72f, -0.95f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("EC-MACHALA"), TEXT("Machala"), TEXT("EC"), TEXT("EC-ELO"), TEXT("El Oro"), -79.97f, -3.26f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("EC-AMBATO"), TEXT("Ambato"), TEXT("EC"), TEXT("EC-TUN"), TEXT("Tungurahua"), -78.62f, -1.24f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("EC-LOJA"), TEXT("Loja"), TEXT("EC"), TEXT("EC-LOJ"), TEXT("Loja"), -79.20f, -3.99f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
 
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
@@ -2648,7 +2089,7 @@ void AWLCampaign3DView::AddMovementRoutePreviewSegment(
 	Normals.Init(FVector::UpVector, Verts.Num());
 	TArray<FVector2D> UVs = { FVector2D(0.f, 0.f), FVector2D(0.f, 1.f), FVector2D(1.f, 1.f), FVector2D(1.f, 0.f) };
 	TArray<FColor> Colors;
-	Colors.Init(ToVertexFColor(Color), Verts.Num());
+	Colors.Init(FWLCampaignVisualStyle::ToVertexFColor(Color), Verts.Num());
 	TArray<FProcMeshTangent> Tangents;
 	MovementRoutePreviewMesh->CreateMeshSection(SectionIndex, Verts, Tris, Normals, UVs, Colors, Tangents, false);
 	if (UMaterialInstanceDynamic* RouteMaterial = MakeColorMaterial(Color))
@@ -2880,7 +2321,7 @@ void AWLCampaign3DView::AddProvinceMarkers()
 
 	for (const FWLProvinceData& Province : Provinces)
 	{
-		if (IsRegionalProvince(Province))
+		if (FWLCampaignRegionGeometry::IsRegionalProvince(Province))
 		{
 			AddProvinceMarker(Province);
 		}
@@ -2889,30 +2330,20 @@ void AWLCampaign3DView::AddProvinceMarkers()
 
 void AWLCampaign3DView::AddProvinceMarker(const FWLProvinceData& Province)
 {
-	if (!CityMesh)
-	{
-		return;
-	}
-
 	const FVector Location = ProjectLonLat(Province.MapLon, Province.MapLat) + FVector(0.f, 0.f, Province.bIsCapital ? 1050.f : 780.f);
-	UStaticMeshComponent* Marker = NewObject<UStaticMeshComponent>(this);
+	USphereComponent* Marker = NewObject<USphereComponent>(this);
 	Marker->SetupAttachment(SceneRoot);
 	Marker->RegisterComponent();
-	Marker->SetStaticMesh(CityMesh);
 	Marker->SetWorldLocation(Location);
-	Marker->SetWorldScale3D(Province.bIsCapital ? FVector(11.f) : FVector(7.f));
+	Marker->SetSphereRadius(Province.bIsCapital ? 6200.f : 4800.f);
+	Marker->SetVisibility(false, true);
+	Marker->SetHiddenInGame(false, true);
 	Marker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Marker->SetCollisionObjectType(ECC_WorldDynamic);
 	Marker->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Marker->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	Marker->ComponentTags.Add(TEXT("WorldLeaderCampaign3DProvince"));
 	Marker->ComponentTags.Add(FName(*Province.Id));
-	if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(Province.bIsCapital
-		? FLinearColor(0.95f, 0.72f, 0.22f)
-		: TerrainColor(Province.Terrain, Province.CountryIso).Desaturate(0.15f) + FLinearColor(0.22f, 0.20f, 0.08f)))
-	{
-		Marker->SetMaterial(0, Mat);
-	}
 
 	FWLCampaign3DProvinceView View;
 	View.Id = Province.Id;
@@ -2949,7 +2380,7 @@ void AWLCampaign3DView::AddRoutes()
 	TSet<FString> Processed;
 	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
 	{
-		if (!IsRegionalProvince(Province))
+		if (!FWLCampaignRegionGeometry::IsRegionalProvince(Province))
 		{
 			continue;
 		}
@@ -2957,7 +2388,7 @@ void AWLCampaign3DView::AddRoutes()
 		for (const FString& NeighborId : Province.Neighbors)
 		{
 			FWLProvinceData Neighbor;
-			if (!Registry->GetProvince(NeighborId, Neighbor) || !IsRegionalProvince(Neighbor))
+			if (!Registry->GetProvince(NeighborId, Neighbor) || !FWLCampaignRegionGeometry::IsRegionalProvince(Neighbor))
 			{
 				continue;
 			}
@@ -3072,11 +2503,12 @@ void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 	{
 		SettlementMesh->SetVisibility(bVisible, true);
 	}
-	for (UStaticMeshComponent* Marker : ProvinceMarkers)
+	for (UPrimitiveComponent* Marker : ProvinceMarkers)
 	{
 		if (Marker)
 		{
-			Marker->SetVisibility(bVisible, true);
+			Marker->SetVisibility(false, true);
+			Marker->SetHiddenInGame(false, true);
 			Marker->SetCollisionEnabled(bVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
 	}
@@ -3383,11 +2815,12 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		SettlementMesh->SetVisibility(bActive, true);
 		SettlementMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
-	for (UStaticMeshComponent* Marker : ProvinceMarkers)
+	for (UPrimitiveComponent* Marker : ProvinceMarkers)
 	{
 		if (Marker)
 		{
-			Marker->SetVisibility(bActive, true);
+			Marker->SetVisibility(false, true);
+			Marker->SetHiddenInGame(false, true);
 			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
 	}
