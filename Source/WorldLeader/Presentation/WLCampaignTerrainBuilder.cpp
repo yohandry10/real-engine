@@ -85,11 +85,9 @@ namespace
 						continue;
 					}
 
-					const EWLVisualBiome Biome = bCoreCountry
-						? EWLVisualBiome::Context
-						: FWLCampaignVisualStyle::ClassifyVisualBiome(Center.X, Center.Y, bCoreCountry);
+					const EWLVisualBiome Biome = FWLCampaignVisualStyle::ClassifyVisualBiome(Center.X, Center.Y, bCoreCountry);
 					FTerrainSectionBuffer& Buffer = Buffers[static_cast<int32>(Biome)];
-					const float ZOffset = bCoreCountry ? 145.f : FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, bCoreCountry);
+					const float ZOffset = FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, bCoreCountry);
 					const int32 Base = Buffer.Verts.Num();
 					FVector A = ProjectLonLat(Lon, Lat);
 					FVector B = ProjectLonLat(Lon + CellDegrees, Lat);
@@ -108,7 +106,11 @@ namespace
 					Buffer.UVs.Add(FVector2D(1.f, 0.f));
 					Buffer.UVs.Add(FVector2D(1.f, 1.f));
 					Buffer.UVs.Add(FVector2D(0.f, 1.f));
-					const FLinearColor CellBaseColor = Color;
+					// Para paises "teatro" pintamos por bioma (geografia); el contexto
+					// conserva su tono plano de pais.
+					const FLinearColor CellBaseColor = bCoreCountry
+						? FWLCampaignVisualStyle::VisualBiomeColor(Biome)
+						: Color;
 					Buffer.Colors.Add(FWLCampaignVisualStyle::ToVertexFColor(FWLCampaignVisualStyle::ShadeTerrainVertex(CellBaseColor, Lon, Lat, A.Z)));
 					Buffer.Colors.Add(FWLCampaignVisualStyle::ToVertexFColor(FWLCampaignVisualStyle::ShadeTerrainVertex(CellBaseColor, Lon + CellDegrees, Lat, B.Z)));
 					Buffer.Colors.Add(FWLCampaignVisualStyle::ToVertexFColor(FWLCampaignVisualStyle::ShadeTerrainVertex(CellBaseColor, Lon + CellDegrees, Lat + CellDegrees, C.Z)));

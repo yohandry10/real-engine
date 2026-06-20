@@ -9,35 +9,54 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 		return EWLVisualBiome::Context;
 	}
 
-	const bool bAndes = Lon < -71.4f && Lon > -77.2f && Lat < 11.6f;
-	const bool bCaribbeanCoast = Lat > 9.8f;
-	const bool bGuajiraDry = Lon < -71.0f && Lon > -74.3f && Lat > 10.1f;
-	const bool bAmazonOrGuiana = Lat < 6.4f || (Lon > -67.0f && Lat < 8.4f);
-	const bool bLlanos = Lon > -72.6f && Lon < -64.0f && Lat >= 6.1f && Lat < 9.9f;
-	const bool bUrbanCorridor = (Lon < -73.2f && Lon > -76.2f && Lat > 4.1f && Lat < 7.0f)
-		|| (Lon > -69.0f && Lon < -66.1f && Lat > 9.7f && Lat < 10.8f);
+	// Modelo continental: clasificamos por geografia real respecto a la cresta de los
+	// Andes del norte (no por rangos fijos CO/VE). Asi cada pais "teatro" recibe biomas
+	// coherentes: Andes (montana), vertiente del Pacifico (costa), Caribe (costa),
+	// llanos del Orinoco (sabana) y Amazonia/escudo guayanes (jungla).
+	auto AndesCrestLon = [](float L) -> float
+	{
+		const float Lats[] = { 11.0f, 9.0f, 7.0f, 5.0f, 2.5f, 0.0f, -2.5f, -5.5f };
+		const float Lons[] = { -72.0f, -71.0f, -73.0f, -74.6f, -76.3f, -78.4f, -79.0f, -79.4f };
+		const int32 N = 8;
+		if (L >= Lats[0]) return Lons[0];
+		if (L <= Lats[N - 1]) return Lons[N - 1];
+		for (int32 i = 0; i < N - 1; ++i)
+		{
+			if (L <= Lats[i] && L >= Lats[i + 1])
+			{
+				const float T = (L - Lats[i + 1]) / (Lats[i] - Lats[i + 1]);
+				return FMath::Lerp(Lons[i + 1], Lons[i], T);
+			}
+		}
+		return Lons[N - 1];
+	};
 
-	if (bUrbanCorridor)
-	{
-		return EWLVisualBiome::UrbanInfluence;
-	}
-	if (bAndes)
-	{
-		return EWLVisualBiome::Mountain;
-	}
-	if (bGuajiraDry || bCaribbeanCoast)
+	// Costa del Caribe (borde norte).
+	if (Lat > 9.7f && Lon > -73.5f)
 	{
 		return EWLVisualBiome::Coast;
 	}
-	if (bLlanos)
+
+	const float CrestLon = AndesCrestLon(Lat);
+	const float DeltaToAndes = Lon - CrestLon; // <0 al oeste (Pacifico), >0 al este
+	// Banda andina ancha en CO/VE (varias cordilleras) y estrecha en Ecuador.
+	const float AndesBand = Lat > 2.f
+		? 1.6f
+		: (Lat > -1.f ? FMath::Lerp(0.85f, 1.6f, (Lat + 1.f) / 3.f) : 0.85f);
+
+	if (FMath::Abs(DeltaToAndes) <= AndesBand)
 	{
-		return EWLVisualBiome::Llanos;
+		return EWLVisualBiome::Mountain;
 	}
-	if (bAmazonOrGuiana)
+	if (DeltaToAndes < 0.f)
 	{
-		return EWLVisualBiome::Jungle;
+		return EWLVisualBiome::Coast; // vertiente del Pacifico
 	}
-	return EWLVisualBiome::Jungle;
+	if (Lat >= 4.f && Lat < 9.7f && Lon < -64.f)
+	{
+		return EWLVisualBiome::Llanos; // llanos del Orinoco
+	}
+	return EWLVisualBiome::Jungle; // Amazonia / escudo guayanes
 }
 
 FLinearColor FWLCampaignVisualStyle::VisualBiomeColor(EWLVisualBiome Biome)
@@ -45,13 +64,13 @@ FLinearColor FWLCampaignVisualStyle::VisualBiomeColor(EWLVisualBiome Biome)
 	switch (Biome)
 	{
 	case EWLVisualBiome::Coast:
-		return FLinearColor(0.50f, 0.40f, 0.20f);
+		return FLinearColor(0.540f, 0.490f, 0.320f);  // costa / arena (Pacifico y Caribe)
 	case EWLVisualBiome::Jungle:
-		return FLinearColor(0.025f, 0.230f, 0.070f);
+		return FLinearColor(0.050f, 0.235f, 0.085f);  // Amazonia / selva
 	case EWLVisualBiome::Llanos:
-		return FLinearColor(0.285f, 0.300f, 0.105f);
+		return FLinearColor(0.340f, 0.370f, 0.155f);  // sabana / llanos
 	case EWLVisualBiome::Mountain:
-		return FLinearColor(0.385f, 0.330f, 0.215f);
+		return FLinearColor(0.400f, 0.345f, 0.255f);  // Andes
 	case EWLVisualBiome::UrbanInfluence:
 		return FLinearColor(0.300f, 0.285f, 0.205f);
 	default:
