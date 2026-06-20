@@ -563,10 +563,10 @@ void UWLCampaignTerritoryLayerComponent::BuildCountryBordersAndHitProxies(
 				WorldRing.Add(ProjectLonLat(LonLat.X, LonLat.Y) + FVector(0.f, 0.f, 1550.f));
 			}
 
-			for (int32 Index = 0; Index < WorldRing.Num(); ++Index)
-			{
-				AddRibbon(BorderBuffer, WorldRing[Index], WorldRing[(Index + 1) % WorldRing.Num()], 720.f, FLinearColor(0.48f, 0.44f, 0.31f, 1.f));
-			}
+			// El contorno de pais lo dibuja el BoundaryMesh del terreno (anillo completo,
+			// recortado a la region -> linea unica y limpia). Aqui ya no trazamos un borde
+			// nacional para no duplicar la linea ni generar segmentos que cruzan el oceano
+			// (el anillo simplificado + segmento de cierre los producia).
 
 			if (HitMesh)
 			{
