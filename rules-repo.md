@@ -171,16 +171,77 @@ Reglas C++:
 Para cambios C++:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" WorldLeaderEditor Win64 Development -Project="C:\Users\PC\Desktop\rome-actual\WorldLeader.uproject" -WaitMutex -FromMsBuild
+$uproject = Resolve-Path 'WorldLeader.uproject'
+$build = 'C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat'
+
+Get-Process UnrealEditor -ErrorAction SilentlyContinue | Stop-Process -Force
+& $build WorldLeaderEditor Win64 Development -Project="$uproject" -WaitMutex -NoHotReloadFromIDE
+```
+
+Ejecutar siempre desde PowerShell en la raiz del repo
+(`C:\Users\PC\Desktop\rome-actual`). No invocar UBT mezclando `cmd`, cadenas raras
+o wrappers improvisados.
+
+Regla practica de diagnostico:
+
+- Cerrar Unreal antes de compilar. Si Live Coding esta bloqueando DLLs, tambien cerrarlo.
+- Correr `Build.bat` normal desde la raiz del repo.
+- Si falla antes de entrar a UHT/C++, no asumir que es codigo: tratarlo como problema de
+  entorno, permisos, caches o procesos bloqueando.
+- Si aparecen `0xE0434352`, `Trace.uba`, `AppData`, `Zen` o `UnrealBuildTool` antes del
+  primer error real de C++/UHT, clasificarlo como problema de entorno y resolver eso antes
+  de tocar codigo.
+- Si falla dentro de UHT/C++, leer el primer error real y corregir ese punto.
+
+Para levantar Campaign 3D en Standalone desde consola, usar siempre
+`UnrealEditor.exe -game` con el GameMode de campania y auto-iniciar una nacion:
+
+```powershell
+$p = Start-Process -FilePath "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" `
+  -ArgumentList @(
+    "C:\Users\PC\Desktop\rome-actual\WorldLeader.uproject",
+    "/Engine/Maps/Entry?game=/Script/WorldLeader.WLCampaignGameMode",
+    "-game",
+    "-windowed",
+    "-ResX=1600",
+    "-ResY=900",
+    "-WLAutoStart=CO",
+    "-log"
+  ) -PassThru
+$p.Id
+```
+
+Para abrir directamente la vista America en Standalone, agregar `-WLAmericaView` a los
+argumentos:
+
+```powershell
+"-WLAmericaView"
+```
+
+Comandos de verificacion rapida despues de levantar Standalone:
+
+- Probar `+`: debe acercar, bajando la altura de camara.
+- Probar `-`: debe alejar, subiendo la altura de camara.
+- Probar `[G] America`: debe mostrar America completa.
+- Probar `[F] Teatro`: debe volver al teatro Colombia/Venezuela.
+- Si hay panel contextual abierto, la `X` debe cerrarlo sin seleccionar el mapa detras.
+- Revisar logs con:
+
+```powershell
+rg -n "Campaign3D zoom|panel closed|selected territory|selected city|selected force" Saved/Logs/WorldLeader.log
 ```
 
 Para cambios visuales:
 
-- En este repo, usar Standalone Game como regla para validar gameplay/UI runtime.
+- En este repo, usar Standalone Game lanzado con `UnrealEditor.exe -game` como regla
+  para validar gameplay/UI runtime.
 - No aceptar capturas del editor, del viewport con paneles, ni del escritorio como evidencia final.
 - Capturar evidencia visual.
 - Verificar que no haya paneles del editor tapando el resultado.
 - Si el cambio empeora la lectura visual, revertir o ajustar antes de cerrar.
+- Regla permanente: cambio que se hace, cambio que se valida contra los criterios de rechazo
+  aplicables antes de continuar con mas cambios. Si no hay evidencia runtime/visual suficiente,
+  no declarar exito ni avanzar a otro lote; dejar el estado como no validado o bloqueado.
 - Regla permanente del proyecto: despues de cada cambio relevante, revisar el diff/estado,
   compilar y validar el resultado en runtime. Para Campaign 3D, la validacion aceptable es
   Standalone Game con zoom, pan y controles basicos probados.

@@ -14,7 +14,7 @@ struct FWLCampaignOverviewBuildParams
 	float BorderZ = 360.f;
 	float BorderWidth = 520.f;
 	float CityZ = 720.f;
-	float CityMarkerSize = 1450.f;
+	float CityMarkerSize = 0.f;
 };
 
 struct FWLCampaignOverviewLabelSpec

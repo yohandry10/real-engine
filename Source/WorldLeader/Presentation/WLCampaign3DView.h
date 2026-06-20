@@ -198,7 +198,7 @@ private:
 	UPROPERTY() UInstancedStaticMeshComponent* BrushInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* PortInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* ArmyMarkerInstances = nullptr;
-	UPROPERTY() TArray<UStaticMeshComponent*> ProvinceMarkers;
+	UPROPERTY() TArray<UPrimitiveComponent*> ProvinceMarkers;
 	UPROPERTY() TArray<UPrimitiveComponent*> CitySelectionMarkers;
 	UPROPERTY() TArray<UStaticMeshComponent*> ForceMarkerComponents;
 	UPROPERTY() TArray<UPrimitiveComponent*> ForceSelectionMarkers;
@@ -249,11 +249,9 @@ private:
 	void BuildOverviewLayer();
 	void BuildTerrain();
 	void BuildCampaignVisualLayer();
-	void AddCountryTerrain(const TArray<TArray<FVector2D>>& Rings, const FLinearColor& Color, bool bCoreCountry);
 	void AddTerrainPatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);
 	void AddPolylineSegment(const FVector& Start, const FVector& End, const FLinearColor& Color, float RadiusScale);
 	void AddCoastline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale);
-	void AddBoundaryRibbon(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float WidthWorld, float ZOffset);
 	void AddPathPolyline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale, float ZOffset);
 	void AddBiomePatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);
 	void AddSettlementCluster(
