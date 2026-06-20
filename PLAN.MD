@@ -15,8 +15,9 @@ Leyenda: [x] hecho · [~] parcial · [ ] pendiente
 - [ ] **Modelo de datos único para "teatro detallado".** No hecho. Sigue todo hardcodeado: `FWLCampaignRegionGeometry::IsTheaterIso()` = solo CO/VE, y las ciudades CO/VE están a mano en `BuildCampaignVisualLayer()`. `Provinces.json` solo tiene 5 provincias (VE-ZU, VE-BO, VE-DC, CO-GUA, CO-DC).
 - [x] **CO/VE funcionando (referencia de no-regresión).** Se ven y seleccionan. Ver "Receta CO/VE" abajo. **NO TOCAR.**
 - [~] **Lote 1: Andes norte (EC/PE/BO).** EN CURSO.
-  - [~] **Ecuador**: EC → core (`IsTheaterIso`) ⇒ malla fina + borde dorado + relieve en zoom Region. Label "ECUADOR" + 8 ciudades (Quito capital, Guayaquil/Manta/Machala puertos, Cuenca/Ambato/Santo Domingo, Loja frontera). Pendiente para EC: biomas propios (costa Pacífico/Andes/Amazonía — hoy `ClassifyVisualBiome` es CO/VE-only y EC sale verde uniforme), regiones internas seleccionables y fuerzas. CO/VE sin cambios.
-  - [ ] Perú (PE) · [ ] Bolivia (BO).
+  - [x] **Ecuador**: EC → core (`IsTheaterIso`) ⇒ malla fina + borde dorado + relieve. Label "ECUADOR" + 8 ciudades. **Verificado por el usuario ("se ve perfecto").** Pendiente menor: regiones internas seleccionables + fuerzas para EC.
+  - [ ] **Perú (PE)** · [ ] **Bolivia (BO)**. NOTA: PE/BO se extienden al sur (Lat ~-18/-22) y el bounds del teatro hoy corta en `RegionMinLat=-5.2`. Antes de PE/BO hay que **expandir el bounds del teatro hacia el sur** (y revisar encuadre de cámara). Es un paso un poco mayor que Ecuador (que cabía en el bounds actual).
+- [x] **Estilos visuales por geografía (v1).** `ClassifyVisualBiome` ahora es continental (cresta de los Andes por latitud) y el terreno **sí pinta** por bioma + relieve: Andes (marrón), costa Pacífico/Caribe (arena), llanos (sabana), Amazonía (verde). Pendiente para el sur: biomas desierto costero (Perú/Atacama), altiplano andino, pampas, Patagonia, Chaco, Atlántico brasileño.
 - [ ] Lote 2 Brasil · [ ] Lote 3 Cono Sur · [ ] Lote 4 Centroamérica+México · [ ] Lote 5 Caribe · [ ] Lote 6 EEUU.
 - [~] **Labels/selección por zoom.** Estándar país↔ciudad implementado en el overview (Global=países, Region=ciudades; commit `a561396`). Falta escalarlo dentro del teatro y por región nueva.
 - [ ] **Unificar LOD/cámara (una sola fuente de verdad).** Pendiente; revisar mezcla Teatro vs Global de TerritoryLayer.
