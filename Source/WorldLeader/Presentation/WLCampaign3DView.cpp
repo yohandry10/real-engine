@@ -1543,6 +1543,13 @@ void AWLCampaign3DView::AddCoastline(const TArray<FVector2D>& LonLatPoints, cons
 
 void AWLCampaign3DView::BuildCampaignVisualLayer()
 {
+	// Geometria de tierra para empujar las ciudades costeras hacia el interior
+	// (evita que los marcadores queden sobre la costa/el mar).
+	SettlementLandGeometry.Reset();
+	FWLCampaignRegionGeometry::LoadCountries(
+		RegionMinLon - 3.f, RegionMaxLon + 3.f, RegionMinLat - 3.f, RegionMaxLat + 3.f,
+		SettlementLandGeometry);
+
 	AddBiomePatch({
 		FVector2D(-72.05f, 10.92f),
 		FVector2D(-71.52f, 10.74f),
@@ -1708,6 +1715,54 @@ void AWLCampaign3DView::AddBiomePatch(const TArray<FVector2D>& LonLatPoints, con
 	AddTerrainPatch(LonLatPoints, Color, ZOffset);
 }
 
+FVector2D AWLCampaign3DView::NudgeSettlementToLand(float Lon, float Lat) const
+{
+	if (SettlementLandGeometry.Num() == 0)
+	{
+		return FVector2D(Lon, Lat);
+	}
+
+	auto IsLand = [this](float L, float T) -> bool
+	{
+		for (const FWLRegionalCountryGeometry& Country : SettlementLandGeometry)
+		{
+			if (FWLCampaignRegionGeometry::PointInAnyLonLatRing(FVector2D(L, T), Country.Rings))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	// Muestreamos 8 direcciones; si la ciudad esta junto a la costa, parte de las
+	// muestras caen en el mar y el vector resultante apunta tierra adentro.
+	const float Probe = 0.45f;
+	static const FVector2D Dirs[8] = {
+		FVector2D(1.f, 0.f), FVector2D(-1.f, 0.f), FVector2D(0.f, 1.f), FVector2D(0.f, -1.f),
+		FVector2D(0.707f, 0.707f), FVector2D(-0.707f, 0.707f), FVector2D(0.707f, -0.707f), FVector2D(-0.707f, -0.707f)
+	};
+	FVector2D LandDir(0.f, 0.f);
+	int32 LandHits = 0;
+	for (const FVector2D& Dir : Dirs)
+	{
+		if (IsLand(Lon + Dir.X * Probe, Lat + Dir.Y * Probe))
+		{
+			LandDir += Dir;
+			++LandHits;
+		}
+	}
+
+	// Interior (rodeada de tierra) o sin datos: no mover.
+	if (LandHits == 0 || LandHits >= 7 || LandDir.IsNearlyZero())
+	{
+		return FVector2D(Lon, Lat);
+	}
+
+	LandDir.Normalize();
+	const float Step = 0.38f;
+	return FVector2D(Lon + LandDir.X * Step, Lat + LandDir.Y * Step);
+}
+
 void AWLCampaign3DView::AddSettlementCluster(
 	const FString& CityId,
 	const FString& Name,
@@ -1719,6 +1774,10 @@ void AWLCampaign3DView::AddSettlementCluster(
 	EWLCampaignSettlementType Type,
 	const FLinearColor& AccentColor)
 {
+	const FVector2D LandLonLat = NudgeSettlementToLand(Lon, Lat);
+	Lon = LandLonLat.X;
+	Lat = LandLonLat.Y;
+
 	FWLCampaignSettlementSpec Spec;
 	Spec.Name = Name;
 	Spec.Lon = Lon;

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/WLGameTypes.h"
+#include "Presentation/WLCampaignRegionGeometry.h"
 #include "Presentation/WLCampaignTerritoryLayerComponent.h"
 #include "GameFramework/Actor.h"
 #include "WLCampaign3DView.generated.h"
@@ -228,6 +229,7 @@ private:
 	FVector DefaultCameraLocation = FVector::ZeroVector;
 	FRotator DefaultCameraRotation = FRotator::ZeroRotator;
 	EWLCampaign3DZoomLOD CurrentZoomLOD = EWLCampaign3DZoomLOD::Theater;
+	TArray<FWLRegionalCountryGeometry> SettlementLandGeometry;
 	FString SelectedProvinceHighlightId;
 	FString SelectedCityHighlightId;
 	FString SelectedForceHighlightId;
@@ -249,6 +251,7 @@ private:
 	void BuildOverviewLayer();
 	void BuildTerrain();
 	void BuildCampaignVisualLayer();
+	FVector2D NudgeSettlementToLand(float Lon, float Lat) const;
 	void AddTerrainPatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);
 	void AddPolylineSegment(const FVector& Start, const FVector& End, const FLinearColor& Color, float RadiusScale);
 	void AddCoastline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale);
