@@ -16,7 +16,8 @@ Leyenda: [x] hecho · [~] parcial · [ ] pendiente
 - [x] **CO/VE funcionando (referencia de no-regresión).** Se ven y seleccionan. Ver "Receta CO/VE" abajo. **NO TOCAR.**
 - [~] **Lote 1: Andes norte (EC/PE/BO).** EN CURSO.
   - [x] **Ecuador**: EC → core (`IsTheaterIso`) ⇒ malla fina + borde dorado + relieve. Label "ECUADOR" + 8 ciudades. **Verificado por el usuario ("se ve perfecto").** Pendiente menor: regiones internas seleccionables + fuerzas para EC.
-  - [ ] **Perú (PE)** · [ ] **Bolivia (BO)**. NOTA: PE/BO se extienden al sur (Lat ~-18/-22) y el bounds del teatro hoy corta en `RegionMinLat=-5.2`. Antes de PE/BO hay que **expandir el bounds del teatro hacia el sur** (y revisar encuadre de cámara). Es un paso un poco mayor que Ecuador (que cabía en el bounds actual).
+  - [x] **Perú (PE)**: `RegionMinLat` expandido a -19, cresta andina extendida al sur (banda altiplano), PE → core, label "PERU" + 8 ciudades (Lima, Trujillo, Chiclayo, Piura, Arequipa, Cusco, Iquitos, Puno). Biomas heredados (costa desértica/Andes/Amazonía). **Verificado por el usuario.** Cámara/foco de CO/VE sin cambio.
+  - [ ] **Bolivia (BO)**: faltaría expandir bounds a ~-23, extender cresta + altiplano, BO → core, ciudades (La Paz, Santa Cruz, Cochabamba, Sucre, Potosí, Oruro). Cierra el Lote 1.
 - [x] **Estilos visuales por geografía (v1).** `ClassifyVisualBiome` ahora es continental (cresta de los Andes por latitud) y el terreno **sí pinta** por bioma + relieve: Andes (marrón), costa Pacífico/Caribe (arena), llanos (sabana), Amazonía (verde). Pendiente para el sur: biomas desierto costero (Perú/Atacama), altiplano andino, pampas, Patagonia, Chaco, Atlántico brasileño.
 - [ ] Lote 2 Brasil · [ ] Lote 3 Cono Sur · [ ] Lote 4 Centroamérica+México · [ ] Lote 5 Caribe · [ ] Lote 6 EEUU.
 - [~] **Labels/selección por zoom.** Estándar país↔ciudad implementado en el overview (Global=países, Region=ciudades; commit `a561396`). Falta escalarlo dentro del teatro y por región nueva.

@@ -15,9 +15,9 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 	// llanos del Orinoco (sabana) y Amazonia/escudo guayanes (jungla).
 	auto AndesCrestLon = [](float L) -> float
 	{
-		const float Lats[] = { 11.0f, 9.0f, 7.0f, 5.0f, 2.5f, 0.0f, -2.5f, -5.5f };
-		const float Lons[] = { -72.0f, -71.0f, -73.0f, -74.6f, -76.3f, -78.4f, -79.0f, -79.4f };
-		const int32 N = 8;
+		const float Lats[] = { 11.0f, 9.0f, 7.0f, 5.0f, 2.5f, 0.0f, -2.5f, -5.5f, -8.0f, -11.0f, -14.0f, -16.5f, -19.0f };
+		const float Lons[] = { -72.0f, -71.0f, -73.0f, -74.6f, -76.3f, -78.4f, -79.0f, -79.4f, -77.8f, -76.3f, -73.0f, -71.0f, -69.6f };
+		const int32 N = 13;
 		if (L >= Lats[0]) return Lons[0];
 		if (L <= Lats[N - 1]) return Lons[N - 1];
 		for (int32 i = 0; i < N - 1; ++i)
@@ -39,10 +39,25 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 
 	const float CrestLon = AndesCrestLon(Lat);
 	const float DeltaToAndes = Lon - CrestLon; // <0 al oeste (Pacifico), >0 al este
-	// Banda andina ancha en CO/VE (varias cordilleras) y estrecha en Ecuador.
-	const float AndesBand = Lat > 2.f
-		? 1.6f
-		: (Lat > -1.f ? FMath::Lerp(0.85f, 1.6f, (Lat + 1.f) / 3.f) : 0.85f);
+	// Banda andina: ancha en CO/VE (varias cordilleras), estrecha en Ecuador y ancha
+	// otra vez hacia el sur (altiplano peruano-boliviano).
+	float AndesBand;
+	if (Lat > 2.f)
+	{
+		AndesBand = 1.6f;
+	}
+	else if (Lat > -1.f)
+	{
+		AndesBand = FMath::Lerp(0.9f, 1.6f, (Lat + 1.f) / 3.f);
+	}
+	else if (Lat > -6.f)
+	{
+		AndesBand = 0.9f;
+	}
+	else
+	{
+		AndesBand = FMath::Min(1.8f, 0.9f + (-6.f - Lat) * 0.07f);
+	}
 
 	if (FMath::Abs(DeltaToAndes) <= AndesBand)
 	{
