@@ -22,7 +22,12 @@ class WORLDLEADER_API AWLCampaignHUD : public AHUD
 public:
 	virtual void DrawHUD() override;
 
+	/** Tamano del Canvas usado en el ultimo DrawHUD (espacio de dibujo del HUD). */
+	FVector2D GetLastCanvasSize() const { return LastCanvasSize; }
+
 private:
 	UWLDataRegistry* GetRegistry() const;
 	UWLStrategicTickSubsystem* GetTick() const;
+
+	FVector2D LastCanvasSize = FVector2D::ZeroVector;
 };

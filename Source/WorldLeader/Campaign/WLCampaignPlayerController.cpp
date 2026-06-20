@@ -8,6 +8,7 @@
 #include "Economy/WLEconomyLibrary.h"
 #include "Map/WLWorldMap.h"
 #include "Presentation/WLCampaign3DView.h"
+#include "UI/WLCampaignHUD.h"
 #include "UI/WLCampaignSelectionPanelData.h"
 #include "UI/WLMainMenuWidget.h"
 #include "WorldLeader.h"
@@ -826,10 +827,11 @@ void AWLCampaignPlayerController::ShowDiplomacyMapView()
 
 bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 {
-	int32 ViewportX = 0;
-	int32 ViewportY = 0;
-	GetViewportSize(ViewportX, ViewportY);
-	if (ViewportX <= 0 || ViewportY <= 0)
+	float ViewportX = 0.f;
+	float ViewportY = 0.f;
+	float OffsetX = 0.f;
+	float OffsetY = 0.f;
+	if (!GetCampaignCanvasMetrics(ViewportX, ViewportY, OffsetX, OffsetY))
 	{
 		return false;
 	}
@@ -841,10 +843,14 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 		return false;
 	}
 
+	// Convertimos el cursor de espacio viewport a espacio Canvas restando el letterbox.
+	MouseX -= OffsetX;
+	MouseY -= OffsetY;
+
 	const float Y = 58.f;
 	const float Height = 38.f;
-	const float CampaignX = static_cast<float>(ViewportX) - 386.f;
-	const float DiplomacyX = static_cast<float>(ViewportX) - 210.f;
+	const float CampaignX = ViewportX - 386.f;
+	const float DiplomacyX = ViewportX - 210.f;
 	const float Width = 158.f;
 	const float TopButtonPaddingY = 12.f;
 	const float TopButtonBottomPaddingY = 12.f;
@@ -880,7 +886,7 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 		const float HitPaddingBottomY = 12.f;
 		const float ZoomW = 44.f;
 		const float Gap = 8.f;
-		const float ZoomInX = static_cast<float>(ViewportX) - 444.f;
+		const float ZoomInX = ViewportX - 444.f;
 		const float ZoomOutX = ZoomInX + ZoomW + Gap;
 		const float ResetX = ZoomOutX + ZoomW + Gap;
 		const float ResetW = 84.f;
@@ -926,10 +932,11 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 		return false;
 	}
 
-	int32 ViewportX = 0;
-	int32 ViewportY = 0;
-	GetViewportSize(ViewportX, ViewportY);
-	if (ViewportX <= 0 || ViewportY <= 0)
+	float ViewportX = 0.f;
+	float ViewportY = 0.f;
+	float OffsetX = 0.f;
+	float OffsetY = 0.f;
+	if (!GetCampaignCanvasMetrics(ViewportX, ViewportY, OffsetX, OffsetY))
 	{
 		return false;
 	}
@@ -941,10 +948,14 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 		return false;
 	}
 
+	// Convertimos el cursor de espacio viewport a espacio Canvas restando el letterbox.
+	MouseX -= OffsetX;
+	MouseY -= OffsetY;
+
 	const float PanelW = 430.f;
-	const float PanelX = static_cast<float>(ViewportX) - 468.f;
+	const float PanelX = ViewportX - 468.f;
 	const float PanelY = 154.f;
-	const float PanelH = FMath::Clamp(static_cast<float>(ViewportY) - PanelY - 54.f, 360.f, 690.f);
+	const float PanelH = FMath::Clamp(ViewportY - PanelY - 54.f, 360.f, 690.f);
 	const bool bInPanel = MouseX >= PanelX && MouseX <= PanelX + PanelW && MouseY >= PanelY && MouseY <= PanelY + PanelH;
 	if (!bInPanel)
 	{
@@ -1508,7 +1519,7 @@ bool AWLCampaignPlayerController::GetCampaignZoomAnchor(FVector& OutAnchor, FVec
 	return GetCampaignGroundPointFromScreen(OutScreenPoint.X, OutScreenPoint.Y, OutAnchor);
 }
 
-bool AWLCampaignPlayerController::IsScreenPointOverCampaignHud(float ScreenX, float ScreenY)
+bool AWLCampaignPlayerController::GetCampaignCanvasMetrics(float& OutWidth, float& OutHeight, float& OutOffsetX, float& OutOffsetY) const
 {
 	int32 ViewportX = 0;
 	int32 ViewportY = 0;
@@ -1518,7 +1529,48 @@ bool AWLCampaignPlayerController::IsScreenPointOverCampaignHud(float ScreenX, fl
 		return false;
 	}
 
-	if (ScreenY <= 156.f || ScreenY >= static_cast<float>(ViewportY) - 56.f)
+	// Por defecto, Canvas == viewport (sin letterbox).
+	OutWidth = static_cast<float>(ViewportX);
+	OutHeight = static_cast<float>(ViewportY);
+	OutOffsetX = 0.f;
+	OutOffsetY = 0.f;
+
+	// El Canvas del HUD es el rect de la vista, que puede estar centrado/letterboxed
+	// dentro del viewport cuando la camara fija el aspect ratio (p.ej. 16:9). El cursor
+	// llega en espacio viewport; para pasarlo a espacio Canvas restamos el origen del
+	// rect de vista (las barras de letterbox), NO escalamos: el pixel del Canvas es el
+	// mismo pixel del viewport, solo desplazado.
+	if (const AWLCampaignHUD* CampaignHud = Cast<AWLCampaignHUD>(GetHUD()))
+	{
+		const FVector2D CanvasSize = CampaignHud->GetLastCanvasSize();
+		if (CanvasSize.X > 0.f && CanvasSize.Y > 0.f)
+		{
+			OutWidth = CanvasSize.X;
+			OutHeight = CanvasSize.Y;
+			OutOffsetX = (static_cast<float>(ViewportX) - CanvasSize.X) * 0.5f;
+			OutOffsetY = (static_cast<float>(ViewportY) - CanvasSize.Y) * 0.5f;
+		}
+	}
+	return true;
+}
+
+bool AWLCampaignPlayerController::IsScreenPointOverCampaignHud(float ScreenX, float ScreenY)
+{
+	float W = 0.f;
+	float H = 0.f;
+	float OffsetX = 0.f;
+	float OffsetY = 0.f;
+	if (!GetCampaignCanvasMetrics(W, H, OffsetX, OffsetY))
+	{
+		return false;
+	}
+
+	// ScreenX/ScreenY llegan en espacio de mouse/viewport; los convertimos al
+	// espacio de Canvas restando el letterbox para compararlos con el layout del HUD.
+	ScreenX -= OffsetX;
+	ScreenY -= OffsetY;
+
+	if (ScreenY <= 156.f || ScreenY >= H - 56.f)
 	{
 		return true;
 	}
@@ -1526,16 +1578,16 @@ bool AWLCampaignPlayerController::IsScreenPointOverCampaignHud(float ScreenX, fl
 	if (ActivePresentationMode == EWLCampaignPresentationMode::Campaign3D && HasCampaignSelectionPanel())
 	{
 		const float PanelW = 430.f;
-		const float PanelX = static_cast<float>(ViewportX) - 468.f;
+		const float PanelX = W - 468.f;
 		const float PanelY = 154.f;
-		const float PanelH = FMath::Clamp(static_cast<float>(ViewportY) - PanelY - 54.f, 360.f, 690.f);
+		const float PanelH = FMath::Clamp(H - PanelY - 54.f, 360.f, 690.f);
 		if (ScreenX >= PanelX && ScreenX <= PanelX + PanelW && ScreenY >= PanelY && ScreenY <= PanelY + PanelH)
 		{
 			return true;
 		}
 	}
 
-	return ScreenX >= static_cast<float>(ViewportX) - 480.f && ScreenY <= 190.f;
+	return ScreenX >= W - 480.f && ScreenY <= 190.f;
 }
 
 void AWLCampaignPlayerController::ClampCampaignCameraLocation(FVector& Location) const

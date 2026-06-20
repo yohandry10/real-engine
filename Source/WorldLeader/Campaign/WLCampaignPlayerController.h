@@ -172,6 +172,7 @@ private:
 	bool GetCampaignGroundPointFromScreen(float ScreenX, float ScreenY, FVector& OutWorldPoint);
 	bool GetCampaignZoomAnchor(FVector& OutAnchor, FVector2D& OutScreenPoint);
 	bool IsScreenPointOverCampaignHud(float ScreenX, float ScreenY);
+	bool GetCampaignCanvasMetrics(float& OutWidth, float& OutHeight, float& OutOffsetX, float& OutOffsetY) const;
 	void ClampCampaignCameraLocation(FVector& Location) const;
 	bool HandleCampaignInputKey(const FInputKeyEventArgs& Params);
 	void CacheWorldMap();

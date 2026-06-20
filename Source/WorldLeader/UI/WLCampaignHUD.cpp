@@ -671,6 +671,14 @@ void AWLCampaignHUD::DrawHUD()
 {
 	Super::DrawHUD();
 
+	if (Canvas)
+	{
+		// Guardamos el espacio de dibujo real del HUD para que el PlayerController
+		// pueda hacer hit-test de los botones en estas mismas coordenadas (evita el
+		// descuadre entre Canvas y mouse/viewport cuando hay escala DPI/ventana).
+		LastCanvasSize = FVector2D(Canvas->ClipX, Canvas->ClipY);
+	}
+
 	const UWLDataRegistry* Registry = GetRegistry();
 	const UWLStrategicTickSubsystem* Tick = GetTick();
 	const UWLCampaignGameInstance* CampaignGI = Cast<UWLCampaignGameInstance>(UGameplayStatics::GetGameInstance(this));
