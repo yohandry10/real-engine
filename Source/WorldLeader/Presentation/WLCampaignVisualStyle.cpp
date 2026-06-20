@@ -15,9 +15,9 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 	// llanos del Orinoco (sabana) y Amazonia/escudo guayanes (jungla).
 	auto AndesCrestLon = [](float L) -> float
 	{
-		const float Lats[] = { 11.0f, 9.0f, 7.0f, 5.0f, 2.5f, 0.0f, -2.5f, -5.5f, -8.0f, -11.0f, -14.0f, -17.0f, -20.0f, -23.0f };
-		const float Lons[] = { -72.0f, -71.0f, -73.0f, -74.6f, -76.3f, -78.4f, -79.0f, -79.4f, -77.8f, -76.3f, -72.8f, -69.0f, -67.5f, -66.5f };
-		const int32 N = 14;
+		const float Lats[] = { 11.0f, 9.0f, 7.0f, 5.0f, 2.5f, 0.0f, -2.5f, -5.5f, -8.0f, -11.0f, -14.0f, -17.0f, -20.0f, -23.0f, -27.0f, -33.0f, -40.0f, -47.0f, -53.0f, -56.0f };
+		const float Lons[] = { -72.0f, -71.0f, -73.0f, -74.6f, -76.3f, -78.4f, -79.0f, -79.4f, -77.8f, -76.3f, -72.8f, -69.0f, -67.5f, -66.5f, -69.0f, -70.0f, -71.5f, -72.8f, -72.5f, -69.0f };
+		const int32 N = 20;
 		if (L >= Lats[0]) return Lons[0];
 		if (L <= Lats[N - 1]) return Lons[N - 1];
 		for (int32 i = 0; i < N - 1; ++i)
@@ -54,9 +54,17 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 	{
 		AndesBand = 0.9f;
 	}
+	else if (Lat > -28.f)
+	{
+		AndesBand = FMath::Min(2.5f, 0.9f + (-6.f - Lat) * 0.105f); // altiplano peruano-boliviano
+	}
+	else if (Lat > -34.f)
+	{
+		AndesBand = FMath::Lerp(2.5f, 1.2f, (-28.f - Lat) / 6.f); // transicion hacia el sur
+	}
 	else
 	{
-		AndesBand = FMath::Min(2.5f, 0.9f + (-6.f - Lat) * 0.105f);
+		AndesBand = 1.2f; // Andes patagonicos (mas angostos)
 	}
 
 	if (FMath::Abs(DeltaToAndes) <= AndesBand)
@@ -65,7 +73,8 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 	}
 	if (DeltaToAndes < 0.f)
 	{
-		return EWLVisualBiome::Coast; // vertiente del Pacifico
+		// Vertiente del Pacifico: desierto/costa al norte-centro, bosque humedo al sur de Chile.
+		return Lat < -38.f ? EWLVisualBiome::Jungle : EWLVisualBiome::Coast;
 	}
 
 	// Sudamerica oriental (Brasil y tierras bajas del este). Solo Lon > -60, asi que
@@ -75,6 +84,10 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 		if (Lat > -6.f)
 		{
 			return EWLVisualBiome::Jungle; // Amazonia (norte)
+		}
+		if (Lat < -40.f)
+		{
+			return EWLVisualBiome::Coast; // estepa patagonica (atlantica)
 		}
 		if (Lat < -28.f)
 		{
@@ -89,6 +102,12 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 			return EWLVisualBiome::Jungle; // Mata Atlantica (SE/S)
 		}
 		return EWLVisualBiome::Llanos; // cerrado (sabana central)
+	}
+
+	// Este de los Andes, cono sur (Argentina al oeste de -60).
+	if (Lat < -23.f)
+	{
+		return Lat < -40.f ? EWLVisualBiome::Coast : EWLVisualBiome::Llanos; // estepa patagonica / pampa
 	}
 
 	if (Lat >= 4.f && Lat < 9.7f && Lon < -64.f)

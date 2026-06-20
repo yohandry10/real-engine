@@ -1564,7 +1564,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 			return ProjectLonLat(Lon, Lat);
 		});
 
-	const auto AddTheaterCountryLabel = [this](const FString& Text, float Lon, float Lat, const FColor& Color)
+	const auto AddTheaterCountryLabel = [this](const FString& Text, float Lon, float Lat, const FColor& Color, float WorldSize)
 	{
 		UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
 		if (!Label)
@@ -1576,15 +1576,15 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 		Label->SetWorldLocation(ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, 11800.f));
 		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 		Label->SetHorizontalAlignment(EHTA_Center);
-		Label->SetWorldSize(1650.f);
+		Label->SetWorldSize(WorldSize);
 		Label->SetText(FText::FromString(Text));
 		Label->SetTextRenderColor(Color);
 		Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Labels.Add(Label);
 	};
 
-	AddTheaterCountryLabel(TEXT("COLOMBIA"), -74.2f, 5.7f, FColor(232, 206, 126));
-	AddTheaterCountryLabel(TEXT("VENEZUELA"), -66.4f, 7.8f, FColor(232, 206, 126));
+	AddTheaterCountryLabel(TEXT("COLOMBIA"), -74.2f, 5.7f, FColor(232, 206, 126), 3400.f);
+	AddTheaterCountryLabel(TEXT("VENEZUELA"), -66.4f, 7.8f, FColor(232, 206, 126), 3400.f);
 
 	AddSettlementCluster(TEXT("CO-BOGOTA"), TEXT("Bogota"), TEXT("CO"), TEXT("CO-DC"), TEXT("Bogota D.C."), -74.1f, 4.6f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 	AddSettlementCluster(TEXT("CO-MEDELLIN"), TEXT("Medellin"), TEXT("CO"), TEXT("CO-ANT"), TEXT("Antioquia"), -75.58f, 6.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
@@ -1605,7 +1605,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("VE-CIUDAD-GUAYANA"), TEXT("Ciudad Guayana"), TEXT("VE"), TEXT("VE-BO"), TEXT("Bolivar"), -62.6f, 8.3f, EWLCampaignSettlementType::Industrial, FLinearColor(0.62f, 0.54f, 0.36f));
 
 	// Lote 1 (Andes norte) - Ecuador. Mismo pipeline que CO/VE; CO/VE quedan intactos.
-	AddTheaterCountryLabel(TEXT("ECUADOR"), -78.3f, -1.45f, FColor(232, 206, 126));
+	AddTheaterCountryLabel(TEXT("ECUADOR"), -78.3f, -1.45f, FColor(232, 206, 126), 2400.f);
 	AddSettlementCluster(TEXT("EC-QUITO"), TEXT("Quito"), TEXT("EC"), TEXT("EC-PIC"), TEXT("Pichincha"), -78.52f, -0.22f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 	AddSettlementCluster(TEXT("EC-GUAYAQUIL"), TEXT("Guayaquil"), TEXT("EC"), TEXT("EC-GUA"), TEXT("Guayas"), -79.90f, -2.19f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
 	AddSettlementCluster(TEXT("EC-CUENCA"), TEXT("Cuenca"), TEXT("EC"), TEXT("EC-AZU"), TEXT("Azuay"), -79.00f, -2.90f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
@@ -1616,7 +1616,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("EC-LOJA"), TEXT("Loja"), TEXT("EC"), TEXT("EC-LOJ"), TEXT("Loja"), -79.20f, -3.99f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
 
 	// Lote 1 (Andes norte) - Peru.
-	AddTheaterCountryLabel(TEXT("PERU"), -75.5f, -10.0f, FColor(232, 206, 126));
+	AddTheaterCountryLabel(TEXT("PERU"), -75.5f, -10.0f, FColor(232, 206, 126), 4200.f);
 	AddSettlementCluster(TEXT("PE-LIMA"), TEXT("Lima"), TEXT("PE"), TEXT("PE-LIM"), TEXT("Lima"), -77.04f, -12.05f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 	AddSettlementCluster(TEXT("PE-TRUJILLO"), TEXT("Trujillo"), TEXT("PE"), TEXT("PE-LAL"), TEXT("La Libertad"), -79.03f, -8.11f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
 	AddSettlementCluster(TEXT("PE-CHICLAYO"), TEXT("Chiclayo"), TEXT("PE"), TEXT("PE-LAM"), TEXT("Lambayeque"), -79.84f, -6.77f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
@@ -1627,7 +1627,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("PE-PUNO"), TEXT("Puno"), TEXT("PE"), TEXT("PE-PUN"), TEXT("Puno"), -70.02f, -15.84f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
 
 	// Lote 1 (Andes norte) - Bolivia. Mediterranea (sin puertos).
-	AddTheaterCountryLabel(TEXT("BOLIVIA"), -65.0f, -17.4f, FColor(232, 206, 126));
+	AddTheaterCountryLabel(TEXT("BOLIVIA"), -65.0f, -17.4f, FColor(232, 206, 126), 3600.f);
 	AddSettlementCluster(TEXT("BO-LA-PAZ"), TEXT("La Paz"), TEXT("BO"), TEXT("BO-LPZ"), TEXT("La Paz"), -68.15f, -16.50f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 	AddSettlementCluster(TEXT("BO-SANTA-CRUZ"), TEXT("Santa Cruz"), TEXT("BO"), TEXT("BO-SCZ"), TEXT("Santa Cruz"), -63.18f, -17.78f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
 	AddSettlementCluster(TEXT("BO-COCHABAMBA"), TEXT("Cochabamba"), TEXT("BO"), TEXT("BO-CBB"), TEXT("Cochabamba"), -66.16f, -17.39f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
@@ -1637,7 +1637,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("BO-TARIJA"), TEXT("Tarija"), TEXT("BO"), TEXT("BO-TJA"), TEXT("Tarija"), -64.73f, -21.53f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
 
 	// Lote 2 - Brasil.
-	AddTheaterCountryLabel(TEXT("BRASIL"), -50.0f, -10.0f, FColor(232, 206, 126));
+	AddTheaterCountryLabel(TEXT("BRASIL"), -50.0f, -10.0f, FColor(232, 206, 126), 6000.f);
 	AddSettlementCluster(TEXT("BR-BRASILIA"), TEXT("Brasilia"), TEXT("BR"), TEXT("BR-DF"), TEXT("Distrito Federal"), -47.88f, -15.79f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 	AddSettlementCluster(TEXT("BR-SAO-PAULO"), TEXT("Sao Paulo"), TEXT("BR"), TEXT("BR-SP"), TEXT("Sao Paulo"), -46.63f, -23.55f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
 	AddSettlementCluster(TEXT("BR-RIO"), TEXT("Rio de Janeiro"), TEXT("BR"), TEXT("BR-RJ"), TEXT("Rio de Janeiro"), -43.20f, -22.91f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
@@ -1649,6 +1649,35 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("BR-BELEM"), TEXT("Belem"), TEXT("BR"), TEXT("BR-PA"), TEXT("Para"), -48.50f, -1.46f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
 	AddSettlementCluster(TEXT("BR-PORTO-ALEGRE"), TEXT("Porto Alegre"), TEXT("BR"), TEXT("BR-RS"), TEXT("Rio Grande do Sul"), -51.23f, -30.03f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
 	AddSettlementCluster(TEXT("BR-CURITIBA"), TEXT("Curitiba"), TEXT("BR"), TEXT("BR-PR"), TEXT("Parana"), -49.27f, -25.43f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+
+	// Lote 3 - Cono Sur (Argentina, Chile, Uruguay, Paraguay).
+	AddTheaterCountryLabel(TEXT("ARGENTINA"), -65.0f, -38.0f, FColor(232, 206, 126), 6000.f);
+	AddSettlementCluster(TEXT("AR-BUENOS-AIRES"), TEXT("Buenos Aires"), TEXT("AR"), TEXT("AR-BA"), TEXT("Buenos Aires"), -58.38f, -34.60f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("AR-CORDOBA"), TEXT("Cordoba"), TEXT("AR"), TEXT("AR-CB"), TEXT("Cordoba"), -64.18f, -31.42f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("AR-ROSARIO"), TEXT("Rosario"), TEXT("AR"), TEXT("AR-SF"), TEXT("Santa Fe"), -60.64f, -32.95f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("AR-MENDOZA"), TEXT("Mendoza"), TEXT("AR"), TEXT("AR-MZ"), TEXT("Mendoza"), -68.84f, -32.89f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("AR-MAR-DEL-PLATA"), TEXT("Mar del Plata"), TEXT("AR"), TEXT("AR-BAP"), TEXT("Buenos Aires"), -57.55f, -38.00f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("AR-TUCUMAN"), TEXT("Tucuman"), TEXT("AR"), TEXT("AR-TM"), TEXT("Tucuman"), -65.22f, -26.82f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("AR-COMODORO"), TEXT("Comodoro Rivadavia"), TEXT("AR"), TEXT("AR-CT"), TEXT("Chubut"), -67.48f, -45.86f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("AR-USHUAIA"), TEXT("Ushuaia"), TEXT("AR"), TEXT("AR-TF"), TEXT("Tierra del Fuego"), -68.30f, -54.80f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+
+	AddTheaterCountryLabel(TEXT("CHILE"), -72.0f, -38.5f, FColor(232, 206, 126), 2800.f);
+	AddSettlementCluster(TEXT("CL-SANTIAGO"), TEXT("Santiago"), TEXT("CL"), TEXT("CL-RM"), TEXT("Region Metropolitana"), -70.65f, -33.45f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("CL-VALPARAISO"), TEXT("Valparaiso"), TEXT("CL"), TEXT("CL-VS"), TEXT("Valparaiso"), -71.62f, -33.05f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("CL-CONCEPCION"), TEXT("Concepcion"), TEXT("CL"), TEXT("CL-BI"), TEXT("Biobio"), -73.05f, -36.83f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("CL-ANTOFAGASTA"), TEXT("Antofagasta"), TEXT("CL"), TEXT("CL-AN"), TEXT("Antofagasta"), -70.40f, -23.65f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("CL-PUERTO-MONTT"), TEXT("Puerto Montt"), TEXT("CL"), TEXT("CL-LL"), TEXT("Los Lagos"), -72.94f, -41.47f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("CL-PUNTA-ARENAS"), TEXT("Punta Arenas"), TEXT("CL"), TEXT("CL-MA"), TEXT("Magallanes"), -70.92f, -53.16f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+
+	AddTheaterCountryLabel(TEXT("URUGUAY"), -56.0f, -33.0f, FColor(232, 206, 126), 2200.f);
+	AddSettlementCluster(TEXT("UY-MONTEVIDEO"), TEXT("Montevideo"), TEXT("UY"), TEXT("UY-MO"), TEXT("Montevideo"), -56.16f, -34.90f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("UY-SALTO"), TEXT("Salto"), TEXT("UY"), TEXT("UY-SA"), TEXT("Salto"), -57.96f, -31.38f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+	AddSettlementCluster(TEXT("UY-PUNTA-DEL-ESTE"), TEXT("Punta del Este"), TEXT("UY"), TEXT("UY-MA"), TEXT("Maldonado"), -54.95f, -34.97f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+
+	AddTheaterCountryLabel(TEXT("PARAGUAY"), -58.0f, -23.5f, FColor(232, 206, 126), 2800.f);
+	AddSettlementCluster(TEXT("PY-ASUNCION"), TEXT("Asuncion"), TEXT("PY"), TEXT("PY-AS"), TEXT("Central"), -57.64f, -25.30f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("PY-CIUDAD-DEL-ESTE"), TEXT("Ciudad del Este"), TEXT("PY"), TEXT("PY-AP"), TEXT("Alto Parana"), -54.61f, -25.51f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+	AddSettlementCluster(TEXT("PY-ENCARNACION"), TEXT("Encarnacion"), TEXT("PY"), TEXT("PY-IT"), TEXT("Itapua"), -55.87f, -27.33f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
 
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
