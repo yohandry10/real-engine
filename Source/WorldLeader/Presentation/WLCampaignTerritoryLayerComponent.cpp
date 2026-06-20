@@ -3,6 +3,7 @@
 #include "Presentation/WLCampaignTerritoryLayerComponent.h"
 
 #include "Presentation/WLCampaignAmericaLowDetailData.h"
+#include "Presentation/WLCampaignRegionGeometry.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Dom/JsonObject.h"
@@ -621,20 +622,23 @@ void UWLCampaignTerritoryLayerComponent::BuildCountryBordersAndHitProxies(
 				HitMeshes.Add(HitMesh);
 			}
 
-			if (UTextRenderComponent* Label = NewObject<UTextRenderComponent>(GetOwner()))
+			// Los paises "teatro" ya tienen su etiqueta (correctamente orientada) en la
+			// vista; aqui solo etiquetamos los de contexto para no duplicar.
+			if (!FWLCampaignRegionGeometry::IsTheaterIso(Iso))
 			{
-				Label->SetupAttachment(Parent);
-				Label->RegisterComponent();
-				Label->SetWorldLocation(Regions[RegionIndex].View.WorldLocation);
-				Label->SetWorldRotation(FRotator(62.f, 0.f, 0.f));
-				Label->SetHorizontalAlignment(EHTA_Center);
-				Label->SetWorldSize((Iso == TEXT("US") || Iso == TEXT("BR") || Iso == TEXT("CA")) ? 5200.f : 2850.f);
-				Label->SetText(FText::FromString(Name));
-				Label->SetTextRenderColor(Iso == TEXT("CO") || Iso == TEXT("VE")
-					? FColor(220, 188, 98)
-					: FColor(120, 142, 138));
-				Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-				CountryLabels.Add(Label);
+				if (UTextRenderComponent* Label = NewObject<UTextRenderComponent>(GetOwner()))
+				{
+					Label->SetupAttachment(Parent);
+					Label->RegisterComponent();
+					Label->SetWorldLocation(Regions[RegionIndex].View.WorldLocation);
+					Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
+					Label->SetHorizontalAlignment(EHTA_Center);
+					Label->SetWorldSize((Iso == TEXT("US") || Iso == TEXT("BR") || Iso == TEXT("CA")) ? 5200.f : 2850.f);
+					Label->SetText(FText::FromString(Name));
+					Label->SetTextRenderColor(FColor(120, 142, 138));
+					Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+					CountryLabels.Add(Label);
+				}
 			}
 		}
 	}
@@ -779,7 +783,7 @@ void UWLCampaignTerritoryLayerComponent::BuildProvinceRegions(
 			Label->SetupAttachment(Parent);
 			Label->RegisterComponent();
 			Label->SetWorldLocation(Regions[RegionIndex].View.WorldLocation);
-			Label->SetWorldRotation(FRotator(62.f, 0.f, 0.f));
+			Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 			Label->SetHorizontalAlignment(EHTA_Center);
 			Label->SetWorldSize(Regions[RegionIndex].View.bIsCapitalRegion ? 860.f : 640.f);
 			Label->SetText(FText::FromString(Regions[RegionIndex].View.Name));
