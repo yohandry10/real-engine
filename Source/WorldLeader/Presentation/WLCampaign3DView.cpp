@@ -1745,6 +1745,17 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("US-ATLANTA"), TEXT("Atlanta"), TEXT("US"), TEXT("US-GA"), TEXT("Georgia"), -84.39f, 33.75f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
 	AddSettlementCluster(TEXT("US-BOSTON"), TEXT("Boston"), TEXT("US"), TEXT("US-MA"), TEXT("Massachusetts"), -71.06f, 42.36f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
 
+	// Canada.
+	AddTheaterCountryLabel(TEXT("CANADA"), -100.0f, 56.0f, FColor(232, 206, 126), 7000.f);
+	AddSettlementCluster(TEXT("CA-OTTAWA"), TEXT("Ottawa"), TEXT("CA"), TEXT("CA-ON"), TEXT("Ontario"), -75.70f, 45.42f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("CA-TORONTO"), TEXT("Toronto"), TEXT("CA"), TEXT("CA-ONT"), TEXT("Ontario"), -79.38f, 43.65f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("CA-MONTREAL"), TEXT("Montreal"), TEXT("CA"), TEXT("CA-QC"), TEXT("Quebec"), -73.57f, 45.50f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("CA-VANCOUVER"), TEXT("Vancouver"), TEXT("CA"), TEXT("CA-BC"), TEXT("British Columbia"), -123.12f, 49.28f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("CA-CALGARY"), TEXT("Calgary"), TEXT("CA"), TEXT("CA-AB"), TEXT("Alberta"), -114.07f, 51.05f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("CA-EDMONTON"), TEXT("Edmonton"), TEXT("CA"), TEXT("CA-ABN"), TEXT("Alberta"), -113.49f, 53.55f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("CA-WINNIPEG"), TEXT("Winnipeg"), TEXT("CA"), TEXT("CA-MB"), TEXT("Manitoba"), -97.14f, 49.90f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("CA-HALIFAX"), TEXT("Halifax"), TEXT("CA"), TEXT("CA-NS"), TEXT("Nova Scotia"), -63.58f, 44.65f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
 	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);

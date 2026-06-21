@@ -26,7 +26,10 @@ Leyenda: [x] hecho · [~] parcial · [ ] pendiente
   - [x] **México** → core: bounds Lat→33/Lon→-118, biomas (desierto norte, Sierra Madre, trópico sur/Yucatán), label + 9 ciudades. Verificado.
   - [ ] **Centroamérica a core** (GT/BZ/HN/SV/NI/CR/PA — hoy contexto, falta ciudades + promover).
 - [x] **Lote 5 Caribe** (Antillas Mayores): CU/JM/HT/DO/PR/BS/TT → core con biomas tropicales + capitales/labels; regla del Caribe ajustada para que las islas salgan verdes.
-- [~] **Lote 6 EEUU.** Bounds al norte (Lat→49.5) y oeste (Lon→-125), clasificador **unificado de Norteamérica** (bosque del este/Golfo/Florida verde, Grandes Llanuras, Rocosas, desierto SO, costa oeste seca / Pacífico NW bosque), US → core + label + 12 ciudades (Washington, NY, LA, Chicago, Houston, Miami, SF, Seattle, Dallas, Denver, Atlanta, Boston). **Pendiente verificación (perf — es el mayor crecimiento — + look).**
+- [x] **Lote 6 EEUU** → core: clasificador unificado de Norteamérica + label + 12 ciudades. Bounds Lat→49.5/Lon→-125.
+- [~] **Canadá** → core: bounds al norte (Lat→62), CA + label + 8 ciudades (Ottawa, Toronto, Montreal, Vancouver, Calgary, Edmonton, Winnipeg, Halifax); biomas heredados (boreal/praderas/Rocosas/BC). **Pendiente verificación (perf — mapa más grande hasta ahora).**
+  - El teatro detallado ahora cubre **todo el hemisferio (Canadá → Tierra del Fuego)**.
+  - Pendiente menor: detallar **Centroamérica** a core (hoy contexto).
 
 ### Pulido aplicado (verificado por el usuario)
 - [x] Una sola línea de contorno limpia (se quitó el borde nacional duplicado del TerritoryLayer; el del terreno queda como única línea, sin segmentos al océano).

@@ -173,7 +173,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLon = -125.0f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLon = -34.0f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLat = -56.0f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLat = 49.5f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLat = 62.0f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") bool bAutoBuildOnBeginPlay = false;
 
 private:
