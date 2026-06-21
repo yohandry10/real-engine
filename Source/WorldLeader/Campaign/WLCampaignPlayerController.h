@@ -212,12 +212,12 @@ private:
 	UPROPERTY()
 	UWLMainMenuWidget* MainMenuWidget = nullptr;
 
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float EdgePanMarginPx = 22.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float EdgePanMarginPx = 28.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float EdgePanSpeed = 90000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float MinCameraHeight = 25000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float MaxCameraHeight = 620000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float DragPanUnitsPerPixelAt100k = 120.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignEdgePanSpeed = 36000.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignEdgePanSpeed = 110000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMinCameraHeight = 42000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 4200000.f;
 
