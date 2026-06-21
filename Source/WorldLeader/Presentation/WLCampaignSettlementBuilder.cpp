@@ -261,6 +261,76 @@ namespace
 		AddLocalBox(Buffer, Origin, Rotation, FVector(980.f, 420.f, 290.f), FVector(100.f, 100.f, 260.f), Accent, Scale);
 		AddLocalBox(Buffer, Origin, Rotation, FVector(0.f, 420.f, 560.f), FVector(1080.f, 70.f, 58.f), Accent, Scale);
 	}
+
+	uint32 HashCell(int32 X, int32 Y, int32 Salt)
+	{
+		uint32 H = static_cast<uint32>(X * 73856093) ^ static_cast<uint32>(Y * 19349663) ^ static_cast<uint32>(Salt * 83492791);
+		H ^= H >> 13;
+		H *= 0x5bd1e995u;
+		H ^= H >> 15;
+		return H;
+	}
+
+	float HashCell01(int32 X, int32 Y, int32 Salt)
+	{
+		return static_cast<float>(HashCell(X, Y, Salt) & 0xFFFFu) / 65535.f;
+	}
+
+	struct FCitySprawlParams
+	{
+		float Radius = 1350.f;        // alcance de la mancha urbana (unidades, antes de Scale)
+		float DowntownHeight = 820.f; // altura del nucleo (cae hacia la periferia)
+		float Fill = 0.52f;           // densidad 0..1 (el resto son calles/lotes vacios)
+		float InnerHole = 720.f;      // hueco central reservado para el nucleo hecho a mano
+	};
+
+	// Genera una trama de manzanas alrededor del nucleo: edificios alineados a la
+	// reticula (deja avenidas), mas altos y densos en el centro y bajos hacia el
+	// borde. Da la sensacion de ciudad real sin modelar cada edificio a mano.
+	void AddCitySprawl(
+		FSettlementMeshBuffer& Buffer,
+		const FVector& Origin,
+		const FRotator& Rotation,
+		float Scale,
+		const FCitySprawlParams& P)
+	{
+		const FLinearColor Concrete(0.305f, 0.300f, 0.255f, 1.f);
+		const FLinearColor Glass(0.085f, 0.120f, 0.125f, 1.f);
+		const FLinearColor Roof(0.255f, 0.200f, 0.150f, 1.f);
+
+		const float Cell = 400.f;
+		const int32 R = FMath::CeilToInt(P.Radius / Cell);
+		for (int32 GX = -R; GX <= R; ++GX)
+		{
+			for (int32 GY = -R; GY <= R; ++GY)
+			{
+				const float PX = GX * Cell;
+				const float PY = GY * Cell;
+				const float Dist = FMath::Sqrt(PX * PX + PY * PY);
+				if (Dist > P.Radius || Dist < P.InnerHole)
+				{
+					continue;
+				}
+				// Avenidas: deja franjas vacias cada pocas filas/columnas.
+				if ((GX % 4) == 0 && (GY % 5) == 0)
+				{
+					continue;
+				}
+				const float DistNorm = Dist / P.Radius;
+				if (HashCell01(GX, GY, 1) > P.Fill * (1.f - DistNorm * 0.45f))
+				{
+					continue; // lote vacio (mas vacios hacia el borde)
+				}
+				const float FullHeight = FMath::Max(140.f,
+					P.DowntownHeight * (1.f - DistNorm * 0.60f) * (0.45f + HashCell01(GX, GY, 2) * 0.95f));
+				const float HalfFp = Cell * (0.28f + HashCell01(GX, GY, 3) * 0.12f);
+				const uint32 Pick = HashCell(GX, GY, 4) % 10u;
+				const FLinearColor Col = Pick < 5u ? Concrete : (Pick < 8u ? Roof : Glass);
+				AddLocalBox(Buffer, Origin, Rotation,
+					FVector(PX, PY, FullHeight * 0.5f), FVector(HalfFp, HalfFp, FullHeight * 0.5f), Col, Scale);
+			}
+		}
+	}
 }
 
 void FWLCampaignSettlementBuilder::AddSettlement(
@@ -280,6 +350,33 @@ void FWLCampaignSettlementBuilder::AddSettlement(
 	const FVector Origin = ProjectLonLat(Spec.Lon, Spec.Lat) + FVector(0.f, 0.f, 900.f);
 
 	AddCommonApproach(Buffer, Origin, Rotation, Scale);
+
+	// Mancha urbana en retícula alrededor del núcleo: hace que la ciudad se "lea"
+	// como ciudad (muchas manzanas con calles), dimensionada por tipo.
+	FCitySprawlParams Sprawl;
+	switch (Spec.Type)
+	{
+	case EWLCampaignSettlementType::Capital:
+		Sprawl = { 2300.f, 2050.f, 0.60f, 900.f };
+		break;
+	case EWLCampaignSettlementType::LargeCity:
+		Sprawl = { 1800.f, 1250.f, 0.56f, 820.f };
+		break;
+	case EWLCampaignSettlementType::Port:
+		Sprawl = { 1600.f, 1050.f, 0.54f, 780.f };
+		break;
+	case EWLCampaignSettlementType::Industrial:
+		Sprawl = { 1600.f, 760.f, 0.50f, 760.f };
+		break;
+	case EWLCampaignSettlementType::Frontier:
+		Sprawl = { 1050.f, 380.f, 0.40f, 520.f };
+		break;
+	default:
+		Sprawl = { 1400.f, 820.f, 0.52f, 720.f };
+		break;
+	}
+	AddCitySprawl(Buffer, Origin, Rotation, Scale, Sprawl);
+
 	switch (Spec.Type)
 	{
 	case EWLCampaignSettlementType::Capital:

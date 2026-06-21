@@ -915,9 +915,14 @@ void UWLCampaignTerritoryLayerComponent::ApplyVisibility(float CameraHeight)
 	const bool bDetailedTerritoryVisible = CameraHeight < 115000.f;
 
 	const bool bNationalVisible = bLayerActive && bShowBorders && bGlobal;
-	const bool bProvinceVisible = bLayerActive && bShowBorders && bShowProvinces && bDetailedTerritoryVisible;
+	// Antes, al bajar de 115k se dibujaba la rejilla de TODAS las provincias (58 en
+	// CO/VE) con sus nombres -> tapaba el mapa con una telarana de lineas. Se desactiva
+	// la rejilla y los nombres de provincia: el mapa queda limpio. Las provincias
+	// siguen siendo seleccionables (hit meshes) y se resaltan al pasar el cursor o al
+	// seleccionarlas (hover/selected highlight, mas abajo).
+	const bool bProvinceVisible = false;
 	const bool bCountryLabelsVisible = bLayerActive && bShowLabels && bGlobal;
-	const bool bProvinceLabelsVisible = bLayerActive && bShowLabels && bShowProvinces && bDetailedTerritoryVisible;
+	const bool bProvinceLabelsVisible = false;
 	const bool bResourcesVisible = bLayerActive && bShowResources && bShowProvinces && bDetailedTerritoryVisible;
 
 	if (NationalBorderMesh)
