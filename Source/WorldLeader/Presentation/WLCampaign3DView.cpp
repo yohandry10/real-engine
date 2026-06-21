@@ -1293,23 +1293,69 @@ FVector AWLCampaign3DView::ProjectLonLat(float Lon, float Lat) const
 
 float AWLCampaign3DView::SampleTerrainHeight(float Lon, float Lat) const
 {
-	const float ColombianCentralRidge = FMath::Exp(-FMath::Square((Lon + 74.4f + (Lat - 6.0f) * 0.10f) * 0.82f))
-		* FMath::Exp(-FMath::Square((Lat - 6.0f) * 0.18f));
-	const float ColombianEasternRidge = FMath::Exp(-FMath::Square((Lon + 72.5f + (Lat - 7.0f) * 0.07f) * 0.88f))
-		* FMath::Exp(-FMath::Square((Lat - 7.3f) * 0.20f));
-	const float VenezuelanCoastalRange = FMath::Exp(-FMath::Square((Lat - 10.45f) * 1.85f))
-		* FMath::Exp(-FMath::Square((Lon + 67.7f) * 0.28f));
-	const float GuianaShield = FMath::Exp(-FMath::Square((Lon + 63.6f) * 0.34f))
-		* FMath::Exp(-FMath::Square((Lat - 6.6f) * 0.26f));
-	const float CoastalTerrace = FMath::Clamp((Lat - 1.2f) / 11.5f, 0.f, 1.f) * 0.05f;
-	const float ReliefNoise = (FMath::Sin(Lon * 2.6f + Lat * 1.4f) + FMath::Cos(Lon * 1.2f - Lat * 2.8f)) * 0.035f;
-	const float Height = ColombianCentralRidge * 0.92f
-		+ ColombianEasternRidge * 0.68f
-		+ VenezuelanCoastalRange * 0.45f
-		+ GuianaShield * 0.36f
-		+ CoastalTerrace
-		+ ReliefNoise;
-	return FMath::Max(0.f, Height * 9800.f);
+	// Relieve continental (exagerado para que se lea en 3D al inclinar la camara).
+	// Devuelve unidades de mundo: el terreno y todo lo que va encima (ciudades,
+	// caminos, labels) usan esto via ProjectLonLat, asi que todo sube coherente.
+
+	// Cresta de los Andes (oeste de Sudamerica) por latitud (mismos puntos de control
+	// que el clasificador de biomas, para que montana-color y montana-relieve coincidan).
+	auto AndesCrestLon = [](float L) -> float
+	{
+		const float Lats[] = { 11.0f, 9.0f, 7.0f, 5.0f, 2.5f, 0.0f, -2.5f, -5.5f, -8.0f, -11.0f, -14.0f, -17.0f, -20.0f, -23.0f, -27.0f, -33.0f, -40.0f, -47.0f, -53.0f, -56.0f };
+		const float Lons[] = { -72.0f, -71.0f, -73.0f, -74.6f, -76.3f, -78.4f, -79.0f, -79.4f, -77.8f, -76.3f, -72.8f, -69.0f, -67.5f, -66.5f, -69.0f, -70.0f, -71.5f, -72.8f, -72.5f, -69.0f };
+		const int32 N = 20;
+		if (L >= Lats[0]) return Lons[0];
+		if (L <= Lats[N - 1]) return Lons[N - 1];
+		for (int32 i = 0; i < N - 1; ++i)
+		{
+			if (L <= Lats[i] && L >= Lats[i + 1])
+			{
+				const float T = (L - Lats[i + 1]) / (Lats[i] - Lats[i + 1]);
+				return FMath::Lerp(Lons[i + 1], Lons[i], T);
+			}
+		}
+		return Lons[N - 1];
+	};
+
+	float H = 0.f; // 0..1
+
+	// Andes
+	if (Lat < 13.f && Lat > -56.f)
+	{
+		const float DAndes = Lon - AndesCrestLon(Lat);
+		const float Band = (Lat < -6.f && Lat > -28.f) ? 2.6f : 1.5f; // altiplano mas ancho
+		H = FMath::Max(H, FMath::Exp(-FMath::Square(DAndes / Band)));
+	}
+	// Rocosas (oeste de EEUU/Canada)
+	{
+		const float BandX = FMath::Exp(-FMath::Square((Lon + 112.f) / 6.f));
+		const float LatGate = FMath::Clamp((Lat - 31.f) / 12.f, 0.f, 1.f) * FMath::Clamp((64.f - Lat) / 12.f, 0.f, 1.f);
+		H = FMath::Max(H, 0.82f * BandX * LatGate);
+	}
+	// Sierra Madre (Mexico)
+	{
+		const float BandX = FMath::Exp(-FMath::Square((Lon + 104.f) / 3.6f));
+		const float LatGate = FMath::Exp(-FMath::Square((Lat - 23.f) / 7.f));
+		H = FMath::Max(H, 0.58f * BandX * LatGate);
+	}
+	// Apalaches (este de EEUU), suaves
+	{
+		const float BandX = FMath::Exp(-FMath::Square((Lon + 80.f) / 3.f));
+		const float LatGate = FMath::Exp(-FMath::Square((Lat - 38.f) / 7.f));
+		H = FMath::Max(H, 0.30f * BandX * LatGate);
+	}
+	// Tierras altas de Brasil + escudo guayanes, suaves
+	{
+		const float Brazil = FMath::Exp(-FMath::Square((Lon + 47.f) / 7.f)) * FMath::Exp(-FMath::Square((Lat + 16.f) / 8.f));
+		const float Guiana = FMath::Exp(-FMath::Square((Lon + 63.6f) / 3.2f)) * FMath::Exp(-FMath::Square((Lat - 6.6f) / 2.6f));
+		H = FMath::Max(H, FMath::Max(0.26f * Brazil, 0.30f * Guiana));
+	}
+
+	// Ruido fino para textura del terreno.
+	const float Noise = 0.045f * (FMath::Sin(Lon * 2.6f + Lat * 1.4f) + FMath::Cos(Lon * 1.2f - Lat * 2.8f));
+	H = FMath::Clamp(H + Noise, 0.f, 1.15f);
+
+	return H * 19000.f;
 }
 
 FLinearColor AWLCampaign3DView::TerrainColor(EWLTerrainType Terrain, const FString& CountryIso) const

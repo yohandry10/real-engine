@@ -182,7 +182,7 @@ FLinearColor FWLCampaignVisualStyle::VisualBiomeColor(EWLVisualBiome Biome)
 
 FLinearColor FWLCampaignVisualStyle::ShadeTerrainVertex(const FLinearColor& Base, float Lon, float Lat, float Height)
 {
-	const float Relief = FMath::Clamp(Height / 14500.f, 0.f, 1.f);
+	const float Relief = FMath::Clamp(Height / 20000.f, 0.f, 1.f);
 	const float Noise = 0.07f * FMath::Sin(Lon * 4.7f + Lat * 1.3f) + 0.05f * FMath::Cos(Lon * 2.1f - Lat * 3.4f);
 	const float Light = FMath::Clamp(0.82f + Relief * 0.42f + Noise, 0.55f, 1.38f);
 	FLinearColor Color(Base.R * Light, Base.G * Light, Base.B * Light, 1.f);

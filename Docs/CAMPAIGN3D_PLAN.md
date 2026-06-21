@@ -1,97 +1,81 @@
-# Campaign 3D — Plan REFORMULADO: "Campaña 3D estilo Total War"
+# Campaign 3D — Plan v3: "Vertical slice estilo Total War, por país (Venezuela primero)"
 
-> Reformulado tras feedback (2026-06-21): lo construido hasta ahora es **2/10**. El
-> objetivo es la **fidelidad del mapa de campaña de Total War** (cámara inclinada 3D,
-> terreno con relieve, caminos que se ven caminos por donde pasan tropas, ciudades que
-> se ven ciudades). Fase 1 (cobertura del hemisferio) sigue válida: `CAMPAIGN3D_PROGRESS.md`.
+> Reescrito 2026-06-21 tras feedback con referencia directa a **Total War: Rome II**
+> (ciudad Tarraco). La vara es ESE nivel. Cambio de estrategia: **NO más continente
+> a la vez** — se construye **un país completo a alta fidelidad (Venezuela)** como
+> plantilla, y luego se replica país por país.
 
 ---
 
-## 0. Diagnóstico honesto (por qué estamos en 2/10)
-El problema no es "falta detalle": es que **el enfoque base es incompatible** con TW.
-- **Cámara cenital** (desde arriba) → nunca se ve el relieve ni la profundidad.
-- **Terreno plano** con color por vértice → no hay montañas/valles reales.
-- **Ciudades = cajas top-down** → parecen "tetris", no ciudades.
-- **Caminos = cintas planas rectas** → no parecen caminos.
-- **Tropas = conos/marcadores** → no son unidades.
+## 0. La verdad sin adornos (leer antes de nada)
+- La referencia (Tarraco) es **arte AAA de Creative Assembly**: modelos 3D hechos a
+  mano por cultura, terreno esculpido, SpeedTree, shaders, equipo de artistas, años.
+- **El código procedural NO llega a eso.** Cajas generadas nunca serán Tarraco.
+- Para ese look hacen falta **ASSETS 3D reales** (kits de edificios, foliage, materiales
+  de terreno). **Decisión tomada: assets AHORA**, no "después".
+- **Techo honesto:** con packs de assets + buena técnica, por país, ~**7–8/10** de la
+  referencia (se siente TW). Igualar el arte bespoke de CA = equipo de arte (fuera de
+  alcance). Apuntamos al **feel**, no al pixel exacto.
 
-Con esa base, detallar más **no acerca a TW**. Hay que cambiar los cimientos.
+## 1. Estrategia: vertical slice por país
+- Se elige **Venezuela** como primer país y se lleva a **alta fidelidad completa**.
+- Venezuela se vuelve el **ESTÁNDAR** (checklist replicable). Solo cuando Venezuela
+  esté al nivel, se pasa al siguiente país con el mismo molde.
+- El resto del continente queda como **fondo de baja resolución** mientras tanto (no
+  se borra; solo no se detalla aún).
 
-## 1. La verdad sobre el techo (cuándo NO se puede solo con código)
-- **Procedural puro** (cámara inclinada + relieve + caminos drapeados + mejores
-  volúmenes): techo honesto ~**6/10**. Mundo 3D legible y muy superior al actual.
-- **TW de verdad (~9/10)**: necesita **ASSETS 3D** (modelos de ciudad, árboles,
-  soldados animados, texturas/normales de terreno). Eso **no sale del código**;
-  hay que **importar packs** (Fab/Marketplace) y conectarlos.
-- Decisión del proyecto: hasta dónde invertir en assets. El plan soporta ambos:
-  procedural primero (cimientos), assets después para subir de 6 a 9.
+## 2. El ESTÁNDAR por país (lo que "hecho" significa)
+Cada país, para considerarse terminado, debe tener:
+1. **Terreno 3D real**: relieve esculpido (cordilleras, valles, costa) con **materiales
+   texturizados** (hierba, roca, tierra, arena) — no color plano.
+2. **Foliage**: árboles/vegetación como **meshes** (asset/SpeedTree), por densidad de
+   zona, con streaming por proximidad.
+3. **Ciudades como modelos**: kit de edificios 3D (no cajas) por **tipo y tamaño**
+   (capital, metrópoli, puerto, industrial, pueblo). Con murallas/puerto donde aplique.
+4. **Carreteras en spline drapeado** sobre el terreno, **serpenteantes**, texturizadas
+   (tierra/asfalto). Conectan las ciudades y **por ellas se mueven las tropas**.
+5. **Tropas**: modelo 3D sobre el terreno que **camina por las carreteras**.
+6. **Ríos / agua** principales con shader.
+7. **Datos por país (JSON)**: ciudades (tipo+tamaño), red de carreteras (waypoints),
+   rasgos de terreno. Editable sin recompilar.
 
-## 2. Cimiento innegociable (sin esto, nada se ve TW)
-**R0 — Cámara inclinada + relieve 3D real.**
-- Cámara con **pitch ~35–45°** (perspectiva), no cenital. Rehacer el hit-test del
-  HUD/selección acorde (ya resolvimos el letterbox; esto lo amplía).
-- Terreno con **elevación real** (heightmap): cordilleras se elevan, valles se hunden,
-  costa con desnivel. Que al mirar se vea un mundo 3D.
-- Solo esto sube el feel de 2 a ~4 y **habilita** caminos drapeados, tropas, etc.
+## 3. Cimiento técnico (transversal, primero)
+- **R0b — Cámara inclinada (perspectiva, pitch dinámico)**: cenital al alejar, ~40–45°
+  al acercar (como TW). EN CURSO. Sin esto nada se ve 3D.
+- **R0a — Relieve continental** (hecho a nivel base; se refinará con materiales).
+- **Pipeline de assets**: importar packs (Fab/Marketplace) de edificios, foliage y
+  materiales de terreno al proyecto. Requiere añadir contenido (paso del usuario o
+  packs gratuitos autorizados).
+- **Rendimiento**: hardware bajo specs UE5 → detalle pesado **solo cerca de cámara**
+  (LOD/streaming). Medir FPS por hito.
 
-## 3. CAMBIOS POR PAÍS — el estándar (data-driven) que pediste
-Cada país define en **datos (JSON)**, no en C++, su ficha de detalle:
-- **Ciudades**: lista con `tipo` (capital / metrópoli / puerto / industrial / pueblo)
-  y `tamaño` → modelo/silueta acorde (no una caja genérica).
-- **Red de carreteras**: qué ciudades conecta y por **waypoints** (para que el camino
-  serpentee por terreno real, no recto) → es a la vez visual y **ruta de tropas**.
-- **Rasgos del terreno**: cordillera principal, río(s), costa, paso fronterizo.
-- **Identidad ligera** (opcional): 1 rasgo reconocible (silueta de la capital).
-Así cada país se siente propio y se edita sin recompilar.
+## 4. Secuencia para VENEZUELA (vertical slice)
+- **V0 — Cámara inclinada** funcionando (selección/nav OK). [transversal]
+- **V1 — Terreno de Venezuela**: relieve real (cordillera de la costa, Andes
+  merideños, Guayana, llanos, delta) + **materiales texturizados**.
+- **V2 — Foliage**: selva al sur/Guayana, sabana en llanos, costa — con meshes.
+- **V3 — Carreteras spline** entre ciudades venezolanas, drapeadas y serpenteantes.
+- **V4 — Ciudades como modelos** (kit de edificios) por tipo: Caracas (capital),
+  Maracaibo (puerto/petróleo), Valencia/Maracay (industrial), Ciudad Guayana, etc.
+- **V5 — Tropas 3D** que se mueven por las carreteras venezolanas.
+- **V6 — Agua/ríos** (Orinoco) + pulido + materiales finales.
+- **V7 — Datos JSON** de Venezuela (ciudades/carreteras/rasgos) como plantilla.
+- → Congelar el **ESTÁNDAR** y replicar a Colombia, etc.
 
-## 4. Caminos de verdad (POR AHÍ PASAN TROPAS) — R1
-- Camino = **spline drapeado sobre el terreno** (sigue el relieve), con **ancho y
-  textura de camino** (tierra/asfalto), **serpenteante** (no recto).
-- Es **a la vez** lo visual y la **red de movimiento**: las tropas se desplazan a lo
-  largo del spline entre ciudades (ya existe el grafo de adyacencia; se reusa).
-- Reemplaza las cintas planas actuales. Referencia: el sendero de la 3ª imagen.
+## 5. Qué se descarta / cambia del intento anterior
+- **Mancha urbana "tetris"** (cajas top-down) → reemplazada por ciudades de meshes (V4).
+- **Vegetación de conos** → reemplazada por foliage de meshes (V2).
+- **Carreteras planas** → splines drapeados (V3); además se corrigen las redes rotas
+  (Perú rota, Brasil inexistente) — pero **eso es secundario**: el foco es Venezuela.
+- **Bioma como objetivo** → solo telón de fondo; el objetivo es el detalle 3D + assets.
+- Se conserva como FONDO: cobertura del hemisferio en baja resolución, labels, LOD.
 
-## 5. Ciudades de verdad (no "tetris") — R2
-- Por **tipo y tamaño**: silueta coherente, con la cámara inclinada se lee como ciudad.
-- Mínimo procedural: volúmenes con **materiales reales** (no color plano), techos,
-  variación, muelles en puertos. Ideal: **meshes de edificios** (assets) para el salto.
-- Aparecen/crecen por **proximidad de cámara** (rinde).
+## 6. Definición de HECHO (la vara, sin negociación)
+Al máximo zoom en Venezuela, debe verse como la referencia de TW: **el camino se ve
+un camino**, **la ciudad se ve una ciudad** (edificios, no cajas), **los árboles son
+árboles**, el **terreno tiene relieve y textura**, y **una tropa se ve sobre el
+camino**. Si no, no está hecho.
 
-## 6. Tropas en el mapa — R3
-- Unidad = **modelo 3D** sobre el terreno (placeholder digno ahora; soldado/vehículo
-  con assets después) que **se mueve por los caminos** entre ciudades.
-
-## 7. Terreno y materiales hacia TW — R4
-- Texturas/normales de terreno (hierba, roca, tierra, arena), **foliage** (árboles
-  como meshes, no conos) por proximidad, agua con shader, costa con desnivel.
-
-## 8. Bioma: DEPRIORIZADO (por instrucción)
-- El color por bioma queda **solo como telón de fondo**, NO es el objetivo. El nivel
-  de detalle objetivo es **mucho mayor** (relieve 3D + assets + caminos + tropas).
-- No se invierte más en bioma hasta tener los cimientos (R0–R3).
-
-## 9. Rendimiento / hardware (honesto)
-- TW-level en todo el continente es caro y el hardware está por debajo de specs UE5.
-- Regla dura: **detalle pesado solo cerca de la cámara** (LOD/streaming por proximidad).
-  Lejos = versión ligera. Medir FPS y tiempo de carga en cada fase.
-
-## 10. Secuencia reformulada (commit por fase, verificable)
-- **R0 — Cámara inclinada + relieve 3D** (cimiento; arregla hit-test). *Mayor cambio de feel.*
-- **R1 — Caminos drapeados** (visual + ruta de tropas).
-- **R2 — Ciudades como modelos por tipo** (quitar "tetris").
-- **R3 — Tropas 3D moviéndose por caminos.**
-- **R4 — Terreno/materiales + foliage** hacia TW.
-- **R5 — Estándar por país en JSON** (ciudades + carreteras + rasgos) para todo el continente.
-- **(Assets)** — Insertar packs 3D (Fab/Marketplace) donde el procedural no llega
-  (ciudades, árboles, tropas) para subir de ~6 a ~9.
-
-## 11. Definición de "HECHO" (la vara)
-Al **máximo zoom**, como la 3ª imagen de TW: el **camino se ve un camino**, la
-**ciudad se ve una ciudad**, y una **tropa se ve sobre el terreno/camino**. Si no se
-cumple eso, no está hecho.
-
-## 12. Qué se descarta del intento anterior
-- Mancha urbana "tetris" (cajas top-down) → se reemplaza por R2.
-- Vegetación por bioma (scatter de conos) → descartada por ahora (bioma deprioritizado).
-- Las carreteras planas rectas → se reemplazan por caminos drapeados (R1).
-- Se conserva: cobertura del hemisferio, ciudades/labels base, LOD de zoom, contorno.
+## 7. Honestidad continua
+En cada hito diré con claridad qué se logró, qué no, y si algo necesita assets que no
+tenemos. No se vende como "TW" lo que sea una caja. La vara es la 3ª imagen.
