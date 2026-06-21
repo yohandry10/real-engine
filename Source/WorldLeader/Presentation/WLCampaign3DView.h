@@ -273,6 +273,7 @@ private:
 	void AddMilitaryForceMarker(const FWLCampaign3DForceView& Force);
 	void RefreshMilitaryForceMarkerVisuals();
 	void BuildMovementNodesAndEdges();
+	void BuildIntercityRoads();
 	void AddMovementEdge(const FString& A, const FString& B);
 	const FWLCampaign3DMovementNodeView* FindMovementNodeById(const FString& NodeId) const;
 	FString FindNearestMovementNodeId(const FWLCampaign3DForceView& Force) const;

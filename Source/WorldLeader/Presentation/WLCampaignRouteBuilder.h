@@ -32,4 +32,12 @@ public:
 		UProceduralMeshComponent* RoadMesh,
 		UMaterialInterface* RoadMaterial,
 		TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat);
+
+	// Anade una lista arbitraria de rutas a la malla (una seccion mas). Sirve para
+	// redes generadas (p.ej. conectar las ciudades de cada pais).
+	static void AppendRoutes(
+		UProceduralMeshComponent* RoadMesh,
+		UMaterialInterface* RoadMaterial,
+		const TArray<FWLCampaignRouteSpec>& Routes,
+		TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat);
 };

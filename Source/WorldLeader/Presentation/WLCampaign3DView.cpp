@@ -1787,6 +1787,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);
 	AddVegetationScatter(-76.8f, -73.5f, 8.5f, 11.8f, 4, 3, false);
 
+	BuildIntercityRoads();
 	BuildMovementNodesAndEdges();
 	AddMilitaryForceMarkers();
 }
@@ -2117,6 +2118,116 @@ void AWLCampaign3DView::BuildMovementNodesAndEdges()
 	AddMovementEdge(TEXT("VE-CIUDAD-GUAYANA"), TEXT("VE-PUERTO-LA-CRUZ"));
 	AddMovementEdge(TEXT("CO-CARTAGENA"), TEXT("VE-MARACAIBO"));
 	AddMovementEdge(TEXT("VE-PUERTO-LA-CRUZ"), TEXT("VE-MARACAIBO"));
+}
+
+void AWLCampaign3DView::BuildIntercityRoads()
+{
+	// Agrupa las ciudades por pais (derivando lon/lat de su posicion proyectada) y
+	// las conecta con una red minima (arbol de expansion, Prim). CO/VE ya tienen
+	// rutas curadas, asi que se omiten. Da caminos a todo el continente sin datos a mano.
+	struct FRoadCity
+	{
+		float Lon = 0.f;
+		float Lat = 0.f;
+		bool bCapital = false;
+	};
+
+	TMap<FString, TArray<FRoadCity>> ByCountry;
+	for (const FWLCampaign3DCityView& City : CityViews)
+	{
+		if (City.CountryIso.IsEmpty()
+			|| City.CountryIso.Equals(TEXT("CO"), ESearchCase::IgnoreCase)
+			|| City.CountryIso.Equals(TEXT("VE"), ESearchCase::IgnoreCase))
+		{
+			continue;
+		}
+		FRoadCity RC;
+		RC.Lon = TheaterCenterLonLat.X + City.WorldLocation.Y / GeoScale;
+		RC.Lat = TheaterCenterLonLat.Y + City.WorldLocation.X / GeoScale;
+		RC.bCapital = City.bCapital;
+		ByCountry.FindOrAdd(City.CountryIso).Add(RC);
+	}
+
+	const float MaxEdgeDeg = 9.0f; // evita carreteras gigantes / cruces de mar
+	TArray<FWLCampaignRouteSpec> Network;
+	for (const TPair<FString, TArray<FRoadCity>>& Pair : ByCountry)
+	{
+		const TArray<FRoadCity>& Cities = Pair.Value;
+		const int32 N = Cities.Num();
+		if (N < 2)
+		{
+			continue;
+		}
+
+		// Prim: arbol de expansion minima sobre la distancia lon/lat.
+		TArray<bool> InTree;   InTree.Init(false, N);
+		TArray<float> BestDist; BestDist.Init(TNumericLimits<float>::Max(), N);
+		TArray<int32> BestFrom; BestFrom.Init(-1, N);
+		InTree[0] = true;
+		for (int32 J = 1; J < N; ++J)
+		{
+			BestDist[J] = FVector2D::Distance(FVector2D(Cities[0].Lon, Cities[0].Lat), FVector2D(Cities[J].Lon, Cities[J].Lat));
+			BestFrom[J] = 0;
+		}
+
+		for (int32 Added = 1; Added < N; ++Added)
+		{
+			int32 Next = -1;
+			float NextDist = TNumericLimits<float>::Max();
+			for (int32 J = 0; J < N; ++J)
+			{
+				if (!InTree[J] && BestDist[J] < NextDist)
+				{
+					NextDist = BestDist[J];
+					Next = J;
+				}
+			}
+			if (Next < 0)
+			{
+				break;
+			}
+			InTree[Next] = true;
+
+			const int32 From = BestFrom[Next];
+			if (From >= 0 && NextDist <= MaxEdgeDeg)
+			{
+				const FRoadCity& A = Cities[From];
+				const FRoadCity& B = Cities[Next];
+				FWLCampaignRouteSpec Spec;
+				Spec.Name = Pair.Key + TEXT("-intercity");
+				Spec.Type = (A.bCapital || B.bCapital) ? EWLCampaignRouteType::Primary : EWLCampaignRouteType::Secondary;
+				Spec.Points = { FVector2D(A.Lon, A.Lat), FVector2D(B.Lon, B.Lat) };
+				Spec.Smoothness = 2;
+				Spec.bShowJunctions = false;
+				Network.Add(Spec);
+			}
+
+			for (int32 J = 0; J < N; ++J)
+			{
+				if (!InTree[J])
+				{
+					const float D = FVector2D::Distance(FVector2D(Cities[Next].Lon, Cities[Next].Lat), FVector2D(Cities[J].Lon, Cities[J].Lat));
+					if (D < BestDist[J])
+					{
+						BestDist[J] = D;
+						BestFrom[J] = Next;
+					}
+				}
+			}
+		}
+	}
+
+	if (Network.Num() > 0)
+	{
+		FWLCampaignRouteBuilder::AppendRoutes(
+			RoadMesh,
+			VertexColorMaterial,
+			Network,
+			[this](float Lon, float Lat)
+			{
+				return ProjectLonLat(Lon, Lat);
+			});
+	}
 }
 
 void AWLCampaign3DView::AddMovementEdge(const FString& A, const FString& B)

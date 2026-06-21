@@ -138,11 +138,12 @@ Orden por **prioridad real**: que se sienta un lugar (ciudades, caminos, terreno
   estándar") + extraer `CameraRig`. Sin cambio visual. Habilita lo demás.
 - **F1 — Relieve legible**: montañas se elevan, llanuras planas, costa — el terreno
   se lee como terreno **al zoom correcto** (extiende el Z por bioma existente).
-- **F2 — Ciudades que parecen ciudades** (FOCO): LOD de 3 niveles
-  (punto → silueta → edificios) por **tamaño/tipo** y **proximidad de cámara**;
-  capital con silueta distintiva. Reemplaza el cubo actual.
-- **F3 — Caminos**: arterias entre ciudades clave + insinuación de trama urbana al
-  acercar (curado, no exhaustivo).
+- **F2 — Ciudades que parecen ciudades** (FOCO) — **HECHO**: cada ciudad genera una
+  mancha urbana en retícula (calles, centro denso/alto, periferia baja) alrededor del
+  núcleo, dimensionada por tipo. Solo visible al acercar.
+- **F3 — Caminos** — **HECHO**: red auto-generada por país (árbol de expansión mínima
+  sobre las ciudades, sin cruzar fronteras/mar; capital→vía primaria). CO/VE mantienen
+  sus rutas curadas. Escalable a países nuevos.
 - **F4 — Vegetación por bioma** (ambiente de apoyo): bosques/pastos/cactus por perfil,
   scatter por proximidad. Más ligero que el resto.
 - **F5 — Agua + pulido**: ríos/lagos principales, nieve en cumbres, niebla; ajustes.

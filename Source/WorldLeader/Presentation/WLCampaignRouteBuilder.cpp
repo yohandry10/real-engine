@@ -408,3 +408,22 @@ void FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 	AddCheckpoint(Buffer, FVector2D(-72.38f, 8.06f), 34.f, ProjectLonLat);
 	CommitRoutes(RoadMesh, RoadMaterial, Buffer);
 }
+
+void FWLCampaignRouteBuilder::AppendRoutes(
+	UProceduralMeshComponent* RoadMesh,
+	UMaterialInterface* RoadMaterial,
+	const TArray<FWLCampaignRouteSpec>& Routes,
+	TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat)
+{
+	if (!RoadMesh || Routes.Num() == 0)
+	{
+		return;
+	}
+
+	FRouteMeshBuffer Buffer;
+	for (const FWLCampaignRouteSpec& Route : Routes)
+	{
+		AddRoute(Buffer, Route, ProjectLonLat);
+	}
+	CommitRoutes(RoadMesh, RoadMaterial, Buffer);
+}
