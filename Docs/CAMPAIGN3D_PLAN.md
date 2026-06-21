@@ -15,14 +15,15 @@ país se sienta **identificable** — que el jugador mire y diga "ese es mi paí
 ## 1. Pilares de diseño
 1. **Legibilidad estratégica primero.** Es gran estrategia: el detalle nunca tapa
    la lectura del mapa (fronteras, ciudades, fuerzas).
-2. **Realismo estilizado, no película.** Nos *acercamos* al realismo, pero
+2. **Que se sienta un lugar.** Prioridad real: **ciudades que parezcan ciudades**
+   (edificios), **caminos visibles** y **terreno legible** (montañas/llanuras) — por
+   encima de monumentos. La identidad por país es un **toque ligero** (silueta de la
+   capital), no el foco.
+3. **Realismo estilizado, no película.** Nos *acercamos* al realismo, pero
    priorizamos silueta, color y reconocimiento sobre fidelidad fotográfica.
-3. **Identidad por país sobre base por geografía.** La base es compartida y
-   escalable; la identidad es curada y memorable (ver Capa 2).
 4. **Todo por proximidad de cámara + LOD.** El detalle solo existe cerca y al
-   acercar → rinde en hardware modesto.
-5. **Data-driven.** Perfiles de bioma, identidad y ciudades viven en datos, no en
-   C++ disperso → editable y consistente.
+   acercar → rinde en hardware modesto. (Edificios solo cerca de la cámara.)
+5. **Data-driven.** Perfiles de bioma y ciudades viven en datos → editable.
 6. **No-regresión.** Cada capa es aditiva y verificada; lo que funciona no se rompe.
 
 ## 2. "¿No rompe?" — Estándar de no-regresión
@@ -80,8 +81,12 @@ un radio alrededor de la cámara; al alejar, se descargan.
 | Costa Pacífico/Caribe | arena | bajo | palmeras dispersas | espuma costera |
 | Desierto (Atacama/SO/N México) | arena | bajo/medio | cactus, roca | seco |
 
-### Identidad por país (Capa 2) — landmarks icónicos (estilizados)
-Curado, 1–3 por país. Objetivo: reconocimiento inmediato.
+### Identidad por país (Capa 2) — OPCIONAL / DIFERIDA
+> Decisión: los **monumentos** (Cristo, Machu Picchu…) son *polish caro y arriesgado*
+> y **no son la prioridad**. La identidad real se logra casi gratis con la **silueta
+> de la capital** (CDMX densa, NY con rascacielos, La Paz alta) + el **carácter del
+> bioma**. Los landmarks de abajo quedan como **futuro opcional, solo si sobra
+> presupuesto** tras ciudades/caminos/relieve.
 
 | País | Landmark(s) icónico(s) | Acento / hito urbano |
 |---|---|---|
@@ -128,17 +133,22 @@ relieve y rodeada de campos → deja de "flotar".
 - Permite balancear/añadir sin recompilar.
 
 ## 9. Fases de ejecución (lotes verificables, commit por fase)
-- **F0 — Cimientos**: unificar LOD/cámara (una fuente de verdad) + extraer
-  `CameraRig`. Sin cambio visual. Habilita todo lo demás.
-- **F1 — Vegetación por bioma** (mayor impacto visible): perfiles de bioma + scatter
-  por proximidad de cámara (reemplaza el scatter genérico actual).
-- **F2 — Relieve + agua**: realce de montañas/valles/costa + ríos y lagos icónicos
-  (Titicaca, Uyuni, Amazonas, Iguazú).
-- **F3 — Ciudades estilizadas** por tamaño/tipo + skylines de capitales.
-- **F4 — Identidad por país**: landmarks icónicos (sección 5) en datos.
-- **F5 — Agricultura + caminos**: campos alrededor de ciudades, rutas entre ellas.
-- **F6 — Ambiente y pulido**: nieve en cumbres, niebla por zona, roca, partículas.
-- **F7 — Migración data-driven**: biomas/ciudades/identidad a JSON (deuda heredada).
+Orden por **prioridad real**: que se sienta un lugar (ciudades, caminos, terreno).
+- **F0 — Cimientos**: unificar LOD/cámara (una fuente de verdad de "zoom adecuado y
+  estándar") + extraer `CameraRig`. Sin cambio visual. Habilita lo demás.
+- **F1 — Relieve legible**: montañas se elevan, llanuras planas, costa — el terreno
+  se lee como terreno **al zoom correcto** (extiende el Z por bioma existente).
+- **F2 — Ciudades que parecen ciudades** (FOCO): LOD de 3 niveles
+  (punto → silueta → edificios) por **tamaño/tipo** y **proximidad de cámara**;
+  capital con silueta distintiva. Reemplaza el cubo actual.
+- **F3 — Caminos**: arterias entre ciudades clave + insinuación de trama urbana al
+  acercar (curado, no exhaustivo).
+- **F4 — Vegetación por bioma** (ambiente de apoyo): bosques/pastos/cactus por perfil,
+  scatter por proximidad. Más ligero que el resto.
+- **F5 — Agua + pulido**: ríos/lagos principales, nieve en cumbres, niebla; ajustes.
+- **F6 — Data-driven**: biomas/ciudades a JSON (paga deuda heredada).
+- **(Diferido/opcional)** — Monumentos de identidad por país (sección 5), solo si
+  sobra presupuesto.
 
 ## 10. Validación y "Definición de Hecho" por fase
 1. Compilar con editor cerrado → relanzar.
