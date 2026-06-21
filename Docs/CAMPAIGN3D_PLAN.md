@@ -1,164 +1,97 @@
-# Campaign 3D — Fase 2: "Mapa Vivo" (capa de detalle por zoom)
+# Campaign 3D — Plan REFORMULADO: "Campaña 3D estilo Total War"
 
-> Fase 1 (expansión regional, hemisferio completo) → **COMPLETADA**.
-> Registro: `docs/CAMPAIGN3D_PROGRESS.md`. Este documento es el plan de la Fase 2.
+> Reformulado tras feedback (2026-06-21): lo construido hasta ahora es **2/10**. El
+> objetivo es la **fidelidad del mapa de campaña de Total War** (cámara inclinada 3D,
+> terreno con relieve, caminos que se ven caminos por donde pasan tropas, ciudades que
+> se ven ciudades). Fase 1 (cobertura del hemisferio) sigue válida: `CAMPAIGN3D_PROGRESS.md`.
 
 ---
 
-## 0. Por qué (la vara)
-World Leader compite como **uno de los primeros juegos hechos con Claude**. El
-objetivo no es "estar bien": es **llevar la vara altísima** con un mapa de campaña
-que se sienta **vivo, reconocible y propio**. Ya tenemos una base sólida (todo el
-hemisferio con biomas y ciudades). Esta fase la **perfecciona** hasta que cada
-país se sienta **identificable** — que el jugador mire y diga "ese es mi país".
+## 0. Diagnóstico honesto (por qué estamos en 2/10)
+El problema no es "falta detalle": es que **el enfoque base es incompatible** con TW.
+- **Cámara cenital** (desde arriba) → nunca se ve el relieve ni la profundidad.
+- **Terreno plano** con color por vértice → no hay montañas/valles reales.
+- **Ciudades = cajas top-down** → parecen "tetris", no ciudades.
+- **Caminos = cintas planas rectas** → no parecen caminos.
+- **Tropas = conos/marcadores** → no son unidades.
 
-## 1. Pilares de diseño
-1. **Legibilidad estratégica primero.** Es gran estrategia: el detalle nunca tapa
-   la lectura del mapa (fronteras, ciudades, fuerzas).
-2. **Que se sienta un lugar.** Prioridad real: **ciudades que parezcan ciudades**
-   (edificios), **caminos visibles** y **terreno legible** (montañas/llanuras) — por
-   encima de monumentos. La identidad por país es un **toque ligero** (silueta de la
-   capital), no el foco.
-3. **Realismo estilizado, no película.** Nos *acercamos* al realismo, pero
-   priorizamos silueta, color y reconocimiento sobre fidelidad fotográfica.
-4. **Todo por proximidad de cámara + LOD.** El detalle solo existe cerca y al
-   acercar → rinde en hardware modesto. (Edificios solo cerca de la cámara.)
-5. **Data-driven.** Perfiles de bioma y ciudades viven en datos → editable.
-6. **No-regresión.** Cada capa es aditiva y verificada; lo que funciona no se rompe.
+Con esa base, detallar más **no acerca a TW**. Hay que cambiar los cimientos.
 
-## 2. "¿No rompe?" — Estándar de no-regresión
-- Cada fase es **aditiva**: nuevas capas sobre el terreno actual (que ya está verificado).
-- El detalle nuevo se activa **por tier de zoom**; en Region/America (lo más usado
-  para leer el mapa) **no cambia casi nada**.
-- **Checkpoint por fase**: compilar (editor cerrado) → Play → no-regresión de lo
-  anterior → commit + push. Si algo se rompe sin arreglo claro, se revierte la fase.
-- **Presupuestos de rendimiento** explícitos (sección 7): si una capa baja el FPS
-  bajo el umbral, se reduce densidad/LOD antes de avanzar.
+## 1. La verdad sobre el techo (cuándo NO se puede solo con código)
+- **Procedural puro** (cámara inclinada + relieve + caminos drapeados + mejores
+  volúmenes): techo honesto ~**6/10**. Mundo 3D legible y muy superior al actual.
+- **TW de verdad (~9/10)**: necesita **ASSETS 3D** (modelos de ciudad, árboles,
+  soldados animados, texturas/normales de terreno). Eso **no sale del código**;
+  hay que **importar packs** (Fab/Marketplace) y conectarlos.
+- Decisión del proyecto: hasta dónde invertir en assets. El plan soporta ambos:
+  procedural primero (cimientos), assets después para subir de 6 a 9.
 
-## 3. Arquitectura: DOS capas (responde "¿por país o región?")
-> **Las dos, en capas.** Región/geografía para la base; país para la identidad.
+## 2. Cimiento innegociable (sin esto, nada se ve TW)
+**R0 — Cámara inclinada + relieve 3D real.**
+- Cámara con **pitch ~35–45°** (perspectiva), no cenital. Rehacer el hit-test del
+  HUD/selección acorde (ya resolvimos el letterbox; esto lo amplía).
+- Terreno con **elevación real** (heightmap): cordilleras se elevan, valles se hunden,
+  costa con desnivel. Que al mirar se vea un mundo 3D.
+- Solo esto sube el feel de 2 a ~4 y **habilita** caminos drapeados, tropas, etc.
 
-### Capa 1 — BASE por geografía (compartida, escalable)
-Gobernada por el **modelo continental de biomas** (ya existe, por lon/lat). Define
-**color, relieve, vegetación, props naturales y agua**. NO depende de fronteras.
-Una región nueva hereda todo automáticamente.
+## 3. CAMBIOS POR PAÍS — el estándar (data-driven) que pediste
+Cada país define en **datos (JSON)**, no en C++, su ficha de detalle:
+- **Ciudades**: lista con `tipo` (capital / metrópoli / puerto / industrial / pueblo)
+  y `tamaño` → modelo/silueta acorde (no una caja genérica).
+- **Red de carreteras**: qué ciudades conecta y por **waypoints** (para que el camino
+  serpentee por terreno real, no recto) → es a la vez visual y **ruta de tropas**.
+- **Rasgos del terreno**: cordillera principal, río(s), costa, paso fronterizo.
+- **Identidad ligera** (opcional): 1 rasgo reconocible (silueta de la capital).
+Así cada país se siente propio y se edita sin recompilar.
 
-### Capa 2 — IDENTIDAD por país (curada, memorable)
-Cada país recibe **1–3 rasgos icónicos** colocados en sus coordenadas reales: un
-**landmark**, un **acento de paleta** y un **hito urbano** en su capital. Es lo
-que da el "se parece a mi país" sin modelar el país entero. Pocos elementos,
-máximo reconocimiento. (Tabla en sección 5.)
+## 4. Caminos de verdad (POR AHÍ PASAN TROPAS) — R1
+- Camino = **spline drapeado sobre el terreno** (sigue el relieve), con **ancho y
+  textura de camino** (tierra/asfalto), **serpenteante** (no recto).
+- Es **a la vez** lo visual y la **red de movimiento**: las tropas se desplazan a lo
+  largo del spline entre ciudades (ya existe el grafo de adyacencia; se reusa).
+- Reemplaza las cintas planas actuales. Referencia: el sendero de la 3ª imagen.
 
-Las **fronteras políticas** solo mandan en bordes, labels y selección — nunca en
-el bioma. Así no hay "capas de geología por país" inconsistentes.
+## 5. Ciudades de verdad (no "tetris") — R2
+- Por **tipo y tamaño**: silueta coherente, con la cámara inclinada se lee como ciudad.
+- Mínimo procedural: volúmenes con **materiales reales** (no color plano), techos,
+  variación, muelles en puertos. Ideal: **meshes de edificios** (assets) para el salto.
+- Aparecen/crecen por **proximidad de cámara** (rinde).
 
-## 4. Estándar A — LOD por zoom (UNA sola fuente de verdad)
-Hoy el LOD está disperso (`ApplyZoomLOD` + TerritoryLayer). **F0 lo unifica**
-(`WLCampaignCameraRig`/`LODController`). Tiers y qué entra en cada uno:
+## 6. Tropas en el mapa — R3
+- Unidad = **modelo 3D** sobre el terreno (placeholder digno ahora; soldado/vehículo
+  con assets después) que **se mueve por los caminos** entre ciudades.
 
-| Tier | Cámara | Terreno/Natura | Ciudades | Identidad | Labels |
-|---|---|---|---|---|---|
-| **Global** (América) | muy lejos | color base | — | — | países |
-| **Region** (continente) | lejos | + relieve suave, agua principal | siluetas | landmark mayor (Uyuni, Amazonas) | países |
-| **Teatro** (país) | medio | + vegetación por bioma | mancha urbana estilizada | landmark + acento | ciudades |
-| **Cercano** | cerca | + props, agricultura, densidad alta | edificios/skyline | hito urbano | ciudades + barrios |
+## 7. Terreno y materiales hacia TW — R4
+- Texturas/normales de terreno (hierba, roca, tierra, arena), **foliage** (árboles
+  como meshes, no conos) por proximidad, agua con shader, costa con desnivel.
 
-Regla de oro: **streaming por proximidad** — solo se generan props/vegetación en
-un radio alrededor de la cámara; al alejar, se descargan.
+## 8. Bioma: DEPRIORIZADO (por instrucción)
+- El color por bioma queda **solo como telón de fondo**, NO es el objetivo. El nivel
+  de detalle objetivo es **mucho mayor** (relieve 3D + assets + caminos + tropas).
+- No se invierte más en bioma hasta tener los cimientos (R0–R3).
 
-## 5. Estándar B+C — Bioma → perfil, y la IDENTIDAD por país
+## 9. Rendimiento / hardware (honesto)
+- TW-level en todo el continente es caro y el hardware está por debajo de specs UE5.
+- Regla dura: **detalle pesado solo cerca de la cámara** (LOD/streaming por proximidad).
+  Lejos = versión ligera. Medir FPS y tiempo de carga en cada fase.
 
-### Bioma → perfil de detalle (Capa 1)
-`{ colorBase, relieveZ, vegetación(tipo+densidad), propsNaturales, agua }`
+## 10. Secuencia reformulada (commit por fase, verificable)
+- **R0 — Cámara inclinada + relieve 3D** (cimiento; arregla hit-test). *Mayor cambio de feel.*
+- **R1 — Caminos drapeados** (visual + ruta de tropas).
+- **R2 — Ciudades como modelos por tipo** (quitar "tetris").
+- **R3 — Tropas 3D moviéndose por caminos.**
+- **R4 — Terreno/materiales + foliage** hacia TW.
+- **R5 — Estándar por país en JSON** (ciudades + carreteras + rasgos) para todo el continente.
+- **(Assets)** — Insertar packs 3D (Fab/Marketplace) donde el procedural no llega
+  (ciudades, árboles, tropas) para subir de ~6 a ~9.
 
-| Bioma | Color | Relieve | Vegetación | Props/agua |
-|---|---|---|---|---|
-| Amazonía/selva | verde profundo | bajo | árboles densos | ríos anchos |
-| Bosque templado/boreal | verde | medio | árboles medios | lagos, ríos |
-| Andes/Rocosas | marrón | **alto** | escasa, roca | nieve en cumbres |
-| Altiplano | marrón claro | alto/plano | muy escasa | salares |
-| Llanos/praderas/pampa | sabana | bajo | pastizal, manchas | ríos serpenteantes |
-| Costa Pacífico/Caribe | arena | bajo | palmeras dispersas | espuma costera |
-| Desierto (Atacama/SO/N México) | arena | bajo/medio | cactus, roca | seco |
+## 11. Definición de "HECHO" (la vara)
+Al **máximo zoom**, como la 3ª imagen de TW: el **camino se ve un camino**, la
+**ciudad se ve una ciudad**, y una **tropa se ve sobre el terreno/camino**. Si no se
+cumple eso, no está hecho.
 
-### Identidad por país (Capa 2) — OPCIONAL / DIFERIDA
-> Decisión: los **monumentos** (Cristo, Machu Picchu…) son *polish caro y arriesgado*
-> y **no son la prioridad**. La identidad real se logra casi gratis con la **silueta
-> de la capital** (CDMX densa, NY con rascacielos, La Paz alta) + el **carácter del
-> bioma**. Los landmarks de abajo quedan como **futuro opcional, solo si sobra
-> presupuesto** tras ciudades/caminos/relieve.
-
-| País | Landmark(s) icónico(s) | Acento / hito urbano |
-|---|---|---|
-| **EEUU** | Manhattan skyline (NY), Golden Gate (SF), Gran Cañón (SO) | rascacielos en DC/Chicago |
-| **Canadá** | Rocosas/Banff, lagos boreales | CN Tower (Toronto) |
-| **México** | pirámides (Teotihuacán/Yucatán), cenotes | CDMX denso, Cancún resort |
-| **Colombia** | eje cafetero andino, murallas de Cartagena | Bogotá en altiplano |
-| **Venezuela** | tepuyes + Salto Ángel (Canaima) | torres de Maracaibo (petróleo) |
-| **Brasil** | Cristo Redentor (Rio), Amazonas, Iguazú | São Paulo skyline |
-| **Argentina** | Patagonia (Fitz Roy), Pampa/estancias, Iguazú | Obelisco (Buenos Aires) |
-| **Chile** | Atacama, volcanes andinos, Torres del Paine | Santiago al pie de los Andes |
-| **Perú** | Machu Picchu (Andes), Lago Titicaca, costa desértica | Lima costera |
-| **Bolivia** | **Salar de Uyuni**, altiplano | La Paz (la ciudad más alta) |
-| **Ecuador** | volcanes (Cotopaxi), Galápagos (offshore) | Quito andino |
-| **Cuba** | casco viejo de La Habana, vegas de tabaco | malecón |
-| **Panamá** | el Canal (esclusas) | skyline de Ciudad de Panamá |
-| **Centroamérica** | cadena de volcanes, selva maya | capitales coloniales |
-| **Caribe** | playas/arrecifes, montañas tropicales | fuertes coloniales |
-
-> Estos son **estilizados** (silueta + decal + mesh simple), no réplicas AAA. Bastan
-> para identidad. La lista es ampliable en datos.
-
-## 6. Estándar D — Ciudades modernas estilizadas (el "embellecer ciudades")
-La ciudad deja de ser un cubo y pasa a **mancha urbana que crece por tamaño/tipo**:
-- **Capital**: núcleo de torres + hito nacional (label dorado, aparece antes).
-- **LargeCity**: bloques medios.
-- **Industrial**: naves + chimeneas/torres (nicho moderno).
-- **Port**: muelles + grúas sobre la costa.
-- **Frontier**: caserío disperso.
-Crece con el zoom (Teatro = silueta; Cercano = edificios), sobre terreno con
-relieve y rodeada de campos → deja de "flotar".
-
-## 7. Estándar E — Rendimiento (hardware modesto)
-- **Streaming por proximidad**: vegetación/props solo en radio de cámara; instanced.
-- **Instancing agresivo** (un draw call por tipo) + **LOD por tier**.
-- **Presupuesto por tier** (objetivo): Region fluido; Cercano sin tirones.
-- **Celdas adaptativas** ya activas para países enormes; extender a props.
-- Métrica de aceptación por fase: FPS estable + tiempo de carga razonable.
-
-## 8. Estándar F — Data-driven
-- `BiomeProfiles` (perfil por bioma) y `CountryIdentity` (landmarks/acento/hito por
-  país) en **datos** (JSON), no en C++ disperso.
-- Paga la deuda heredada (hoy países/ciudades están hardcodeados).
-- Permite balancear/añadir sin recompilar.
-
-## 9. Fases de ejecución (lotes verificables, commit por fase)
-Orden por **prioridad real**: que se sienta un lugar (ciudades, caminos, terreno).
-- **F0 — Cimientos**: unificar LOD/cámara (una fuente de verdad de "zoom adecuado y
-  estándar") + extraer `CameraRig`. Sin cambio visual. Habilita lo demás.
-- **F1 — Relieve legible**: montañas se elevan, llanuras planas, costa — el terreno
-  se lee como terreno **al zoom correcto** (extiende el Z por bioma existente).
-- **F2 — Ciudades que parecen ciudades** (FOCO) — **HECHO**: cada ciudad genera una
-  mancha urbana en retícula (calles, centro denso/alto, periferia baja) alrededor del
-  núcleo, dimensionada por tipo. Solo visible al acercar.
-- **F3 — Caminos** — **HECHO**: red auto-generada por país (árbol de expansión mínima
-  sobre las ciudades, sin cruzar fronteras/mar; capital→vía primaria). CO/VE mantienen
-  sus rutas curadas. Escalable a países nuevos.
-- **F4 — Vegetación por bioma** (ambiente de apoyo): bosques/pastos/cactus por perfil,
-  scatter por proximidad. Más ligero que el resto.
-- **F5 — Agua + pulido**: ríos/lagos principales, nieve en cumbres, niebla; ajustes.
-- **F6 — Data-driven**: biomas/ciudades a JSON (paga deuda heredada).
-- **(Diferido/opcional)** — Monumentos de identidad por país (sección 5), solo si
-  sobra presupuesto.
-
-## 10. Validación y "Definición de Hecho" por fase
-1. Compilar con editor cerrado → relanzar.
-2. **No-regresión**: alejar = solo países, limpio; lo anterior intacto.
-3. **Mejora**: la capa nueva se ve y aporta identidad/vida al acercar.
-4. **Rendimiento**: FPS y carga aceptables en hardware modesto.
-5. **Checkpoint**: commit propio + push.
-
-### Definición de calidad objetivo
-Que al panear/zoom, cada país tenga **al menos un rasgo reconocible** y el conjunto
-se sienta **un mundo vivo y coherente** — estilizado pero creíble — manteniendo la
-**legibilidad de gran estrategia**. Esa es la vara.
+## 12. Qué se descarta del intento anterior
+- Mancha urbana "tetris" (cajas top-down) → se reemplaza por R2.
+- Vegetación por bioma (scatter de conos) → descartada por ahora (bioma deprioritizado).
+- Las carreteras planas rectas → se reemplazan por caminos drapeados (R1).
+- Se conserva: cobertura del hemisferio, ciudades/labels base, LOD de zoom, contorno.
