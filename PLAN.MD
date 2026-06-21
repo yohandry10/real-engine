@@ -1,83 +1,88 @@
-# Campaign 3D — Expansión regional escalable
+# Campaign 3D — Fase 2: "Mapa Vivo" (capa de detalle por zoom)
 
-Convertir Campaign 3D de "teatro CO/VE + overview del resto" a un sistema regional
-escalable (LatAm, Centroamérica, EEUU) con detalle equivalente, **sin romper CO/VE**.
-Primero arquitectura + datos; después expandir por regiones en lotes verificables.
+> Fase 1 (expansión regional, todo el hemisferio) → **completada**, registro en
+> `docs/CAMPAIGN3D_PROGRESS.md`. Esta es la fase siguiente.
 
----
+## Visión
+Acercarnos a la sensación del mapa de campaña de **Total War** — **lejos: mapa
+estratégico limpio y legible; cerca: un mundo vivo y detallado** — pero con
+**nuestro estilo y nicho**: gran estrategia **geopolítica moderna** sobre las
+Américas reales (autopistas, puertos, zonas industriales, bases aéreas), estética
+**realista estilizada** y **data-driven** (no AAA fotorrealista; legibilidad
+estratégica primero).
 
-## ESTADO (auditoría 2026-06-20)
+## Principio rector (responde "¿geología por país?")
+El detalle se decide por **GEOGRAFÍA (ubicación), NO por país**. Hay **un solo
+modelo continental** ya existente — los biomas por lon/lat (`ClassifyVisualBiome`) —
+y ese mismo modelo gobierna **color, relieve, vegetación, props y agua**. Las
+fronteras políticas solo afectan **bordes, labels y selección**, nunca el bioma.
+Esto evita "capas por país" inconsistentes y escala solo a regiones nuevas.
 
-Leyenda: [x] hecho · [~] parcial · [ ] pendiente
+## El estándar de detalle = Bioma → Perfil de detalle
+Cada bioma tiene un **perfil de detalle** (dato, no hardcode disperso):
+`{ colorBase, relieveZ, vegetación(tipo+densidad), props, agua, agricultura }`.
 
-- [x] **Checkpoint seguro.** Estado actual commiteado y pusheado (rama `codex/world-leader-main-menu`, commit `a561396`).
-- [~] **Partir WLCampaign3DView.cpp en builders.** Hechos e integrados: `WLCampaignRegionGeometry`, `WLCampaignTerrainBuilder`, `WLCampaignVisualStyle`, `WLCampaignSettlementBuilder`, `WLCampaignRouteBuilder`, `WLCampaignWaterBuilder`, `WLCampaignTerritoryLayerComponent`. **Falta: `WLCampaignCameraRig`** (cámara + LOD siguen dentro de `WLCampaign3DView`).
-- [ ] **Modelo de datos único para "teatro detallado".** No hecho. Sigue todo hardcodeado: `FWLCampaignRegionGeometry::IsTheaterIso()` = solo CO/VE, y las ciudades CO/VE están a mano en `BuildCampaignVisualLayer()`. `Provinces.json` solo tiene 5 provincias (VE-ZU, VE-BO, VE-DC, CO-GUA, CO-DC).
-- [x] **CO/VE funcionando (referencia de no-regresión).** Se ven y seleccionan. Ver "Receta CO/VE" abajo. **NO TOCAR.**
-- [~] **Lote 1: Andes norte (EC/PE/BO).** CASI — falta verificar Bolivia.
-  - [x] **Ecuador**: EC → core (`IsTheaterIso`) ⇒ malla fina + borde dorado + relieve. Label "ECUADOR" + 8 ciudades. **Verificado por el usuario ("se ve perfecto").** Pendiente menor: regiones internas seleccionables + fuerzas para EC.
-  - [x] **Perú (PE)**: `RegionMinLat` expandido a -19, cresta andina extendida al sur (banda altiplano), PE → core, label "PERU" + 8 ciudades (Lima, Trujillo, Chiclayo, Piura, Arequipa, Cusco, Iquitos, Puno). Biomas heredados (costa desértica/Andes/Amazonía). **Verificado por el usuario.** Cámara/foco de CO/VE sin cambio.
-  - [~] **Bolivia (BO)**: `RegionMinLat` a -23, cresta extendida al sur + banda altiplano más ancha, BO → core, label "BOLIVIA" + 7 ciudades (La Paz capital, Santa Cruz/Potosí industriales, Cochabamba/Sucre/Oruro, Tarija frontera). PY/CL/AR/UY añadidos como **contexto** (terreno coarse) para que el sur no quede con huecos de mar. Cierra el Lote 1. **Pendiente verificación del usuario.**
-- [x] **Estilos visuales por geografía (v1).** `ClassifyVisualBiome` ahora es continental (cresta de los Andes por latitud) y el terreno **sí pinta** por bioma + relieve: Andes (marrón), costa Pacífico/Caribe (arena), llanos (sabana), Amazonía (verde). Pendiente para el sur: biomas desierto costero (Perú/Atacama), altiplano andino, pampas, Patagonia, Chaco, Atlántico brasileño.
-- [~] **Lote 2 Brasil.** Bounds expandido (Lon→-34, Lat→-34), BR → core con **celdas adaptativas** (países >25° usan malla 0.10 en vez de 0.040, para no explotar vértices), biomas propios (Amazonía, cerrado, caatinga, Mata Atlántica, pampa sur), label "BRASIL" + 11 ciudades. PY/CL/AR/UY ya estaban como contexto. **Pendiente: verificar rendimiento de carga + look.**
-- [x] **Lote 3 Cono Sur (AR/CL/UY/PY).** Bounds a Lat -56, biomas del sur (pampa, estepa patagónica, Atacama, bosque valdiviano), core + labels + ~20 ciudades. Verificado.
-- [x] **Guyana + Surinam** (escudo guayanés): a core con capitales/ciudades. **Sudamérica completa.**
-- [x] **Lote 4 Centroamérica + México.**
-  - [x] **México** → core: biomas (desierto norte, Sierra Madre, trópico sur/Yucatán) + 9 ciudades.
-  - [x] **Centroamérica** → core: GT/BZ/HN/SV/NI/CR/PA con bioma tropical + capitales/labels.
-- [x] **Lote 5 Caribe** (Antillas Mayores): CU/JM/HT/DO/PR/BS/TT → core con biomas tropicales + capitales/labels; regla del Caribe ajustada para que las islas salgan verdes.
-- [x] **Lote 6 EEUU** → core: clasificador unificado de Norteamérica + label + 12 ciudades. Bounds Lat→49.5/Lon→-125.
-- [~] **Canadá** → core: bounds al norte (Lat→62), CA + label + 8 ciudades (Ottawa, Toronto, Montreal, Vancouver, Calgary, Edmonton, Winnipeg, Halifax); biomas heredados (boreal/praderas/Rocosas/BC). **Pendiente verificación (perf — mapa más grande hasta ahora).**
-  - El teatro detallado ahora cubre **todo el hemisferio (Canadá → Tierra del Fuego)**.
-  - Pendiente menor: detallar **Centroamérica** a core (hoy contexto).
+| Bioma | Color | Relieve | Vegetación | Props/agua |
+|---|---|---|---|---|
+| Amazonía / selva | verde profundo | bajo | árboles densos | ríos anchos |
+| Bosque templado/boreal | verde | medio | árboles medios | lagos, ríos |
+| Andes / Rocosas | marrón | **alto** (se elevan) | escasa, roca | nieve en cumbres, ríos de montaña |
+| Altiplano | marrón claro | alto/plano | muy escasa | salares |
+| Llanos / praderas / pampa | sabana | bajo | pastizal, manchas | ríos serpenteantes |
+| Costa Pacífico / Caribe | arena | bajo | palmeras dispersas | espuma costera |
+| Desierto (Atacama/SO/N México) | arena | bajo/medio | cactus, roca | seco |
 
-### Pulido aplicado (verificado por el usuario)
-- [x] Una sola línea de contorno limpia (se quitó el borde nacional duplicado del TerritoryLayer; el del terreno queda como única línea, sin segmentos al océano).
-- [x] Ciudades costeras empujadas hacia tierra automáticamente (8-direcciones; sirve para regiones costeras futuras).
-- [x] Labels de país escalan por tamaño + nombres orientados (se corrigió rotación 62→90,180 y duplicados).
-- [x] Cámara: edge-pan ~3x más rápido; arrastre con click derecho (agarrar mapa) confirmado.
-- [x] **Labels por zoom (estándar final).** Al **alejar** (Global/Region) solo **nombres de país**; al **acercar** (Teatro/Cercano) aparecen los **nombres de ciudad**. Implementado separando `Labels` (país, visibles Region+Teatro+Cercano) de `SettlementLabels` (ciudad, solo Teatro+Cercano), y desactivando las etiquetas de ciudad del overview.
-- [ ] **Unificar LOD/cámara (una sola fuente de verdad).** Pendiente; revisar mezcla Teatro vs Global de TerritoryLayer.
-- [ ] **Validación Standalone por lote.** Hasta ahora se valida en PIE (editor). Falta flujo Standalone formal.
+## Estándar de zoom-LOD (UNA sola fuente de verdad)
+Hoy el LOD vive disperso (`ApplyZoomLOD` + TerritoryLayer). **Primer trabajo de
+esta fase: unificarlo** (extraer `WLCampaignCameraRig`/`LODController`). Tiers:
 
-## Receta CO/VE (REFERENCIA — NO TOCAR, replicar para nuevos países)
+| Tier | Qué se ve | Detalle |
+|---|---|---|
+| **Global** (América) | países (color + nombre) | 0 detalle |
+| **Region** (continente) | países + relieve suave + agua principal | sin props |
+| **Teatro** (país) | + vegetación por bioma + ciudades estilizadas + caminos | medio |
+| **Cercano** | + props ambientales + agricultura + densidad alta | full |
 
-Cómo logran CO/VE su "detalle" hoy (todo en `WLCampaign3DView.cpp`):
-1. `IsTheaterIso(Iso)` → CO/VE entran al tier "core": terreno fino (`CellDegrees` 0.040 vs 0.16), borde dorado, estilo de país núcleo.
-2. `BuildCampaignVisualLayer()`:
-   - `AddTheaterCountryLabel("COLOMBIA"/"VENEZUELA", lon, lat, color)`.
-   - ~18 `AddSettlementCluster(id, nombre, ISO, provId, provNombre, lon, lat, tipo, color)` (Capital/LargeCity/Port/Industrial/Frontier) = ciudades físicas + labels seleccionables.
-   - Vegetación (`AddVegetationScatter`), parches de bioma (`AddBiomePatch`).
-   - `BuildMovementNodesAndEdges()` + `AddMilitaryForceMarkers()` (rutas/fuerzas placeholder).
-3. `TerritoryLayer->BuildLayer(...)` → regiones internas seleccionables.
-4. Bounds del teatro: Lon [-82.6, -57.0], Lat [-5.2, 17.0] (cubren CO/VE/EC/norte PE/oeste BR).
+Regla de oro: el detalle **solo aparece cerca de la cámara** (streaming por
+proximidad), nunca todo el continente a la vez → rinde en hardware modesto.
 
-## Errores / riesgos encontrados
+## Capas (en orden de impacto/seguridad)
+1. **Relieve por bioma** — montañas se elevan, valles, costa baja (extiende el Z por bioma que ya existe).
+2. **Agua** — ríos principales + lagos + costa (hay `WLCampaignWaterBuilder` infrautilizado).
+3. **Vegetación por bioma** — bosques/pastos/cactus/palmeras según perfil + densidad, **instanced por proximidad de cámara** (reemplaza el scatter genérico CO/VE actual).
+4. **Ciudades estilizadas** — ver estándar abajo (reemplaza el cubo actual).
+5. **Agricultura + caminos** — campos alrededor de ciudades y rutas entre ellas (ya hay route builder).
+6. **Ambiente** — nieve en cumbres, niebla por zona, roca dispersa, pulido.
 
-- **CameraRig no extraído**: `ApplyZoomLOD`/cámara siguen en la vista monolítica → toca unificar antes de que cada región meta sus umbrales.
-- **Provincias casi vacías**: solo 5 en `Provinces.json`. Las provincias citadas en los settlement clusters (CO-ANT, CO-VAC, etc.) NO existen en el registro; son etiquetas. La selección "rica" real solo aplica a esas 5.
-- **Teatro hardcodeado**: añadir país = editar `IsTheaterIso` + más `AddSettlementCluster` a mano (deuda que el plan quería evitar con el "modelo de datos único").
-- **Artefactos visuales de overlays hardcodeados**: ya se quitó la línea verde de Brasil (polilínea decorativa a mano); quedan otras (Andes, Patagonia) por revisar.
-- **Bug de hit-test bajo letterbox** ya resuelto (cámara 16:9 → offset de Canvas).
+## Estándar de ciudad (el "embellecer ciudades", dentro de la capa)
+La ciudad es una **mancha urbana estilizada** que crece por **tamaño y tipo**, no
+un cubo:
+- **Capital**: núcleo denso de torres + hito (sale antes en el zoom, label dorado).
+- **LargeCity**: bloques medios.
+- **Industrial**: naves + chimeneas/torres (nicho moderno).
+- **Port**: muelles + grúas sobre la línea de costa.
+- **Frontier**: caserío disperso pequeño.
+Aparece/crece con el zoom (Teatro = silueta; Cercano = edificios). Sobre terreno
+con relieve y rodeada de campos → deja de "flotar".
 
-## Próximo paso — DECISIÓN PENDIENTE (Lote 1: Ecuador primero)
+## Nuestro nicho (no clon de Total War)
+- **Era moderna**: autopistas, puertos de contenedores, zonas industriales, bases
+  aéreas/militares, megaciudades — no aldeas medievales.
+- **Geografía real de las Américas** como tablero; teatros con identidad.
+- **Data-driven**: perfiles de bioma y ciudades en datos → editable sin tocar C++.
+- **Legibilidad estratégica primero**: el detalle nunca tapa la lectura del mapa.
 
-Dos caminos para que EC/PE/BO se vean como CO/VE:
-- **A) Modelo de datos primero (lo que pide el plan):** crear el modelo único (países detallados → ciudades/regiones/biomas en datos), migrar CO/VE a él SIN cambio visual (test de no-regresión), y luego EC/PE/BO = solo datos. Más limpio y escalable; toca CO/VE (riesgo controlado, verificable).
-- **B) Ecuador aditivo ya (rápido y seguro para CO/VE):** replicar la receta CO/VE para EC (label + settlement clusters + `IsTheaterIso(EC)` + regiones/fuerzas) sin tocar CO/VE. Progreso visible inmediato; añade hardcodes que luego se migran al modelo.
+## Fases de ejecución (lotes verificables, commit por fase)
+- **F0 — Cimientos**: unificar LOD/cámara (una fuente de verdad) + extraer `CameraRig`. (Habilita lo demás; sin cambio visual.)
+- **F1 — Vegetación por bioma** (mayor impacto visible): perfiles de bioma + scatter por proximidad.
+- **F2 — Relieve + agua**.
+- **F3 — Ciudades estilizadas** (por tamaño/tipo).
+- **F4 — Agricultura + caminos**.
+- **F5 — Ambiente y pulido** (nieve, niebla, roca).
+- **F6 (paralelo) — Migrar a data-driven**: biomas/ciudades/perfiles a datos (paga la deuda heredada).
 
-> Recomendación: **B** para un primer avance visible y seguro de Ecuador, y migrar todo a **A** como paso de arquitectura cuando EC/PE/BO estén validados. Confirmar antes de ejecutar.
-
----
-
-## Plan original (referencia)
-
-Scope — In: Campaign 3D, datos de países/provincias/ciudades/fuerzas/rutas, LOD/cámara, selección, labels, validación Standalone. Out: diplomacia profunda, economía completa por país, IA militar avanzada, assets finales AAA.
-
-Decisiones (open questions cerradas):
-- EEUU: sí, mismo nivel jugable/detallado que CO/VE.
-- Caribe completo: sí, administrable/detallado (no solo overview).
-- Primer lote tras CO/VE: EC/PE/BO (Andes norte).
-
-Orden de lotes: CO/VE (ref) → **Lote 1 EC/PE/BO** → Lote 2 Brasil → Lote 3 Cono Sur (CL/AR/UY/PY) → Lote 4 Centroamérica+México → Lote 5 Caribe → Lote 6 EEUU.
-Cada lote: TerritoryRegions, ciudades, capitales, rutas, selección, fuerzas placeholder, estilos por geografía, y validación (Standalone, [G] America, [F] Teatro, zoom/pan, selección, labels legibles, sin artefactos), cerrado con commit propio.
+## Estándar de validación (cada fase)
+Compilar (editor cerrado) → Play → probar **alejar (solo países, limpio)** y
+**acercar (detalle aparece por proximidad, sin tirones)** → revisar **rendimiento
+de carga/FPS** en hardware modesto → CO/VE y el resto **sin regresión** → cerrar
+con **commit propio + push** (checkpoint).
