@@ -31,10 +31,29 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 		return Lons[N - 1];
 	};
 
-	// Costa del Caribe (borde norte).
-	if (Lat > 9.7f && Lon > -73.5f)
+	// Costa del Caribe (solo la franja costera continental del norte de Sudamerica;
+	// las islas Lat > 13.5 las trata el bloque de Mesoamerica -> tropical).
+	if (Lat > 9.7f && Lat < 13.5f && Lon > -73.5f)
 	{
 		return EWLVisualBiome::Coast;
+	}
+
+	// Mesoamerica / Mexico (Lat > 13.5, claramente al norte de Sudamerica).
+	if (Lat > 13.5f)
+	{
+		if (Lat > 23.f)
+		{
+			return EWLVisualBiome::Coast; // norte arido de Mexico (desiertos Sonora/Chihuahua)
+		}
+		if (Lon < -108.f)
+		{
+			return EWLVisualBiome::Coast; // Baja California (desierto)
+		}
+		if (Lat > 18.f && Lon < -97.f && Lon > -104.f)
+		{
+			return EWLVisualBiome::Mountain; // Sierra Madre / altiplano central
+		}
+		return EWLVisualBiome::Jungle; // sur tropical, Yucatan y costas
 	}
 
 	const float CrestLon = AndesCrestLon(Lat);

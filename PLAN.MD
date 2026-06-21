@@ -22,7 +22,11 @@ Leyenda: [x] hecho · [~] parcial · [ ] pendiente
 - [~] **Lote 2 Brasil.** Bounds expandido (Lon→-34, Lat→-34), BR → core con **celdas adaptativas** (países >25° usan malla 0.10 en vez de 0.040, para no explotar vértices), biomas propios (Amazonía, cerrado, caatinga, Mata Atlántica, pampa sur), label "BRASIL" + 11 ciudades. PY/CL/AR/UY ya estaban como contexto. **Pendiente: verificar rendimiento de carga + look.**
 - [x] **Lote 3 Cono Sur (AR/CL/UY/PY).** Bounds a Lat -56, biomas del sur (pampa, estepa patagónica, Atacama, bosque valdiviano), core + labels + ~20 ciudades. Verificado.
 - [x] **Guyana + Surinam** (escudo guayanés): a core con capitales/ciudades. **Sudamérica completa.**
-- [ ] Lote 4 Centroamérica+México · [ ] Lote 5 Caribe · [ ] Lote 6 EEUU.
+- [~] **Lote 4 Centroamérica + México.** México hecho.
+  - [x] **México** → core: bounds Lat→33/Lon→-118, biomas (desierto norte, Sierra Madre, trópico sur/Yucatán), label + 9 ciudades. Verificado.
+  - [ ] **Centroamérica a core** (GT/BZ/HN/SV/NI/CR/PA — hoy contexto, falta ciudades + promover).
+- [x] **Lote 5 Caribe** (Antillas Mayores): CU/JM/HT/DO/PR/BS/TT → core con biomas tropicales + capitales/labels; regla del Caribe ajustada para que las islas salgan verdes.
+- [ ] **Lote 6 EEUU.** EEUU se ve en el overview (zoom lejano) pero NO en el terreno detallado (al acercarse a México el norte es mar). Falta: bounds al norte (Lat→49) y oeste (Lon→-125), biomas de Norteamérica (bosque este, Grandes Llanuras, Rocosas, desierto SO, costa oeste/Pacífico NW), US → core + ciudades.
 
 ### Pulido aplicado (verificado por el usuario)
 - [x] Una sola línea de contorno limpia (se quitó el borde nacional duplicado del TerritoryLayer; el del terreno queda como única línea, sin segmentos al océano).

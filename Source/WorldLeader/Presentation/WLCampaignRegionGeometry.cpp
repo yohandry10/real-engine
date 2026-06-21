@@ -46,7 +46,15 @@ bool FWLCampaignRegionGeometry::IsTheaterIso(const FString& Iso)
 		|| Iso.Equals(TEXT("UY"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("PY"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("GY"), ESearchCase::IgnoreCase)
-		|| Iso.Equals(TEXT("SR"), ESearchCase::IgnoreCase);
+		|| Iso.Equals(TEXT("SR"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("MX"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("CU"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("JM"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("HT"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("DO"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("PR"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("BS"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("TT"), ESearchCase::IgnoreCase);
 }
 
 bool FWLCampaignRegionGeometry::IsContextIso(const FString& Iso)
@@ -69,7 +77,14 @@ bool FWLCampaignRegionGeometry::IsContextIso(const FString& Iso)
 		|| Iso.Equals(TEXT("PY"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("CL"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("AR"), ESearchCase::IgnoreCase)
-		|| Iso.Equals(TEXT("UY"), ESearchCase::IgnoreCase);
+		|| Iso.Equals(TEXT("UY"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("GT"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("BZ"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("HN"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("SV"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("NI"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("CR"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("CU"), ESearchCase::IgnoreCase);
 }
 
 bool FWLCampaignRegionGeometry::LoadCountries(

@@ -1695,6 +1695,41 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("SR-PARAMARIBO"), TEXT("Paramaribo"), TEXT("SR"), TEXT("SR-PM"), TEXT("Paramaribo"), -55.17f, 5.87f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 	AddSettlementCluster(TEXT("SR-NICKERIE"), TEXT("Nieuw Nickerie"), TEXT("SR"), TEXT("SR-NI"), TEXT("Nickerie"), -56.97f, 5.95f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
 
+	// Lote 4 - Mexico.
+	AddTheaterCountryLabel(TEXT("MEXICO"), -102.0f, 23.5f, FColor(232, 206, 126), 6000.f);
+	AddSettlementCluster(TEXT("MX-CIUDAD-DE-MEXICO"), TEXT("Ciudad de Mexico"), TEXT("MX"), TEXT("MX-CMX"), TEXT("Ciudad de Mexico"), -99.13f, 19.43f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("MX-GUADALAJARA"), TEXT("Guadalajara"), TEXT("MX"), TEXT("MX-JAL"), TEXT("Jalisco"), -103.35f, 20.67f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("MX-MONTERREY"), TEXT("Monterrey"), TEXT("MX"), TEXT("MX-NLE"), TEXT("Nuevo Leon"), -100.31f, 25.67f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("MX-TIJUANA"), TEXT("Tijuana"), TEXT("MX"), TEXT("MX-BCN"), TEXT("Baja California"), -117.04f, 32.51f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+	AddSettlementCluster(TEXT("MX-CANCUN"), TEXT("Cancun"), TEXT("MX"), TEXT("MX-ROO"), TEXT("Quintana Roo"), -86.85f, 21.16f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("MX-VERACRUZ"), TEXT("Veracruz"), TEXT("MX"), TEXT("MX-VER"), TEXT("Veracruz"), -96.13f, 19.17f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("MX-MERIDA"), TEXT("Merida"), TEXT("MX"), TEXT("MX-YUC"), TEXT("Yucatan"), -89.59f, 20.97f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("MX-CIUDAD-JUAREZ"), TEXT("Ciudad Juarez"), TEXT("MX"), TEXT("MX-CHH"), TEXT("Chihuahua"), -106.49f, 31.74f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+	AddSettlementCluster(TEXT("MX-ACAPULCO"), TEXT("Acapulco"), TEXT("MX"), TEXT("MX-GRO"), TEXT("Guerrero"), -99.82f, 16.85f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+
+	// Lote 5 - Caribe (Antillas Mayores + Bahamas + Trinidad).
+	AddTheaterCountryLabel(TEXT("CUBA"), -79.2f, 21.9f, FColor(232, 206, 126), 2600.f);
+	AddSettlementCluster(TEXT("CU-HABANA"), TEXT("La Habana"), TEXT("CU"), TEXT("CU-HAB"), TEXT("La Habana"), -82.38f, 23.13f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("CU-SANTIAGO"), TEXT("Santiago de Cuba"), TEXT("CU"), TEXT("CU-SCU"), TEXT("Santiago"), -75.82f, 20.02f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+
+	AddTheaterCountryLabel(TEXT("BAHAMAS"), -77.0f, 24.7f, FColor(232, 206, 126), 1700.f);
+	AddSettlementCluster(TEXT("BS-NASSAU"), TEXT("Nassau"), TEXT("BS"), TEXT("BS-NP"), TEXT("New Providence"), -77.35f, 25.06f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+
+	AddTheaterCountryLabel(TEXT("JAMAICA"), -77.3f, 17.6f, FColor(232, 206, 126), 1500.f);
+	AddSettlementCluster(TEXT("JM-KINGSTON"), TEXT("Kingston"), TEXT("JM"), TEXT("JM-KIN"), TEXT("Kingston"), -76.79f, 17.97f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+
+	AddTheaterCountryLabel(TEXT("HAITI"), -72.6f, 19.4f, FColor(232, 206, 126), 1500.f);
+	AddSettlementCluster(TEXT("HT-PORT-AU-PRINCE"), TEXT("Puerto Principe"), TEXT("HT"), TEXT("HT-OU"), TEXT("Ouest"), -72.33f, 18.54f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+
+	AddTheaterCountryLabel(TEXT("R. DOMINICANA"), -70.2f, 19.3f, FColor(232, 206, 126), 1500.f);
+	AddSettlementCluster(TEXT("DO-SANTO-DOMINGO"), TEXT("Santo Domingo"), TEXT("DO"), TEXT("DO-DN"), TEXT("Distrito Nacional"), -69.93f, 18.47f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+
+	AddTheaterCountryLabel(TEXT("PUERTO RICO"), -66.4f, 18.0f, FColor(232, 206, 126), 1400.f);
+	AddSettlementCluster(TEXT("PR-SAN-JUAN"), TEXT("San Juan"), TEXT("PR"), TEXT("PR-SJ"), TEXT("San Juan"), -66.11f, 18.47f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+
+	AddTheaterCountryLabel(TEXT("TRINIDAD"), -61.3f, 10.4f, FColor(232, 206, 126), 1400.f);
+	AddSettlementCluster(TEXT("TT-PORT-OF-SPAIN"), TEXT("Puerto Espana"), TEXT("TT"), TEXT("TT-POS"), TEXT("Puerto Espana"), -61.51f, 10.65f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
 	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);
@@ -1761,8 +1796,8 @@ FVector2D AWLCampaign3DView::NudgeSettlementToLand(float Lon, float Lat) const
 		}
 	}
 
-	// Interior (rodeada de tierra) o sin datos: no mover.
-	if (LandHits == 0 || LandHits >= 7 || LandDir.IsNearlyZero())
+	// Interior (rodeada de tierra), isla diminuta (<=1 muestra) o sin datos: no mover.
+	if (LandHits <= 1 || LandHits >= 7 || LandDir.IsNearlyZero())
 	{
 		return FVector2D(Lon, Lat);
 	}
