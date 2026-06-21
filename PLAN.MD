@@ -22,9 +22,9 @@ Leyenda: [x] hecho · [~] parcial · [ ] pendiente
 - [~] **Lote 2 Brasil.** Bounds expandido (Lon→-34, Lat→-34), BR → core con **celdas adaptativas** (países >25° usan malla 0.10 en vez de 0.040, para no explotar vértices), biomas propios (Amazonía, cerrado, caatinga, Mata Atlántica, pampa sur), label "BRASIL" + 11 ciudades. PY/CL/AR/UY ya estaban como contexto. **Pendiente: verificar rendimiento de carga + look.**
 - [x] **Lote 3 Cono Sur (AR/CL/UY/PY).** Bounds a Lat -56, biomas del sur (pampa, estepa patagónica, Atacama, bosque valdiviano), core + labels + ~20 ciudades. Verificado.
 - [x] **Guyana + Surinam** (escudo guayanés): a core con capitales/ciudades. **Sudamérica completa.**
-- [~] **Lote 4 Centroamérica + México.** México hecho.
-  - [x] **México** → core: bounds Lat→33/Lon→-118, biomas (desierto norte, Sierra Madre, trópico sur/Yucatán), label + 9 ciudades. Verificado.
-  - [ ] **Centroamérica a core** (GT/BZ/HN/SV/NI/CR/PA — hoy contexto, falta ciudades + promover).
+- [x] **Lote 4 Centroamérica + México.**
+  - [x] **México** → core: biomas (desierto norte, Sierra Madre, trópico sur/Yucatán) + 9 ciudades.
+  - [x] **Centroamérica** → core: GT/BZ/HN/SV/NI/CR/PA con bioma tropical + capitales/labels.
 - [x] **Lote 5 Caribe** (Antillas Mayores): CU/JM/HT/DO/PR/BS/TT → core con biomas tropicales + capitales/labels; regla del Caribe ajustada para que las islas salgan verdes.
 - [x] **Lote 6 EEUU** → core: clasificador unificado de Norteamérica + label + 12 ciudades. Bounds Lat→49.5/Lon→-125.
 - [~] **Canadá** → core: bounds al norte (Lat→62), CA + label + 8 ciudades (Ottawa, Toronto, Montreal, Vancouver, Calgary, Edmonton, Winnipeg, Halifax); biomas heredados (boreal/praderas/Rocosas/BC). **Pendiente verificación (perf — mapa más grande hasta ahora).**
@@ -36,7 +36,7 @@ Leyenda: [x] hecho · [~] parcial · [ ] pendiente
 - [x] Ciudades costeras empujadas hacia tierra automáticamente (8-direcciones; sirve para regiones costeras futuras).
 - [x] Labels de país escalan por tamaño + nombres orientados (se corrigió rotación 62→90,180 y duplicados).
 - [x] Cámara: edge-pan ~3x más rápido; arrastre con click derecho (agarrar mapa) confirmado.
-- [~] **Labels/selección por zoom.** Estándar país↔ciudad implementado en el overview (Global=países, Region=ciudades; commit `a561396`). Falta escalarlo dentro del teatro y por región nueva.
+- [x] **Labels por zoom (estándar final).** Al **alejar** (Global/Region) solo **nombres de país**; al **acercar** (Teatro/Cercano) aparecen los **nombres de ciudad**. Implementado separando `Labels` (país, visibles Region+Teatro+Cercano) de `SettlementLabels` (ciudad, solo Teatro+Cercano), y desactivando las etiquetas de ciudad del overview.
 - [ ] **Unificar LOD/cámara (una sola fuente de verdad).** Pendiente; revisar mezcla Teatro vs Global de TerritoryLayer.
 - [ ] **Validación Standalone por lote.** Hasta ahora se valida en PIE (editor). Falta flujo Standalone formal.
 

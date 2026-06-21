@@ -75,6 +75,12 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 		return EWLVisualBiome::Jungle; // sur tropical, Yucatan, Caribe, costas
 	}
 
+	// Centroamerica (istmo tropical: Honduras/Nicaragua/Costa Rica/Panama) al sur de 13.5.
+	if (Lat > 6.5f && Lat < 13.6f && Lon < -78.f)
+	{
+		return EWLVisualBiome::Jungle;
+	}
+
 	const float CrestLon = AndesCrestLon(Lat);
 	const float DeltaToAndes = Lon - CrestLon; // <0 al oeste (Pacifico), >0 al este
 	// Banda andina: ancha en CO/VE (varias cordilleras), estrecha en Ecuador y ancha

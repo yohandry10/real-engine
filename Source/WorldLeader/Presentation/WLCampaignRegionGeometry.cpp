@@ -56,7 +56,14 @@ bool FWLCampaignRegionGeometry::IsTheaterIso(const FString& Iso)
 		|| Iso.Equals(TEXT("BS"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("TT"), ESearchCase::IgnoreCase)
 		|| Iso.Equals(TEXT("US"), ESearchCase::IgnoreCase)
-		|| Iso.Equals(TEXT("CA"), ESearchCase::IgnoreCase);
+		|| Iso.Equals(TEXT("CA"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("GT"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("BZ"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("HN"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("SV"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("NI"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("CR"), ESearchCase::IgnoreCase)
+		|| Iso.Equals(TEXT("PA"), ESearchCase::IgnoreCase);
 }
 
 bool FWLCampaignRegionGeometry::IsContextIso(const FString& Iso)

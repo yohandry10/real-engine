@@ -631,8 +631,10 @@ namespace
 			Label.Color = City.bCapital
 				? FColor(245, 224, 142)
 				: (City.bPort ? FColor(150, 228, 234) : FColor(238, 242, 234));
+			// Las ciudades del overview se ocultan en ambos zooms lejanos: los nombres de
+			// ciudad solo aparecen al acercar (capa de teatro). En zoom lejano, solo paises.
 			Label.bShowInGlobal = false;
-			Label.bShowInRegion = true;
+			Label.bShowInRegion = false;
 			OutLabels.Add(Label);
 		}
 	}

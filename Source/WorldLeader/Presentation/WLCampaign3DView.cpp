@@ -611,6 +611,14 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		}
 	}
 	Labels.Reset();
+	for (UTextRenderComponent* Label : SettlementLabels)
+	{
+		if (Label)
+		{
+			Label->DestroyComponent();
+		}
+	}
+	SettlementLabels.Reset();
 	for (UTextRenderComponent* Label : OverviewLabels)
 	{
 		if (Label)
@@ -1756,6 +1764,24 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddSettlementCluster(TEXT("CA-WINNIPEG"), TEXT("Winnipeg"), TEXT("CA"), TEXT("CA-MB"), TEXT("Manitoba"), -97.14f, 49.90f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
 	AddSettlementCluster(TEXT("CA-HALIFAX"), TEXT("Halifax"), TEXT("CA"), TEXT("CA-NS"), TEXT("Nova Scotia"), -63.58f, 44.65f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
 
+	// Lote 4 (resto) - Centroamerica a core.
+	AddTheaterCountryLabel(TEXT("GUATEMALA"), -90.4f, 15.5f, FColor(232, 206, 126), 1900.f);
+	AddSettlementCluster(TEXT("GT-CIUDAD"), TEXT("Ciudad de Guatemala"), TEXT("GT"), TEXT("GT-GU"), TEXT("Guatemala"), -90.51f, 14.63f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddTheaterCountryLabel(TEXT("BELICE"), -88.7f, 17.2f, FColor(232, 206, 126), 1300.f);
+	AddSettlementCluster(TEXT("BZ-BELMOPAN"), TEXT("Belmopan"), TEXT("BZ"), TEXT("BZ-CY"), TEXT("Cayo"), -88.77f, 17.25f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddTheaterCountryLabel(TEXT("HONDURAS"), -86.9f, 14.8f, FColor(232, 206, 126), 1900.f);
+	AddSettlementCluster(TEXT("HN-TEGUCIGALPA"), TEXT("Tegucigalpa"), TEXT("HN"), TEXT("HN-FM"), TEXT("Francisco Morazan"), -87.21f, 14.10f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("HN-SAN-PEDRO-SULA"), TEXT("San Pedro Sula"), TEXT("HN"), TEXT("HN-CR"), TEXT("Cortes"), -88.03f, 15.50f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddTheaterCountryLabel(TEXT("EL SALVADOR"), -88.9f, 13.6f, FColor(232, 206, 126), 1400.f);
+	AddSettlementCluster(TEXT("SV-SAN-SALVADOR"), TEXT("San Salvador"), TEXT("SV"), TEXT("SV-SS"), TEXT("San Salvador"), -89.22f, 13.69f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddTheaterCountryLabel(TEXT("NICARAGUA"), -85.2f, 12.9f, FColor(232, 206, 126), 1900.f);
+	AddSettlementCluster(TEXT("NI-MANAGUA"), TEXT("Managua"), TEXT("NI"), TEXT("NI-MN"), TEXT("Managua"), -86.27f, 12.13f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddTheaterCountryLabel(TEXT("COSTA RICA"), -84.2f, 9.9f, FColor(232, 206, 126), 1600.f);
+	AddSettlementCluster(TEXT("CR-SAN-JOSE"), TEXT("San Jose"), TEXT("CR"), TEXT("CR-SJ"), TEXT("San Jose"), -84.09f, 9.93f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddTheaterCountryLabel(TEXT("PANAMA"), -80.4f, 8.6f, FColor(232, 206, 126), 1800.f);
+	AddSettlementCluster(TEXT("PA-CIUDAD"), TEXT("Ciudad de Panama"), TEXT("PA"), TEXT("PA-PA"), TEXT("Panama"), -79.52f, 8.98f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("PA-COLON"), TEXT("Colon"), TEXT("PA"), TEXT("PA-CO"), TEXT("Colon"), -79.90f, 9.36f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
 	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);
@@ -1889,7 +1915,7 @@ void AWLCampaign3DView::AddSettlementCluster(
 	Label->SetWorldSize(bCapital ? 720.f : (bSmall ? 430.f : 540.f));
 	Label->SetText(FText::FromString(Name));
 	Label->SetTextRenderColor(bCapital ? FColor(230, 210, 140) : FColor(195, 205, 190));
-	Labels.Add(Label);
+	SettlementLabels.Add(Label);
 }
 
 void AWLCampaign3DView::AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale)
@@ -2558,7 +2584,7 @@ void AWLCampaign3DView::AddProvinceMarker(const FWLProvinceData& Province)
 		Label->SetWorldSize(920.f);
 		Label->SetText(FText::FromString(Province.Capital));
 		Label->SetTextRenderColor(FColor(235, 210, 120));
-		Labels.Add(Label);
+		SettlementLabels.Add(Label);
 	}
 }
 
@@ -2874,11 +2900,20 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 			Route->SetVisibility(bFineDetail, true);
 		}
 	}
+	// Etiquetas de PAIS: visibles al alejar (Region) y al acercar (Teatro/Cercano).
 	for (UTextRenderComponent* Label : Labels)
 	{
 		if (Label)
 		{
 			Label->SetVisibility(bFineDetail || CurrentZoomLOD == EWLCampaign3DZoomLOD::Region, true);
+		}
+	}
+	// Etiquetas de CIUDAD: solo al acercar (Teatro/Cercano), nunca al alejar.
+	for (UTextRenderComponent* Label : SettlementLabels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bFineDetail, true);
 		}
 	}
 	if (TreeInstances)
@@ -3117,6 +3152,13 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		}
 	}
 	for (UTextRenderComponent* Label : Labels)
+	{
+		if (Label)
+		{
+			Label->SetVisibility(bActive, true);
+		}
+	}
+	for (UTextRenderComponent* Label : SettlementLabels)
 	{
 		if (Label)
 		{

@@ -210,6 +210,7 @@ private:
 	UPROPERTY() TArray<UStaticMeshComponent*> VisualComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> RouteSegments;
 	UPROPERTY() TArray<UTextRenderComponent*> Labels;
+	UPROPERTY() TArray<UTextRenderComponent*> SettlementLabels;
 	UPROPERTY() TArray<UTextRenderComponent*> OverviewLabels;
 	TArray<uint8> OverviewLabelVisibilityMasks;
 	UPROPERTY() TArray<FWLCampaign3DProvinceView> ProvinceViews;
