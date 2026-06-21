@@ -38,22 +38,41 @@ EWLVisualBiome FWLCampaignVisualStyle::ClassifyVisualBiome(float Lon, float Lat,
 		return EWLVisualBiome::Coast;
 	}
 
-	// Mesoamerica / Mexico (Lat > 13.5, claramente al norte de Sudamerica).
+	// Norteamerica + Mesoamerica (Lat > 13.5, al norte de Sudamerica). Un solo modelo
+	// para EEUU y Mexico (comparten frontera/desierto del suroeste).
 	if (Lat > 13.5f)
 	{
-		if (Lat > 23.f)
+		// Costa oeste / Pacifico: bosque humedo al norte (Pacific NW), seco al sur (California/Baja).
+		if (Lon < -117.f)
 		{
-			return EWLVisualBiome::Coast; // norte arido de Mexico (desiertos Sonora/Chihuahua)
+			return Lat > 42.f ? EWLVisualBiome::Jungle : EWLVisualBiome::Coast;
 		}
-		if (Lon < -108.f)
+		// Montanas Rocosas (oeste interior, latitudes altas).
+		if (Lat > 37.f && Lon < -104.f && Lon > -116.f)
 		{
-			return EWLVisualBiome::Coast; // Baja California (desierto)
+			return EWLVisualBiome::Mountain;
 		}
+		// Desierto del suroeste de EEUU + norte arido de Mexico / Baja (mitad oeste).
+		if (Lat > 23.f && Lon < -99.f)
+		{
+			return EWLVisualBiome::Coast;
+		}
+		// Grandes Llanuras de EEUU.
+		if (Lat > 30.f && Lon < -95.f)
+		{
+			return EWLVisualBiome::Llanos;
+		}
+		// Este de EEUU (bosque templado), Golfo y Florida (humedo) -> verde.
+		if (Lat > 27.f)
+		{
+			return EWLVisualBiome::Jungle;
+		}
+		// --- Mexico (Lat 13.5 - 27) ---
 		if (Lat > 18.f && Lon < -97.f && Lon > -104.f)
 		{
 			return EWLVisualBiome::Mountain; // Sierra Madre / altiplano central
 		}
-		return EWLVisualBiome::Jungle; // sur tropical, Yucatan y costas
+		return EWLVisualBiome::Jungle; // sur tropical, Yucatan, Caribe, costas
 	}
 
 	const float CrestLon = AndesCrestLon(Lat);

@@ -1730,6 +1730,21 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	AddTheaterCountryLabel(TEXT("TRINIDAD"), -61.3f, 10.4f, FColor(232, 206, 126), 1400.f);
 	AddSettlementCluster(TEXT("TT-PORT-OF-SPAIN"), TEXT("Puerto Espana"), TEXT("TT"), TEXT("TT-POS"), TEXT("Puerto Espana"), -61.51f, 10.65f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
 
+	// Lote 6 - Estados Unidos.
+	AddTheaterCountryLabel(TEXT("ESTADOS UNIDOS"), -98.0f, 39.5f, FColor(232, 206, 126), 7000.f);
+	AddSettlementCluster(TEXT("US-WASHINGTON"), TEXT("Washington D.C."), TEXT("US"), TEXT("US-DC"), TEXT("District of Columbia"), -77.04f, 38.91f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("US-NEW-YORK"), TEXT("Nueva York"), TEXT("US"), TEXT("US-NY"), TEXT("New York"), -74.01f, 40.71f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("US-LOS-ANGELES"), TEXT("Los Angeles"), TEXT("US"), TEXT("US-CA"), TEXT("California"), -118.24f, 34.05f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("US-CHICAGO"), TEXT("Chicago"), TEXT("US"), TEXT("US-IL"), TEXT("Illinois"), -87.63f, 41.88f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("US-HOUSTON"), TEXT("Houston"), TEXT("US"), TEXT("US-TX"), TEXT("Texas"), -95.37f, 29.76f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("US-MIAMI"), TEXT("Miami"), TEXT("US"), TEXT("US-FL"), TEXT("Florida"), -80.19f, 25.76f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("US-SAN-FRANCISCO"), TEXT("San Francisco"), TEXT("US"), TEXT("US-NCA"), TEXT("California"), -122.42f, 37.77f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("US-SEATTLE"), TEXT("Seattle"), TEXT("US"), TEXT("US-WA"), TEXT("Washington"), -122.33f, 47.61f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+	AddSettlementCluster(TEXT("US-DALLAS"), TEXT("Dallas"), TEXT("US"), TEXT("US-NTX"), TEXT("Texas"), -96.80f, 32.78f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("US-DENVER"), TEXT("Denver"), TEXT("US"), TEXT("US-CO"), TEXT("Colorado"), -104.99f, 39.74f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("US-ATLANTA"), TEXT("Atlanta"), TEXT("US"), TEXT("US-GA"), TEXT("Georgia"), -84.39f, 33.75f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.74f, 0.64f, 0.42f));
+	AddSettlementCluster(TEXT("US-BOSTON"), TEXT("Boston"), TEXT("US"), TEXT("US-MA"), TEXT("Massachusetts"), -71.06f, 42.36f, EWLCampaignSettlementType::Port, FLinearColor(0.74f, 0.64f, 0.44f));
+
 	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
 	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
 	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);
