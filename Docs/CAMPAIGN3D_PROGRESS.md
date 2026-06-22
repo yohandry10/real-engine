@@ -63,9 +63,20 @@ tierra, labels por zoom y cámara fluida — **sin romper CO/VE** (referencia).
 > guerra/intriga** (tropas se mueven por carreteras). Ver `ROADMAP.md` (anexo).
 
 ## Carreteras (sistema definitivo)
-- **Cinta procedural** (`FWLCampaignRouteBuilder`, `RoadMesh` + `VertexColorMaterial`),
-  **NO** tiles de asset `SM_road_001` (se ven "saltados" en curvas/pendiente; spline mesh
-  sale negro en Standalone). Asfalto oscuro (lineal ~0.06) + línea central amarilla + arcenes.
+- **Cinta procedural principal** (`FWLCampaignRouteBuilder`, `RoadMesh` + `VertexColorMaterial`):
+  asfalto oscuro (lineal ~0.06) + línea central amarilla + arcenes. Se mantiene como base
+  continua porque evita los saltos de tiles discretos en curvas/pendiente.
+- **Preservar primero lo que ya funciona**: las polilineas CO/VE curadas, el drapeado sobre
+  relieve y la colocacion visual actual de carreteras son contrato de compatibilidad para la
+  refactorizacion de escala. Cualquier `ProjectDetail`/`DetailRoot` debe reproyectar esas mismas
+  rutas lon/lat; no se deben regenerar automaticamente, enderezar, mover a ojo ni reemplazar por
+  otra red.
+- **Capa de assets de carretera existente**: el codigo carga meshes de
+  `Cartoon_City_Free/Meshes/Roads` en `RoadAssetMeshes` y mantiene
+  `BuildVenezuelaRoadAssetLayer`/`AddRoadAssetRoute` para colocar tramos por polilinea. Antes de
+  tocar escala hay que auditar si esa capa esta activa en Standalone y, si se conserva, mover
+  `RoadAssetComponents` junto con `RoadMesh` al espacio de detalle, manteniendo sus rutas,
+  rotacion, ZOffset y segmentacion como punto de partida.
 - **Tiras SIMPLES sin solape**: añadir overlap longitudinal o discos (caps) coplanares =
   Z-fighting → pista "rota/segmentada". Tiras adyacentes que comparten borde = continua.
 - **Densificado a ~0.12° (`DensifyLonLat` en `AddRoute`)**: sin esto, una arista entre
@@ -107,6 +118,10 @@ tierra, labels por zoom y cámara fluida — **sin romper CO/VE** (referencia).
 - `RouteBuilder`: su overlap/caps rompieron la continuidad de la cinta → revertido.
 
 ## Pendiente (Fase 2)
+- **ScaleAudit antes de tocar proyeccion**: registrar distancias km/UU, ancho de carreteras,
+  radios de seleccion, labels visibles, secciones de `RoadMesh`, cantidad de `RoadAssetComponents`
+  y capturas 42k/76k/200k/620k. La primera regla es no romper Maracaibo bajo, Merida/San Cristobal
+  andinos ni las carreteras curadas existentes.
 - **Ecuador / Perú "limpios"** (corredores curados como CO/VE) + resto del continente.
 - Convertir la red en **grafo de pathfinding** de tropas (ROADMAP anexo).
 - **Fuente** de etiquetas (asignar asset a `UTextRenderComponent`; hoy default Roboto).
