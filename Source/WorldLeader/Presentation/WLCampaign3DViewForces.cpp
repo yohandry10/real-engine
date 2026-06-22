@@ -125,10 +125,6 @@ namespace
 		{
 			return FLinearColor(0.72f, 0.86f, 0.96f, 1.f);
 		}
-		if (Category.Contains(TEXT("mechanized")))
-		{
-			return FLinearColor(0.91f, 0.62f, 0.24f, 1.f);
-		}
 		if (Category.Contains(TEXT("frontier")))
 		{
 			return FLinearColor(0.86f, 0.74f, 0.32f, 1.f);
@@ -152,10 +148,6 @@ namespace
 		if (Category.Contains(TEXT("air")))
 		{
 			return FVector(9.2f, 9.2f, 10.8f);
-		}
-		if (Category.Contains(TEXT("mechanized")))
-		{
-			return FVector(9.5f, 9.5f, 14.0f);
 		}
 		if (Category.Contains(TEXT("frontier")))
 		{

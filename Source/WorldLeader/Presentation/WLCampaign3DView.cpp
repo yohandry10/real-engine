@@ -419,6 +419,7 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		});
 		UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: territory layer ready."));
 	}
+	LogScaleAudit();
 	ApplyZoomLOD(DefaultCameraLocation.Z);
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: zoom LOD applied."));
 	SetPresentationActive(true, true);

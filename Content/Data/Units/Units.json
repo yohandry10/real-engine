@@ -1,7 +1,7 @@
 [
 	{
 		"id": "infantry",
-		"name": "Infanteria mecanizada",
+		"name": "Infanteria regular",
 		"type": "infantry",
 		"attack": 10,
 		"defense": 12,

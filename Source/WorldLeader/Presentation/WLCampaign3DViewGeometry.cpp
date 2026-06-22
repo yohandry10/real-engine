@@ -143,6 +143,14 @@ UWLDataRegistry* AWLCampaign3DView::GetRegistry() const
 
 FVector AWLCampaign3DView::ProjectLonLat(float Lon, float Lat) const
 {
+	const float OriginLatRad = FMath::DegreesToRadians(TheaterCenterLonLat.Y);
+	const float KmNorth = (Lat - TheaterCenterLonLat.Y) * 111.32f;
+	const float KmEast = (Lon - TheaterCenterLonLat.X) * 111.32f * FMath::Cos(OriginLatRad);
+	return FVector(KmNorth * DetailWorldUnitsPerKm, KmEast * DetailWorldUnitsPerKm, SampleTerrainHeight(Lon, Lat));
+}
+
+FVector AWLCampaign3DView::ProjectStrategicLonLat(float Lon, float Lat) const
+{
 	const float X = (Lat - TheaterCenterLonLat.Y) * GeoScale;
 	const float Y = (Lon - TheaterCenterLonLat.X) * GeoScale;
 	return FVector(X, Y, SampleTerrainHeight(Lon, Lat));
@@ -308,7 +316,7 @@ void AWLCampaign3DView::BuildOverviewLayer()
 	TArray<FWLCampaignOverviewLabelSpec> OverviewLabelSpecs;
 	FWLCampaignOverviewBuilder::Build(OverviewMesh, Params, OverviewLabelSpecs, [this](float Lon, float Lat)
 	{
-		return ProjectLonLat(Lon, Lat);
+		return ProjectStrategicLonLat(Lon, Lat);
 	});
 	OverviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
@@ -320,7 +328,7 @@ void AWLCampaign3DView::BuildOverviewLayer()
 	};
 	for (const FVector2D& Corner : OverviewCorners)
 	{
-		const FVector P = ProjectLonLat(Corner.X, Corner.Y);
+		const FVector P = ProjectStrategicLonLat(Corner.X, Corner.Y);
 		OverviewBounds += FVector2D(P.X, P.Y);
 	}
 

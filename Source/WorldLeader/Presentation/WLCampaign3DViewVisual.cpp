@@ -514,9 +514,19 @@ void AWLCampaign3DView::AddSettlementCluster(
 	City.StrategicRole = SettlementStrategicRole(Type);
 	City.DetailLevel = TEXT("high-detail theater");
 	City.WorldLocation = Base;
+	City.Lon = Lon;
+	City.Lat = Lat;
 	City.bCapital = bCapital;
 	City.bPort = Type == EWLCampaignSettlementType::Port;
 	AddCitySelectionProxy(City, bCapital ? 1.28f : (City.bPort ? 1.16f : 1.0f));
+
+	const bool bDenseBorderDuplicateLabel =
+		CityId.Equals(TEXT("CO-CUCUTA"), ESearchCase::IgnoreCase)
+		|| CityId.Equals(TEXT("VE-SAN-CRISTOBAL"), ESearchCase::IgnoreCase);
+	if (bDenseBorderDuplicateLabel)
+	{
+		return;
+	}
 
 	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
 	Label->SetupAttachment(SceneRoot);
@@ -524,8 +534,9 @@ void AWLCampaign3DView::AddSettlementCluster(
 	Label->SetWorldLocation(Base + FVector(0.f, 0.f, bCapital ? 2350.f : 1720.f));
 	Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 	Label->SetHorizontalAlignment(EHTA_Center);
-	// Nombres mas grandes: a zoom Teatro (~90k) los anteriores (540) casi no se leian.
-	Label->SetWorldSize(bCapital ? 1700.f : (bSmall ? 1050.f : 1300.f));
+	// ScaleAudit: con GeoScale=9000 los labels cercanos fusionan ciudades fronterizas.
+	// Reducimos tamano visual sin mover coordenadas ni ocultar las ciudades.
+	Label->SetWorldSize(bCapital ? 1250.f : (bSmall ? 720.f : 900.f));
 	Label->SetText(FText::FromString(Name));
 	Label->SetTextRenderColor(bCapital ? FColor(230, 210, 140) : FColor(195, 205, 190));
 	SettlementLabels.Add(Label);
@@ -570,8 +581,10 @@ void AWLCampaign3DView::BuildMeshCity(float Lon, float Lat, EWLCampaignSettlemen
 			const float H3 = GridHash01(GX, GY, 3);
 			const bool bMainAvenue = GX == 0 || GY == 0 || ((GX % 3) == 0 && FMath::Abs(GY) <= Radius - 1) || ((GY % 3) == 0 && FMath::Abs(GX) <= Radius - 1);
 
-			const float CellLon = (static_cast<float>(GY) * Cell) / GeoScale;
-			const float CellLat = (static_cast<float>(GX) * Cell) / GeoScale;
+			const float OriginLatRad = FMath::DegreesToRadians(TheaterCenterLonLat.Y);
+			const float CellLon = ((static_cast<float>(GY) * Cell) / FMath::Max(1.f, DetailWorldUnitsPerKm))
+				/ (111.32f * FMath::Max(0.01f, FMath::Cos(OriginLatRad)));
+			const float CellLat = ((static_cast<float>(GX) * Cell) / FMath::Max(1.f, DetailWorldUnitsPerKm)) / 111.32f;
 			const FVector Ground = ProjectLonLat(Lon + CellLon, Lat + CellLat) + FVector(0.f, 0.f, CityGroundLift);
 
 			if (bMainAvenue || H1 > Fill * (1.f - DistN * 0.18f))
@@ -619,7 +632,8 @@ void AWLCampaign3DView::AddCitySelectionProxy(const FWLCampaign3DCityView& City,
 	Marker->SetupAttachment(SceneRoot);
 	Marker->RegisterComponent();
 	Marker->SetWorldLocation(City.WorldLocation + FVector(0.f, 0.f, City.bCapital ? 2400.f : 1800.f));
-	Marker->SetSphereRadius((City.bCapital ? 12500.f : 9800.f) * FMath::Max(0.65f, RadiusScale));
+	// Keep selection usable but stop hidden hit spheres from swallowing neighboring cities.
+	Marker->SetSphereRadius((City.bCapital ? 3800.f : 2600.f) * FMath::Max(0.65f, RadiusScale));
 	Marker->SetVisibility(false, true);
 	Marker->SetHiddenInGame(false, true);
 	Marker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);

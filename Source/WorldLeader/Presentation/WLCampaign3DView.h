@@ -62,6 +62,8 @@ struct FWLCampaign3DCityView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString StrategicRole;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString DetailLevel;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FVector WorldLocation = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") float Lon = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") float Lat = 0.f;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bCapital = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bPort = false;
 };
@@ -171,6 +173,7 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") FVector2D TheaterCenterLonLat = FVector2D(-68.6f, 7.2f);
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float GeoScale = 9000.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float DetailWorldUnitsPerKm = 320.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLon = -125.0f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLon = -34.0f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLat = -56.0f;
@@ -255,6 +258,7 @@ private:
 
 	UWLDataRegistry* GetRegistry() const;
 	FVector ProjectLonLat(float Lon, float Lat) const;
+	FVector ProjectStrategicLonLat(float Lon, float Lat) const;
 	float SampleTerrainHeight(float Lon, float Lat) const;
 	FLinearColor TerrainColor(EWLTerrainType Terrain, const FString& CountryIso) const;
 	UMaterialInstanceDynamic* MakeColorMaterial(const FLinearColor& Color);
@@ -290,6 +294,7 @@ private:
 	void BuildIntercityRoads();
 	void BuildVenezuelaRoadAssetLayer();
 	void AddRoadAssetRoute(const FWLCampaignRouteSpec& Spec, int32& InOutSegmentIndex);
+	void LogScaleAudit() const;
 	void AddMovementEdge(const FString& A, const FString& B);
 	const FWLCampaign3DMovementNodeView* FindMovementNodeById(const FString& NodeId) const;
 	FString FindNearestMovementNodeId(const FWLCampaign3DForceView& Force) const;

@@ -160,7 +160,7 @@ void AWLCampaign3DView::AddOverviewLabel(
 
 	Label->SetupAttachment(SceneRoot);
 	Label->RegisterComponent();
-	Label->SetWorldLocation(ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, ZOffset));
+	Label->SetWorldLocation(ProjectStrategicLonLat(Lon, Lat) + FVector(0.f, 0.f, ZOffset));
 	Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 	Label->SetHorizontalAlignment(EHTA_Center);
 	Label->SetWorldSize(WorldSize);

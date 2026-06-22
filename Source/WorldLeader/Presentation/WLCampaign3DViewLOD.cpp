@@ -299,12 +299,13 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 		}
 	}
 	// Etiquetas de PAIS de la capa detallada: solo al acercar. Region usa la capa
-	// estrategica/overview, no la presentacion 3D.
+	// estrategica/overview, no la presentacion 3D. En Cercano compiten con ciudades.
+	const bool bDetailedCountryLabels = bFineDetail && CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater;
 	for (UTextRenderComponent* Label : Labels)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bFineDetail, true);
+			Label->SetVisibility(bDetailedCountryLabels, true);
 		}
 	}
 	// Etiquetas de CIUDAD: solo al acercar de verdad (<=200k), nunca en vista regional/lejana.

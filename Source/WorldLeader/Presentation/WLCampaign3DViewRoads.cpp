@@ -163,8 +163,8 @@ namespace
 
 void AWLCampaign3DView::BuildIntercityRoads()
 {
-	// Agrupa las ciudades por pais (derivando lon/lat de su posicion proyectada) y
-	// las conecta con una red minima (arbol de expansion, Prim). CO/VE ya tienen
+	// Agrupa las ciudades por pais usando su lon/lat real y las conecta con una red
+	// minima (arbol de expansion, Prim). CO/VE ya tienen
 	// rutas curadas, asi que se omiten. Da caminos a todo el continente sin datos a mano.
 	struct FRoadCity
 	{
@@ -184,8 +184,8 @@ void AWLCampaign3DView::BuildIntercityRoads()
 			continue;
 		}
 		FRoadCity RC;
-		RC.Lon = TheaterCenterLonLat.X + City.WorldLocation.Y / GeoScale;
-		RC.Lat = TheaterCenterLonLat.Y + City.WorldLocation.X / GeoScale;
+		RC.Lon = City.Lon;
+		RC.Lat = City.Lat;
 		RC.bCapital = City.bCapital;
 		ByCountry.FindOrAdd(City.CountryIso).Add(RC);
 	}

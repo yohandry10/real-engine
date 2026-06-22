@@ -65,11 +65,8 @@ void AWLCampaign3DView::BuildMovementNodesAndEdges()
 		Node.bPort = City.bPort
 			|| City.Id.Equals(TEXT("VE-MARACAIBO"), ESearchCase::IgnoreCase)
 			|| City.Id.Equals(TEXT("VE-PUERTO-LA-CRUZ"), ESearchCase::IgnoreCase);
-		const FVector2D LonLat = FVector2D(
-			TheaterCenterLonLat.X + City.WorldLocation.Y / GeoScale,
-			TheaterCenterLonLat.Y + City.WorldLocation.X / GeoScale);
-		Node.Lon = LonLat.X;
-		Node.Lat = LonLat.Y;
+		Node.Lon = City.Lon;
+		Node.Lat = City.Lat;
 		MovementNodes.Add(Node);
 	}
 
