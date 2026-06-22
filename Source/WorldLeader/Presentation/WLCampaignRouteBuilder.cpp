@@ -38,51 +38,56 @@ namespace
 		FRouteStyle Style;
 		switch (Type)
 		{
+		// Carretera ancha tipo autopista (pasan tropas/tanques): asfalto OSCURO + linea
+		// central AMARILLA + arcenes claros (de grava), como la referencia. Colores en
+		// lineal bajos = asfalto oscuro real (antes 0.31 se veia gris palido). La cinta es
+		// continua, asi que la calzada se lee de corrido (sin "saltos").
 		case EWLCampaignRouteType::Primary:
-			Style.SurfaceWidth = 640.f;
-			Style.ShoulderWidth = 1120.f;
+			Style.SurfaceWidth = 1320.f;   // ~2-3 carriles
+			Style.ShoulderWidth = 1720.f;  // asfalto + arcenes
 			Style.ZOffset = 990.f;
-			Style.SurfaceColor = FLinearColor(0.310f, 0.292f, 0.240f);
-			Style.ShoulderColor = FLinearColor(0.135f, 0.122f, 0.092f);
-			Style.CenterWearColor = FLinearColor(0.205f, 0.190f, 0.155f);
-			Style.CenterWearWidth = 115.f;
+			Style.SurfaceColor = FLinearColor(0.058f, 0.060f, 0.066f); // asfalto
+			Style.ShoulderColor = FLinearColor(0.205f, 0.180f, 0.138f); // grava/tierra
+			Style.CenterWearColor = FLinearColor(0.860f, 0.640f, 0.060f); // linea central amarilla
+			Style.CenterWearWidth = 70.f;
 			break;
 		case EWLCampaignRouteType::Secondary:
-			Style.SurfaceWidth = 430.f;
-			Style.ShoulderWidth = 760.f;
-			Style.ZOffset = 900.f;
-			Style.SurfaceColor = FLinearColor(0.245f, 0.225f, 0.175f);
-			Style.ShoulderColor = FLinearColor(0.120f, 0.105f, 0.075f);
-			Style.CenterWearColor = FLinearColor(0.165f, 0.150f, 0.115f);
-			Style.CenterWearWidth = 72.f;
+			Style.SurfaceWidth = 1060.f;
+			Style.ShoulderWidth = 1380.f;
+			Style.ZOffset = 945.f;
+			Style.SurfaceColor = FLinearColor(0.066f, 0.068f, 0.074f);
+			Style.ShoulderColor = FLinearColor(0.190f, 0.166f, 0.126f);
+			Style.CenterWearColor = FLinearColor(0.840f, 0.620f, 0.060f);
+			Style.CenterWearWidth = 56.f;
 			break;
 		case EWLCampaignRouteType::Rural:
-			Style.SurfaceWidth = 280.f;
-			Style.ShoulderWidth = 500.f;
-			Style.ZOffset = 760.f;
-			Style.SurfaceColor = FLinearColor(0.235f, 0.165f, 0.090f);
-			Style.ShoulderColor = FLinearColor(0.105f, 0.070f, 0.040f);
-			Style.CenterWearColor = FLinearColor(0.155f, 0.110f, 0.060f);
-			Style.CenterWearWidth = 0.f;
-			Style.bHasCenterWear = false;
+			// Antes era tierra marron y se confundia ("¿es carretera o que?"). Ahora es
+			// asfalto angosto con linea, igual que el resto: todo se lee como carretera.
+			Style.SurfaceWidth = 860.f;
+			Style.ShoulderWidth = 1140.f;
+			Style.ZOffset = 920.f;
+			Style.SurfaceColor = FLinearColor(0.070f, 0.072f, 0.078f);
+			Style.ShoulderColor = FLinearColor(0.185f, 0.162f, 0.124f);
+			Style.CenterWearColor = FLinearColor(0.820f, 0.600f, 0.060f);
+			Style.CenterWearWidth = 46.f;
 			break;
 		case EWLCampaignRouteType::PortAccess:
-			Style.SurfaceWidth = 500.f;
-			Style.ShoulderWidth = 860.f;
+			Style.SurfaceWidth = 980.f;
+			Style.ShoulderWidth = 1280.f;
 			Style.ZOffset = 950.f;
-			Style.SurfaceColor = FLinearColor(0.280f, 0.270f, 0.215f);
-			Style.ShoulderColor = FLinearColor(0.115f, 0.105f, 0.080f);
-			Style.CenterWearColor = FLinearColor(0.180f, 0.170f, 0.135f);
-			Style.CenterWearWidth = 84.f;
+			Style.SurfaceColor = FLinearColor(0.060f, 0.062f, 0.068f);
+			Style.ShoulderColor = FLinearColor(0.195f, 0.172f, 0.132f);
+			Style.CenterWearColor = FLinearColor(0.840f, 0.620f, 0.060f);
+			Style.CenterWearWidth = 50.f;
 			break;
 		case EWLCampaignRouteType::BorderCrossing:
-			Style.SurfaceWidth = 560.f;
-			Style.ShoulderWidth = 940.f;
+			Style.SurfaceWidth = 1180.f;
+			Style.ShoulderWidth = 1540.f;
 			Style.ZOffset = 1005.f;
-			Style.SurfaceColor = FLinearColor(0.330f, 0.250f, 0.145f);
-			Style.ShoulderColor = FLinearColor(0.150f, 0.100f, 0.052f);
-			Style.CenterWearColor = FLinearColor(0.430f, 0.310f, 0.130f);
-			Style.CenterWearWidth = 110.f;
+			Style.SurfaceColor = FLinearColor(0.058f, 0.060f, 0.066f);
+			Style.ShoulderColor = FLinearColor(0.225f, 0.190f, 0.138f);
+			Style.CenterWearColor = FLinearColor(0.860f, 0.640f, 0.060f);
+			Style.CenterWearWidth = 64.f;
 			break;
 		default:
 			break;
@@ -142,7 +147,23 @@ namespace
 		return WorldPoints;
 	}
 
-	void AddStrip(FRouteMeshBuffer& Buffer, const FVector& Start, const FVector& End, float Width, const FLinearColor& Color)
+	float RouteJoinOverlap(float Width)
+	{
+		return FMath::Clamp(Width * 0.34f, 120.f, 620.f);
+	}
+
+	float RouteCapRadius(float Width)
+	{
+		return FMath::Clamp(Width * 0.52f, 120.f, 900.f);
+	}
+
+	void AddStrip(
+		FRouteMeshBuffer& Buffer,
+		const FVector& Start,
+		const FVector& End,
+		float Width,
+		float LongitudinalOverlap,
+		const FLinearColor& Color)
 	{
 		const FVector Direction = End - Start;
 		const FVector Flat(Direction.X, Direction.Y, 0.f);
@@ -151,9 +172,12 @@ namespace
 			return;
 		}
 
-		const FVector Side = FVector::CrossProduct(FVector::UpVector, Flat.GetSafeNormal()) * (Width * 0.5f);
+		const FVector Forward = Flat.GetSafeNormal();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Forward) * (Width * 0.5f);
+		const FVector ExtendedStart = Start - Forward * LongitudinalOverlap;
+		const FVector ExtendedEnd = End + Forward * LongitudinalOverlap;
 		const int32 Base = Buffer.Verts.Num();
-		Buffer.Verts.Append({ Start - Side, Start + Side, End + Side, End - Side });
+		Buffer.Verts.Append({ ExtendedStart - Side, ExtendedStart + Side, ExtendedEnd + Side, ExtendedEnd - Side });
 		Buffer.Tris.Append({ Base, Base + 1, Base + 2, Base, Base + 2, Base + 3 });
 		Buffer.Normals.Append({ FVector::UpVector, FVector::UpVector, FVector::UpVector, FVector::UpVector });
 		Buffer.UVs.Append({ FVector2D(0.f, 0.f), FVector2D(0.f, 1.f), FVector2D(1.f, 1.f), FVector2D(1.f, 0.f) });
@@ -163,9 +187,16 @@ namespace
 
 	void AddRouteLayer(FRouteMeshBuffer& Buffer, const TArray<FVector>& Points, float Width, float ZLift, const FLinearColor& Color)
 	{
+		const float Overlap = RouteJoinOverlap(Width);
 		for (int32 Index = 0; Index + 1 < Points.Num(); ++Index)
 		{
-			AddStrip(Buffer, Points[Index] + FVector(0.f, 0.f, ZLift), Points[Index + 1] + FVector(0.f, 0.f, ZLift), Width, Color);
+			AddStrip(
+				Buffer,
+				Points[Index] + FVector(0.f, 0.f, ZLift),
+				Points[Index + 1] + FVector(0.f, 0.f, ZLift),
+				Width,
+				Overlap,
+				Color);
 		}
 	}
 
@@ -190,6 +221,23 @@ namespace
 			Buffer.Tris.Add(Base);
 			Buffer.Tris.Add(Base + 1 + Index);
 			Buffer.Tris.Add(Base + 1 + ((Index + 1) % Sides));
+		}
+	}
+
+	void AddRouteLayerCaps(
+		FRouteMeshBuffer& Buffer,
+		const TArray<FVector2D>& ControlPoints,
+		float Width,
+		float ZOffset,
+		float ZLift,
+		const FLinearColor& Color,
+		TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat)
+	{
+		const float Radius = RouteCapRadius(Width);
+		for (const FVector2D& Point : ControlPoints)
+		{
+			const FVector Center = ProjectLonLat(Point.X, Point.Y) + FVector(0.f, 0.f, ZOffset + ZLift + 2.f);
+			AddNode(Buffer, Center, Radius, Color);
 		}
 	}
 
@@ -222,7 +270,9 @@ namespace
 		const TArray<FVector2D> Smoothed = SmoothPoints(Spec.Points, Spec.Smoothness);
 		const TArray<FVector> WorldPoints = ProjectRoutePoints(Smoothed, Style.ZOffset, ProjectLonLat);
 		AddRouteLayer(Buffer, WorldPoints, Style.ShoulderWidth, -24.f, Style.ShoulderColor);
+		AddRouteLayerCaps(Buffer, Spec.Points, Style.ShoulderWidth, Style.ZOffset, -24.f, Style.ShoulderColor, ProjectLonLat);
 		AddRouteLayer(Buffer, WorldPoints, Style.SurfaceWidth, 0.f, Style.SurfaceColor);
+		AddRouteLayerCaps(Buffer, Spec.Points, Style.SurfaceWidth, Style.ZOffset, 0.f, Style.SurfaceColor, ProjectLonLat);
 		if (Style.bHasCenterWear && Style.CenterWearWidth > 1.f)
 		{
 			AddRouteLayer(Buffer, WorldPoints, Style.CenterWearWidth, 18.f, Style.CenterWearColor);
@@ -295,106 +345,366 @@ void FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 		return;
 	}
 
+	// Red del teatro = UNA cinta continua para CO y VE (antes VE usaba tiles de asset que
+	// se veian "saltados"). Rutas curadas sobre TIERRA, conectando las ciudades. Se
+	// omiten spurs de puerto que entraban al agua (p.ej. Maracaibo hacia el Golfo).
 	FRouteMeshBuffer Buffer;
 	const TArray<FWLCampaignRouteSpec> Routes = {
+		// --- COLOMBIA: corredores reales (Panamericana + Caribe). Sin nodos-blob. ---
+		// Eje andino (Troncal/Panamericana -> frontera EC): Cucuta -> Pamplona ->
+		// Bucaramanga -> Tunja -> Bogota -> Ibague -> Armenia -> Cali -> Popayan ->
+		// Pasto -> Ipiales. Pasa POR las ciudades (antes Bucaramanga quedaba sin via).
 		{
-			TEXT("Andes to Venezuela strategic corridor"),
+			TEXT("CO Andean Panamericana spine"),
 			EWLCampaignRouteType::Primary,
 			{
-				FVector2D(-74.10f, 4.60f), FVector2D(-73.82f, 5.55f), FVector2D(-73.42f, 6.58f),
-				FVector2D(-72.96f, 7.35f), FVector2D(-72.50f, 7.90f), FVector2D(-72.05f, 8.72f),
-				FVector2D(-71.60f, 10.60f), FVector2D(-69.70f, 10.36f), FVector2D(-68.00f, 10.20f),
-				FVector2D(-66.90f, 10.50f), FVector2D(-65.72f, 10.34f), FVector2D(-64.70f, 10.10f)
+				FVector2D(-72.50f, 7.90f), FVector2D(-72.65f, 7.38f), FVector2D(-73.12f, 7.12f),
+				FVector2D(-73.36f, 5.53f), FVector2D(-74.10f, 4.60f), FVector2D(-75.23f, 4.44f),
+				FVector2D(-75.68f, 4.53f), FVector2D(-76.53f, 3.45f), FVector2D(-76.61f, 2.44f),
+				FVector2D(-77.28f, 1.21f), FVector2D(-77.64f, 0.83f)
 			},
 			6,
-			true
+			false
 		},
+		// Costa caribena: Maicao -> Riohacha -> Santa Marta -> Barranquilla -> Cartagena.
 		{
-			TEXT("Colombian capital to Caribbean ports"),
+			TEXT("CO Caribbean coast road"),
 			EWLCampaignRouteType::Primary,
 			{
-				FVector2D(-74.10f, 4.60f), FVector2D(-74.70f, 5.45f), FVector2D(-75.58f, 6.25f),
-				FVector2D(-75.77f, 7.95f), FVector2D(-75.55f, 9.18f), FVector2D(-75.50f, 10.40f),
-				FVector2D(-74.80f, 10.98f), FVector2D(-72.90f, 11.50f)
+				FVector2D(-72.24f, 11.38f), FVector2D(-72.90f, 11.50f), FVector2D(-74.20f, 11.24f),
+				FVector2D(-74.80f, 10.98f), FVector2D(-75.50f, 10.40f)
 			},
 			6,
-			true
+			false
 		},
+		// Conector Caribe -> Andes: Maicao/Valledupar -> Bucaramanga.
 		{
-			TEXT("Venezuelan coastal spine"),
+			TEXT("CO Caribbean to Andes connector"),
 			EWLCampaignRouteType::Secondary,
 			{
-				FVector2D(-71.60f, 10.60f), FVector2D(-70.42f, 10.36f), FVector2D(-68.00f, 10.20f),
-				FVector2D(-66.90f, 10.50f), FVector2D(-65.72f, 10.34f), FVector2D(-64.70f, 10.10f)
-			},
-			6,
-			true
-		},
-		{
-			TEXT("Caracas to Orinoco interior"),
-			EWLCampaignRouteType::Secondary,
-			{
-				FVector2D(-66.90f, 10.50f), FVector2D(-66.42f, 9.18f), FVector2D(-66.05f, 8.18f),
-				FVector2D(-64.40f, 8.05f), FVector2D(-62.60f, 8.30f)
+				FVector2D(-72.24f, 11.38f), FVector2D(-73.25f, 10.46f), FVector2D(-73.40f, 8.30f),
+				FVector2D(-73.12f, 7.12f)
 			},
 			5,
-			true
+			false
 		},
+		// Noroccidente: Cartagena -> Sincelejo -> Monteria -> Medellin -> Pereira -> eje.
 		{
-			TEXT("Llanos logistics track"),
+			TEXT("CO northwest to spine"),
+			EWLCampaignRouteType::Secondary,
+			{
+				FVector2D(-75.50f, 10.40f), FVector2D(-75.40f, 9.30f), FVector2D(-75.88f, 8.75f),
+				FVector2D(-75.58f, 6.25f), FVector2D(-75.69f, 4.81f), FVector2D(-75.68f, 4.53f)
+			},
+			6,
+			false
+		},
+		// --- CRUCES FRONTERIZOS reales ---
+		// VE<->CO andino: San Cristobal -> San Antonio del Tachira -> Cucuta (Simon Bolivar).
+		{
+			TEXT("VE-CO San Antonio Cucuta crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-72.23f, 7.77f), FVector2D(-72.44f, 7.82f), FVector2D(-72.50f, 7.90f) },
+			4,
+			false
+		},
+		// VE<->CO caribeno: Maracaibo -> Paraguachon -> Maicao (por la Guajira, tierra).
+		{
+			TEXT("VE-CO Maracaibo Maicao crossing"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-71.82f, 10.58f), FVector2D(-71.95f, 11.05f), FVector2D(-72.05f, 11.28f),
+				FVector2D(-72.24f, 11.38f)
+			},
+			6,
+			false
+		},
+		// CO<->EC andino: Ipiales -> Rumichaca -> Tulcan.
+		{
+			TEXT("CO-EC Ipiales Tulcan crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-77.64f, 0.83f), FVector2D(-77.68f, 0.82f), FVector2D(-77.72f, 0.81f) },
+			3,
+			false
+		},
+		// --- COLOMBIA relleno: llanos, sur, Pacifico, cafetero (nada queda colgado) ---
+		// Llanos: Bogota -> Villavicencio -> Yopal -> Arauca.
+		{
+			TEXT("CO llanos road"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-74.10f, 4.60f), FVector2D(-73.63f, 4.15f), FVector2D(-72.39f, 5.34f), FVector2D(-70.76f, 7.08f) },
+			6,
+			false
+		},
+		// Orinoquia (tierra): Villavicencio -> San Jose -> Inirida -> Puerto Carreno.
+		{
+			TEXT("CO Orinoquia track"),
 			EWLCampaignRouteType::Rural,
 			{
-				FVector2D(-74.10f, 4.60f), FVector2D(-72.80f, 5.20f), FVector2D(-70.60f, 5.55f),
-				FVector2D(-68.50f, 5.20f), FVector2D(-66.80f, 5.80f), FVector2D(-64.50f, 7.05f),
-				FVector2D(-62.60f, 8.30f)
+				FVector2D(-73.63f, 4.15f), FVector2D(-72.64f, 2.57f), FVector2D(-70.20f, 3.40f),
+				FVector2D(-67.92f, 3.87f), FVector2D(-67.49f, 6.19f)
 			},
+			5,
+			false
+		},
+		// Sur andino: Bogota -> Neiva -> Pitalito -> Mocoa -> Pasto (empalma al eje).
+		{
+			TEXT("CO southern Andes"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-74.10f, 4.60f), FVector2D(-75.28f, 2.93f), FVector2D(-76.05f, 1.86f), FVector2D(-76.65f, 1.15f), FVector2D(-77.28f, 1.21f) },
+			6,
+			false
+		},
+		// Caqueta: Neiva -> Florencia.
+		{
+			TEXT("CO Caqueta road"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-75.28f, 2.93f), FVector2D(-75.40f, 2.20f), FVector2D(-75.61f, 1.61f) },
 			4,
 			false
 		},
 		{
-			TEXT("Magdalena interior secondary"),
+			TEXT("CO Guaviare Caqueta connector"),
+			EWLCampaignRouteType::Rural,
+			{ FVector2D(-75.61f, 1.61f), FVector2D(-74.20f, 1.75f), FVector2D(-72.64f, 2.57f) },
+			4,
+			false
+		},
+		{
+			TEXT("CO Putumayo Amazonas frontier track"),
+			EWLCampaignRouteType::Rural,
+			{ FVector2D(-76.65f, 1.15f), FVector2D(-76.50f, 0.51f), FVector2D(-73.85f, -1.20f), FVector2D(-69.94f, -4.22f) },
+			5,
+			false
+		},
+		// Pacifico: Cali -> Buenaventura.
+		{
+			TEXT("CO Buenaventura access"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-76.53f, 3.45f), FVector2D(-76.80f, 3.70f), FVector2D(-77.07f, 3.88f) },
+			4,
+			false
+		},
+		// Pasto -> Tumaco (Pacifico sur).
+		{
+			TEXT("CO Tumaco access"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-77.28f, 1.21f), FVector2D(-78.05f, 1.50f), FVector2D(-78.79f, 1.79f) },
+			4,
+			false
+		},
+		// Medellin -> Quibdo (Choco).
+		{
+			TEXT("CO Quibdo access"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-75.58f, 6.25f), FVector2D(-76.10f, 5.95f), FVector2D(-76.65f, 5.69f) },
+			4,
+			false
+		},
+		// Eje cafetero: Medellin -> Manizales -> Pereira.
+		{
+			TEXT("CO coffee axis"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-75.58f, 6.25f), FVector2D(-75.51f, 5.07f), FVector2D(-75.69f, 4.81f) },
+			5,
+			false
+		},
+		// Cruce CO<->VE oriental: Arauca -> Guasdualito -> Barinas.
+		{
+			TEXT("CO-VE Arauca crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-70.76f, 7.08f), FVector2D(-70.80f, 7.24f), FVector2D(-70.21f, 8.62f) },
+			5,
+			false
+		},
+		// Cruce CO<->VE Orinoco: Puerto Carreno -> Puerto Ayacucho.
+		{
+			TEXT("CO-VE Orinoco crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-67.49f, 6.19f), FVector2D(-67.55f, 5.90f), FVector2D(-67.62f, 5.66f) },
+			4,
+			false
+		},
+		// Guyana al continente: Lethem -> Boa Vista (refuerza el cruce GY-BR).
+		{
+			TEXT("GY-BR Lethem Boa Vista"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-59.80f, 3.38f), FVector2D(-60.20f, 3.10f), FVector2D(-60.67f, 2.82f) },
+			4,
+			false
+		},
+		{
+			TEXT("GY interior road"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-58.16f, 6.80f), FVector2D(-58.30f, 6.00f), FVector2D(-58.62f, 6.41f), FVector2D(-59.80f, 3.38f) },
+			5,
+			false
+		},
+		{
+			TEXT("GY-SR Corentyne crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-58.16f, 6.80f), FVector2D(-57.15f, 5.88f), FVector2D(-56.97f, 5.95f) },
+			4,
+			false
+		},
+		// BR-174: Boa Vista -> Manaus (conecta el cluster norte hacia el interior).
+		{
+			TEXT("BR-174 Boa Vista Manaus"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-60.67f, 2.82f), FVector2D(-60.20f, 0.00f), FVector2D(-60.02f, -3.10f) },
+			6,
+			false
+		},
+		// --- VENEZUELA (todo sobre tierra; sin cruzar lago/mar) ---
+		// Troncal central: San Cristobal -> (por el SUR del lago de Maracaibo) ->
+		// Barquisimeto -> Valencia -> Maracay -> Caracas. Evita el lago a proposito.
+		{
+			TEXT("VE central trunk"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-72.23f, 7.77f), FVector2D(-71.30f, 8.55f), FVector2D(-70.40f, 9.05f),
+				FVector2D(-69.70f, 9.62f), FVector2D(-69.32f, 10.07f), FVector2D(-68.00f, 10.20f),
+				FVector2D(-67.60f, 10.25f), FVector2D(-66.90f, 10.50f)
+			},
+			8,
+			false
+		},
+		// Ramal a Maracaibo por la RIBERA OESTE del lago (tierra; no cruza el agua).
+		{
+			TEXT("VE Maracaibo west-bank spur"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-72.23f, 7.77f), FVector2D(-72.45f, 8.55f), FVector2D(-72.30f, 9.40f),
+				FVector2D(-72.05f, 10.15f), FVector2D(-71.82f, 10.58f)
+			},
+			7,
+			false
+		},
+		// Costa oriental: Caracas -> Puerto La Cruz, ligeramente tierra adentro para no
+		// meterse al mar (antes el tramo final caia sobre agua).
+		{
+			TEXT("VE eastern coast road"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-66.90f, 10.50f), FVector2D(-65.70f, 10.18f), FVector2D(-64.95f, 10.05f),
+				FVector2D(-64.70f, 10.10f)
+			},
+			7,
+			false
+		},
+		{
+			TEXT("VE Caracas to Orinoco trunk"),
 			EWLCampaignRouteType::Secondary,
 			{
-				FVector2D(-74.10f, 4.60f), FVector2D(-74.55f, 6.15f), FVector2D(-74.78f, 8.25f),
-				FVector2D(-74.80f, 10.98f)
+				FVector2D(-66.90f, 10.50f), FVector2D(-66.66f, 9.82f), FVector2D(-66.42f, 9.18f),
+				FVector2D(-66.05f, 8.18f), FVector2D(-64.40f, 8.05f), FVector2D(-62.60f, 8.30f)
 			},
-			5,
-			true
+			7,
+			false
 		},
 		{
-			TEXT("Cartagena port access"),
-			EWLCampaignRouteType::PortAccess,
-			{ FVector2D(-75.50f, 10.40f), FVector2D(-75.64f, 10.58f), FVector2D(-75.78f, 10.78f) },
-			4,
-			true
+			TEXT("VE llanos logistics road"),
+			EWLCampaignRouteType::Rural,
+			{
+				FVector2D(-72.23f, 7.77f), FVector2D(-70.40f, 7.25f), FVector2D(-68.20f, 7.05f),
+				FVector2D(-66.20f, 7.42f), FVector2D(-64.40f, 8.05f), FVector2D(-62.60f, 8.30f)
+			},
+			6,
+			false
 		},
 		{
-			TEXT("Barranquilla port access"),
-			EWLCampaignRouteType::PortAccess,
-			{ FVector2D(-74.80f, 10.98f), FVector2D(-74.78f, 11.12f), FVector2D(-74.74f, 11.28f) },
-			4,
-			true
-		},
-		{
-			TEXT("Maracaibo port and oil access"),
-			EWLCampaignRouteType::PortAccess,
-			{ FVector2D(-71.60f, 10.60f), FVector2D(-71.70f, 10.82f), FVector2D(-71.82f, 11.02f) },
-			4,
-			true
-		},
-		{
-			TEXT("Barcelona port access"),
-			EWLCampaignRouteType::PortAccess,
-			{ FVector2D(-64.70f, 10.10f), FVector2D(-64.65f, 10.23f), FVector2D(-64.58f, 10.38f) },
-			4,
-			true
-		},
-		{
-			TEXT("Cucuta border crossing"),
+			TEXT("VE Cucuta San Cristobal border"),
 			EWLCampaignRouteType::BorderCrossing,
-			{ FVector2D(-72.78f, 7.72f), FVector2D(-72.50f, 7.90f), FVector2D(-72.18f, 8.22f) },
+			{ FVector2D(-72.50f, 7.90f), FVector2D(-72.35f, 7.83f), FVector2D(-72.23f, 7.77f) },
 			5,
-			true
+			false
+		},
+		// Trasandina (Andes): San Cristobal -> Merida -> Valera -> Barquisimeto.
+		{
+			TEXT("VE Trasandina"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-72.23f, 7.77f), FVector2D(-71.14f, 8.60f), FVector2D(-70.60f, 9.32f), FVector2D(-69.35f, 10.07f) },
+			6,
+			false
+		},
+		// Piedemonte llanero (Troncal 5): San Cristobal -> Barinas -> Guanare -> Acarigua -> Barquisimeto.
+		{
+			TEXT("VE llanos piedmont"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-72.23f, 7.77f), FVector2D(-70.21f, 8.62f), FVector2D(-69.75f, 9.04f), FVector2D(-69.20f, 9.55f), FVector2D(-69.35f, 10.07f) },
+			6,
+			false
+		},
+		// Costa de Falcon: Valencia -> Puerto Cabello -> Coro -> Punto Fijo.
+		{
+			TEXT("VE Falcon coast"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-68.00f, 10.17f), FVector2D(-68.01f, 10.47f), FVector2D(-69.10f, 11.00f), FVector2D(-69.67f, 11.41f), FVector2D(-70.20f, 11.70f) },
+			6,
+			false
+		},
+		// Llano central (Troncal 19): Barinas -> San Fernando -> Valle de la Pascua -> El Tigre -> Ciudad Bolivar.
+		{
+			TEXT("VE central llanos"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-70.21f, 8.62f), FVector2D(-67.47f, 7.90f), FVector2D(-66.00f, 9.21f), FVector2D(-64.25f, 8.89f), FVector2D(-63.55f, 8.13f) },
+			6,
+			false
+		},
+		// Apure -> Amazonas: San Fernando -> Puerto Ayacucho.
+		{
+			TEXT("VE Apure to Amazonas"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-67.47f, 7.90f), FVector2D(-67.55f, 6.70f), FVector2D(-67.62f, 5.66f) },
+			5,
+			false
+		},
+		// Caracas -> Valle de la Pascua (conecta la costa con el llano central).
+		{
+			TEXT("VE Caracas to central llanos"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-66.90f, 10.49f), FVector2D(-66.50f, 9.90f), FVector2D(-66.00f, 9.21f) },
+			5,
+			false
+		},
+		// Oriente: Puerto La Cruz -> Maturin -> Ciudad Guayana.
+		{
+			TEXT("VE Maturin axis"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-64.63f, 10.21f), FVector2D(-63.18f, 9.75f), FVector2D(-62.60f, 8.30f) },
+			6,
+			false
+		},
+		// Costa oriental corta: Puerto La Cruz -> Cumana.
+		{
+			TEXT("VE Cumana coast"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-64.63f, 10.21f), FVector2D(-64.40f, 10.32f), FVector2D(-64.18f, 10.45f) },
+			4,
+			false
+		},
+		// Guayana hacia Brasil (Troncal 10): Ciudad Bolivar -> Ciudad Guayana -> Upata -> Tumeremo -> Santa Elena.
+		{
+			TEXT("VE Guayana to Brazil"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-63.55f, 8.13f), FVector2D(-62.60f, 8.30f), FVector2D(-62.40f, 8.02f), FVector2D(-61.50f, 7.30f), FVector2D(-61.30f, 6.00f), FVector2D(-61.11f, 4.60f) },
+			7,
+			false
+		},
+		{
+			TEXT("VE-GY Guayana border trail"),
+			EWLCampaignRouteType::Rural,
+			{ FVector2D(-61.50f, 7.30f), FVector2D(-60.70f, 7.55f), FVector2D(-59.78f, 8.20f), FVector2D(-58.62f, 6.41f) },
+			5,
+			false
+		},
+		// Cruce VE<->BR: Santa Elena de Uairen -> Pacaraima -> Boa Vista.
+		{
+			TEXT("VE-BR Santa Elena Boa Vista crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-61.11f, 4.60f), FVector2D(-61.13f, 4.48f), FVector2D(-60.85f, 3.60f), FVector2D(-60.67f, 2.82f) },
+			6,
+			false
 		}
 	};
 
@@ -403,9 +713,7 @@ void FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 		AddRoute(Buffer, Route, ProjectLonLat);
 	}
 
-	AddBridge(Buffer, FVector2D(-72.54f, 7.96f), FVector2D(-72.25f, 8.18f), ProjectLonLat);
 	AddBridge(Buffer, FVector2D(-74.93f, 8.05f), FVector2D(-74.80f, 8.42f), ProjectLonLat);
-	AddCheckpoint(Buffer, FVector2D(-72.38f, 8.06f), 34.f, ProjectLonLat);
 	CommitRoutes(RoadMesh, RoadMaterial, Buffer);
 }
 

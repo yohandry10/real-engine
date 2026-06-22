@@ -172,7 +172,7 @@ FLinearColor FWLCampaignVisualStyle::VisualBiomeColor(EWLVisualBiome Biome)
 	case EWLVisualBiome::Llanos:
 		return FLinearColor(0.340f, 0.370f, 0.155f);  // sabana / llanos
 	case EWLVisualBiome::Mountain:
-		return FLinearColor(0.400f, 0.345f, 0.255f);  // Andes
+		return FLinearColor(0.185f, 0.300f, 0.190f);  // Andes: verde, se funde (sin franja palida)
 	case EWLVisualBiome::UrbanInfluence:
 		return FLinearColor(0.300f, 0.285f, 0.205f);
 	default:
@@ -182,11 +182,12 @@ FLinearColor FWLCampaignVisualStyle::VisualBiomeColor(EWLVisualBiome Biome)
 
 FLinearColor FWLCampaignVisualStyle::ShadeTerrainVertex(const FLinearColor& Base, float Lon, float Lat, float Height)
 {
-	const float Relief = FMath::Clamp(Height / 20000.f, 0.f, 1.f);
-	const float Noise = 0.07f * FMath::Sin(Lon * 4.7f + Lat * 1.3f) + 0.05f * FMath::Cos(Lon * 2.1f - Lat * 3.4f);
-	const float Light = FMath::Clamp(0.82f + Relief * 0.42f + Noise, 0.55f, 1.38f);
+	// SIN realce por altura: antes el Andes alto se aclaraba y formaba una franja palida
+	// continua de Colombia a Chile que rompia el mapa. Ahora la altura NO cambia el color
+	// (la montana se ve como el resto del continente); el relieve 3D sigue por geometria.
+	const float Noise = 0.06f * FMath::Sin(Lon * 4.7f + Lat * 1.3f) + 0.04f * FMath::Cos(Lon * 2.1f - Lat * 3.4f);
+	const float Light = FMath::Clamp(0.92f + Noise, 0.74f, 1.06f);
 	FLinearColor Color(Base.R * Light, Base.G * Light, Base.B * Light, 1.f);
-	Color += FLinearColor(Relief * 0.13f, Relief * 0.105f, Relief * 0.065f, 0.f);
 	Color.R = FMath::Clamp(Color.R, 0.f, 1.f);
 	Color.G = FMath::Clamp(Color.G, 0.f, 1.f);
 	Color.B = FMath::Clamp(Color.B, 0.f, 1.f);

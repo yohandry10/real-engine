@@ -1,0 +1,77 @@
+void AWLCampaign3DView::BuildTheaterSettlementLayer()
+{
+	AddSettlementCluster(TEXT("CO-BOGOTA"), TEXT("Bogota"), TEXT("CO"), TEXT("CO-DC"), TEXT("Bogota D.C."), -74.1f, 4.6f, EWLCampaignSettlementType::Capital, FLinearColor(0.96f, 0.74f, 0.28f));
+	AddSettlementCluster(TEXT("CO-MEDELLIN"), TEXT("Medellin"), TEXT("CO"), TEXT("CO-ANT"), TEXT("Antioquia"), -75.58f, 6.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-CALI"), TEXT("Cali"), TEXT("CO"), TEXT("CO-VAC"), TEXT("Valle del Cauca"), -76.53f, 3.45f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-CARTAGENA"), TEXT("Cartagena"), TEXT("CO"), TEXT("CO-BOL"), TEXT("Bolivar"), -75.5f, 10.4f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-BARRANQUILLA"), TEXT("Barranquilla"), TEXT("CO"), TEXT("CO-ATL"), TEXT("Atlantico"), -74.8f, 10.98f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-SANTA-MARTA"), TEXT("Santa Marta"), TEXT("CO"), TEXT("CO-MAG"), TEXT("Magdalena"), -74.2f, 11.24f, EWLCampaignSettlementType::Port, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-BUCARAMANGA"), TEXT("Bucaramanga"), TEXT("CO"), TEXT("CO-SAN"), TEXT("Santander"), -73.12f, 7.12f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.76f, 0.66f, 0.44f));
+	AddSettlementCluster(TEXT("CO-RIOHACHA"), TEXT("Riohacha"), TEXT("CO"), TEXT("CO-LGJ"), TEXT("La Guajira"), -72.9f, 11.5f, EWLCampaignSettlementType::Port, FLinearColor(0.66f, 0.62f, 0.46f));
+	AddSettlementCluster(TEXT("CO-CUCUTA"), TEXT("Cucuta"), TEXT("CO"), TEXT("CO-NSA"), TEXT("Norte de Santander"), -72.5f, 7.9f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.72f, 0.34f));
+	AddSettlementCluster(TEXT("VE-MARACAIBO"), TEXT("Maracaibo"), TEXT("VE"), TEXT("VE-ZU"), TEXT("Zulia"), -71.82f, 10.58f, EWLCampaignSettlementType::Industrial, FLinearColor(0.84f, 0.55f, 0.32f));
+	AddSettlementCluster(TEXT("VE-CARACAS"), TEXT("Caracas"), TEXT("VE"), TEXT("VE-DC"), TEXT("Distrito Capital"), -66.9f, 10.5f, EWLCampaignSettlementType::Capital, FLinearColor(0.92f, 0.58f, 0.34f));
+	AddSettlementCluster(TEXT("VE-VALENCIA"), TEXT("Valencia"), TEXT("VE"), TEXT("VE-CAR"), TEXT("Carabobo"), -68.0f, 10.2f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("VE-BARQUISIMETO"), TEXT("Barquisimeto"), TEXT("VE"), TEXT("VE-LAR"), TEXT("Lara"), -69.32f, 10.07f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("VE-MARACAY"), TEXT("Maracay"), TEXT("VE"), TEXT("VE-ARA"), TEXT("Aragua"), -67.60f, 10.25f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("VE-SAN-CRISTOBAL"), TEXT("San Cristobal"), TEXT("VE"), TEXT("VE-TAC"), TEXT("Tachira"), -72.23f, 7.77f, EWLCampaignSettlementType::Frontier, FLinearColor(0.90f, 0.62f, 0.34f));
+	AddSettlementCluster(TEXT("VE-PUERTO-LA-CRUZ"), TEXT("Puerto La Cruz"), TEXT("VE"), TEXT("VE-ANZ"), TEXT("Anzoategui"), -64.63f, 10.21f, EWLCampaignSettlementType::Port, FLinearColor(0.78f, 0.52f, 0.34f));
+	AddSettlementCluster(TEXT("VE-CIUDAD-GUAYANA"), TEXT("Ciudad Guayana"), TEXT("VE"), TEXT("VE-BO"), TEXT("Bolivar"), -62.6f, 8.3f, EWLCampaignSettlementType::Industrial, FLinearColor(0.62f, 0.54f, 0.36f));
+
+	const FLinearColor CoTone(0.76f, 0.66f, 0.44f);
+	const FLinearColor VeTone(0.80f, 0.54f, 0.34f);
+	AddSettlementCluster(TEXT("VE-MERIDA"), TEXT("Merida"), TEXT("VE"), TEXT("VE-ME"), TEXT("Merida"), -71.14f, 8.60f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-SAN-ANTONIO"), TEXT("San Antonio del Tachira"), TEXT("VE"), TEXT("VE-TAC"), TEXT("Tachira"), -72.44f, 7.82f, EWLCampaignSettlementType::Frontier, VeTone);
+	AddSettlementCluster(TEXT("CO-PAMPLONA"), TEXT("Pamplona"), TEXT("CO"), TEXT("CO-NSA"), TEXT("Norte de Santander"), -72.65f, 7.38f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-TUNJA"), TEXT("Tunja"), TEXT("CO"), TEXT("CO-BOY"), TEXT("Boyaca"), -73.36f, 5.53f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-IBAGUE"), TEXT("Ibague"), TEXT("CO"), TEXT("CO-TOL"), TEXT("Tolima"), -75.23f, 4.44f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-ARMENIA"), TEXT("Armenia"), TEXT("CO"), TEXT("CO-QUI"), TEXT("Quindio"), -75.68f, 4.53f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-PEREIRA"), TEXT("Pereira"), TEXT("CO"), TEXT("CO-RIS"), TEXT("Risaralda"), -75.69f, 4.81f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-POPAYAN"), TEXT("Popayan"), TEXT("CO"), TEXT("CO-CAU"), TEXT("Cauca"), -76.61f, 2.44f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-PASTO"), TEXT("Pasto"), TEXT("CO"), TEXT("CO-NAR"), TEXT("Narino"), -77.28f, 1.21f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-IPIALES"), TEXT("Ipiales"), TEXT("CO"), TEXT("CO-NAR"), TEXT("Narino"), -77.64f, 0.83f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-MAICAO"), TEXT("Maicao"), TEXT("CO"), TEXT("CO-LGJ"), TEXT("La Guajira"), -72.24f, 11.38f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-VALLEDUPAR"), TEXT("Valledupar"), TEXT("CO"), TEXT("CO-CES"), TEXT("Cesar"), -73.25f, 10.46f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-MONTERIA"), TEXT("Monteria"), TEXT("CO"), TEXT("CO-COR"), TEXT("Cordoba"), -75.88f, 8.75f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-SINCELEJO"), TEXT("Sincelejo"), TEXT("CO"), TEXT("CO-SUC"), TEXT("Sucre"), -75.40f, 9.30f, EWLCampaignSettlementType::LargeCity, CoTone);
+
+	AddSettlementCluster(TEXT("VE-VALERA"), TEXT("Valera"), TEXT("VE"), TEXT("VE-TRU"), TEXT("Trujillo"), -70.60f, 9.32f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-BARINAS"), TEXT("Barinas"), TEXT("VE"), TEXT("VE-BAR"), TEXT("Barinas"), -70.21f, 8.62f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-GUANARE"), TEXT("Guanare"), TEXT("VE"), TEXT("VE-POR"), TEXT("Portuguesa"), -69.75f, 9.04f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-ACARIGUA"), TEXT("Acarigua"), TEXT("VE"), TEXT("VE-POR"), TEXT("Portuguesa"), -69.20f, 9.55f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-PUERTO-CABELLO"), TEXT("Puerto Cabello"), TEXT("VE"), TEXT("VE-CAR"), TEXT("Carabobo"), -68.01f, 10.47f, EWLCampaignSettlementType::Port, VeTone);
+	AddSettlementCluster(TEXT("VE-CORO"), TEXT("Coro"), TEXT("VE"), TEXT("VE-FAL"), TEXT("Falcon"), -69.67f, 11.41f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-PUNTO-FIJO"), TEXT("Punto Fijo"), TEXT("VE"), TEXT("VE-FAL"), TEXT("Falcon"), -70.20f, 11.70f, EWLCampaignSettlementType::Port, VeTone);
+	AddSettlementCluster(TEXT("VE-SAN-FERNANDO"), TEXT("San Fernando de Apure"), TEXT("VE"), TEXT("VE-APU"), TEXT("Apure"), -67.47f, 7.90f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-PUERTO-AYACUCHO"), TEXT("Puerto Ayacucho"), TEXT("VE"), TEXT("VE-AMA"), TEXT("Amazonas"), -67.62f, 5.66f, EWLCampaignSettlementType::Frontier, VeTone);
+	AddSettlementCluster(TEXT("VE-VALLE-PASCUA"), TEXT("Valle de la Pascua"), TEXT("VE"), TEXT("VE-GUA"), TEXT("Guarico"), -66.00f, 9.21f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-CUMANA"), TEXT("Cumana"), TEXT("VE"), TEXT("VE-SUC"), TEXT("Sucre"), -64.18f, 10.45f, EWLCampaignSettlementType::Port, VeTone);
+	AddSettlementCluster(TEXT("VE-MATURIN"), TEXT("Maturin"), TEXT("VE"), TEXT("VE-MON"), TEXT("Monagas"), -63.18f, 9.75f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-EL-TIGRE"), TEXT("El Tigre"), TEXT("VE"), TEXT("VE-ANZ"), TEXT("Anzoategui"), -64.25f, 8.89f, EWLCampaignSettlementType::Industrial, VeTone);
+	AddSettlementCluster(TEXT("VE-CIUDAD-BOLIVAR"), TEXT("Ciudad Bolivar"), TEXT("VE"), TEXT("VE-BO"), TEXT("Bolivar"), -63.55f, 8.13f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-UPATA"), TEXT("Upata"), TEXT("VE"), TEXT("VE-BO"), TEXT("Bolivar"), -62.40f, 8.02f, EWLCampaignSettlementType::LargeCity, VeTone);
+	AddSettlementCluster(TEXT("VE-TUMEREMO"), TEXT("Tumeremo"), TEXT("VE"), TEXT("VE-BO"), TEXT("Bolivar"), -61.50f, 7.30f, EWLCampaignSettlementType::Frontier, VeTone);
+	AddSettlementCluster(TEXT("VE-SANTA-ELENA"), TEXT("Santa Elena de Uairen"), TEXT("VE"), TEXT("VE-BO"), TEXT("Bolivar"), -61.11f, 4.60f, EWLCampaignSettlementType::Frontier, VeTone);
+	AddSettlementCluster(TEXT("BR-BOA-VISTA"), TEXT("Boa Vista"), TEXT("BR"), TEXT("BR-RR"), TEXT("Roraima"), -60.67f, 2.82f, EWLCampaignSettlementType::LargeCity, FLinearColor(0.66f, 0.62f, 0.42f));
+
+	AddSettlementCluster(TEXT("CO-VILLAVICENCIO"), TEXT("Villavicencio"), TEXT("CO"), TEXT("CO-MET"), TEXT("Meta"), -73.63f, 4.15f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-YOPAL"), TEXT("Yopal"), TEXT("CO"), TEXT("CO-CAS"), TEXT("Casanare"), -72.39f, 5.34f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-ARAUCA"), TEXT("Arauca"), TEXT("CO"), TEXT("CO-ARA"), TEXT("Arauca"), -70.76f, 7.08f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-PUERTO-CARRENO"), TEXT("Puerto Carreno"), TEXT("CO"), TEXT("CO-VID"), TEXT("Vichada"), -67.49f, 6.19f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-SAN-JOSE-GUAVIARE"), TEXT("San Jose del Guaviare"), TEXT("CO"), TEXT("CO-GUV"), TEXT("Guaviare"), -72.64f, 2.57f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-INIRIDA"), TEXT("Inirida"), TEXT("CO"), TEXT("CO-GUA"), TEXT("Guainia"), -67.92f, 3.87f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-NEIVA"), TEXT("Neiva"), TEXT("CO"), TEXT("CO-HUI"), TEXT("Huila"), -75.28f, 2.93f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-FLORENCIA"), TEXT("Florencia"), TEXT("CO"), TEXT("CO-CAQ"), TEXT("Caqueta"), -75.61f, 1.61f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-MOCOA"), TEXT("Mocoa"), TEXT("CO"), TEXT("CO-PUT"), TEXT("Putumayo"), -76.65f, 1.15f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-PUERTO-ASIS"), TEXT("Puerto Asis"), TEXT("CO"), TEXT("CO-PUT"), TEXT("Putumayo"), -76.50f, 0.51f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-LETICIA"), TEXT("Leticia"), TEXT("CO"), TEXT("CO-AMA"), TEXT("Amazonas"), -69.94f, -4.22f, EWLCampaignSettlementType::Frontier, CoTone);
+	AddSettlementCluster(TEXT("CO-MANIZALES"), TEXT("Manizales"), TEXT("CO"), TEXT("CO-CAL"), TEXT("Caldas"), -75.51f, 5.07f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("CO-BUENAVENTURA"), TEXT("Buenaventura"), TEXT("CO"), TEXT("CO-VAC"), TEXT("Valle del Cauca"), -77.07f, 3.88f, EWLCampaignSettlementType::Port, CoTone);
+	AddSettlementCluster(TEXT("CO-TUMACO"), TEXT("Tumaco"), TEXT("CO"), TEXT("CO-NAR"), TEXT("Narino"), -78.79f, 1.79f, EWLCampaignSettlementType::Port, CoTone);
+	AddSettlementCluster(TEXT("CO-QUIBDO"), TEXT("Quibdo"), TEXT("CO"), TEXT("CO-CHO"), TEXT("Choco"), -76.65f, 5.69f, EWLCampaignSettlementType::LargeCity, CoTone);
+	AddSettlementCluster(TEXT("VE-GUASDUALITO"), TEXT("Guasdualito"), TEXT("VE"), TEXT("VE-APU"), TEXT("Apure"), -70.80f, 7.24f, EWLCampaignSettlementType::Frontier, VeTone);
+	AddSettlementCluster(TEXT("GY-LETHEM"), TEXT("Lethem"), TEXT("GY"), TEXT("GY-UT"), TEXT("Upper Takutu"), -59.80f, 3.38f, EWLCampaignSettlementType::Frontier, FLinearColor(0.70f, 0.66f, 0.46f));
+	AddSettlementCluster(TEXT("GY-BARTICA"), TEXT("Bartica"), TEXT("GY"), TEXT("GY-CU"), TEXT("Cuyuni-Mazaruni"), -58.62f, 6.41f, EWLCampaignSettlementType::Frontier, FLinearColor(0.70f, 0.66f, 0.46f));
+	AddSettlementCluster(TEXT("GY-MABARUMA"), TEXT("Mabaruma"), TEXT("GY"), TEXT("GY-BA"), TEXT("Barima-Waini"), -59.78f, 8.20f, EWLCampaignSettlementType::Frontier, FLinearColor(0.70f, 0.66f, 0.46f));
+	AddSettlementCluster(TEXT("GY-CORRIVERTON"), TEXT("Corriverton"), TEXT("GY"), TEXT("GY-EB"), TEXT("East Berbice"), -57.15f, 5.88f, EWLCampaignSettlementType::Frontier, FLinearColor(0.70f, 0.66f, 0.46f));
+}

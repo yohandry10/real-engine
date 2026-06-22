@@ -160,7 +160,7 @@ namespace
 			BuildTerrainNormals(Buffer.Verts, Buffer.Tris, Normals);
 			TArray<FProcMeshTangent> Tangents;
 			const int32 SectionIndex = TerrainMesh->GetNumSections();
-			TerrainMesh->CreateMeshSection(SectionIndex, Buffer.Verts, Buffer.Tris, Normals, Buffer.UVs, Buffer.Colors, Tangents, true);
+			TerrainMesh->CreateMeshSection(SectionIndex, Buffer.Verts, Buffer.Tris, Normals, Buffer.UVs, Buffer.Colors, Tangents, Params.bCreateTerrainCollision);
 			if (Params.TerrainMaterial)
 			{
 				TerrainMesh->SetMaterial(SectionIndex, Params.TerrainMaterial);

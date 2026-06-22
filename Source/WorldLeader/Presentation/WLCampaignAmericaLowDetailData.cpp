@@ -40,29 +40,27 @@ namespace
 		}
 		return Value;
 	}
-}
 
-bool FWLCampaignAmericaLowDetailDataLoader::Load(FWLCampaignAmericaLowDetailData& OutData)
-{
-	OutData = FWLCampaignAmericaLowDetailData();
-
-	const FString Path = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Campaign3D") / TEXT("AmericaLowDetail.json");
-	FString Raw;
-	if (!FFileHelper::LoadFileToString(Raw, *Path))
+	bool LoadJsonObjectFromFile(const FString& Path, TSharedPtr<FJsonObject>& OutRoot)
 	{
-		return false;
+		FString Raw;
+		if (!FFileHelper::LoadFileToString(Raw, *Path))
+		{
+			return false;
+		}
+
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+		return FJsonSerializer::Deserialize(Reader, OutRoot) && OutRoot.IsValid();
 	}
 
-	TSharedPtr<FJsonObject> Root;
-	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
-	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+	void AppendCountriesFromRoot(const TSharedPtr<FJsonObject>& Root, FWLCampaignAmericaLowDetailData& OutData)
 	{
-		return false;
-	}
+		const TArray<TSharedPtr<FJsonValue>>* CountryValues = nullptr;
+		if (!Root.IsValid() || !Root->TryGetArrayField(TEXT("countries"), CountryValues) || !CountryValues)
+		{
+			return;
+		}
 
-	const TArray<TSharedPtr<FJsonValue>>* CountryValues = nullptr;
-	if (Root->TryGetArrayField(TEXT("countries"), CountryValues) && CountryValues)
-	{
 		for (const TSharedPtr<FJsonValue>& Value : *CountryValues)
 		{
 			const TSharedPtr<FJsonObject>* ObjPtr = nullptr;
@@ -87,19 +85,25 @@ bool FWLCampaignAmericaLowDetailDataLoader::Load(FWLCampaignAmericaLowDetailData
 			Country.bSpecialTerritory = ReadBoolField(*ObjPtr, TEXT("special_territory"));
 			Country.ContinentalRegion = ReadStringFieldOrDefault(*ObjPtr, TEXT("continental_region"), TEXT("America"));
 			Country.DetailLevel = ReadStringFieldOrDefault(*ObjPtr, TEXT("detail_level"),
-				IsCoreTheaterIso(Country.Iso) ? TEXT("high") : TEXT("low"));
+				FWLCampaignAmericaLowDetailDataLoader::IsCoreTheaterIso(Country.Iso) ? TEXT("high") : TEXT("low"));
 			Country.PrimaryBiome = ReadStringFieldOrDefault(*ObjPtr, TEXT("primary_biome"), TEXT("continental"));
 			Country.VisualProfile = ReadStringFieldOrDefault(*ObjPtr, TEXT("visual_profile"), Country.PrimaryBiome);
 			Country.Capital = ReadStringFieldOrDefault(*ObjPtr, TEXT("capital"), TEXT(""));
 			Country.Status = ReadStringFieldOrDefault(*ObjPtr, TEXT("status"), TEXT("visual context"));
-			Country.bAdministrable = ReadBoolField(*ObjPtr, TEXT("administrable"), IsCoreTheaterIso(Country.Iso));
+			Country.bAdministrable = ReadBoolField(*ObjPtr, TEXT("administrable"),
+				FWLCampaignAmericaLowDetailDataLoader::IsCoreTheaterIso(Country.Iso));
 			OutData.Countries.Add(Country);
 		}
 	}
 
-	const TArray<TSharedPtr<FJsonValue>>* CityValues = nullptr;
-	if (Root->TryGetArrayField(TEXT("cities"), CityValues) && CityValues)
+	void AppendCitiesFromRoot(const TSharedPtr<FJsonObject>& Root, FWLCampaignAmericaLowDetailData& OutData)
 	{
+		const TArray<TSharedPtr<FJsonValue>>* CityValues = nullptr;
+		if (!Root.IsValid() || !Root->TryGetArrayField(TEXT("cities"), CityValues) || !CityValues)
+		{
+			return;
+		}
+
 		for (const TSharedPtr<FJsonValue>& Value : *CityValues)
 		{
 			const TSharedPtr<FJsonObject>* ObjPtr = nullptr;
@@ -119,7 +123,7 @@ bool FWLCampaignAmericaLowDetailDataLoader::Load(FWLCampaignAmericaLowDetailData
 			City.MarkerType = ReadStringFieldOrDefault(*ObjPtr, TEXT("marker_type"), TEXT("low_detail"));
 			City.StrategicRole = ReadStringFieldOrDefault(*ObjPtr, TEXT("strategic_role"), TEXT("ciudad estrategica"));
 			City.DetailLevel = ReadStringFieldOrDefault(*ObjPtr, TEXT("detail_level"),
-				IsCoreTheaterIso(City.CountryIso) ? TEXT("high") : TEXT("low"));
+				FWLCampaignAmericaLowDetailDataLoader::IsCoreTheaterIso(City.CountryIso) ? TEXT("high") : TEXT("low"));
 			City.VisibleFromZoom = ReadStringFieldOrDefault(*ObjPtr, TEXT("visible_from_zoom"), TEXT("regional"));
 			City.Description = ReadStringFieldOrDefault(*ObjPtr, TEXT("description"), TEXT("Lectura estrategica placeholder."));
 			City.Lon = ReadFloatField(*ObjPtr, TEXT("lon"));
@@ -127,11 +131,65 @@ bool FWLCampaignAmericaLowDetailDataLoader::Load(FWLCampaignAmericaLowDetailData
 			City.bMajor = ReadBoolField(*ObjPtr, TEXT("major"));
 			City.bPort = ReadBoolField(*ObjPtr, TEXT("port"));
 			City.bCapital = ReadBoolField(*ObjPtr, TEXT("capital"));
-			City.bAdministrable = ReadBoolField(*ObjPtr, TEXT("administrable"), IsCoreTheaterIso(City.CountryIso));
+			City.bAdministrable = ReadBoolField(*ObjPtr, TEXT("administrable"),
+				FWLCampaignAmericaLowDetailDataLoader::IsCoreTheaterIso(City.CountryIso));
 			OutData.Cities.Add(City);
 		}
 	}
 
+	void AppendLowDetailDataFromRoot(const TSharedPtr<FJsonObject>& Root, FWLCampaignAmericaLowDetailData& OutData)
+	{
+		AppendCountriesFromRoot(Root, OutData);
+		AppendCitiesFromRoot(Root, OutData);
+	}
+
+	bool AppendLowDetailDataParts(
+		const TArray<TSharedPtr<FJsonValue>>& PartValues,
+		const FString& BaseDir,
+		FWLCampaignAmericaLowDetailData& OutData)
+	{
+		for (const TSharedPtr<FJsonValue>& Value : PartValues)
+		{
+			FString RelativePath;
+			if (!Value.IsValid() || !Value->TryGetString(RelativePath) || RelativePath.IsEmpty())
+			{
+				return false;
+			}
+
+			TSharedPtr<FJsonObject> PartRoot;
+			const FString PartPath = BaseDir / RelativePath;
+			if (!LoadJsonObjectFromFile(PartPath, PartRoot))
+			{
+				return false;
+			}
+
+			AppendLowDetailDataFromRoot(PartRoot, OutData);
+		}
+
+		return true;
+	}
+}
+
+bool FWLCampaignAmericaLowDetailDataLoader::Load(FWLCampaignAmericaLowDetailData& OutData)
+{
+	OutData = FWLCampaignAmericaLowDetailData();
+
+	const FString BaseDir = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Campaign3D");
+	const FString Path = BaseDir / TEXT("AmericaLowDetail.json");
+
+	TSharedPtr<FJsonObject> Root;
+	if (!LoadJsonObjectFromFile(Path, Root))
+	{
+		return false;
+	}
+
+	const TArray<TSharedPtr<FJsonValue>>* PartValues = nullptr;
+	if (Root->TryGetArrayField(TEXT("parts"), PartValues) && PartValues)
+	{
+		return AppendLowDetailDataParts(*PartValues, BaseDir, OutData) && !OutData.Countries.IsEmpty();
+	}
+
+	AppendLowDetailDataFromRoot(Root, OutData);
 	return !OutData.Countries.IsEmpty();
 }
 

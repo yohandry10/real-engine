@@ -1,0 +1,626 @@
+// Copyright World Leader project. See ROADMAP.md.
+
+#include "Presentation/WLCampaign3DView.h"
+
+#include "WorldLeader.h"
+#include "Campaign/WLDataRegistry.h"
+#include "Presentation/WLCampaignOverviewBuilder.h"
+#include "Presentation/WLCampaignRegionGeometry.h"
+#include "Presentation/WLCampaignRouteBuilder.h"
+#include "Presentation/WLCampaignSettlementBuilder.h"
+#include "Presentation/WLCampaignTerrainBuilder.h"
+#include "Presentation/WLCampaignVisualStyle.h"
+#include "Presentation/WLCampaignWaterBuilder.h"
+#include "ProceduralMeshComponent.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Engine/GameInstance.h"
+#include "Engine/SkyLight.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/TextureCube.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/PlatformMisc.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+#include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Parse.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "Dom/JsonObject.h"
+#include "UObject/ConstructorHelpers.h"
+#include "UnrealClient.h"
+
+bool AWLCampaign3DView::TryGetProvinceForComponent(const UPrimitiveComponent* Component, FWLCampaign3DProvinceView& OutProvince) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < ProvinceMarkers.Num() && Index < ProvinceViews.Num(); ++Index)
+	{
+		if (ProvinceMarkers[Index] == Component)
+		{
+			OutProvince = ProvinceViews[Index];
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AWLCampaign3DView::TryGetTerritoryForComponent(
+	const UPrimitiveComponent* Component,
+	FWLCampaignTerritoryRegionView& OutTerritory) const
+{
+	return TerritoryLayer && TerritoryLayer->TryGetTerritoryForComponent(Component, OutTerritory);
+}
+
+bool AWLCampaign3DView::TryGetTerritoryAtWorldLocation(
+	const FVector& WorldLocation,
+	FWLCampaignTerritoryRegionView& OutTerritory) const
+{
+	return TerritoryLayer && TerritoryLayer->TryGetTerritoryAtWorldLocation(WorldLocation, true, OutTerritory);
+}
+
+bool AWLCampaign3DView::TryGetCityForComponent(const UPrimitiveComponent* Component, FWLCampaign3DCityView& OutCity) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < CitySelectionMarkers.Num() && Index < CityViews.Num(); ++Index)
+	{
+		if (CitySelectionMarkers[Index] == Component)
+		{
+			OutCity = CityViews[Index];
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AWLCampaign3DView::TryGetCityNearWorldLocation(
+	const FVector& WorldLocation,
+	float MaxDistance,
+	FWLCampaign3DCityView& OutCity) const
+{
+	float BestDistanceSq = FMath::Square(FMath::Max(1000.f, MaxDistance));
+	int32 BestIndex = INDEX_NONE;
+	for (int32 Index = 0; Index < CityViews.Num(); ++Index)
+	{
+		const FWLCampaign3DCityView& City = CityViews[Index];
+		const float DistanceSq = FVector::DistSquared2D(WorldLocation, City.WorldLocation);
+		if (DistanceSq < BestDistanceSq)
+		{
+			BestDistanceSq = DistanceSq;
+			BestIndex = Index;
+		}
+	}
+	if (BestIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	OutCity = CityViews[BestIndex];
+	return true;
+}
+
+bool AWLCampaign3DView::TryGetForceById(const FString& ForceId, FWLCampaign3DForceView& OutForce) const
+{
+	for (const FWLCampaign3DForceView& Force : ForceViews)
+	{
+		if (Force.Id.Equals(ForceId, ESearchCase::IgnoreCase))
+		{
+			OutForce = Force;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AWLCampaign3DView::TryGetForceForComponent(const UPrimitiveComponent* Component, FWLCampaign3DForceView& OutForce) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
+	{
+		const bool bProxyHit = ForceSelectionMarkers.IsValidIndex(Index) && ForceSelectionMarkers[Index] == Component;
+		const bool bVisualHit = ForceMarkerComponents.IsValidIndex(Index) && ForceMarkerComponents[Index] == Component;
+		if (bProxyHit || bVisualHit)
+		{
+			OutForce = ForceViews[Index];
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AWLCampaign3DView::TryGetForceNearWorldLocation(
+	const FVector& WorldLocation,
+	float MaxDistance,
+	FWLCampaign3DForceView& OutForce) const
+{
+	float BestDistanceSq = FMath::Square(FMath::Max(1000.f, MaxDistance));
+	int32 BestIndex = INDEX_NONE;
+	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
+	{
+		const FWLCampaign3DForceView& Force = ForceViews[Index];
+		const float DistanceSq = FVector::DistSquared2D(WorldLocation, Force.WorldLocation);
+		if (DistanceSq < BestDistanceSq)
+		{
+			BestDistanceSq = DistanceSq;
+			BestIndex = Index;
+		}
+	}
+	if (BestIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	OutForce = ForceViews[BestIndex];
+	return true;
+}
+
+bool AWLCampaign3DView::TryGetMovementDestinationForComponent(
+	const UPrimitiveComponent* Component,
+	FWLCampaign3DMovementNodeView& OutNode) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < ActiveMovementDestinations.Num(); ++Index)
+	{
+		const bool bProxyHit = MovementDestinationSelectionMarkers.IsValidIndex(Index)
+			&& MovementDestinationSelectionMarkers[Index] == Component;
+		const bool bVisualHit = MovementDestinationComponents.IsValidIndex(Index)
+			&& MovementDestinationComponents[Index] == Component;
+		if (bProxyHit || bVisualHit)
+		{
+			OutNode = ActiveMovementDestinations[Index];
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AWLCampaign3DView::TryGetMovementDestinationNearWorldLocation(
+	const FVector& WorldLocation,
+	float MaxDistance,
+	FWLCampaign3DMovementNodeView& OutNode) const
+{
+	float BestDistanceSq = FMath::Square(FMath::Max(1000.f, MaxDistance));
+	int32 BestIndex = INDEX_NONE;
+	for (int32 Index = 0; Index < ActiveMovementDestinations.Num(); ++Index)
+	{
+		const FWLCampaign3DMovementNodeView& Node = ActiveMovementDestinations[Index];
+		const float DistanceSq = FVector::DistSquared2D(WorldLocation, Node.WorldLocation);
+		if (DistanceSq < BestDistanceSq)
+		{
+			BestDistanceSq = DistanceSq;
+			BestIndex = Index;
+		}
+	}
+	if (BestIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	OutNode = ActiveMovementDestinations[BestIndex];
+	return true;
+}
+
+bool AWLCampaign3DView::BuildMovementRouteForForce(
+	const FString& ForceId,
+	const FString& DestinationNodeId,
+	TArray<FWLCampaign3DMovementNodeView>& OutRouteNodes,
+	int32& OutEstimatedTurns) const
+{
+	OutRouteNodes.Reset();
+	OutEstimatedTurns = 0;
+
+	FWLCampaign3DForceView Force;
+	if (!TryGetForceById(ForceId, Force) || !Force.bMovable)
+	{
+		return false;
+	}
+
+	const FString OriginNodeId = Force.MovementNodeId.IsEmpty() ? FindNearestMovementNodeId(Force) : Force.MovementNodeId;
+	if (OriginNodeId.IsEmpty() || DestinationNodeId.IsEmpty() || OriginNodeId.Equals(DestinationNodeId, ESearchCase::IgnoreCase))
+	{
+		return false;
+	}
+
+	const FWLCampaign3DMovementNodeView* OriginNode = FindMovementNodeById(OriginNodeId);
+	const FWLCampaign3DMovementNodeView* DestinationNode = FindMovementNodeById(DestinationNodeId);
+	if (!OriginNode || !DestinationNode)
+	{
+		return false;
+	}
+
+	const auto NodeAllowedForForce = [&Force](const FWLCampaign3DMovementNodeView& Node)
+	{
+		if (Force.bAir)
+		{
+			return false;
+		}
+		if (Force.bNaval)
+		{
+			return Node.bPort;
+		}
+		return true;
+	};
+
+	if (!NodeAllowedForForce(*DestinationNode))
+	{
+		return false;
+	}
+
+	TArray<FString> Queue;
+	TMap<FString, FString> CameFrom;
+	Queue.Add(OriginNodeId);
+	CameFrom.Add(OriginNodeId, TEXT(""));
+	for (int32 Cursor = 0; Cursor < Queue.Num(); ++Cursor)
+	{
+		const FString Current = Queue[Cursor];
+		if (Current.Equals(DestinationNodeId, ESearchCase::IgnoreCase))
+		{
+			break;
+		}
+
+		const TArray<FString>* Neighbors = MovementAdjacency.Find(Current);
+		if (!Neighbors)
+		{
+			continue;
+		}
+		for (const FString& NeighborId : *Neighbors)
+		{
+			if (CameFrom.Contains(NeighborId))
+			{
+				continue;
+			}
+			const FWLCampaign3DMovementNodeView* NeighborNode = FindMovementNodeById(NeighborId);
+			if (!NeighborNode || !NodeAllowedForForce(*NeighborNode))
+			{
+				continue;
+			}
+			CameFrom.Add(NeighborId, Current);
+			Queue.Add(NeighborId);
+		}
+	}
+
+	if (!CameFrom.Contains(DestinationNodeId))
+	{
+		return false;
+	}
+
+	TArray<FString> ReverseNodeIds;
+	FString Current = DestinationNodeId;
+	while (!Current.IsEmpty())
+	{
+		ReverseNodeIds.Add(Current);
+		const FString* Previous = CameFrom.Find(Current);
+		Current = Previous ? *Previous : FString();
+	}
+
+	for (int32 Index = ReverseNodeIds.Num() - 1; Index >= 0; --Index)
+	{
+		if (const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(ReverseNodeIds[Index]))
+		{
+			OutRouteNodes.Add(*Node);
+		}
+	}
+
+	OutEstimatedTurns = FMath::Max(1, OutRouteNodes.Num() - 1);
+	return OutRouteNodes.Num() >= 2;
+}
+
+bool AWLCampaign3DView::UpdateForceMovementLocation(
+	const FString& ForceId,
+	const FString& DestinationNodeId,
+	FWLCampaign3DForceView& OutForce)
+{
+	const FWLCampaign3DMovementNodeView* DestinationNode = FindMovementNodeById(DestinationNodeId);
+	if (!DestinationNode)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
+	{
+		FWLCampaign3DForceView& Force = ForceViews[Index];
+		if (!Force.Id.Equals(ForceId, ESearchCase::IgnoreCase) || !Force.bMovable)
+		{
+			continue;
+		}
+
+		Force.MovementNodeId = DestinationNode->Id;
+		Force.MovementStatus = TEXT("reubicado");
+		Force.LocationName = DestinationNode->Name;
+		Force.ProvinceId = DestinationNode->ProvinceId;
+		Force.ProvinceName = DestinationNode->ProvinceName;
+		Force.NearbyCity = DestinationNode->Name;
+		Force.OperationalState = TEXT("reubicado en destino");
+		Force.Posture = Force.bNaval ? TEXT("patrulla en nuevo puerto") : TEXT("presencia en nuevo nodo");
+		Force.WorldLocation = GetForceMarkerLocationForNode(Force, *DestinationNode);
+		Force.Lon = DestinationNode->Lon;
+		Force.Lat = DestinationNode->Lat;
+
+		if (ForceMarkerComponents.IsValidIndex(Index) && ForceMarkerComponents[Index])
+		{
+			ForceMarkerComponents[Index]->SetWorldLocation(Force.WorldLocation);
+		}
+		if (ForceSelectionMarkers.IsValidIndex(Index) && ForceSelectionMarkers[Index])
+		{
+			ForceSelectionMarkers[Index]->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 1400.f));
+		}
+		if (ForceMarkerLabels.IsValidIndex(Index) && ForceMarkerLabels[Index])
+		{
+			ForceMarkerLabels[Index]->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 2550.f));
+			ForceMarkerLabels[Index]->SetText(FText::FromString(Force.NearbyCity.IsEmpty() ? Force.Name : Force.NearbyCity));
+		}
+
+		OutForce = Force;
+		if (SelectedForceHighlightId.Equals(Force.Id, ESearchCase::IgnoreCase))
+		{
+			SetSelectedForceHighlight(Force.Id);
+		}
+		return true;
+	}
+
+	return false;
+}
+
+void AWLCampaign3DView::ShowMovementDestinationOptions(const FString& ForceId)
+{
+	ActiveMovementForceId = ForceId;
+	PreviewMovementDestinationNodeId.Reset();
+	if (MovementRoutePreviewMesh)
+	{
+		MovementRoutePreviewMesh->ClearAllMeshSections();
+	}
+
+	FWLCampaign3DForceView Force;
+	TArray<FWLCampaign3DMovementNodeView> Destinations;
+	if (TryGetForceById(ForceId, Force))
+	{
+		GetValidMovementDestinations(Force, Destinations);
+	}
+	RebuildMovementDestinationMarkers(Destinations);
+}
+
+void AWLCampaign3DView::SetMovementDestinationPreview(const FString& ForceId, const FString& DestinationNodeId)
+{
+	if (ForceId.IsEmpty() || DestinationNodeId.IsEmpty())
+	{
+		if (PreviewMovementDestinationNodeId.IsEmpty())
+		{
+			return;
+		}
+		if (MovementRoutePreviewMesh)
+		{
+			MovementRoutePreviewMesh->ClearAllMeshSections();
+		}
+		PreviewMovementDestinationNodeId.Reset();
+		RebuildMovementDestinationMarkers(ActiveMovementDestinations);
+		return;
+	}
+
+	if (PreviewMovementDestinationNodeId.Equals(DestinationNodeId, ESearchCase::IgnoreCase))
+	{
+		return;
+	}
+
+	TArray<FWLCampaign3DMovementNodeView> RouteNodes;
+	int32 EstimatedTurns = 0;
+	if (!BuildMovementRouteForForce(ForceId, DestinationNodeId, RouteNodes, EstimatedTurns))
+	{
+		return;
+	}
+
+	PreviewMovementDestinationNodeId = DestinationNodeId;
+	RebuildMovementDestinationMarkers(ActiveMovementDestinations);
+	RebuildMovementRoutePreview(RouteNodes);
+}
+
+void AWLCampaign3DView::ClearMovementPreview()
+{
+	ActiveMovementForceId.Reset();
+	PreviewMovementDestinationNodeId.Reset();
+	ActiveMovementDestinations.Reset();
+	DestroyMovementDestinationMarkers();
+	if (MovementRoutePreviewMesh)
+	{
+		MovementRoutePreviewMesh->ClearAllMeshSections();
+	}
+}
+
+void AWLCampaign3DView::SetSelectedProvinceHighlight(const FString& ProvinceId)
+{
+	SelectedProvinceHighlightId = ProvinceId;
+	SelectedCityHighlightId.Reset();
+	SelectedForceHighlightId.Reset();
+	RefreshMilitaryForceMarkerVisuals();
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->SetSelectedTerritory(ProvinceId);
+	}
+
+	for (const FWLCampaign3DProvinceView& Province : ProvinceViews)
+	{
+		if (Province.Id.Equals(ProvinceId, ESearchCase::IgnoreCase))
+		{
+			RebuildPointSelectionHighlight(Province.WorldLocation + FVector(0.f, 0.f, 820.f), 6200.f, FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
+			return;
+		}
+	}
+
+	if (TerritoryLayer)
+	{
+		FWLCampaignTerritoryRegionView Territory;
+		if (TerritoryLayer->GetRegionById(ProvinceId, Territory))
+		{
+			RebuildPointSelectionHighlight(Territory.WorldLocation + FVector(0.f, 0.f, 900.f), 5200.f, FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
+			return;
+		}
+	}
+
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
+}
+
+void AWLCampaign3DView::SetSelectedCityHighlight(const FString& CityId)
+{
+	SelectedCityHighlightId = CityId;
+	SelectedProvinceHighlightId.Reset();
+	SelectedForceHighlightId.Reset();
+	RefreshMilitaryForceMarkerVisuals();
+
+	for (const FWLCampaign3DCityView& City : CityViews)
+	{
+		if (City.Id.Equals(CityId, ESearchCase::IgnoreCase))
+		{
+			if (TerritoryLayer && !City.TerritoryId.IsEmpty())
+			{
+				TerritoryLayer->SetSelectedTerritory(City.TerritoryId);
+			}
+			RebuildPointSelectionHighlight(City.WorldLocation + FVector(0.f, 0.f, 1240.f), City.bCapital ? 7600.f : 6200.f,
+				City.bPort ? FLinearColor(0.46f, 0.82f, 0.86f, 1.f) : FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
+			return;
+		}
+	}
+
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
+}
+
+void AWLCampaign3DView::SetSelectedForceHighlight(const FString& ForceId)
+{
+	SelectedForceHighlightId = ForceId;
+	SelectedProvinceHighlightId.Reset();
+	SelectedCityHighlightId.Reset();
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->SetSelectedTerritory(TEXT(""));
+	}
+	RefreshMilitaryForceMarkerVisuals();
+
+	for (const FWLCampaign3DForceView& Force : ForceViews)
+	{
+		if (Force.Id.Equals(ForceId, ESearchCase::IgnoreCase))
+		{
+			RebuildPointSelectionHighlight(Force.WorldLocation + FVector(0.f, 0.f, 880.f),
+				Force.bNaval ? 7600.f : 6600.f,
+				Force.bAir ? FLinearColor(0.72f, 0.86f, 0.98f, 1.f) : FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
+			return;
+		}
+	}
+
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
+}
+
+void AWLCampaign3DView::SetHoveredForceHighlight(const FString& ForceId)
+{
+	if (HoveredForceHighlightId.Equals(ForceId, ESearchCase::IgnoreCase))
+	{
+		return;
+	}
+
+	HoveredForceHighlightId = ForceId;
+	RefreshMilitaryForceMarkerVisuals();
+}
+
+void AWLCampaign3DView::ClearSelectionHighlight()
+{
+	SelectedProvinceHighlightId.Reset();
+	SelectedCityHighlightId.Reset();
+	SelectedForceHighlightId.Reset();
+	HoveredForceHighlightId.Reset();
+	RefreshMilitaryForceMarkerVisuals();
+	if (TerritoryLayer)
+	{
+		TerritoryLayer->SetSelectedTerritory(TEXT(""));
+	}
+	if (SelectionHighlightMesh)
+	{
+		SelectionHighlightMesh->ClearAllMeshSections();
+	}
+}
+
+FBox2D AWLCampaign3DView::GetViewBounds2D() const
+{
+	return Bounds;
+}
+
+FBox2D AWLCampaign3DView::GetCameraBounds2D(float CameraHeight) const
+{
+	if (!OverviewBounds.bIsValid)
+	{
+		return Bounds;
+	}
+
+	if (!Bounds.bIsValid)
+	{
+		return OverviewBounds;
+	}
+
+	if (CameraHeight < 155000.f)
+	{
+		return Bounds;
+	}
+
+	FBox2D Combined = Bounds;
+	const float Blend = FMath::Clamp((CameraHeight - 155000.f) / 350000.f, 0.f, 1.f);
+	const FVector2D Center = Bounds.GetCenter();
+	const FVector2D OverviewMin = FMath::Lerp(Bounds.Min, OverviewBounds.Min, Blend);
+	const FVector2D OverviewMax = FMath::Lerp(Bounds.Max, OverviewBounds.Max, Blend);
+	Combined.Min = FVector2D(FMath::Min(OverviewMin.X, Center.X), FMath::Min(OverviewMin.Y, Center.Y));
+	Combined.Max = FVector2D(FMath::Max(OverviewMax.X, Center.X), FMath::Max(OverviewMax.Y, Center.Y));
+	return Combined;
+}
+
+FVector AWLCampaign3DView::GetTheaterFocusPoint() const
+{
+	return ProjectLonLat(-69.3f, 7.05f) + FVector(0.f, 0.f, 2600.f);
+}
+
+FString AWLCampaign3DView::GetCurrentZoomLODLabel() const
+{
+	switch (CurrentZoomLOD)
+	{
+	case EWLCampaign3DZoomLOD::Close:
+		return TEXT("Cercano");
+	case EWLCampaign3DZoomLOD::Theater:
+		return TEXT("Teatro");
+	case EWLCampaign3DZoomLOD::Region:
+		return TEXT("Region");
+	case EWLCampaign3DZoomLOD::Global:
+		return TEXT("America");
+	default:
+		return TEXT("Teatro");
+	}
+}

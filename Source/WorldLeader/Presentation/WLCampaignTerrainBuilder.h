@@ -15,6 +15,7 @@ struct FWLCampaignTerrainBuildParams
 	float RegionMaxLat = 0.f;
 	UMaterialInterface* TerrainMaterial = nullptr;
 	UMaterialInterface* BoundaryMaterial = nullptr;
+	bool bCreateTerrainCollision = true;
 };
 
 class FWLCampaignTerrainBuilder

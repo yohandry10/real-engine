@@ -62,10 +62,20 @@
 - **Biomas por GEOGRAFÍA (lon/lat), no por país** (`ClassifyVisualBiome`).
 - Labels por zoom: **país** al alejar (Region/Global), **ciudad** solo al acercar
   (`Labels` vs `SettlementLabels`).
-- Ciudades: builder procedural (cajas) en `WLCampaignSettlementBuilder`. Para mallas
-  reales hay `BuildMeshCity` (instancia edificios del pack, escala por *bounds* con
-  tope de esbeltez). Activo solo para **VE** (vertical slice).
+- Ciudades: builder procedural (cajas) en `WLCampaignSettlementBuilder`. Para **VE**
+  (vertical slice) se mantiene esa base procedural y `BuildMeshCity` agrega encima
+  edificios reales de `Cartoon_City_Free` como `UStaticMeshComponent` normales
+  (no ISM), escalados por *bounds* con tope de esbeltez.
+- No usar calles/veredas/palmeras del pack como `UInstancedStaticMeshComponent`:
+  sus materiales no anuncian `InstancedStaticMeshes` y en Standalone renderizan
+  como bloques negros/default. Si se reactivan, convertirlos a componentes normales
+  o crear materiales compatibles explícitos.
 - Caminos inter-ciudad: `BuildIntercityRoads` (MST por país) drapean sobre el relieve.
+  Para **VE** hay además `BuildVenezuelaRoadAssetLayer`: usa `SM_road_001` del pack
+  como `UStaticMeshComponent` en tramos cortos sobre las rutas curadas.
+- No usar `USplineMeshComponent` con materiales de `Cartoon_City_Free`: los materiales
+  no anuncian `SplineMeshes` y Standalone cae al material default/negro. La solución
+  validada es mesh estático segmentado + material nativo del asset.
 
 ## 6. Assets (Fab) — cómo importar (ver también memoria `fab-asset-import`)
 - Usar el **panel Fab DENTRO del editor** (Ventanas → Fab). El "Añadir al proyecto"
@@ -83,6 +93,18 @@
   aplicarles color plano (perder sus materiales) — usar sus materiales nativos.
 - **Binarios de assets NO se commitean** (inflan el repo; usar Git LFS si se quiere
   versionar). Quedan en disco local; el código los referencia por ruta.
+
+## 6.1 Validación visual Standalone en sandbox Codex
+- Para validar ciudades sin depender de capturas de escritorio, existen flags de
+  screenshot en `AWLCampaign3DView`:
+  `-WLCityVisualTest=Caracas -WLCityVisualHeight=52000 -WLCityVisualScreenshot=65
+  -WLCityVisualQuitAfterScreenshot`.
+- En el sandbox actual, agregar también:
+  `-unattended -DDC-ForceMemoryCache -ShaderWorkingDir=C:\Users\PC\Desktop\rome-actual\Intermediate\CodexShaderWorkingDir`.
+  Sin `ShaderWorkingDir`, los materiales del pack pueden fallar al compilar shaders
+  por permisos fuera del repo.
+- `WLCityVisualTest` desactiva solo la colisión del terreno para acelerar la prueba
+  visual en este PC/sandbox; el flujo normal conserva colisión.
 
 ## 7. computer-use (controlar el editor)
 - El editor **NO se resuelve por nombre** ("Unreal Editor" no existe en Inicio).

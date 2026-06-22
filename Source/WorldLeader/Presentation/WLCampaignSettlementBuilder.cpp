@@ -345,7 +345,10 @@ void FWLCampaignSettlementBuilder::AddSettlement(
 	}
 
 	FSettlementMeshBuffer Buffer;
-	const float Scale = FMath::Max(0.25f, Spec.Scale) * TypeScale(Spec.Type);
+	// 0.5: la huella de ciudad era gigantesca (la losa base de una capital ~7100u de ancho
+	// = ~85 km), asi que ciudades a 50-80 km reales se solapaban/"pegaban". Compactarlas a
+	// la mitad deja separacion real entre ellas sobre el mapa.
+	const float Scale = FMath::Max(0.25f, Spec.Scale) * TypeScale(Spec.Type) * 0.5f;
 	const FRotator Rotation(0.f, DefaultYaw(Spec), 0.f);
 	const FVector Origin = ProjectLonLat(Spec.Lon, Spec.Lat) + FVector(0.f, 0.f, 900.f);
 

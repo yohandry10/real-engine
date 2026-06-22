@@ -25,6 +25,7 @@ class UTextRenderComponent;
 class UWLCampaignTerritoryLayerComponent;
 class UWLDataRegistry;
 enum class EWLCampaignSettlementType : uint8;
+struct FWLCampaignRouteSpec;
 
 UENUM(BlueprintType)
 enum class EWLCampaign3DZoomLOD : uint8
@@ -199,6 +200,11 @@ private:
 	UPROPERTY() UInstancedStaticMeshComponent* BrushInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* PortInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* ArmyMarkerInstances = nullptr;
+	// Ciudades con mallas reales (pack Cartoon_City_Free) — vertical slice Venezuela.
+	UPROPERTY() TArray<UStaticMesh*> CityBuildingMeshes;
+	UPROPERTY() TArray<UStaticMeshComponent*> CityBuildingComponents;
+	UPROPERTY() TArray<UStaticMesh*> RoadAssetMeshes;
+	UPROPERTY() TArray<UStaticMeshComponent*> RoadAssetComponents;
 	UPROPERTY() TArray<UPrimitiveComponent*> ProvinceMarkers;
 	UPROPERTY() TArray<UPrimitiveComponent*> CitySelectionMarkers;
 	UPROPERTY() TArray<UStaticMeshComponent*> ForceMarkerComponents;
@@ -242,6 +248,10 @@ private:
 	FString PreviewMovementDestinationNodeId;
 	bool bHasBuiltView = false;
 	float WaterAnimationTime = 0.f;
+	float PendingCityVisualScreenshotSeconds = -1.f;
+	float CityVisualQuitCountdownSeconds = -1.f;
+	bool bCityVisualScreenshotRequested = false;
+	bool bCityVisualQuitAfterScreenshot = false;
 
 	UWLDataRegistry* GetRegistry() const;
 	FVector ProjectLonLat(float Lon, float Lat) const;
@@ -258,6 +268,8 @@ private:
 	void AddCoastline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale);
 	void AddPathPolyline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale, float ZOffset);
 	void AddBiomePatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);
+	void BuildTheaterSettlementLayer();
+	void BuildSouthAmericaFrontierSettlementLayer();
 	void AddSettlementCluster(
 		const FString& CityId,
 		const FString& Name,
@@ -268,12 +280,16 @@ private:
 		float Lat,
 		EWLCampaignSettlementType Type,
 		const FLinearColor& AccentColor);
+	// Construye una ciudad con mallas reales (edificios del pack) en vez de cajas.
+	void BuildMeshCity(float Lon, float Lat, EWLCampaignSettlementType Type);
 	void AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale);
 	void AddMilitaryForceMarkers();
 	void AddMilitaryForceMarker(const FWLCampaign3DForceView& Force);
 	void RefreshMilitaryForceMarkerVisuals();
 	void BuildMovementNodesAndEdges();
 	void BuildIntercityRoads();
+	void BuildVenezuelaRoadAssetLayer();
+	void AddRoadAssetRoute(const FWLCampaignRouteSpec& Spec, int32& InOutSegmentIndex);
 	void AddMovementEdge(const FString& A, const FString& B);
 	const FWLCampaign3DMovementNodeView* FindMovementNodeById(const FString& NodeId) const;
 	FString FindNearestMovementNodeId(const FWLCampaign3DForceView& Force) const;
