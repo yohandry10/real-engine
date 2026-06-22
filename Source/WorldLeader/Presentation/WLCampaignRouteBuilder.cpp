@@ -147,23 +147,10 @@ namespace
 		return WorldPoints;
 	}
 
-	float RouteJoinOverlap(float Width)
-	{
-		return FMath::Clamp(Width * 0.34f, 120.f, 620.f);
-	}
-
-	float RouteCapRadius(float Width)
-	{
-		return FMath::Clamp(Width * 0.52f, 120.f, 900.f);
-	}
-
-	void AddStrip(
-		FRouteMeshBuffer& Buffer,
-		const FVector& Start,
-		const FVector& End,
-		float Width,
-		float LongitudinalOverlap,
-		const FLinearColor& Color)
+	// Cinta SIMPLE: cuadrilatero por segmento, sin extension/solape. El "overlap" que
+	// habia metido el agente paralelo creaba quads superpuestos coplanares -> Z-fighting,
+	// que se veia como pista "rota/segmentada". Tiras adyacentes comparten borde = continuo.
+	void AddStrip(FRouteMeshBuffer& Buffer, const FVector& Start, const FVector& End, float Width, const FLinearColor& Color)
 	{
 		const FVector Direction = End - Start;
 		const FVector Flat(Direction.X, Direction.Y, 0.f);
@@ -172,12 +159,9 @@ namespace
 			return;
 		}
 
-		const FVector Forward = Flat.GetSafeNormal();
-		const FVector Side = FVector::CrossProduct(FVector::UpVector, Forward) * (Width * 0.5f);
-		const FVector ExtendedStart = Start - Forward * LongitudinalOverlap;
-		const FVector ExtendedEnd = End + Forward * LongitudinalOverlap;
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Flat.GetSafeNormal()) * (Width * 0.5f);
 		const int32 Base = Buffer.Verts.Num();
-		Buffer.Verts.Append({ ExtendedStart - Side, ExtendedStart + Side, ExtendedEnd + Side, ExtendedEnd - Side });
+		Buffer.Verts.Append({ Start - Side, Start + Side, End + Side, End - Side });
 		Buffer.Tris.Append({ Base, Base + 1, Base + 2, Base, Base + 2, Base + 3 });
 		Buffer.Normals.Append({ FVector::UpVector, FVector::UpVector, FVector::UpVector, FVector::UpVector });
 		Buffer.UVs.Append({ FVector2D(0.f, 0.f), FVector2D(0.f, 1.f), FVector2D(1.f, 1.f), FVector2D(1.f, 0.f) });
@@ -187,16 +171,9 @@ namespace
 
 	void AddRouteLayer(FRouteMeshBuffer& Buffer, const TArray<FVector>& Points, float Width, float ZLift, const FLinearColor& Color)
 	{
-		const float Overlap = RouteJoinOverlap(Width);
 		for (int32 Index = 0; Index + 1 < Points.Num(); ++Index)
 		{
-			AddStrip(
-				Buffer,
-				Points[Index] + FVector(0.f, 0.f, ZLift),
-				Points[Index + 1] + FVector(0.f, 0.f, ZLift),
-				Width,
-				Overlap,
-				Color);
+			AddStrip(Buffer, Points[Index] + FVector(0.f, 0.f, ZLift), Points[Index + 1] + FVector(0.f, 0.f, ZLift), Width, Color);
 		}
 	}
 
@@ -221,23 +198,6 @@ namespace
 			Buffer.Tris.Add(Base);
 			Buffer.Tris.Add(Base + 1 + Index);
 			Buffer.Tris.Add(Base + 1 + ((Index + 1) % Sides));
-		}
-	}
-
-	void AddRouteLayerCaps(
-		FRouteMeshBuffer& Buffer,
-		const TArray<FVector2D>& ControlPoints,
-		float Width,
-		float ZOffset,
-		float ZLift,
-		const FLinearColor& Color,
-		TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat)
-	{
-		const float Radius = RouteCapRadius(Width);
-		for (const FVector2D& Point : ControlPoints)
-		{
-			const FVector Center = ProjectLonLat(Point.X, Point.Y) + FVector(0.f, 0.f, ZOffset + ZLift + 2.f);
-			AddNode(Buffer, Center, Radius, Color);
 		}
 	}
 
@@ -270,9 +230,7 @@ namespace
 		const TArray<FVector2D> Smoothed = SmoothPoints(Spec.Points, Spec.Smoothness);
 		const TArray<FVector> WorldPoints = ProjectRoutePoints(Smoothed, Style.ZOffset, ProjectLonLat);
 		AddRouteLayer(Buffer, WorldPoints, Style.ShoulderWidth, -24.f, Style.ShoulderColor);
-		AddRouteLayerCaps(Buffer, Spec.Points, Style.ShoulderWidth, Style.ZOffset, -24.f, Style.ShoulderColor, ProjectLonLat);
 		AddRouteLayer(Buffer, WorldPoints, Style.SurfaceWidth, 0.f, Style.SurfaceColor);
-		AddRouteLayerCaps(Buffer, Spec.Points, Style.SurfaceWidth, Style.ZOffset, 0.f, Style.SurfaceColor, ProjectLonLat);
 		if (Style.bHasCenterWear && Style.CenterWearWidth > 1.f)
 		{
 			AddRouteLayer(Buffer, WorldPoints, Style.CenterWearWidth, 18.f, Style.CenterWearColor);

@@ -7,12 +7,11 @@
 #include "Components/ComboBoxString.h"
 #include "Components/TextBlock.h"
 #include "Frontend/WLFrontendPlayerController.h"
+#include "UI/WLFrontendMenuWidgetPrivate.h"
 
-namespace
-{
-	const FLinearColor WLText(0.91f, 0.94f, 0.92f, 1.0f);
-	const FLinearColor WLError(0.92f, 0.32f, 0.26f, 1.0f);
-}
+// Los colores (WLText, WLError, ...) viven en el header WLFrontendMenu; antes este .cpp
+// los redefinia en un anonymous-namespace y colisionaban (ambiguo) en unity build.
+using namespace WLFrontendMenu;
 
 UWLDataRegistry* UWLFrontendMenuWidget::GetRegistry() const
 {

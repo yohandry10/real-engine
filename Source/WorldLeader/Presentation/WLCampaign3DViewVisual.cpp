@@ -522,7 +522,8 @@ void AWLCampaign3DView::AddSettlementCluster(
 	Label->SetWorldLocation(Base + FVector(0.f, 0.f, bCapital ? 2350.f : 1720.f));
 	Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 	Label->SetHorizontalAlignment(EHTA_Center);
-	Label->SetWorldSize(bCapital ? 720.f : (bSmall ? 430.f : 540.f));
+	// Nombres mas grandes: a zoom Teatro (~90k) los anteriores (540) casi no se leian.
+	Label->SetWorldSize(bCapital ? 1700.f : (bSmall ? 1050.f : 1300.f));
 	Label->SetText(FText::FromString(Name));
 	Label->SetTextRenderColor(bCapital ? FColor(230, 210, 140) : FColor(195, 205, 190));
 	SettlementLabels.Add(Label);
