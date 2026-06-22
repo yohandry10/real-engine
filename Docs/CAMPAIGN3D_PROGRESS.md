@@ -54,3 +54,60 @@ tierra, labels por zoom y cámara fluida — **sin romper CO/VE** (referencia).
 - **`Provinces.json` casi vacío** (5 provincias): la selección "rica" solo aplica a esas.
 - **Validación Standalone** formal pendiente (hasta ahora PIE/editor).
 - Quedan overlays decorativos hardcodeados menores (Andes/Patagonia) por revisar.
+
+---
+
+# Fase 2 — Red vial continental + relieve + LOD/labels (EN CURSO)
+
+> Objetivo de esta fase: el mapa deja de ser decorado y se vuelve el **tablero de
+> guerra/intriga** (tropas se mueven por carreteras). Ver `ROADMAP.md` (anexo).
+
+## Carreteras (sistema definitivo)
+- **Cinta procedural** (`FWLCampaignRouteBuilder`, `RoadMesh` + `VertexColorMaterial`),
+  **NO** tiles de asset `SM_road_001` (se ven "saltados" en curvas/pendiente; spline mesh
+  sale negro en Standalone). Asfalto oscuro (lineal ~0.06) + línea central amarilla + arcenes.
+- **Tiras SIMPLES sin solape**: añadir overlap longitudinal o discos (caps) coplanares =
+  Z-fighting → pista "rota/segmentada". Tiras adyacentes que comparten borde = continua.
+- **Densificado a ~0.12° (`DensifyLonLat` en `AddRoute`)**: sin esto, una arista entre
+  ciudades lejanas que cruza los Andes es una tira plana que la cresta TAPA → el camino se
+  ve "cortado" en el medio. Densificar lo evita (la cinta pega al relieve).
+- **Corredores reales como datos**: CO/VE curados en `BuildDefaultTheaterRoutes`; el resto
+  vía `BuildIntercityRoads` (MST + links locales) + **cruces fronterizos automáticos**
+  (par de ciudades más cercano por país, cap de distancia, chequeo "por tierra" para no
+  trazar sobre el mar) + corredores SA en `WLCampaign3DViewSouthAmericaRoadCorridors.inl`.
+
+## Ciudades / geografía
+- **Venezuela completa**: ~28 ciudades (capitales de estado + nodos de Troncal) y red vial
+  completa hasta la salida a Brasil (Santa Elena→Pacaraima→Boa Vista).
+- **Colombia**: eje andino (Panamericana) + caribeño + relleno oriente/sur/Pacífico +
+  cruces CO-VE oriental y CO-EC. Guyana enganchada vía Brasil (Lethem/Manaus).
+- **Cuenca de Maracaibo tallada** en `SampleTerrainHeight` (el modelo de Andes de cresta
+  única metía montaña donde hay tierra baja); lago reformado a ras; ciudad en ribera oeste.
+- **Huella de ciudad compactada** (`AddSettlement` Scale ×0.5 + `BuildMeshCity` radio/celda)
+  para que ciudades a 50-80 km no se solapen.
+- **Exageración de relieve 19000→12000**; **Andes sin franja pálida** (se quitó el realce de
+  color por altura en `ShadeTerrainVertex`; antes el Andes alto salía casi blanco).
+
+## LOD / labels (estándar nuevo)
+- **Zoom tope 1200k** (`CampaignMaxCameraHeight`; antes 4200k). 4 LOD: Global/Region/Teatro/Cercano.
+- **Carreteras** solo en Teatro/Cercano (`bFineDetail`), NO en Region (eran ruido al alejar).
+- **Frontera (`BoundaryMesh`)** solo continental (`CameraHeight >= 130000`), oculta de cerca
+  (70/97k traza toda la costa recortada = ruido).
+- **Nombres de país (overview)**: solo GRANDES de tierra firme en Region/Global
+  (`bGlobalPriority && !bCaribbean && !bSpecialTerritory`); islas/Caribe/territorios
+  (Trinidad, Guyana Francesa…) fuera del overview (su nombre se salía del territorio).
+  Tamaños reducidos (CO/VE 22000→10000).
+- **Ciudades (mallas + nombres)** solo `CameraHeight <= 200000` (`bCityDetail`): nada de
+  ciudades a 247k (vista regional = terreno + carreteras + fronteras).
+
+## Líos por agente paralelo (codex) — resueltos
+- Colisiones de **unity build**: helpers duplicados en anonymous-namespace de dos `.cpp`
+  (`ScaleToBounds`/`MakeBottomAnchoredTransform` en Visual.cpp y Roads.cpp) → renombrar uno.
+- Menú frontend: `WLText`/`WLError` definidos dos veces (header + .cpp) → de-duplicar.
+- `RouteBuilder`: su overlap/caps rompieron la continuidad de la cinta → revertido.
+
+## Pendiente (Fase 2)
+- **Ecuador / Perú "limpios"** (corredores curados como CO/VE) + resto del continente.
+- Convertir la red en **grafo de pathfinding** de tropas (ROADMAP anexo).
+- **Fuente** de etiquetas (asignar asset a `UTextRenderComponent`; hoy default Roboto).
+- **Nombre de país-isla al acercar** (hoy solo se ocultan del overview; falta mostrarlo en detalle).
