@@ -1949,3 +1949,38 @@ Tauri solo para herramientas internas.
 ---
 
 *World Leader — GDD v2.1 | PC Native | Unreal Engine | Mapa mundial completo | Rome Total War 2 DNA moderno*
+
+---
+
+## ANEXO — RED VIAL DE CAMPAÑA = TABLERO DE GUERRA E INTRIGA
+
+> Por qué nos obsesiona que TODAS las ciudades y carreteras estén interconectadas
+> y bien hechas: porque la red vial **no es decorado, es el grafo de movimiento**.
+
+**Las tropas se mueven por las carreteras.** Como en Total War, un ejército recorre el
+mapa estratégico ciudad por ciudad por los corredores reales — no se teletransporta.
+De ahí se desprenden las reglas duras del mapa:
+
+- **Ninguna carretera cortada ni desconectada.** Una ruta rota = un ejército que no puede
+  llegar, reforzar ni invadir por ahí.
+- **Ciudades = nodos** (objetivos: capital, puerto, frontera, industrial). **Carreteras =
+  aristas** con costo/distancia por donde fluyen ejércitos y logística.
+- **Cruces fronterizos reales = puntos de choque.** Una invasión Colombia→Venezuela entra
+  por San Antonio del Táchira–Cúcuta (puente Simón Bolívar) o por Paraguachón–Maicao. El
+  que controla el cruce controla la ruta de invasión.
+
+### Mecánicas de política e intriga que corren sobre esta red
+- **Golpes de Estado:** mover/posicionar la guarnición leal por el eje interno (p.ej.
+  Troncal 1 San Cristóbal→Caracas) para tomar la capital; el rival corre tropas por las
+  mismas vías para defender. La geografía dicta velocidad y ventana del golpe.
+- **Incitar golpes en otros países:** financiar/insertar agentes en una capital vecina y
+  desestabilizarla; el éxito depende de presencia, rutas de apoyo y control de cruces.
+- **Guerrillas / insurgencia:** focos que cortan carreteras y emboscan en terreno difícil
+  (selva, Andes), obligando a desviar tropas y encareciendo el control del territorio.
+- **Invasiones convencionales:** concentrar fuerzas en ciudades fronterizas y empujar por
+  los corredores reales hacia las capitales/puertos enemigos; los puentes y pasos son
+  cuellos de botella decisivos.
+
+**Implicación técnica (pendiente):** convertir esta red en el **grafo de pathfinding** de
+ejércitos (nodos=ciudades, aristas=corredores con costo), para que "elegí destino → la
+tropa recorre las carreteras reales y cruza por la frontera real" sea la jugada base.

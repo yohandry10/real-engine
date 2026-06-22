@@ -242,6 +242,9 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater || CurrentZoomLOD == EWLCampaign3DZoomLOD::Close);
 	const bool bFineDetail = bActive
 		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Close || CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater);
+	// Detalle de CIUDAD (mallas + nombres): solo al acercar de verdad (<=200k). A 247k aun
+	// es vista regional -> nada de ciudades (tambien limpia el amasijo de labels del Caribe).
+	const bool bCityDetail = bFineDetail && CameraHeight <= 200000.f;
 
 	SetStrategicLayerVisible(bStrategic);
 	SetDetailedLayerVisible(bTheaterTerrain);
@@ -258,9 +261,9 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	// frontera en la vista continental.)
 	if (BoundaryMesh)
 	{
-		// Frontera visible en TEATRO (76k+, se ven varios paises); Region usa solo
-		// OverviewMesh para evitar que el relieve/faja andina tape el mapa.
-		BoundaryMesh->SetVisibility(bTheaterTerrain && CurrentZoomLOD != EWLCampaign3DZoomLOD::Close, true);
+		// Frontera: oculta en zoom CERCANO/regional (<=130k, p.ej. 70k/97k, donde traza
+		// toda la costa recortada y hace ruido); visible mas lejos (varios paises a la vista).
+		BoundaryMesh->SetVisibility(bTheaterTerrain && CameraHeight >= 130000.f, true);
 	}
 
 	if (RoadMesh)
@@ -279,13 +282,13 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	}
 	if (SettlementMesh)
 	{
-		SettlementMesh->SetVisibility(bFineDetail, true);
+		SettlementMesh->SetVisibility(bCityDetail, true);
 	}
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{
 		if (Component)
 		{
-			Component->SetVisibility(bFineDetail, true);
+			Component->SetVisibility(bCityDetail, true);
 		}
 	}
 	for (UStaticMeshComponent* Route : RouteSegments)
@@ -304,19 +307,19 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 			Label->SetVisibility(bFineDetail, true);
 		}
 	}
-	// Etiquetas de CIUDAD: solo al acercar (Teatro/Cercano), nunca al alejar.
+	// Etiquetas de CIUDAD: solo al acercar de verdad (<=200k), nunca en vista regional/lejana.
 	for (UTextRenderComponent* Label : SettlementLabels)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bFineDetail, true);
+			Label->SetVisibility(bCityDetail, true);
 		}
 	}
 	for (UStaticMeshComponent* Building : CityBuildingComponents)
 	{
 		if (Building)
 		{
-			Building->SetVisibility(bFineDetail, true);
+			Building->SetVisibility(bCityDetail, true);
 		}
 	}
 	if (TreeInstances)

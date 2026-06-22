@@ -219,7 +219,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float DragPanUnitsPerPixelAt100k = 120.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignEdgePanSpeed = 110000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMinCameraHeight = 42000.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 4200000.f;
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 1200000.f;
 
 	UPROPERTY() AWLCampaign3DView* Campaign3DView = nullptr;
 	UPROPERTY() AWLWorldMap* WorldMap = nullptr;

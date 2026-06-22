@@ -50,7 +50,9 @@ namespace
 		return FMath::Frac(FMath::Abs(FMath::Sin(Seed) * 43758.5453f));
 	}
 
-	FVector ScaleToBounds(UStaticMesh* Mesh, float TargetX, float TargetY, float TargetZ)
+	// Renombrada (antes ScaleToBounds) para no colisionar con la copia identica de
+	// WLCampaign3DViewRoads.cpp cuando el unity build junta ambos .cpp en un mismo TU.
+	FVector ScaleMeshToBounds(UStaticMesh* Mesh, float TargetX, float TargetY, float TargetZ)
 	{
 		if (!Mesh)
 		{
@@ -64,7 +66,7 @@ namespace
 			TargetZ / FMath::Max(1.f, Ext.Z * 2.f));
 	}
 
-	FTransform MakeBottomAnchoredTransform(
+	FTransform MakeMeshBottomTransform(
 		UStaticMesh* Mesh,
 		const FVector& DesiredBottomCenter,
 		const FRotator& Rotation,
@@ -587,7 +589,7 @@ void AWLCampaign3DView::BuildMeshCity(float Lon, float Lat, EWLCampaignSettlemen
 			const float Foot = Cell * (0.42f + H3 * 0.16f);
 			float TargetH = FMath::Max(240.f, DowntownHeight * (1.f - DistN * 0.5f) * (0.6f + H3 * 0.8f));
 			TargetH = FMath::Min(TargetH, Foot * 3.35f); // limita la esbeltez (sin losas/agujas)
-			const FVector Scale = ScaleToBounds(Mesh, Foot, Foot, TargetH);
+			const FVector Scale = ScaleMeshToBounds(Mesh, Foot, Foot, TargetH);
 
 			const FRotator Rot(0.f, 90.f * FMath::RoundToFloat(H2 * 3.f), 0.f);
 			UStaticMeshComponent* Building = NewObject<UStaticMeshComponent>(this);
@@ -600,7 +602,7 @@ void AWLCampaign3DView::BuildMeshCity(float Lon, float Lat, EWLCampaignSettlemen
 			Building->SetStaticMesh(Mesh);
 			Building->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Building->SetMobility(EComponentMobility::Movable);
-			Building->SetWorldTransform(MakeBottomAnchoredTransform(Mesh, Ground + FVector(0.f, 0.f, 30.f), Rot, Scale));
+			Building->SetWorldTransform(MakeMeshBottomTransform(Mesh, Ground + FVector(0.f, 0.f, 30.f), Rot, Scale));
 			CityBuildingComponents.Add(Building);
 		}
 	}

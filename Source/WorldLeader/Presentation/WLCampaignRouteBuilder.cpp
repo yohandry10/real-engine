@@ -131,6 +131,30 @@ namespace
 		return Result;
 	}
 
+	// Subdivide los tramos largos para que la cinta SIGA el relieve de cerca. Sin esto, una
+	// arista entre dos ciudades lejanas (costa -> selva cruzando los Andes) es una tira plana
+	// que la cresta TAPA en el medio -> el camino se ve "cortado". Densificar lo evita.
+	TArray<FVector2D> DensifyLonLat(const TArray<FVector2D>& Points, float MaxSegDeg)
+	{
+		if (Points.Num() < 2)
+		{
+			return Points;
+		}
+		TArray<FVector2D> Result;
+		Result.Add(Points[0]);
+		for (int32 Index = 0; Index + 1 < Points.Num(); ++Index)
+		{
+			const FVector2D A = Points[Index];
+			const FVector2D B = Points[Index + 1];
+			const int32 Sub = FMath::Max(1, FMath::CeilToInt(FVector2D::Distance(A, B) / FMath::Max(0.02f, MaxSegDeg)));
+			for (int32 S = 1; S <= Sub; ++S)
+			{
+				Result.Add(FMath::Lerp(A, B, static_cast<float>(S) / static_cast<float>(Sub)));
+			}
+		}
+		return Result;
+	}
+
 	TArray<FVector> ProjectRoutePoints(
 		const TArray<FVector2D>& LonLatPoints,
 		float ZOffset,
@@ -227,7 +251,9 @@ namespace
 		}
 
 		const FRouteStyle Style = StyleFor(Spec.Type);
-		const TArray<FVector2D> Smoothed = SmoothPoints(Spec.Points, Spec.Smoothness);
+		// Densificado a ~0.12 grados (~13 km) para que la cinta pegue al relieve y la
+		// cordillera no "corte" los caminos largos (costa<->selva en Peru, etc.).
+		const TArray<FVector2D> Smoothed = DensifyLonLat(SmoothPoints(Spec.Points, Spec.Smoothness), 0.12f);
 		const TArray<FVector> WorldPoints = ProjectRoutePoints(Smoothed, Style.ZOffset, ProjectLonLat);
 		AddRouteLayer(Buffer, WorldPoints, Style.ShoulderWidth, -24.f, Style.ShoulderColor);
 		AddRouteLayer(Buffer, WorldPoints, Style.SurfaceWidth, 0.f, Style.SurfaceColor);

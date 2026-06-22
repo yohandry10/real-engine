@@ -110,22 +110,22 @@ void AddCityMarkerShape(FMeshBuffers& Buffer, const FWLCampaignAmericaCitySpec& 
 				|| Country.Iso == TEXT("TT") || Country.Iso == TEXT("GY");
 			const bool bCaribbean = FieldEquals(Country.ContinentalRegion, TEXT("Caribbean"));
 
-			// Estandar de etiquetas: los nombres de PAIS solo se muestran en el zoom
-			// lejano (Global / "America"). Al acercarse (Region) se ocultan y aparecen
-			// las ciudades, para que nunca se encimen pais + ciudad.
+			// Solo los paises GRANDES de tierra firme llevan nombre en el overview
+			// (Region/Global). Los chicos (islas del Caribe, Trinidad, Guyana Francesa,
+			// territorios) NO: su nombre es mas grande que su territorio y se sale -> se
+			// veran al acercar, por ciudad. CO/VE/EC y demas grandes si.
+			const bool bBigMainland = bGlobalPriority && !bCaribbean && !Country.bSpecialTerritory;
+
 			FWLCampaignOverviewLabelSpec Label;
 			Label.Text = Country.DisplayName;
 			Label.Lon = Country.LabelLon;
 			Label.Lat = Country.LabelLat;
 			Label.ZOffset = bCoreTheater ? 36000.f : 32000.f;
-			Label.WorldSize = bCoreTheater
-				? 22000.f
-				: (bGlobalPriority
-					? (IsSouthAmericaIso(Country.Iso) ? 16000.f : 14500.f)
-					: (bCaribbean ? 8000.f : 11000.f));
+			// Tamanos reducidos: antes 22000/16000 se veian enormes para el territorio.
+			Label.WorldSize = bCoreTheater ? 10000.f : (IsSouthAmericaIso(Country.Iso) ? 10000.f : 9000.f);
 			Label.Color = bCoreTheater ? FColor(235, 214, 126) : FColor(190, 212, 188);
-			Label.bShowInGlobal = true;
-			Label.bShowInRegion = false;
+			Label.bShowInGlobal = bBigMainland;
+			Label.bShowInRegion = bBigMainland;
 			OutLabels.Add(Label);
 		}
 	}
