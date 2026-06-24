@@ -348,6 +348,54 @@ void AWLCampaign3DView::BuildIntercityRoads()
 		}
 	}
 
+	// --- Conectores de ciudad de TEATRO (CO/VE): el corredor curado salta las ciudades del llano
+	//     (Barinas, Guanare, Acarigua...), que quedaban AISLADAS (sin via que llegue). Cada ciudad de
+	//     teatro enlaza con su vecina mas cercana (<= cap, por TIERRA) -> ninguna queda en el "desierto"
+	//     sin carretera. Corto para no trazar autopistas largas raras; algo de solape con lo curado es ok.
+	{
+		const float TheaterConnCap = 1.8f;
+		for (const TPair<FString, TArray<FRoadCity>>& Pair : ByCountry)
+		{
+			if (!IsTheaterCore(Pair.Key))
+			{
+				continue;
+			}
+			const TArray<FRoadCity>& Cities = Pair.Value;
+			const int32 N = Cities.Num();
+			for (int32 I = 0; I < N; ++I)
+			{
+				int32 Best = -1;
+				float BestD = TheaterConnCap;
+				for (int32 J = 0; J < N; ++J)
+				{
+					if (I == J)
+					{
+						continue;
+					}
+					const float D = FVector2D::Distance(
+						FVector2D(Cities[I].Lon, Cities[I].Lat), FVector2D(Cities[J].Lon, Cities[J].Lat));
+					if (D < BestD)
+					{
+						BestD = D;
+						Best = J;
+					}
+				}
+				if (Best >= 0 && EdgeOnLand(Cities[I], Cities[Best]))
+				{
+					FWLCampaignRouteSpec Spec;
+					Spec.Name = Pair.Key + TEXT("-cityconn");
+					Spec.Type = EWLCampaignRouteType::Secondary;
+					Spec.Points = {
+						FVector2D(Cities[I].Lon, Cities[I].Lat),
+						FVector2D(Cities[Best].Lon, Cities[Best].Lat) };
+					Spec.Smoothness = 2;
+					Spec.bShowJunctions = false;
+					Network.Add(Spec);
+				}
+			}
+		}
+	}
+
 	// --- Cruces fronterizos: conecta cada par de paises por su par de ciudades mas
 	//     cercano (tope de distancia), si la recta va por TIERRA. Da interconexion real
 	//     (autopistas internacionales) sin trazar sobre el mar; el tope deja fuera huecos

@@ -87,6 +87,14 @@ tierra, labels por zoom y cámara fluida — **sin romper CO/VE** (referencia).
   (par de ciudades más cercano por país, cap de distancia, chequeo "por tierra" para no
   trazar sobre el mar) + corredores SA en `WLCampaign3DViewSouthAmericaRoadCorridors.inl`.
 
+## Vegetación / relieve de naturaleza
+- **Reemplazado el scatter placeholder de conos** por 6 assets Blender unlit vertex-color
+  (`gen_nature.py` → `/Game/GenNature`: conifer, broadleaf, palm, rock, peak, mount). Importador
+  `import_nature.py`. En C++: un ISM por tipo (`NatureInstances`/`EWLNatureKind`) con `VertexColorMaterial`.
+- **`AddVegetationScatter` ahora es biome-driven**: por celda muestrea `ClassifyVisualBiome` → asset por
+  bioma, ancla con `VisualBiomeZOffset` (misma superficie que el terreno), enmascara mar y ciudades.
+  Sigue solo en CO/VE (las 4 zonas de la vertical slice); extender a más países cuando se curen.
+
 ## Ciudades / geografía
 - **Venezuela completa**: ~28 ciudades (capitales de estado + nodos de Troncal) y red vial
   completa hasta la salida a Brasil (Santa Elena→Pacaraima→Boa Vista).
@@ -110,6 +118,66 @@ tierra, labels por zoom y cámara fluida — **sin romper CO/VE** (referencia).
   Tamaños reducidos (CO/VE 22000→10000).
 - **Ciudades (mallas + nombres)** solo `CameraHeight <= 200000` (`bCityDetail`): nada de
   ciudades a 247k (vista regional = terreno + carreteras + fronteras).
+
+## Checkpoint de diseño: escala de ciudades, LOD y crecimiento
+Contexto del usuario (2026-06-22): las ciudades se ven demasiado pequeñas en el
+mapa expandido, especialmente en 170k-250k. El juego necesita que una ciudad sea
+legible como ficha jugable y que, con economia/infraestructura, pueda crecer hasta
+sentirse como una polis. A la vez, San Antonio, Cucuta y San Cristobal tienen
+distancias reales cortas (aprox. 11-33 km entre algunos pares), asi que agrandar
+todo sin control volveria a pegarlas.
+
+Respuesta tecnica consolidada:
+- No se debe resolver haciendo todos los meshes de ciudad gigantes ni quitando
+  zooms intermedios. El patron estandar de alto nivel es LOD/HLOD: a distancia se
+  reemplaza el detalle por proxies/simbolos simplificados, y el detalle fisico se
+  muestra solo de cerca.
+- Las ciudades estan pequenas como elemento jugable, pero la huella urbana real no
+  debe crecer brutalmente. El simbolo de lectura puede ser mas grande que la huella
+  real; la huella y los edificios deben respetar distancia a ciudades vecinas.
+- Separar tres capas:
+  1. **Simbolo jugable de ciudad**: visible desde mas lejos; resuelve lectura y click.
+  2. **Huella urbana real**: mas contenida, pegada al terreno, crece con economia,
+     poblacion e infraestructura, con limite por distancia a ciudades cercanas.
+  3. **Mesh detallado**: edificios/calles/relleno urbano; solo en Close/cercano.
+- Decision propuesta para implementar:
+  - `>360k`: estrategico limpio, sin carreteras detalladas ni ciudades.
+  - `320k-220k`: rutas + simbolos claros de ciudad, sin meshes pesados.
+  - `220k-120k`: huella urbana visible y labels legibles.
+  - `<120k`: edificios/detalle.
+- El crecimiento economico debe modificar huella/edificios/densidad, no el tamano
+  basico del simbolo de lectura.
+- No ensanchar carreteras por ahora; el problema principal observado era que las
+  carreteras aparecian solas mientras las ciudades seguian ocultas o minusculas.
+
+Criterios aceptables despues de implementar:
+- 550k/450k/375k: no ver carreteras detalladas solas.
+- 308k/250k: ver ciudades como nodos claros junto a carreteras.
+- 170k/139k: ciudades legibles, sin duplicados ni labels gigantes.
+- 114k: ver huella/edificios y que Merida siga leyendo como zona andina.
+- San Antonio/Cucuta/San Cristobal separados, no amontonados.
+- Maracaibo en cuenca baja, no visualmente pegada a la montana andina.
+
+Referencias de criterio:
+- Epic Games: Hierarchical Level of Detail (HLOD)
+  https://dev.epicgames.com/documentation/unreal-engine/hierarchical-level-of-detail-in-unreal-engine?lang=en-US
+- Epic Games: Static Mesh Automatic LOD Generation
+  https://dev.epicgames.com/documentation/unreal-engine/static-mesh-automatic-lod-generation-in-unreal-engine?lang=en-US
+
+## Biblioteca externa de ciudades
+- Se creo `ExternalAssets/CityKits/` como biblioteca de evaluacion previa a
+  importacion Unreal. No todo lo descargado debe entrar automaticamente en `Content/`.
+- Kenney City Kits: CC0, utiles como piezas ligeras modulares.
+- Quaternius Downtown City MegaKit Standard: CC0, mas cercano al lenguaje moderno/
+  futurista deseado. El ZIP original queda local sin trackear porque supera 100 MB;
+  los archivos extraidos quedan disponibles para evaluacion.
+- Fab `City` de SpatialNeglect: descargado desde la biblioteca Fab del usuario y
+  copiado desde VaultCache a `ExternalAssets/CityKits/Fab/City-SpatialNeglect`.
+  Contiene un `City.fbx`, 18 texturas PNG, 6 grupos de material y metadata Fab que
+  declara 72,100 tris. No trae `License.txt`; conservar metadata/origen de Fab.
+- Proxima prueba correcta: importar el Fab City en carpeta aislada
+  `Content/ExternalTests/FabCity_SpatialNeglect`, revisar escala, materiales, pivot
+  y rendimiento, y solo despues conectarlo al sistema de ciudades.
 
 ## Líos por agente paralelo (codex) — resueltos
 - Colisiones de **unity build**: helpers duplicados en anonymous-namespace de dos `.cpp`

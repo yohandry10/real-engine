@@ -125,10 +125,6 @@ namespace
 		{
 			return FLinearColor(0.72f, 0.86f, 0.96f, 1.f);
 		}
-		if (Category.Contains(TEXT("frontier")))
-		{
-			return FLinearColor(0.86f, 0.74f, 0.32f, 1.f);
-		}
 		if (Category.Contains(TEXT("urban")))
 		{
 			return FLinearColor(0.58f, 0.66f, 0.68f, 1.f);
@@ -148,10 +144,6 @@ namespace
 		if (Category.Contains(TEXT("air")))
 		{
 			return FVector(9.2f, 9.2f, 10.8f);
-		}
-		if (Category.Contains(TEXT("frontier")))
-		{
-			return FVector(8.4f, 8.4f, 12.0f);
 		}
 		if (Category.Contains(TEXT("urban")))
 		{
@@ -263,7 +255,24 @@ void AWLCampaign3DView::AddMilitaryForceMarkers()
 
 void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& Force)
 {
-	if (Force.Id.IsEmpty() || !ConeMesh)
+	if (Force.Id.IsEmpty())
+	{
+		return;
+	}
+
+	// Marcadores de fuerza OCULTOS por ahora: son placeholder (sin gameplay activo) y ensuciaban las
+	// ciudades con conos dorados ("triangulos amarillos") + una etiqueta que repetia el nombre de la
+	// ciudad (el segundo "Caracas"). Registramos los datos en ForceViews (paneles/reactivacion) pero
+	// NO creamos geometria ni hitbox (que ademas se tragaba el click de la ciudad). Para reactivarlos
+	// cuando las fuerzas sean jugables: bShowMilitaryForceMarkers = true. Es todo-o-nada, asi que las
+	// arrays paralelas de marcadores quedan vacias de forma consistente (Queries usa IsValidIndex).
+	if (!bShowMilitaryForceMarkers)
+	{
+		ForceViews.Add(Force);
+		return;
+	}
+
+	if (!ConeMesh)
 	{
 		return;
 	}

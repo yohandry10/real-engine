@@ -50,39 +50,6 @@ namespace
 		return FMath::Frac(FMath::Abs(FMath::Sin(Seed) * 43758.5453f));
 	}
 
-	// Renombrada (antes ScaleToBounds) para no colisionar con la copia identica de
-	// WLCampaign3DViewRoads.cpp cuando el unity build junta ambos .cpp en un mismo TU.
-	FVector ScaleMeshToBounds(UStaticMesh* Mesh, float TargetX, float TargetY, float TargetZ)
-	{
-		if (!Mesh)
-		{
-			return FVector::OneVector;
-		}
-
-		const FVector Ext = Mesh->GetBounds().BoxExtent;
-		return FVector(
-			TargetX / FMath::Max(1.f, Ext.X * 2.f),
-			TargetY / FMath::Max(1.f, Ext.Y * 2.f),
-			TargetZ / FMath::Max(1.f, Ext.Z * 2.f));
-	}
-
-	FTransform MakeMeshBottomTransform(
-		UStaticMesh* Mesh,
-		const FVector& DesiredBottomCenter,
-		const FRotator& Rotation,
-		const FVector& Scale)
-	{
-		if (!Mesh)
-		{
-			return FTransform(Rotation, DesiredBottomCenter, Scale);
-		}
-
-		const FBoxSphereBounds Bounds = Mesh->GetBounds();
-		const FVector LocalBottomCenter(Bounds.Origin.X, Bounds.Origin.Y, Bounds.Origin.Z - Bounds.BoxExtent.Z);
-		const FVector Location = DesiredBottomCenter - Rotation.RotateVector(LocalBottomCenter * Scale);
-		return FTransform(Rotation, Location, Scale);
-	}
-
 	FString SettlementTypeToPanelText(EWLCampaignSettlementType Type)
 	{
 		switch (Type)
@@ -128,6 +95,10 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	// Lago de Maracaibo: cuerpo ovalado + estrecho al norte que conecta con el Golfo
 	// (como en la realidad). Z bajo (ras de la cuenca hundida) para que sea agua sobre el
 	// terreno, NO una lamina flotante que tapaba la ciudad. Maracaibo va en la ribera oeste.
+	// La pre-pasada de flat pads NO construye biomas/carreteras/etc (eso necesita el terreno ya
+	// mallado y solo debe ocurrir una vez). Solo registra los pads via AddSettlementCluster.
+	if (!bCollectFlatPadsOnly)
+	{
 	AddBiomePatch({
 		FVector2D(-71.62f, 10.85f), // boca del estrecho (NO, abre al golfo)
 		FVector2D(-71.66f, 10.55f), // estrecho O
@@ -148,6 +119,36 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 	// (SM_road_001): al ser piezas discretas se veia "saltada"/rota en curvas y pendientes
 	// y no se podia ensanchar a varias calzadas sin estirar la textura. La cinta es
 	// continua, drapea sobre el relieve y permite ancho + marcas de carril controladas.
+	// Recorte de carretera en las huellas de ciudad: la cinta flota ~900u sobre el piso de la ciudad,
+	// asi que sin esto la cruza por encima. Recortando, llega al BORDE y para (la cuadricula interna
+	// hace de calles). Radio ~ borde del modelo (apron) = 0.72 * radio del flat pad. CityFlatPads ya
+	// esta poblado por la pre-pasada. Aplica a estas rutas y a BuildIntercityRoads (queda fijado).
+	{
+		TArray<FVector> RoadClipCircles;
+		RoadClipCircles.Reserve(CityFlatPads.Num());
+		for (const FCityFlatPad& Pad : CityFlatPads)
+		{
+			RoadClipCircles.Add(FVector(Pad.Lon, Pad.Lat, Pad.FlatRadiusDeg * 0.72f));
+		}
+		FWLCampaignRouteBuilder::SetCityClipCircles(RoadClipCircles);
+	}
+	// Mascara de tierra: la cinta NO se dibuja sobre el mar (la ruta costera flotaba sobre el agua a
+	// Z+990). Si no hay geometria de tierra cargada, no recorta (devuelve true).
+	FWLCampaignRouteBuilder::SetRoadLandMask([this](float Lon, float Lat) -> bool
+	{
+		if (SettlementLandGeometry.Num() == 0)
+		{
+			return true;
+		}
+		for (const FWLRegionalCountryGeometry& Country : SettlementLandGeometry)
+		{
+			if (FWLCampaignRegionGeometry::PointInAnyLonLatRing(FVector2D(Lon, Lat), Country.Rings))
+			{
+				return true;
+			}
+		}
+		return false;
+	});
 	FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 		RoadMesh,
 		VertexColorMaterial,
@@ -155,9 +156,14 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 		{
 			return ProjectLonLat(Lon, Lat);
 		});
+	}
 
 	const auto AddTheaterCountryLabel = [this](const FString& Text, float Lon, float Lat, const FColor& Color, float WorldSize)
 	{
+		if (bCollectFlatPadsOnly)
+		{
+			return;
+		}
 		UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
 		if (!Label)
 		{
@@ -173,6 +179,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 		Label->SetTextRenderColor(Color);
 		Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Labels.Add(Label);
+		CountryLabelBaseSizes.Add(WorldSize);
 	};
 
 	AddTheaterCountryLabel(TEXT("COLOMBIA"), -74.2f, 5.7f, FColor(232, 206, 126), 3400.f);
@@ -378,14 +385,16 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 
 	BuildSouthAmericaFrontierSettlementLayer();
 
-	AddVegetationScatter(-75.5f, -70.0f, 0.8f, 6.6f, 7, 6, true);
-	AddVegetationScatter(-68.0f, -62.2f, 3.4f, 7.4f, 7, 5, true);
-	AddVegetationScatter(-70.5f, -64.8f, 7.2f, 9.5f, 6, 4, false);
-	AddVegetationScatter(-76.8f, -73.5f, 8.5f, 11.8f, 4, 3, false);
+	if (!bCollectFlatPadsOnly)
+	{
+	// Vegetacion: DESACTIVADA. El scatter de blobs unlit quedo descartado (ver estandar visual).
+	// Vuelve en M2 como FOLIAGE LIT con LODs (bosques). No reactivar AddVegetationScatter() unlit.
+	// AddVegetationScatter();
 
 	BuildIntercityRoads();
 	BuildMovementNodesAndEdges();
 	AddMilitaryForceMarkers();
+	}
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D visual layer complete. Cities=%d MovementNodes=%d Forces=%d."), CityViews.Num(), MovementNodes.Num(), ForceViews.Num());
 }
 
@@ -471,11 +480,23 @@ void AWLCampaign3DView::AddSettlementCluster(
 	// Maracaibo esta colocada a mano en la ribera OESTE del estrecho. El nudge "a tierra"
 	// la empujaria hacia el sur (porque al norte esta el golfo) y la meteria al lago, que
 	// el nudge no conoce. La dejamos fija.
-	if (!CityId.Equals(TEXT("VE-MARACAIBO"), ESearchCase::IgnoreCase))
+	// Los PUERTOS deben quedar en la COSTA (orilla del mar): el nudge (pensado para que ciudades de
+	// interior no caigan al mar) los alejaba del agua, sin sentido para un puerto. Asi que no se nudgean.
+	const bool bSkipNudge = CityId.Equals(TEXT("VE-MARACAIBO"), ESearchCase::IgnoreCase)
+		|| Type == EWLCampaignSettlementType::Port;
+	if (!bSkipNudge)
 	{
 		const FVector2D LandLonLat = NudgeSettlementToLand(Lon, Lat);
 		Lon = LandLonLat.X;
 		Lat = LandLonLat.Y;
+	}
+
+	// Pre-pasada de flat pads (antes de mallar el terreno): registra el disco de aplanado en la
+	// posicion YA nudgeada (para que pad y ciudad coincidan) y no construye nada mas.
+	if (bCollectFlatPadsOnly)
+	{
+		RegisterCityFlatPad(Lon, Lat, Type);
+		return;
 	}
 
 	FWLCampaignSettlementSpec Spec;
@@ -484,21 +505,26 @@ void AWLCampaign3DView::AddSettlementCluster(
 	Spec.Lat = Lat;
 	Spec.Type = Type;
 	Spec.AccentColor = AccentColor;
-	FWLCampaignSettlementBuilder::AddSettlement(
-		SettlementMesh,
-		VertexColorMaterial,
-		Spec,
-		[this](float InLon, float InLat)
-		{
-			return ProjectLonLat(InLon, InLat);
-		});
-
-	// Vertical slice: Venezuela keeps a legible procedural city footprint and adds
-	// real Cartoon_City_Free building meshes on top. Avoid instanced pack detail
-	// because its materials render black in Standalone without project-wide edits.
-	if (CountryIso.Equals(TEXT("VE"), ESearchCase::IgnoreCase) && CityBuildingMeshes.Num() > 0)
+	// Cada ciudad = UN modelo 3D cohesivo (ciudad entera: manzanas+calles+edificios, generada en
+	// Blender) escalado al tamaño del asentamiento y anclado al terreno (estilo settlement de Total
+	// War). Si los modelos no estan cargados, cae al footprint procedural como respaldo.
+	const bool bUseMeshCity = CityModelLarge != nullptr;
+	if (bUseMeshCity)
 	{
-		BuildMeshCity(Lon, Lat, Type);
+		// La ciudad se ancla SOBRE la superficie visible del bioma (offset, igual que el terreno); sin
+		// eso el terreno tapaba calles/aceras/parques. BuildMeshCity deduce el bioma desde el ISO.
+		BuildMeshCity(Lon, Lat, Type, CountryIso);
+	}
+	else
+	{
+		FWLCampaignSettlementBuilder::AddSettlement(
+			SettlementMesh,
+			VertexColorMaterial,
+			Spec,
+			[this](float InLon, float InLat)
+			{
+				return ProjectLonLat(InLon, InLat);
+			});
 	}
 
 	const bool bCapital = Type == EWLCampaignSettlementType::Capital;
@@ -520,105 +546,129 @@ void AWLCampaign3DView::AddSettlementCluster(
 	City.bPort = Type == EWLCampaignSettlementType::Port;
 	AddCitySelectionProxy(City, bCapital ? 1.28f : (City.bPort ? 1.16f : 1.0f));
 
-	const bool bDenseBorderDuplicateLabel =
-		CityId.Equals(TEXT("CO-CUCUTA"), ESearchCase::IgnoreCase)
-		|| CityId.Equals(TEXT("VE-SAN-CRISTOBAL"), ESearchCase::IgnoreCase);
-	if (bDenseBorderDuplicateLabel)
+	// El nombre debe FLOTAR sobre la ciudad (los edificios ahora son altos); si no, queda enterrado.
+	float LabelZ;
+	switch (Type)
 	{
-		return;
+	case EWLCampaignSettlementType::Capital:    LabelZ = 8800.f; break;
+	case EWLCampaignSettlementType::LargeCity:  LabelZ = 4800.f; break;
+	case EWLCampaignSettlementType::Port:       LabelZ = 4000.f; break;
+	case EWLCampaignSettlementType::Industrial: LabelZ = 4400.f; break;
+	case EWLCampaignSettlementType::Frontier:   LabelZ = 2200.f; break;
+	default:                                    LabelZ = 4400.f; break;
 	}
-
+	const float GroundZ = Base.Z - (bCapital ? 2450.f : 2050.f);
 	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
 	Label->SetupAttachment(SceneRoot);
 	Label->RegisterComponent();
-	Label->SetWorldLocation(Base + FVector(0.f, 0.f, bCapital ? 2350.f : 1720.f));
+	Label->SetWorldLocation(FVector(Base.X, Base.Y, GroundZ + LabelZ));
 	Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 	Label->SetHorizontalAlignment(EHTA_Center);
-	// ScaleAudit: con GeoScale=9000 los labels cercanos fusionan ciudades fronterizas.
-	// Reducimos tamano visual sin mover coordenadas ni ocultar las ciudades.
-	Label->SetWorldSize(bCapital ? 1250.f : (bSmall ? 720.f : 900.f));
+	// Tamano BASE; ApplyZoomLOD lo reescala por altura de camara (tamano casi constante en
+	// pantalla). Antes Cucuta/San Cristobal no tenian label (se saltaban por solape cuando el
+	// mapa estaba comprimido); con el mapa estirado + escala por pantalla, ya se distinguen.
+	const float LabelBaseSize = bCapital ? 1250.f : (bSmall ? 720.f : 900.f);
+	Label->SetWorldSize(LabelBaseSize);
 	Label->SetText(FText::FromString(Name));
 	Label->SetTextRenderColor(bCapital ? FColor(230, 210, 140) : FColor(195, 205, 190));
 	SettlementLabels.Add(Label);
+	SettlementLabelBaseSizes.Add(LabelBaseSize);
+	// LOD de etiqueta por IMPORTANCIA: de lejos solo capitales; al acercar aparecen grandes, puertos/
+	// industriales y por ultimo fronterizas -> los nombres no se amontonan ni se cortan. Es la altura
+	// MAXIMA de camara a la que se muestra el nombre (mas grande = visible desde mas lejos).
+	float LabelMaxHeight;
+	switch (Type)
+	{
+	case EWLCampaignSettlementType::Capital:    LabelMaxHeight = 360000.f; break;
+	case EWLCampaignSettlementType::LargeCity:  LabelMaxHeight = 235000.f; break;
+	case EWLCampaignSettlementType::Industrial: LabelMaxHeight = 195000.f; break;
+	case EWLCampaignSettlementType::Port:       LabelMaxHeight = 170000.f; break;
+	case EWLCampaignSettlementType::Frontier:   LabelMaxHeight = 110000.f; break;
+	default:                                    LabelMaxHeight = 170000.f; break;
+	}
+	SettlementLabelMaxHeights.Add(LabelMaxHeight);
 }
 
-void AWLCampaign3DView::BuildMeshCity(float Lon, float Lat, EWLCampaignSettlementType Type)
+void AWLCampaign3DView::BuildMeshCity(float Lon, float Lat, EWLCampaignSettlementType Type, const FString& CountryIso)
 {
-	if (CityBuildingMeshes.Num() == 0)
+	const bool bCoreCountry = FWLCampaignRegionGeometry::IsTheaterIso(CountryIso);
+	// Elige el modelo de ciudad y su ancho objetivo (u de mundo) por tipo. TargetWidth calibrado a
+	// los pares mas cercanos de Venezuela para que dos ciudades NO se solapen:
+	//   San Antonio<->San Cristobal ~7600u (Frontier) | Valencia<->Pto Cabello ~9600u (Large/Port)
+	//   Valencia<->Maracay ~14000u | Caracas (capital) sin vecina cercana -> puede ser grande.
+	// Para hacerlas mas grandes/chicas, ajusta estos TargetWidth.
+	const TArray<UStaticMesh*>* Variants = &CityModelMediumVariants;
+	float TargetWidth = 7000.f;
+	switch (Type)
+	{
+	case EWLCampaignSettlementType::Capital:    Variants = &CityModelLargeVariants;  TargetWidth = 17000.f; break;
+	case EWLCampaignSettlementType::LargeCity:  Variants = &CityModelMediumVariants; TargetWidth = 7200.f;  break;
+	case EWLCampaignSettlementType::Port:       Variants = &CityModelMediumVariants; TargetWidth = 5800.f;  break;
+	case EWLCampaignSettlementType::Industrial: Variants = &CityModelMediumVariants; TargetWidth = 6600.f;  break;
+	case EWLCampaignSettlementType::Frontier:   Variants = &CityModelSmallVariants;  TargetWidth = 4400.f;  break;
+	default:                                    Variants = &CityModelMediumVariants; TargetWidth = 6000.f;  break;
+	}
+	// Elige una VARIANTE por hash de lon/lat (estable, y con salt distinto al del giro) para que las
+	// ciudades vecinas del mismo tipo NO se vean clones identicas.
+	UStaticMesh* Model = nullptr;
+	if (Variants && Variants->Num() > 0)
+	{
+		const float VarHash = GridHash01(FMath::RoundToInt(Lon * 131.f), FMath::RoundToInt(Lat * 117.f), 23);
+		const int32 Idx = FMath::Clamp(static_cast<int32>(VarHash * Variants->Num()), 0, Variants->Num() - 1);
+		Model = (*Variants)[Idx];
+	}
+	if (!Model)
+	{
+		Model = CityModelLarge ? CityModelLarge : (CityModelMedium ? CityModelMedium : CityModelSmall);
+	}
+	if (!Model)
 	{
 		return;
 	}
 
-	int32 Radius;
-	float DowntownHeight; // altura del nucleo (unidades de mundo; el mapa exagera lo vertical)
-	float Fill;           // densidad 0..1
-	switch (Type)
+	// Escala UNIFORME al ancho objetivo (conserva las proporciones del modelo). Giro en pasos de 90
+	// (mantiene las calles alineadas).
+	const FVector Ext = Model->GetBounds().BoxExtent;
+	const float ModelWidth = FMath::Max(1.f, FMath::Max(Ext.X, Ext.Y) * 2.f);
+	const float UniformScale = TargetWidth / ModelWidth;
+	// Algo de presencia vertical (skyline) sin pasarse: x2.4 hacia torres flacas que tapaban el
+	// suelo y los nombres. x1.4 da altura legible dejando ver las calles.
+	const FVector Scale(UniformScale, UniformScale, UniformScale * 1.4f);
+
+	const float YawHash = GridHash01(FMath::RoundToInt(Lon * 97.f), FMath::RoundToInt(Lat * 89.f), 7);
+	const FRotator Rot(0.f, FMath::RoundToFloat(YawHash * 4.f) * 90.f, 0.f);
+	// Ancla el ORIGEN del modelo (z=0 = nivel de calle) a la SUPERFICIE VISIBLE del terreno. CLAVE:
+	// el terreno se dibuja en ProjectLonLat.Z + VisualBiomeZOffset (p.ej. Costa +95), no en
+	// ProjectLonLat crudo. Si la ciudad se ancla sin ese offset, el mesh del terreno queda ENCIMA y
+	// tapa calles/aceras/parques (solo asoman los edificios altos). Sumamos el MISMO offset del bioma
+	// del centro -> el piso de la ciudad queda justo sobre el terreno y se ve (calles, verde, aceras).
+	const EWLVisualBiome CityBiome = FWLCampaignVisualStyle::ClassifyVisualBiome(Lon, Lat, bCoreCountry);
+	const float VisualSurfaceZOffset = FWLCampaignVisualStyle::VisualBiomeZOffset(CityBiome, bCoreCountry);
+	const FVector Ground = ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, VisualSurfaceZOffset);
+
+	UStaticMeshComponent* CityComp = NewObject<UStaticMeshComponent>(this);
+	if (!CityComp)
 	{
-	// Radios reducidos: la mancha de mallas reales era ~6840u (capital) = ~85 km y pegaba
-	// las ciudades. Nucleo compacto -> ciudades separadas de verdad sobre el mapa.
-	case EWLCampaignSettlementType::Capital:    Radius = 3; DowntownHeight = 1850.f; Fill = 0.78f; break;
-	case EWLCampaignSettlementType::LargeCity:  Radius = 2; DowntownHeight = 1350.f; Fill = 0.72f; break;
-	case EWLCampaignSettlementType::Port:       Radius = 2; DowntownHeight = 1120.f; Fill = 0.66f; break;
-	case EWLCampaignSettlementType::Industrial: Radius = 2; DowntownHeight = 980.f;  Fill = 0.64f; break;
-	case EWLCampaignSettlementType::Frontier:   Radius = 1; DowntownHeight = 560.f;  Fill = 0.46f; break;
-	default:                                    Radius = 2; DowntownHeight = 900.f;  Fill = 0.60f; break;
+		return;
 	}
-
-	const float Cell = 560.f;
-	const float CityGroundLift = 900.f; // mismo orden que el builder procedural: sobre el mapa, sin hundirse.
-	for (int32 GX = -Radius; GX <= Radius; ++GX)
+	CityComp->SetupAttachment(SceneRoot);
+	CityComp->RegisterComponent();
+	CityComp->SetStaticMesh(Model);
+	// Mismo material UNLIT de vertex-color que el terreno/carreteras: la ciudad usa los vertex
+	// colors del FBX (color + sombreado falso por cara) y queda COHERENTE con el mapa, sin sombras
+	// de escena -> nunca se ve oscura (la causa real de "ciudades oscuras" era usar materiales LIT).
+	if (VertexColorMaterial)
 	{
-		for (int32 GY = -Radius; GY <= Radius; ++GY)
+		const int32 NumMats = FMath::Max(1, CityComp->GetNumMaterials());
+		for (int32 i = 0; i < NumMats; ++i)
 		{
-			const float DistN = FMath::Sqrt(static_cast<float>(GX * GX + GY * GY)) / static_cast<float>(FMath::Max(1, Radius));
-			if (DistN > 1.05f)
-			{
-				continue;
-			}
-
-			const float H1 = GridHash01(GX, GY, 1);
-			const float H2 = GridHash01(GX, GY, 2);
-			const float H3 = GridHash01(GX, GY, 3);
-			const bool bMainAvenue = GX == 0 || GY == 0 || ((GX % 3) == 0 && FMath::Abs(GY) <= Radius - 1) || ((GY % 3) == 0 && FMath::Abs(GX) <= Radius - 1);
-
-			const float OriginLatRad = FMath::DegreesToRadians(TheaterCenterLonLat.Y);
-			const float CellLon = ((static_cast<float>(GY) * Cell) / FMath::Max(1.f, DetailWorldUnitsPerKm))
-				/ (111.32f * FMath::Max(0.01f, FMath::Cos(OriginLatRad)));
-			const float CellLat = ((static_cast<float>(GX) * Cell) / FMath::Max(1.f, DetailWorldUnitsPerKm)) / 111.32f;
-			const FVector Ground = ProjectLonLat(Lon + CellLon, Lat + CellLat) + FVector(0.f, 0.f, CityGroundLift);
-
-			if (bMainAvenue || H1 > Fill * (1.f - DistN * 0.18f))
-			{
-				continue;
-			}
-
-			const int32 MeshIdx = FMath::Clamp(static_cast<int32>(H2 * CityBuildingMeshes.Num()), 0, CityBuildingMeshes.Num() - 1);
-			UStaticMesh* Mesh = CityBuildingMeshes[MeshIdx];
-			if (!Mesh)
-			{
-				continue;
-			}
-
-			const float Foot = Cell * (0.42f + H3 * 0.16f);
-			float TargetH = FMath::Max(240.f, DowntownHeight * (1.f - DistN * 0.5f) * (0.6f + H3 * 0.8f));
-			TargetH = FMath::Min(TargetH, Foot * 3.35f); // limita la esbeltez (sin losas/agujas)
-			const FVector Scale = ScaleMeshToBounds(Mesh, Foot, Foot, TargetH);
-
-			const FRotator Rot(0.f, 90.f * FMath::RoundToFloat(H2 * 3.f), 0.f);
-			UStaticMeshComponent* Building = NewObject<UStaticMeshComponent>(this);
-			if (!Building)
-			{
-				continue;
-			}
-			Building->SetupAttachment(SceneRoot);
-			Building->RegisterComponent();
-			Building->SetStaticMesh(Mesh);
-			Building->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			Building->SetMobility(EComponentMobility::Movable);
-			Building->SetWorldTransform(MakeMeshBottomTransform(Mesh, Ground + FVector(0.f, 0.f, 30.f), Rot, Scale));
-			CityBuildingComponents.Add(Building);
+			CityComp->SetMaterial(i, VertexColorMaterial);
 		}
 	}
+	CityComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	CityComp->SetMobility(EComponentMobility::Movable);
+	CityComp->SetWorldTransform(FTransform(Rot, Ground, Scale));
+	CityBuildingComponents.Add(CityComp);
 }
 
 void AWLCampaign3DView::AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale)

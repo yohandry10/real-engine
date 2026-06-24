@@ -44,3 +44,16 @@ Desktop.ini
 .mcp.json
 .codex/
 .claude/settings.local.json
+
+# Local artifacts from asset evaluation / sandbox paths.
+/$fakeRoot/
+ExternalAssets/CityKits/Quaternius/_downloads/Downtown City MegaKit Standard.zip
+
+# Packs de EVALUACION / DESCARTADOS y binarios pesados redescargables. No son trabajo del juego;
+# se mantienen LOCALES para no inflar el repo (CityKits ~666MB, CitySpatialNeglect ~171MB,
+# LondonCity ~79MB ya descartado, KenneyCity eval). Si algun dia se quieren versionar, via Git LFS.
+ExternalAssets/CityKits/
+Content/CitySpatialNeglect/
+Content/LondonCity/
+Content/KenneyCity/
+LPN_Essentials_426.png

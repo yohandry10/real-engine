@@ -146,17 +146,86 @@ FVector AWLCampaign3DView::ProjectLonLat(float Lon, float Lat) const
 	const float OriginLatRad = FMath::DegreesToRadians(TheaterCenterLonLat.Y);
 	const float KmNorth = (Lat - TheaterCenterLonLat.Y) * 111.32f;
 	const float KmEast = (Lon - TheaterCenterLonLat.X) * 111.32f * FMath::Cos(OriginLatRad);
-	return FVector(KmNorth * DetailWorldUnitsPerKm, KmEast * DetailWorldUnitsPerKm, SampleTerrainHeight(Lon, Lat));
+	return FVector(KmNorth * DetailWorldUnitsPerKm, KmEast * DetailWorldUnitsPerKm, SampleTerrainHeight(Lon, Lat) * VerticalDetailExaggeration);
 }
 
 FVector AWLCampaign3DView::ProjectStrategicLonLat(float Lon, float Lat) const
 {
 	const float X = (Lat - TheaterCenterLonLat.Y) * GeoScale;
 	const float Y = (Lon - TheaterCenterLonLat.X) * GeoScale;
+	// Overview SIN exageracion vertical de detalle: la vista estrategica queda plana.
 	return FVector(X, Y, SampleTerrainHeight(Lon, Lat));
 }
 
 float AWLCampaign3DView::SampleTerrainHeight(float Lon, float Lat) const
+{
+	// Relieve natural + APLANADO bajo cada ciudad. El terreno, las ciudades, los caminos y los labels
+	// usan esta funcion (via ProjectLonLat), asi que TODO queda coherente sobre el pad plano.
+	const float Raw = SampleTerrainHeightRaw(Lon, Lat);
+	if (CityFlatPads.Num() == 0)
+	{
+		return Raw;
+	}
+	// Mezcla hacia la altura del pad mas "fuerte" (peso 1 en el nucleo plano, baja a 0 en el radio
+	// exterior). Asi la huella entera de la ciudad queda a UNA sola altura (plana) y el relieve vuelve
+	// suavemente fuera del pad. La altura del pad es la NATURAL del centro -> la ciudad no sube ni baja.
+	float BestWeight = 0.f;
+	float PadHeight = Raw;
+	for (const FCityFlatPad& Pad : CityFlatPads)
+	{
+		const float DLon = Lon - Pad.Lon;
+		const float DLat = Lat - Pad.Lat;
+		const float Dist = FMath::Sqrt(DLon * DLon + DLat * DLat);
+		if (Dist >= Pad.OuterRadiusDeg)
+		{
+			continue;
+		}
+		const float Weight = 1.f - FMath::SmoothStep(Pad.FlatRadiusDeg, Pad.OuterRadiusDeg, Dist);
+		if (Weight > BestWeight)
+		{
+			BestWeight = Weight;
+			PadHeight = Pad.Height;
+		}
+	}
+	return FMath::Lerp(Raw, PadHeight, BestWeight);
+}
+
+float AWLCampaign3DView::GetGroundWorldZAtWorld(float WorldX, float WorldY) const
+{
+	// Inverso de ProjectLonLat: world (X,Y) -> lon/lat -> altura del terreno (con aplanado de pads).
+	const float OriginLatRad = FMath::DegreesToRadians(TheaterCenterLonLat.Y);
+	const float Lat = TheaterCenterLonLat.Y + WorldX / (111.32f * FMath::Max(1.f, DetailWorldUnitsPerKm));
+	const float CosLat = FMath::Max(0.05f, FMath::Cos(OriginLatRad));
+	const float Lon = TheaterCenterLonLat.X + WorldY / (111.32f * CosLat * FMath::Max(1.f, DetailWorldUnitsPerKm));
+	return SampleTerrainHeight(Lon, Lat) * VerticalDetailExaggeration;
+}
+
+void AWLCampaign3DView::RegisterCityFlatPad(float Lon, float Lat, EWLCampaignSettlementType Type)
+{
+	// Ancho de huella por tipo = mismo TargetWidth que usa BuildMeshCity (incluye el apron de pasto).
+	float TargetWidth;
+	switch (Type)
+	{
+	case EWLCampaignSettlementType::Capital:    TargetWidth = 17000.f; break;  // = BuildMeshCity (mantener en sync)
+	case EWLCampaignSettlementType::LargeCity:  TargetWidth = 7200.f;  break;
+	case EWLCampaignSettlementType::Port:       TargetWidth = 5800.f;  break;
+	case EWLCampaignSettlementType::Industrial: TargetWidth = 6600.f;  break;
+	case EWLCampaignSettlementType::Frontier:   TargetWidth = 4400.f;  break;
+	default:                                    TargetWidth = 7000.f;  break;
+	}
+	// Huella en grados (lat): world u -> km (/DetailWorldUnitsPerKm) -> grados (/111.32). El nucleo
+	// plano cubre la huella + margen; el radio exterior rampa suave de vuelta al relieve natural.
+	const float FootprintDeg = (TargetWidth / FMath::Max(1.f, DetailWorldUnitsPerKm)) / 111.32f;
+	FCityFlatPad Pad;
+	Pad.Lon = Lon;
+	Pad.Lat = Lat;
+	Pad.FlatRadiusDeg = FootprintDeg * 0.5f * 1.35f;   // nucleo plano = media huella + 35% margen
+	Pad.OuterRadiusDeg = Pad.FlatRadiusDeg * 1.8f;     // rampa de vuelta al terreno natural
+	Pad.Height = SampleTerrainHeightRaw(Lon, Lat);     // altura NATURAL del centro (sin pads)
+	CityFlatPads.Add(Pad);
+}
+
+float AWLCampaign3DView::SampleTerrainHeightRaw(float Lon, float Lat) const
 {
 	// Relieve continental (exagerado para que se lea en 3D al inclinar la camara).
 	// Devuelve unidades de mundo: el terreno y todo lo que va encima (ciudades,
@@ -353,6 +422,9 @@ void AWLCampaign3DView::BuildTerrain()
 	Params.RegionMaxLon = RegionMaxLon;
 	Params.RegionMinLat = RegionMinLat;
 	Params.RegionMaxLat = RegionMaxLat;
+	// REVERTIDO a unlit estable: el intento LIT (M1) dejaba el mapa CIAN y no se diagnostico la causa
+	// a ciegas. Volvemos al VertexColorMaterial olivo conocido hasta entender el cian. (TerrainLitMaterial
+	// queda cargado pero sin usar.) Ver Docs/CAMPAIGN3D_VISUAL_STANDARD.md.
 	Params.TerrainMaterial = VertexColorMaterial;
 	Params.BoundaryMaterial = VertexColorMaterial;
 	FString CityVisualTestValue;

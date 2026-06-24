@@ -218,8 +218,19 @@ private:
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float MaxCameraHeight = 620000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float DragPanUnitsPerPixelAt100k = 120.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignEdgePanSpeed = 110000.f;
-	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMinCameraHeight = 42000.f;
+	// Tope de acercamiento. A 42000 la camara quedaba ~58000u de una ciudad de 11500u -> la ciudad
+	// ocupaba ~11 grados de vista = mancha pequena (no se apreciaba calle/suelo/verde aunque el modelo
+	// SI los tiene). Bajado a 11000 para poder ACERCARSE a una ciudad hasta que llene la vista al
+	// angulo real (~46 grados), igual que en preview_large_obl.png.
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMinCameraHeight = 11000.f;
+	// Altura minima de la camara SOBRE el terreno bajo ella (zoom cercano relativo al relieve, no se
+	// entierra en montana). Ver ClampCampaignCameraLocation.
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMinAboveGround = 9000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignMaxCameraHeight = 1200000.f;
+	// Tope de la RUEDA (zoom continuo): se queda en el rango jugable de detalle (ciudad ->
+	// teatro). La vista continental/estrategica se alcanza con el boton "America" (que usa
+	// CampaignMaxCameraHeight), no rodando la rueda 7 veces. Estilo Total War.
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Camera") float CampaignWheelMaxHeight = 480000.f;
 
 	UPROPERTY() AWLCampaign3DView* Campaign3DView = nullptr;
 	UPROPERTY() AWLWorldMap* WorldMap = nullptr;

@@ -272,6 +272,12 @@ void AWLCampaignPlayerController::ClampCampaignCameraLocation(FVector& Location)
 		return;
 	}
 
+	// Suelo de zoom RELATIVO al terreno: con un tope absoluto bajo (11000) la camara se enterraria en
+	// el relieve alto (Andes ~48000u). Mantenemos al menos CampaignMinAboveGround sobre el suelo bajo
+	// la camara -> acercamiento cercano y consistente en costa Y montana, sin enterrarse.
+	const float GroundZ = Campaign3DView->GetGroundWorldZAtWorld(Location.X, Location.Y);
+	Location.Z = FMath::Min(FMath::Max(Location.Z, GroundZ + CampaignMinAboveGround), CampaignMaxCameraHeight);
+
 	const FBox2D Bounds = Campaign3DView->GetCameraBounds2D(Location.Z);
 	if (!Bounds.bIsValid)
 	{

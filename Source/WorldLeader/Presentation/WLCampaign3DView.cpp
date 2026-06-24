@@ -81,14 +81,22 @@ AWLCampaign3DView::AWLCampaign3DView()
 	SettlementBlockInstances->SetupAttachment(SceneRoot);
 	SettlementTowerInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("SettlementTowerInstances"));
 	SettlementTowerInstances->SetupAttachment(SceneRoot);
-	TreeInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("TreeInstances"));
-	TreeInstances->SetupAttachment(SceneRoot);
-	BrushInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("BrushInstances"));
-	BrushInstances->SetupAttachment(SceneRoot);
 	PortInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("PortInstances"));
 	PortInstances->SetupAttachment(SceneRoot);
 	ArmyMarkerInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("ArmyMarkerInstances"));
 	ArmyMarkerInstances->SetupAttachment(SceneRoot);
+
+	// Un ISM por tipo de naturaleza (EWLNatureKind). Nombres estables para CreateDefaultSubobject.
+	static const TCHAR* NatureComponentNames[] = {
+		TEXT("NatureConifer"), TEXT("NatureBroadleaf"), TEXT("NaturePalm"),
+		TEXT("NatureRock"), TEXT("NaturePeak"), TEXT("NatureMount")
+	};
+	NatureInstances.SetNum(static_cast<int32>(EWLNatureKind::Count));
+	for (int32 i = 0; i < static_cast<int32>(EWLNatureKind::Count); ++i)
+	{
+		NatureInstances[i] = CreateDefaultSubobject<UInstancedStaticMeshComponent>(NatureComponentNames[i]);
+		NatureInstances[i]->SetupAttachment(SceneRoot);
+	}
 
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> MatFinder(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	if (MatFinder.Succeeded())
@@ -100,6 +108,14 @@ AWLCampaign3DView::AWLCampaign3DView()
 	if (VertexMatFinder.Succeeded())
 	{
 		VertexColorMaterial = VertexMatFinder.Object;
+	}
+
+	// Material LIT/PBR del terreno (M1). Si aun no esta importado, queda null y el terreno cae al
+	// VertexColorMaterial unlit (no rompe).
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TerrainLitFinder(TEXT("/Game/GenTerrain/M_TerrainLit.M_TerrainLit"));
+	if (TerrainLitFinder.Succeeded())
+	{
+		TerrainLitMaterial = TerrainLitFinder.Object;
 	}
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityMeshFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
@@ -128,24 +144,67 @@ AWLCampaign3DView::AWLCampaign3DView()
 
 	ConfigureInstancedComponent(SettlementBlockInstances, CubeMesh, FLinearColor(0.34f, 0.305f, 0.235f));
 	ConfigureInstancedComponent(SettlementTowerInstances, CubeMesh, FLinearColor(0.56f, 0.50f, 0.355f));
-	ConfigureInstancedComponent(TreeInstances, ConeMesh ? ConeMesh : CityMesh, FLinearColor(0.010f, 0.135f, 0.032f));
-	ConfigureInstancedComponent(BrushInstances, ConeMesh ? ConeMesh : CityMesh, FLinearColor(0.125f, 0.170f, 0.070f));
 	ConfigureInstancedComponent(PortInstances, CubeMesh, FLinearColor(0.27f, 0.225f, 0.150f));
 	ConfigureInstancedComponent(ArmyMarkerInstances, ConeMesh ? ConeMesh : CityMesh, FLinearColor(0.86f, 0.68f, 0.22f));
 
-	// Mallas reales de edificios (pack Cartoon_City_Free). Se conservan SUS materiales
-	// (no se les aplica color plano). Si el pack no esta importado, la base
-	// procedural sigue funcionando y BuildMeshCity simplemente no agrega nada.
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityB0(TEXT("/Game/Cartoon_City_Free/Meshes/Buildings/SM_Eco_Building_Grid.SM_Eco_Building_Grid"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityB1(TEXT("/Game/Cartoon_City_Free/Meshes/Buildings/SM_Eco_Building_Slope.SM_Eco_Building_Slope"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityB2(TEXT("/Game/Cartoon_City_Free/Meshes/Buildings/SM_Eco_Building_Terrace.SM_Eco_Building_Terrace"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityB3(TEXT("/Game/Cartoon_City_Free/Meshes/Buildings/SM_Regular_Building_TwistedTower_Large.SM_Regular_Building_TwistedTower_Large"));
-	UStaticMesh* LoadedCityMeshes[4] = { CityB0.Object, CityB1.Object, CityB2.Object, CityB3.Object };
-	for (int32 i = 0; i < 4; ++i)
+	// Modelos de CIUDAD 3D cohesiva generados en Blender (manzanas + calles + edificios modernos),
+	// importados a /Game/GenCity. Se coloca UNO por asentamiento segun tamaño (ver BuildMeshCity).
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityLarge(TEXT("/Game/GenCity/city_large.city_large"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityLargeB(TEXT("/Game/GenCity/city_large_b.city_large_b"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityLargeC(TEXT("/Game/GenCity/city_large_c.city_large_c"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityMedium(TEXT("/Game/GenCity/city_medium.city_medium"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityMediumB(TEXT("/Game/GenCity/city_medium_b.city_medium_b"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityMediumC(TEXT("/Game/GenCity/city_medium_c.city_medium_c"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CitySmall(TEXT("/Game/GenCity/city_small.city_small"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CitySmallB(TEXT("/Game/GenCity/city_small_b.city_small_b"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CitySmallC(TEXT("/Game/GenCity/city_small_c.city_small_c"));
+	if (CityLarge.Succeeded())  { CityModelLarge  = CityLarge.Object; }
+	if (CityMedium.Succeeded()) { CityModelMedium = CityMedium.Object; }
+	if (CitySmall.Succeeded())  { CityModelSmall  = CitySmall.Object; }
+	// Variantes (base + b + c). El picker en BuildMeshCity reparte por hash; si falta alguna, simplemente
+	// hay menos variantes (no rompe).
+	if (CityModelLarge)      { CityModelLargeVariants.Add(CityModelLarge); }
+	if (CityLargeB.Object)   { CityModelLargeVariants.Add(CityLargeB.Object); }
+	if (CityLargeC.Object)   { CityModelLargeVariants.Add(CityLargeC.Object); }
+	if (CityModelMedium)     { CityModelMediumVariants.Add(CityModelMedium); }
+	if (CityMediumB.Object)  { CityModelMediumVariants.Add(CityMediumB.Object); }
+	if (CityMediumC.Object)  { CityModelMediumVariants.Add(CityMediumC.Object); }
+	if (CityModelSmall)      { CityModelSmallVariants.Add(CityModelSmall); }
+	if (CitySmallB.Object)   { CityModelSmallVariants.Add(CitySmallB.Object); }
+	if (CitySmallC.Object)   { CityModelSmallVariants.Add(CitySmallC.Object); }
+
+	// Modelos de NATURALEZA generados en Blender (gen_nature.py), importados a /Game/GenNature. UNLIT
+	// vertex-color (igual que terreno/ciudades). Orden = EWLNatureKind. Si un asset aun no esta
+	// importado, su Object queda null y su ISM simplemente no se configura (el scatter lo salta).
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatConifer(TEXT("/Game/GenNature/nature_conifer.nature_conifer"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatBroadleaf(TEXT("/Game/GenNature/nature_broadleaf.nature_broadleaf"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatPalm(TEXT("/Game/GenNature/nature_palm.nature_palm"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatRock(TEXT("/Game/GenNature/nature_rock.nature_rock"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatPeak(TEXT("/Game/GenNature/nature_peak.nature_peak"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatMount(TEXT("/Game/GenNature/nature_mount.nature_mount"));
+	NatureMeshes.SetNum(static_cast<int32>(EWLNatureKind::Count));
+	NatureMeshes[static_cast<int32>(EWLNatureKind::Conifer)]   = NatConifer.Object;
+	NatureMeshes[static_cast<int32>(EWLNatureKind::Broadleaf)] = NatBroadleaf.Object;
+	NatureMeshes[static_cast<int32>(EWLNatureKind::Palm)]      = NatPalm.Object;
+	NatureMeshes[static_cast<int32>(EWLNatureKind::Rock)]      = NatRock.Object;
+	NatureMeshes[static_cast<int32>(EWLNatureKind::Peak)]      = NatPeak.Object;
+	NatureMeshes[static_cast<int32>(EWLNatureKind::Mount)]     = NatMount.Object;
+	for (int32 i = 0; i < NatureInstances.Num(); ++i)
 	{
-		if (LoadedCityMeshes[i])
+		UInstancedStaticMeshComponent* Comp = NatureInstances[i];
+		UStaticMesh* Mesh = NatureMeshes.IsValidIndex(i) ? NatureMeshes[i] : nullptr;
+		if (!Comp || !Mesh)
 		{
-			CityBuildingMeshes.Add(LoadedCityMeshes[i]);
+			continue;
+		}
+		Comp->SetStaticMesh(Mesh);
+		Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Comp->SetMobility(EComponentMobility::Movable);
+		// Vertex-color UNLIT (los FBX traen 1 slot "NatureVColor"): NO un color plano, asi conservan
+		// el sombreado falso por cara y resaltan sobre el terreno sin ennegrecerse (ver AGENT_NOTES §2).
+		if (VertexColorMaterial)
+		{
+			Comp->SetMaterial(0, VertexColorMaterial);
 		}
 	}
 
@@ -366,6 +425,7 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		}
 	}
 	Labels.Reset();
+	CountryLabelBaseSizes.Reset();
 	for (UTextRenderComponent* Label : SettlementLabels)
 	{
 		if (Label)
@@ -374,6 +434,8 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		}
 	}
 	SettlementLabels.Reset();
+	SettlementLabelBaseSizes.Reset();
+	SettlementLabelMaxHeights.Reset();
 	for (UTextRenderComponent* Label : OverviewLabels)
 	{
 		if (Label)
@@ -390,8 +452,6 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	for (UInstancedStaticMeshComponent* Instanced : {
 		SettlementBlockInstances,
 		SettlementTowerInstances,
-		TreeInstances,
-		BrushInstances,
 		PortInstances,
 		ArmyMarkerInstances
 	})
@@ -401,14 +461,29 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 			Instanced->ClearInstances();
 		}
 	}
+	for (UInstancedStaticMeshComponent* Nature : NatureInstances)
+	{
+		if (Nature)
+		{
+			Nature->ClearInstances();
+		}
+	}
 	SetupLightingAndCamera();
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: lighting/camera ready."));
 	BuildSea();
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: sea ready."));
 	BuildOverviewLayer();
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: overview ready."));
+	// Pre-pasada: recopila los flat pads de cada ciudad (solo registra pads, no construye nada) para
+	// que BuildTerrain APLANE el terreno bajo cada ciudad ANTES de mallarlo. Sin esto el relieve/ruido
+	// (~2600u sobre la huella de la capital) inclina y "se come" la ciudad (un mesh rigido y plano).
+	CityFlatPads.Reset();
+	bCollectFlatPadsOnly = true;
+	BuildCampaignVisualLayer();
+	bCollectFlatPadsOnly = false;
+	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: city flat pads collected=%d."), CityFlatPads.Num());
 	BuildTerrain();
-	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: terrain ready."));
+	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: terrain ready (flattened under cities)."));
 	BuildCampaignVisualLayer();
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: campaign visual layer ready. Cities=%d Forces=%d"), CityViews.Num(), ForceViews.Num());
 	if (TerritoryLayer)

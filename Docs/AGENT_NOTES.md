@@ -14,16 +14,17 @@
 - Comando de build (incremental ~25-60s):
   `"/c/Program Files/Epic Games/UE_5.8/Engine/Build/BatchFiles/Build.bat" WorldLeaderEditor Win64 Development -project="C:/Users/PC/Desktop/rome-actual/WorldLeader.uproject" -waitmutex`
 - Relanzar: `Start-Process "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" -ArgumentList '"C:\Users\PC\Desktop\rome-actual\WorldLeader.uproject"'`
-- Hardware del usuario **por debajo de specs UE5** → preferir low-poly, texturas
-  bajas, detalle solo cerca de cámara.
+- **Estándar visual = lit/PBR, AAA** (Total War: Rome 2 / Cities: Skylines). Ver
+  **`Docs/CAMPAIGN3D_VISUAL_STANDARD.md`** (rector). **El hardware NO es restricción**
+  (el usuario usará una máquina potente); optimizar con LOD/streaming/luz horneada, nunca
+  bajando el estándar. PROHIBIDO justificar nada con "hardware por debajo de specs".
 
-## 2. ⚠️ EL MAPA SE DIBUJA PLANO / SIN ILUMINACIÓN (el muro más grande)
-- El terreno usa **`VertexColorMaterial` (UNLIT)**: el color se ve siempre, sin luz.
-- Por eso, al meter **mallas de assets (LIT/PBR)** (edificios, árboles), **salían
-  NEGRAS**: la escena no tenía **luz ambiental** (el `SkyLight` por defecto captura
-  el fondo negro de la escena → 0 ambiente).
-- **Diagnóstico que lo confirmó:** abrir la malla en el visor del asset → se ve
-  perfecta (el visor tiene HDRI). En el mapa, negra. ⇒ es la escena, no el asset.
+## 2. ILUMINACIÓN (migrando a lit/PBR — ver CAMPAIGN3D_VISUAL_STANDARD.md)
+- **DEROGADO el "todo unlit por hardware".** El mapa migra a **lit/PBR** (M1+). El terreno
+  pasa de `VertexColorMaterial` (unlit) a material **lit texturizado** (M1).
+- Historia útil: cuando había mallas lit sobre el mapa unlit **salían NEGRAS** por falta de
+  **ambiente** (el `SkyLight` por defecto captura el fondo negro → 0 ambiente). La cura sigue
+  vigente como parte de la luz lit: ambiente real con **cubemap/Sky Atmosphere**.
 - **SOLUCIÓN (en `SetupLightingAndCamera`)**: dar ambiente real con un **cubemap**:
   ```cpp
   SkyComp->SourceType = SLS_SpecifiedCubemap;
@@ -59,7 +60,20 @@
   `(viewport-canvas)/2`. Ver `WLCampaignPlayerController` (`GetCampaignCanvasMetrics`).
 
 ## 5. Biomas / labels / ciudades (estándares ya aplicados)
+- **CIUDADES 3D (Blender):** el enfoque actual son modelos de ciudad generados en Blender
+  (`gen_city.py`) e importados a `/Game/GenCity`. Pipeline EXACTO, estado y TODOS los errores
+  resueltos (lit/unlit, blancas, torres flacas, etc.) en **`Docs/CAMPAIGN3D_CITY_BLENDER.md`**.
+  Léelo antes de tocar ciudades.
 - **Biomas por GEOGRAFÍA (lon/lat), no por país** (`ClassifyVisualBiome`).
+- **VEGETACIÓN / RELIEVE de naturaleza (Blender unlit, /Game/GenNature):** 6 assets generados con
+  `gen_nature.py` (conifer, broadleaf, palm, rock, peak, mount), UNLIT vertex-color como el terreno
+  (NO usar el pack lit `VRS_LowPolyNatureEssentials` → saldría negro). Importados con `import_nature.py`
+  (espejo de `import_gencity.py`: `import_materials=False`, `vertex_color=REPLACE`). En código:
+  un ISM por tipo (`NatureInstances`, indexado por `EWLNatureKind`) con `VertexColorMaterial`.
+  `AddVegetationScatter` es **biome-driven**: muestrea `ClassifyVisualBiome` por celda → elige asset
+  (conífera en Montaña, palmera en Coast, hoja ancha en Jungle/Llanos, pico/roca en cresta), ancla la
+  base con el MISMO `VisualBiomeZOffset` que el terreno, y enmascara mar (`SettlementLandGeometry`) +
+  huella de ciudad (`CityViews`). Reemplazó los conos placeholder (ex `TreeInstances`/`BrushInstances`).
 - Labels por zoom: **país** al alejar (Region/Global), **ciudad** solo al acercar
   (`Labels` vs `SettlementLabels`).
 - Ciudades: builder procedural (cajas) en `WLCampaignSettlementBuilder`. Para **VE**
@@ -91,8 +105,10 @@
 - Cargar en C++ por ruta: `/Game/Cartoon_City_Free/Meshes/Buildings/SM_...` con
   `ConstructorHelpers::FObjectFinder` (constructor) o `LoadObject` (runtime). NO
   aplicarles color plano (perder sus materiales) — usar sus materiales nativos.
-- **Binarios de assets NO se commitean** (inflan el repo; usar Git LFS si se quiere
-  versionar). Quedan en disco local; el código los referencia por ruta.
+- **No commitear imports crudos en `Content/` sin decision explicita** (inflan el repo;
+  usar Git LFS si se quiere versionar assets pesados de produccion). La biblioteca de
+  evaluacion `ExternalAssets/CityKits/` puede versionar paquetes curados si cada archivo
+  queda bajo el limite normal de GitHub; los ZIP grandes quedan locales/ignorados.
 
 ## 6.1 Validación visual Standalone en sandbox Codex
 - Para validar ciudades sin depender de capturas de escritorio, existen flags de
@@ -122,8 +138,8 @@
   descartar (no es la causa del negro — ese era el ambiente, sección 2).
 
 ## 9. Lecciones de proceso (qué evitar)
-- **No prometer "Total War foto-realista" con procedural puro**: requiere assets +
-  iluminación. Ser honesto con el techo (~6/10 procedural; assets para subir).
+- **El estándar ES Total War: Rome 2 / Cities: Skylines** (lit/PBR). No se entrega nada por
+  debajo de eso; si un paso no se acerca, se rehace. Ver `CAMPAIGN3D_VISUAL_STANDARD.md`.
 - **No iterar a ciegas en visual**: cada build+verificación cuesta. Diagnosticar la
   causa (p.ej. abrir el asset en el visor) ANTES de re-aplicar.
 - **Checkpoints**: commit+push tras cada cambio verificado (el usuario lo pide).

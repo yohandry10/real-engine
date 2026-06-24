@@ -34,7 +34,7 @@ void AWLCampaignPlayerController::OnZoomIn()
 	}
 	else
 	{
-		ZoomCampaignCamera(0.82f);
+		ZoomCampaignCamera(0.66f);
 	}
 }
 
@@ -51,7 +51,7 @@ void AWLCampaignPlayerController::OnZoomOut()
 	}
 	else
 	{
-		ZoomCampaignCamera(1.22f);
+		ZoomCampaignCamera(1.52f);
 	}
 }
 
@@ -437,7 +437,9 @@ void AWLCampaignPlayerController::ZoomCampaignCamera(float ZoomFactor)
 	const bool bHasAnchor = GetCampaignZoomAnchor(AnchorBefore, AnchorScreenPoint);
 
 	FVector Location = CameraTarget->GetActorLocation();
-	const float DesiredZ = FMath::Clamp(Location.Z * ZoomFactor, CampaignMinCameraHeight, CampaignMaxCameraHeight);
+	// La rueda vive en el rango jugable (ciudad -> teatro): tope CampaignWheelMaxHeight, no
+	// CampaignMaxCameraHeight. El continente se ve con el boton "America".
+	const float DesiredZ = FMath::Clamp(Location.Z * ZoomFactor, CampaignMinCameraHeight, CampaignWheelMaxHeight);
 	if (FMath::IsNearlyEqual(Location.Z, DesiredZ, 1.f))
 	{
 		return;

@@ -51,6 +51,23 @@ LOD thresholds are currently presentation-only:
 - `Region`: overview landmass appears; fine detail is reduced.
 - `Global`: only strategic overview, labels and sea remain visible.
 
+City presentation must be split by purpose instead of scaling one mesh across
+all zooms:
+
+- Far/theatre readability uses a city symbol or proxy node. It may be visually
+  larger than the real urban footprint because it is a gameplay handle.
+- Urban footprint represents the real occupied area. It can grow with economy,
+  population and infrastructure, but must be bounded by neighboring city spacing.
+- Detailed building meshes are close-range presentation only. They should not be
+  used as the only representation at 170k-320k camera heights.
+
+The intended high-level LOD target after the scale review is:
+
+- `>360k`: clean strategic map; no detailed roads or city meshes.
+- `320k-220k`: route network plus readable city symbols.
+- `220k-120k`: urban footprints and readable labels.
+- `<120k`: detailed buildings/city dressing.
+
 The player controller owns camera input and clamps movement against bounds that expand with zoom. This keeps close zoom focused on the theatre while allowing far zooms to frame the Caribbean/Americas context.
 
 ## Verification Rule

@@ -58,7 +58,9 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 		FRotator(-46.f, -12.f, 0.f));
 	if (ViewDirectionalLight && ViewDirectionalLight->GetLightComponent())
 	{
-		ViewDirectionalLight->GetLightComponent()->SetIntensity(6.0f);
+		// Bajada de 6.0 -> 4.6: sombras menos duras. El terreno es UNLIT (siempre claro) pero las
+		// ciudades son LIT; con sol muy fuerte, las que caian en sombra del relieve salian oscuras.
+		ViewDirectionalLight->GetLightComponent()->SetIntensity(4.6f);
 		ViewDirectionalLight->GetLightComponent()->SetLightColor(FLinearColor(1.0f, 0.97f, 0.92f));
 	}
 	ViewSkyLight = World->SpawnActor<ASkyLight>(
@@ -76,8 +78,9 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 			SkyComp->Cubemap = Ambient;
 		}
 		SkyComp->bLowerHemisphereIsBlack = false;
-		SkyComp->SetLowerHemisphereColor(FLinearColor(0.42f, 0.46f, 0.48f));
-		SkyComp->SetIntensity(1.9f);
+		// Restaurado al valor estable (2.9): el terreno vuelve a ser unlit (olivo).
+		SkyComp->SetLowerHemisphereColor(FLinearColor(0.55f, 0.57f, 0.58f));
+		SkyComp->SetIntensity(2.9f);
 		SkyComp->RecaptureSky();
 	}
 

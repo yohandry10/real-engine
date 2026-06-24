@@ -19,6 +19,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "PythonScriptPlugin",
+			"Enabled": true
+		},
+		{
 			"Name": "UnrealMCP",
 			"Enabled": true,
 			"Optional": true

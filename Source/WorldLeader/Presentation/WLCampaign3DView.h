@@ -36,6 +36,19 @@ enum class EWLCampaign3DZoomLOD : uint8
 	Global
 };
 
+// Tipos de asset de NATURALEZA (modelos Blender unlit vertex-color en /Game/GenNature). El indice
+// es estable: lo usan NatureInstances/NatureMeshes y el scatter por bioma (ver AddVegetationScatter).
+enum class EWLNatureKind : uint8
+{
+	Conifer = 0,	// conifera (Montaña / bosque)
+	Broadleaf,		// hoja ancha (Jungle / Llanos)
+	Palm,			// palmera (Coast)
+	Rock,			// peñasco (cresta / costa rocosa)
+	Peak,			// pico andino con nieve (Montaña alta)
+	Mount,			// montaña verde redondeada (acento de relieve)
+	Count
+};
+
 USTRUCT(BlueprintType)
 struct FWLCampaign3DProvinceView
 {
@@ -163,6 +176,9 @@ public:
 	void ClearSelectionHighlight();
 	FBox2D GetViewBounds2D() const;
 	FBox2D GetCameraBounds2D(float CameraHeight) const;
+	// Altura de mundo del terreno bajo un punto de mundo (inverso de ProjectLonLat). La camara la usa
+	// para mantener una altura MINIMA sobre el suelo y no enterrarse en el relieve al acercar.
+	float GetGroundWorldZAtWorld(float WorldX, float WorldY) const;
 	ACameraActor* GetViewCamera() const { return ViewCamera; }
 	FVector GetDefaultCameraLocation() const { return DefaultCameraLocation; }
 	FRotator GetDefaultCameraRotation() const { return DefaultCameraRotation; }
@@ -174,6 +190,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") FVector2D TheaterCenterLonLat = FVector2D(-68.6f, 7.2f);
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float GeoScale = 9000.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float DetailWorldUnitsPerKm = 320.f;
+	// Exageracion vertical SOLO de la capa de detalle (ProjectLonLat). El mundo de detalle es
+	// ~4x mas ancho que el original, asi que el relieve necesita x4 para no verse plano (Merida).
+	// El overview (ProjectStrategicLonLat) NO la usa, a proposito: la vista estrategica plana.
+	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float VerticalDetailExaggeration = 4.f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLon = -125.0f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMaxLon = -34.0f;
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float RegionMinLat = -56.0f;
@@ -193,18 +213,34 @@ private:
 	UPROPERTY() UProceduralMeshComponent* MovementRoutePreviewMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
 	UPROPERTY() UMaterialInterface* VertexColorMaterial = nullptr;
+	// Material LIT/PBR del terreno (M1 del estándar visual): mezcla pasto/roca por pendiente, teñido por
+	// bioma (vertex color), normal maps, tileable por posición de mundo. /Game/GenTerrain/M_TerrainLit.
+	// Reemplaza el VertexColorMaterial unlit del terreno. Ver Docs/CAMPAIGN3D_VISUAL_STANDARD.md.
+	UPROPERTY() UMaterialInterface* TerrainLitMaterial = nullptr;
 	UPROPERTY() UStaticMesh* CityMesh = nullptr;
 	UPROPERTY() UStaticMesh* RouteMesh = nullptr;
 	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
 	UPROPERTY() UStaticMesh* ConeMesh = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* SettlementBlockInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* SettlementTowerInstances = nullptr;
-	UPROPERTY() UInstancedStaticMeshComponent* TreeInstances = nullptr;
-	UPROPERTY() UInstancedStaticMeshComponent* BrushInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* PortInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* ArmyMarkerInstances = nullptr;
-	// Ciudades con mallas reales (pack Cartoon_City_Free) — vertical slice Venezuela.
-	UPROPERTY() TArray<UStaticMesh*> CityBuildingMeshes;
+	// VEGETACION / RELIEVE de naturaleza: un ISM por tipo (EWLNatureKind), con su mesh Blender unlit
+	// vertex-color de /Game/GenNature. El scatter por bioma (AddVegetationScatter) reparte instancias.
+	// Reemplaza a los antiguos conos placeholder (TreeInstances/BrushInstances).
+	UPROPERTY() TArray<UInstancedStaticMeshComponent*> NatureInstances;
+	UPROPERTY() TArray<UStaticMesh*> NatureMeshes;
+	// Modelos de CIUDAD 3D cohesiva (generados en Blender, /Game/GenCity). Se coloca UNO por
+	// asentamiento segun tamaño, escalado y anclado al terreno (estilo settlement de Total War).
+	// Ver BuildMeshCity.
+	UPROPERTY() UStaticMesh* CityModelLarge = nullptr;
+	UPROPERTY() UStaticMesh* CityModelMedium = nullptr;
+	UPROPERTY() UStaticMesh* CityModelSmall = nullptr;
+	// Variantes por tamaño (distintas semillas) -> ciudades vecinas no son clones identicas; se elige
+	// una por hash de lon/lat en BuildMeshCity (estable). [0] = el modelo base de arriba.
+	UPROPERTY() TArray<UStaticMesh*> CityModelLargeVariants;
+	UPROPERTY() TArray<UStaticMesh*> CityModelMediumVariants;
+	UPROPERTY() TArray<UStaticMesh*> CityModelSmallVariants;
 	UPROPERTY() TArray<UStaticMeshComponent*> CityBuildingComponents;
 	UPROPERTY() TArray<UStaticMesh*> RoadAssetMeshes;
 	UPROPERTY() TArray<UStaticMeshComponent*> RoadAssetComponents;
@@ -213,13 +249,27 @@ private:
 	UPROPERTY() TArray<UStaticMeshComponent*> ForceMarkerComponents;
 	UPROPERTY() TArray<UPrimitiveComponent*> ForceSelectionMarkers;
 	UPROPERTY() TArray<UTextRenderComponent*> ForceMarkerLabels;
+	// Fuerzas militares = placeholder sin gameplay todavia. En false NO se crean conos/etiquetas/
+	// hitbox: limpia los "triangulos amarillos" y la etiqueta que duplicaba el nombre de la ciudad
+	// (p.ej. el segundo "Caracas"). Los datos siguen en ForceViews. Poner true al activar el gameplay.
+	bool bShowMilitaryForceMarkers = false;
 	UPROPERTY() TArray<UStaticMeshComponent*> MovementDestinationComponents;
 	UPROPERTY() TArray<UPrimitiveComponent*> MovementDestinationSelectionMarkers;
 	UPROPERTY() TArray<UTextRenderComponent*> MovementDestinationLabels;
 	UPROPERTY() TArray<UStaticMeshComponent*> VisualComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> RouteSegments;
 	UPROPERTY() TArray<UTextRenderComponent*> Labels;
+	// Tamano base de cada nombre de PAIS (paralelo a Labels). ApplyZoomLOD lo reescala por altura de
+	// camara (tamano legible a cualquier zoom; antes era fijo y diminuto de lejos).
+	TArray<float> CountryLabelBaseSizes;
 	UPROPERTY() TArray<UTextRenderComponent*> SettlementLabels;
+	// Tamano base (mundo) de cada label de ciudad, paralelo a SettlementLabels. ApplyZoomLOD
+	// reescala el WorldSize por altura de camara para que el nombre se lea con tamano casi
+	// CONSTANTE en pantalla a cualquier zoom (estilo medallon de Total War).
+	TArray<float> SettlementLabelBaseSizes;
+	// Altura MAXIMA de camara a la que se muestra cada label de ciudad (LOD por importancia; paralelo
+	// a SettlementLabels). Evita el amontonamiento de nombres en zoom lejano. Ver ApplyZoomLOD.
+	TArray<float> SettlementLabelMaxHeights;
 	UPROPERTY() TArray<UTextRenderComponent*> OverviewLabels;
 	TArray<uint8> OverviewLabelVisibilityMasks;
 	UPROPERTY() TArray<FWLCampaign3DProvinceView> ProvinceViews;
@@ -250,6 +300,13 @@ private:
 	FString ActiveMovementForceId;
 	FString PreviewMovementDestinationNodeId;
 	bool bHasBuiltView = false;
+	// Flat pads de ciudad: discos donde el terreno se APLANA (a la altura natural del centro) para que
+	// la ciudad (un mesh rigido y plano) no quede "comida"/inclinada por el relieve o el ruido sobre su
+	// huella (~2600u sobre la huella de la capital). Se recopilan en una pre-pasada (bCollectFlatPadsOnly)
+	// ANTES de mallar el terreno; el relieve de alrededor (Andes/Merida) se conserva fuera del pad.
+	struct FCityFlatPad { float Lon; float Lat; float FlatRadiusDeg; float OuterRadiusDeg; float Height; };
+	TArray<FCityFlatPad> CityFlatPads;
+	bool bCollectFlatPadsOnly = false;
 	float WaterAnimationTime = 0.f;
 	float PendingCityVisualScreenshotSeconds = -1.f;
 	float CityVisualQuitCountdownSeconds = -1.f;
@@ -259,7 +316,11 @@ private:
 	UWLDataRegistry* GetRegistry() const;
 	FVector ProjectLonLat(float Lon, float Lat) const;
 	FVector ProjectStrategicLonLat(float Lon, float Lat) const;
+	float GetVisualTerrainWorldZ(float Lon, float Lat, bool bCoreCountry) const;
+	float GetVisualTerrainWorldZ(float Lon, float Lat, const FString& CountryIso) const;
+	bool IsCoreTerrainAtLonLat(float Lon, float Lat) const;
 	float SampleTerrainHeight(float Lon, float Lat) const;
+	float SampleTerrainHeightRaw(float Lon, float Lat) const;
 	FLinearColor TerrainColor(EWLTerrainType Terrain, const FString& CountryIso) const;
 	UMaterialInstanceDynamic* MakeColorMaterial(const FLinearColor& Color);
 	void BuildSea();
@@ -285,7 +346,9 @@ private:
 		EWLCampaignSettlementType Type,
 		const FLinearColor& AccentColor);
 	// Construye una ciudad con mallas reales (edificios del pack) en vez de cajas.
-	void BuildMeshCity(float Lon, float Lat, EWLCampaignSettlementType Type);
+	void BuildMeshCity(float Lon, float Lat, EWLCampaignSettlementType Type, const FString& CountryIso);
+	// Registra un "flat pad" (disco de terreno aplanado) bajo la ciudad para que el relieve no la coma.
+	void RegisterCityFlatPad(float Lon, float Lat, EWLCampaignSettlementType Type);
 	void AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale);
 	void AddMilitaryForceMarkers();
 	void AddMilitaryForceMarker(const FWLCampaign3DForceView& Force);
@@ -305,7 +368,7 @@ private:
 	void DestroyMovementDestinationMarkers();
 	FVector GetForceMarkerLocationForNode(const FWLCampaign3DForceView& Force, const FWLCampaign3DMovementNodeView& Node) const;
 	void RebuildPointSelectionHighlight(const FVector& Location, float Radius, const FLinearColor& Color);
-	void AddVegetationScatter(float MinLon, float MaxLon, float MinLat, float MaxLat, int32 Columns, int32 Rows, bool bDenseJungle);
+	void AddVegetationScatter();
 	void AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale);
 	void AddOverviewLabel(
 		const FString& Text,

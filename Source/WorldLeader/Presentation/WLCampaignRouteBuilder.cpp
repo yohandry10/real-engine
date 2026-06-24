@@ -245,6 +245,79 @@ namespace
 		Buffer.Colors.Append({ VertexColor, VertexColor, VertexColor, VertexColor });
 	}
 
+	// Recorte de carretera. La cinta se RECORTA donde no debe verse: dentro de las huellas de ciudad
+	// (la via flota ~900u sobre el piso y la cruzaria) y sobre el AGUA (la via va a Z+990 y el mar a
+	// -2350, asi que la ruta costera flotaba sobre el mar). Ambos los fija el view antes de construir.
+	TArray<FVector> GRoadClipCircles;             // X=lon, Y=lat, Z=radio en grados
+	TFunction<bool(float, float)> GRoadLandTest;  // true = (lon,lat) esta en tierra
+
+	// Un punto se EXCLUYE (no se dibuja la via ahi) si cae dentro de una ciudad o sobre el mar.
+	bool RoutePointExcluded(const FVector2D& P)
+	{
+		for (const FVector& C : GRoadClipCircles)
+		{
+			if (FVector2D::DistSquared(P, FVector2D(C.X, C.Y)) < C.Z * C.Z)
+			{
+				return true;
+			}
+		}
+		if (GRoadLandTest && !GRoadLandTest(P.X, P.Y))
+		{
+			return true;
+		}
+		return false;
+	}
+
+	// Punto de transicion (biseccion) entre un punto incluido y uno excluido -> la via termina justo
+	// en el borde (de la ciudad o de la costa).
+	FVector2D RouteBoundaryPoint(const FVector2D& Included, const FVector2D& Excluded)
+	{
+		FVector2D Lo = Included, Hi = Excluded;
+		for (int32 It = 0; It < 18; ++It)
+		{
+			const FVector2D Mid = (Lo + Hi) * 0.5f;
+			if (RoutePointExcluded(Mid)) { Hi = Mid; } else { Lo = Mid; }
+		}
+		return (Lo + Hi) * 0.5f;
+	}
+
+	// Divide una polilinea (lon/lat) en sub-polilineas que quedan FUERA de ciudades y SOBRE TIERRA,
+	// terminando justo en el borde (biseccion). Sin recortes activos, devuelve la polilinea tal cual.
+	TArray<TArray<FVector2D>> ClipRoute(const TArray<FVector2D>& Pts)
+	{
+		TArray<TArray<FVector2D>> Out;
+		if (Pts.Num() < 2)
+		{
+			return Out;
+		}
+		if (GRoadClipCircles.Num() == 0 && !GRoadLandTest)
+		{
+			Out.Add(Pts);
+			return Out;
+		}
+		TArray<FVector2D> Cur;
+		for (int32 i = 0; i < Pts.Num(); ++i)
+		{
+			const bool bExcluded = RoutePointExcluded(Pts[i]);
+			if (!bExcluded)
+			{
+				if (Cur.Num() == 0 && i > 0 && RoutePointExcluded(Pts[i - 1]))
+				{
+					Cur.Add(RouteBoundaryPoint(Pts[i], Pts[i - 1]));
+				}
+				Cur.Add(Pts[i]);
+			}
+			else if (Cur.Num() > 0)
+			{
+				Cur.Add(RouteBoundaryPoint(Pts[i - 1], Pts[i]));
+				if (Cur.Num() >= 2) { Out.Add(Cur); }
+				Cur.Reset();
+			}
+		}
+		if (Cur.Num() >= 2) { Out.Add(Cur); }
+		return Out;
+	}
+
 	void AddRoute(FRouteMeshBuffer& Buffer, const FWLCampaignRouteSpec& Spec, TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat)
 	{
 		if (Spec.Points.Num() < 2)
@@ -256,12 +329,21 @@ namespace
 		// Densificado a ~0.12 grados (~13 km) para que la cinta pegue al relieve y la
 		// cordillera no "corte" los caminos largos (costa<->selva en Peru, etc.).
 		const TArray<FVector2D> Smoothed = DensifyLonLat(SmoothPoints(Spec.Points, Spec.Smoothness), 0.12f);
-		const TArray<FVector> WorldPoints = ProjectRoutePoints(Smoothed, Style.ZOffset, ProjectLonLat);
-		AddRouteLayer(Buffer, WorldPoints, Style.ShoulderWidth, -24.f, Style.ShoulderColor);
-		AddRouteLayer(Buffer, WorldPoints, Style.SurfaceWidth, 0.f, Style.SurfaceColor);
-		if (Style.bHasCenterWear && Style.CenterWearWidth > 1.f)
+		// Recorta la cinta en cada huella de ciudad (la via llega al borde y para, no la cruza por
+		// encima) y sobre el AGUA (no flota sobre el mar). Sin recortes, una sola sub-polilinea.
+		for (const TArray<FVector2D>& Sub : ClipRoute(Smoothed))
 		{
-			AddRouteLayer(Buffer, WorldPoints, Style.CenterWearWidth, 18.f, Style.CenterWearColor);
+			if (Sub.Num() < 2)
+			{
+				continue;
+			}
+			const TArray<FVector> WorldPoints = ProjectRoutePoints(Sub, Style.ZOffset, ProjectLonLat);
+			AddRouteLayer(Buffer, WorldPoints, Style.ShoulderWidth, -24.f, Style.ShoulderColor);
+			AddRouteLayer(Buffer, WorldPoints, Style.SurfaceWidth, 0.f, Style.SurfaceColor);
+			if (Style.bHasCenterWear && Style.CenterWearWidth > 1.f)
+			{
+				AddRouteLayer(Buffer, WorldPoints, Style.CenterWearWidth, 18.f, Style.CenterWearColor);
+			}
 		}
 
 		if (Spec.bShowJunctions)
@@ -269,6 +351,10 @@ namespace
 			const float Radius = FMath::Max(Style.SurfaceWidth * 0.78f, 260.f);
 			for (const FVector2D& Point : Spec.Points)
 			{
+				if (RoutePointExcluded(Point))
+				{
+					continue;  // el nodo caeria sobre la ciudad o el mar
+				}
 				const FVector Center = ProjectLonLat(Point.X, Point.Y) + FVector(0.f, 0.f, Style.ZOffset + 30.f);
 				AddNode(Buffer, Center, Radius, Style.SurfaceColor);
 			}
@@ -319,6 +405,16 @@ namespace
 			RoadMesh->SetMaterial(SectionIndex, RoadMaterial);
 		}
 	}
+}
+
+void FWLCampaignRouteBuilder::SetCityClipCircles(const TArray<FVector>& Circles)
+{
+	GRoadClipCircles = Circles;
+}
+
+void FWLCampaignRouteBuilder::SetRoadLandMask(TFunction<bool(float, float)> LandTest)
+{
+	GRoadLandTest = MoveTemp(LandTest);
 }
 
 void FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(

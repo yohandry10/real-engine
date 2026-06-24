@@ -169,8 +169,6 @@ void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 	for (UInstancedStaticMeshComponent* Instanced : {
 		SettlementBlockInstances,
 		SettlementTowerInstances,
-		TreeInstances,
-		BrushInstances,
 		PortInstances,
 		ArmyMarkerInstances
 	})
@@ -178,6 +176,13 @@ void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 		if (Instanced)
 		{
 			Instanced->SetVisibility(bVisible, true);
+		}
+	}
+	for (UInstancedStaticMeshComponent* Nature : NatureInstances)
+	{
+		if (Nature)
+		{
+			Nature->SetVisibility(bVisible, true);
 		}
 	}
 	for (UStaticMeshComponent* Building : CityBuildingComponents)
@@ -211,8 +216,18 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	// navegacion y la seleccion usan deproyeccion, asi que funcionan a cualquier angulo.
 	if (ViewCamera)
 	{
-		const float Pitch = FMath::GetMappedRangeValueClamped(
-			FVector2D(60000.f, 320000.f), FVector2D(-46.f, -84.f), CameraHeight);
+		// Pitch en "V": CERCA picado (-64) para VER el suelo/las calles de la ciudad mirando HACIA
+		// DENTRO de la cuadricula (a -46 las fachadas tapaban el suelo); TEATRO mas oblicuo (-50) para
+		// sensacion 3D con varias ciudades; LEJOS casi cenital (-84) para leer el mapa.
+		float Pitch;
+		if (CameraHeight <= 60000.f)
+		{
+			Pitch = FMath::GetMappedRangeValueClamped(FVector2D(15000.f, 60000.f), FVector2D(-64.f, -50.f), CameraHeight);
+		}
+		else
+		{
+			Pitch = FMath::GetMappedRangeValueClamped(FVector2D(60000.f, 320000.f), FVector2D(-50.f, -84.f), CameraHeight);
+		}
 		ViewCamera->SetActorRotation(FRotator(Pitch, 0.f, 0.f));
 	}
 
@@ -242,9 +257,13 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater || CurrentZoomLOD == EWLCampaign3DZoomLOD::Close);
 	const bool bFineDetail = bActive
 		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Close || CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater);
-	// Detalle de CIUDAD (mallas + nombres): solo al acercar de verdad (<=200k). A 247k aun
-	// es vista regional -> nada de ciudades (tambien limpia el amasijo de labels del Caribe).
-	const bool bCityDetail = bFineDetail && CameraHeight <= 200000.f;
+	// Detalle de CIUDAD (mallas): aparecen en el mismo umbral que las carreteras (<=250k), no a 200k
+	// exacto (a 209k ya deben verse). El amasijo de nombres lo controla ahora el LOD por importancia.
+	const bool bCityDetail = bFineDetail && CameraHeight <= 250000.f;
+	// Carreteras: solo en zoom de DETALLE (<=250k). Mas lejos = solo las lineas de pais (frontera),
+	// sin marana de vias. Relevo limpio en 250k: arriba lineas de pais, abajo carreteras (y las
+	// ciudades aparecen <=200k). Resuelve el estado raro de ~318k (vias por todos lados sin ciudades).
+	const bool bRoads = bFineDetail && CameraHeight <= 250000.f;
 
 	SetStrategicLayerVisible(bStrategic);
 	SetDetailedLayerVisible(bTheaterTerrain);
@@ -261,23 +280,22 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	// frontera en la vista continental.)
 	if (BoundaryMesh)
 	{
-		// Frontera: oculta en zoom CERCANO/regional (<=130k, p.ej. 70k/97k, donde traza
-		// toda la costa recortada y hace ruido); visible mas lejos (varios paises a la vista).
-		BoundaryMesh->SetVisibility(bTheaterTerrain && CameraHeight >= 130000.f, true);
+		// Frontera (linea blanca) = la vista LEJANA: se muestra >=250k, justo donde se ocultan las
+		// carreteras. Asi de lejos se leen las formas de los paises (sin maraña de vias) y no hay hueco
+		// vacio. De cerca (<250k) se ocultan y mandan las carreteras/ciudades. (Antes >=440k.)
+		BoundaryMesh->SetVisibility(bTheaterTerrain && CameraHeight >= 250000.f, true);
 	}
 
 	if (RoadMesh)
 	{
-		// Carreteras SOLO en detalle fino (Teatro + Cercano), NO al alejar a Region. En
-		// Region (vista continental lejana) se lee la forma de los paises por la frontera,
-		// no las vias; dibujarlas ahi era ruido/error.
-		RoadMesh->SetVisibility(bFineDetail, true);
+		// Carreteras solo en zoom de DETALLE (<=250k). Mas lejos manda la frontera (lineas de pais).
+		RoadMesh->SetVisibility(bRoads, true);
 	}
 	for (UStaticMeshComponent* Road : RoadAssetComponents)
 	{
 		if (Road)
 		{
-			Road->SetVisibility(bFineDetail, true);
+			Road->SetVisibility(bRoads, true);
 		}
 	}
 	if (SettlementMesh)
@@ -295,25 +313,45 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		if (Route)
 		{
-			Route->SetVisibility(bFineDetail, true);
+			Route->SetVisibility(bRoads, true);
 		}
 	}
-	// Etiquetas de PAIS de la capa detallada: solo al acercar. Region usa la capa
-	// estrategica/overview, no la presentacion 3D. En Cercano compiten con ciudades.
+	// Escala de pantalla (tamano casi CONSTANTE en pantalla a cualquier zoom): la usan los nombres de
+	// PAIS y de CIUDAD. (ref 52000 => ~22px para una ciudad normal.)
+	const float LabelScreenScale = FMath::Clamp(CameraHeight / 52000.f, 0.7f, 11.f);
+	// Etiquetas de PAIS: solo en Theater (Region usa el overview). Se reescalan por altura de camara
+	// (antes era tamano FIJO -> diminutas de lejos) y un poco mas grandes que las de ciudad (x1.25).
 	const bool bDetailedCountryLabels = bFineDetail && CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater;
-	for (UTextRenderComponent* Label : Labels)
+	for (int32 LabelIndex = 0; LabelIndex < Labels.Num(); ++LabelIndex)
 	{
-		if (Label)
+		UTextRenderComponent* Label = Labels[LabelIndex];
+		if (!Label)
 		{
-			Label->SetVisibility(bDetailedCountryLabels, true);
+			continue;
+		}
+		Label->SetVisibility(bDetailedCountryLabels, true);
+		if (CountryLabelBaseSizes.IsValidIndex(LabelIndex))
+		{
+			Label->SetWorldSize(CountryLabelBaseSizes[LabelIndex] * LabelScreenScale * 1.25f);
 		}
 	}
-	// Etiquetas de CIUDAD: solo al acercar de verdad (<=200k), nunca en vista regional/lejana.
-	for (UTextRenderComponent* Label : SettlementLabels)
+	for (int32 LabelIndex = 0; LabelIndex < SettlementLabels.Num(); ++LabelIndex)
 	{
-		if (Label)
+		UTextRenderComponent* Label = SettlementLabels[LabelIndex];
+		if (!Label)
 		{
-			Label->SetVisibility(bCityDetail, true);
+			continue;
+		}
+		// LOD por IMPORTANCIA: cada label tiene su altura maxima (capital 360k, grande 235k, puerto/
+		// industrial ~170-195k, fronteriza 110k). De lejos solo capitales; al acercar aparecen las
+		// demas -> los nombres no se amontonan ni se cortan. (Antes: todas <=360k = amasijo a 317k.)
+		const float LabelMaxHeight = SettlementLabelMaxHeights.IsValidIndex(LabelIndex)
+			? SettlementLabelMaxHeights[LabelIndex]
+			: 360000.f;
+		Label->SetVisibility(bFineDetail && CameraHeight <= LabelMaxHeight, true);
+		if (SettlementLabelBaseSizes.IsValidIndex(LabelIndex))
+		{
+			Label->SetWorldSize(SettlementLabelBaseSizes[LabelIndex] * LabelScreenScale);
 		}
 	}
 	for (UStaticMeshComponent* Building : CityBuildingComponents)
@@ -323,13 +361,13 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 			Building->SetVisibility(bCityDetail, true);
 		}
 	}
-	if (TreeInstances)
+	// Vegetacion / relieve de naturaleza: detalle fino (Teatro/Cercano), como antes los conos.
+	for (UInstancedStaticMeshComponent* Nature : NatureInstances)
 	{
-		TreeInstances->SetVisibility(bFineDetail, true);
-	}
-	if (BrushInstances)
-	{
-		BrushInstances->SetVisibility(bFineDetail, true);
+		if (Nature)
+		{
+			Nature->SetVisibility(bFineDetail, true);
+		}
 	}
 	if (ArmyMarkerInstances)
 	{
@@ -553,8 +591,6 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	for (UInstancedStaticMeshComponent* Instanced : {
 		SettlementBlockInstances,
 		SettlementTowerInstances,
-		TreeInstances,
-		BrushInstances,
 		PortInstances,
 		ArmyMarkerInstances
 	})
@@ -563,6 +599,14 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		{
 			Instanced->SetVisibility(bActive, true);
 			Instanced->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+	}
+	for (UInstancedStaticMeshComponent* Nature : NatureInstances)
+	{
+		if (Nature)
+		{
+			Nature->SetVisibility(bActive, true);
+			Nature->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
 	for (UStaticMeshComponent* Building : CityBuildingComponents)

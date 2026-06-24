@@ -40,4 +40,15 @@ public:
 		UMaterialInterface* RoadMaterial,
 		const TArray<FWLCampaignRouteSpec>& Routes,
 		TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat);
+
+	// Circulos de ciudad (X=lon, Y=lat, Z=radio en grados) donde la cinta de carretera se RECORTA: la
+	// via flota ~900u sobre el piso de la ciudad, asi que sin recorte la cruza POR ENCIMA. Recortando,
+	// la via llega al borde de la ciudad y para (la cuadricula interna hace de calles). Afecta a las
+	// rutas construidas DESPUES de llamar esto. Pasar array vacio para desactivar.
+	static void SetCityClipCircles(const TArray<FVector>& Circles);
+
+	// Mascara de TIERRA: la cinta SOLO se dibuja sobre tierra. Sin esto la ruta costera flotaba sobre
+	// el mar (la via va a Z+990 y el mar a -2350). El view pasa un test (lon,lat)->bool. Test vacio
+	// (TFunction nula) = desactivado.
+	static void SetRoadLandMask(TFunction<bool(float Lon, float Lat)> LandTest);
 };
