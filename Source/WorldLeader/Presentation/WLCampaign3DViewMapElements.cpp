@@ -49,62 +49,6 @@ namespace
 		return A < B ? FString::Printf(TEXT("%s|%s"), *A, *B) : FString::Printf(TEXT("%s|%s"), *B, *A);
 	}
 
-	// Hash determinista 0..1 (file-local; el GridHash01 de Visual.cpp es de otra unidad de traduccion).
-	float NatureHash01(int32 X, int32 Y, int32 Salt)
-	{
-		const float Seed = static_cast<float>((X + 101) * 12.9898 + (Y + 211) * 78.233 + Salt * 37.719);
-		return FMath::Frac(FMath::Abs(FMath::Sin(Seed) * 43758.5453f));
-	}
-
-	// Que asset de naturaleza corresponde a un bioma (con variedad por hash). Andes = coniferas con
-	// pico/roca/loma ocasional; costa = palmeras; jungla/llanos = hoja ancha.
-	EWLNatureKind PickNatureKind(EWLVisualBiome Biome, float Hash)
-	{
-		switch (Biome)
-		{
-		case EWLVisualBiome::Mountain:
-			if (Hash < 0.12f) { return EWLNatureKind::Peak; }   // cumbre nevada (acento)
-			if (Hash < 0.24f) { return EWLNatureKind::Rock; }   // peñasco
-			if (Hash < 0.30f) { return EWLNatureKind::Mount; }  // loma verde (acento)
-			return EWLNatureKind::Conifer;                      // bosque andino (dominante)
-		case EWLVisualBiome::Coast:
-			return (Hash < 0.72f) ? EWLNatureKind::Palm : EWLNatureKind::Broadleaf;
-		case EWLVisualBiome::Jungle:
-			return (Hash < 0.82f) ? EWLNatureKind::Broadleaf : EWLNatureKind::Palm;
-		default: // Llanos / UrbanInfluence / Context
-			return EWLNatureKind::Broadleaf;
-		}
-	}
-
-	// Altura objetivo (unidades de mundo) por tipo -> escala = objetivo / altura del mesh (conserva
-	// proporciones). Grandes para LEER sobre el mapa continental (los conos viejos ~800u eran puntitos).
-	float NatureTargetHeight(EWLNatureKind Kind)
-	{
-		switch (Kind)
-		{
-		case EWLNatureKind::Conifer:   return 1500.f;
-		case EWLNatureKind::Broadleaf: return 1450.f;
-		case EWLNatureKind::Palm:      return 1700.f;
-		case EWLNatureKind::Rock:      return 950.f;
-		case EWLNatureKind::Peak:      return 2700.f; // crag andino con nieve, lee como cumbre
-		case EWLNatureKind::Mount:     return 2400.f; // loma verde redondeada (acento)
-		default:                       return 1400.f;
-		}
-	}
-
-	// Probabilidad de que una celda (rejilla ~0.06°) reciba un asset. Bosque denso en montaña/jungla,
-	// rala en llanos. Con celda 0.06° (~540u) y canopy ~700-900u, esto da masas de bosque que se leen.
-	float NatureKeepFraction(EWLVisualBiome Biome)
-	{
-		switch (Biome)
-		{
-		case EWLVisualBiome::Jungle:   return 0.60f;
-		case EWLVisualBiome::Mountain: return 0.58f;
-		case EWLVisualBiome::Coast:    return 0.34f;
-		case EWLVisualBiome::Llanos:   return 0.17f;
-		default:                       return 0.26f;
-		}
-	}
 }
 
 void AWLCampaign3DView::RebuildPointSelectionHighlight(const FVector& Location, float Radius, const FLinearColor& Color)
@@ -169,96 +113,16 @@ void AWLCampaign3DView::RebuildPointSelectionHighlight(const FVector& Location, 
 // terreno. Esto cubre la cordillera entera (sin huecos de rectangulos) y solo pisa tierra core.
 void AWLCampaign3DView::AddVegetationScatter()
 {
-	if (SettlementLandGeometry.Num() == 0)
+	for (UInstancedStaticMeshComponent* Nature : NatureInstances)
 	{
-		return;
-	}
-
-	const float CellDeg = 0.06f;   // ~540 u entre celdas -> bosque que se lee a zoom Teatro/Cercano.
-	const float Jitter = 0.45f;    // rompe la rejilla (no quedan en lineas perfectas).
-	int32 Placed = 0;
-
-	for (const FWLRegionalCountryGeometry& Country : SettlementLandGeometry)
-	{
-		if (!Country.bCoreCountry) // solo CO/VE: el resto es "context" (terreno plano, sin biomas reales).
+		if (Nature)
 		{
-			continue;
-		}
-
-		for (const TArray<FVector2D>& Ring : Country.Rings)
-		{
-			if (Ring.Num() < 3)
-			{
-				continue;
-			}
-
-			float MinLon, MaxLon, MinLat, MaxLat;
-			FWLCampaignRegionGeometry::GetLonLatBounds(Ring, MinLon, MaxLon, MinLat, MaxLat);
-
-			for (float GridLon = MinLon; GridLon < MaxLon; GridLon += CellDeg)
-			{
-				for (float GridLat = MinLat; GridLat < MaxLat; GridLat += CellDeg)
-				{
-					const int32 HX = FMath::RoundToInt(GridLon * 1000.f);
-					const int32 HY = FMath::RoundToInt(GridLat * 1000.f);
-					const float Lon = GridLon + CellDeg * (0.5f + (NatureHash01(HX, HY, 1) - 0.5f) * Jitter);
-					const float Lat = GridLat + CellDeg * (0.5f + (NatureHash01(HX, HY, 2) - 0.5f) * Jitter);
-
-					// Mascara de tierra exacta: solo dentro del anillo del pais (nunca sobre el mar).
-					if (!FWLCampaignRegionGeometry::PointInLonLatRing(FVector2D(Lon, Lat), Ring))
-					{
-						continue;
-					}
-
-					const EWLVisualBiome Biome = FWLCampaignVisualStyle::ClassifyVisualBiome(Lon, Lat, true);
-
-					// Densidad por bioma.
-					if (NatureHash01(HX, HY, 17) > NatureKeepFraction(Biome))
-					{
-						continue;
-					}
-
-					// No plantar dentro de la huella de una ciudad (su modelo ya la ocupa). Radio mayor
-					// para capitales (huella mas ancha). Alrededor SI hay bosque -> ciudad en el bosque.
-					bool bNearCity = false;
-					for (const FWLCampaign3DCityView& City : CityViews)
-					{
-						const float R = City.bCapital ? 0.42f : 0.22f;
-						if (FMath::Abs(City.Lon - Lon) < R && FMath::Abs(City.Lat - Lat) < R)
-						{
-							bNearCity = true;
-							break;
-						}
-					}
-					if (bNearCity)
-					{
-						continue;
-					}
-
-					const float KindHash = NatureHash01(HX, HY, 3);
-					const int32 KindIndex = static_cast<int32>(PickNatureKind(Biome, KindHash));
-					if (!NatureInstances.IsValidIndex(KindIndex) || !NatureInstances[KindIndex] || !NatureInstances[KindIndex]->GetStaticMesh())
-					{
-						continue;
-					}
-
-					// Ancla la BASE (z=0) a la superficie visible = ProjectLonLat.Z + offset del bioma.
-					const float ZOffset = FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, true);
-					const FVector Location = ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, ZOffset);
-
-					// Escala uniforme = altura objetivo / altura del mesh (conserva proporciones) + jitter.
-					const float MeshHeight = FMath::Max(1.f, static_cast<float>(NatureInstances[KindIndex]->GetStaticMesh()->GetBoundingBox().GetSize().Z));
-					const float UniformScale = (NatureTargetHeight(static_cast<EWLNatureKind>(KindIndex)) / MeshHeight) * (0.80f + 0.45f * NatureHash01(HX, HY, 11));
-					const float Yaw = 360.f * NatureHash01(HX, HY, 23);
-
-					AddInstance(NatureInstances[KindIndex], Location, FRotator(0.f, Yaw, 0.f), FVector(UniformScale));
-					++Placed;
-				}
-			}
+			Nature->ClearInstances();
+			Nature->SetVisibility(false, true);
+			Nature->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
-
-	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D vegetation scatter: %d instances over core countries."), Placed);
+	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D vegetation scatter disabled."));
 }
 
 void AWLCampaign3DView::AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale)

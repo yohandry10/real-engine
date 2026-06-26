@@ -57,3 +57,15 @@ Content/CitySpatialNeglect/
 Content/LondonCity/
 Content/KenneyCity/
 LPN_Essentials_426.png
+
+# Raw terrain PBR downloads are reproducible from the manifest. Keep imported
+# Unreal assets in Content/TerrainPBR; do not accidentally add source ZIPs or
+# DCC/USD helper files.
+ExternalAssets/TerrainPBR/ambientCG/**/*.zip
+ExternalAssets/TerrainPBR/ambientCG/**/*.blend
+ExternalAssets/TerrainPBR/ambientCG/**/*.usdc
+ExternalAssets/TerrainPBR/ambientCG/**/*.mtlx
+ExternalAssets/TerrainPBR/ambientCG/**/*.tres
+ExternalAssets/TerrainPBR/NaturalEarth/**/*.zip
+ExternalAssets/TerrainPBR/NaturalEarth/**/*.tif
+ExternalAssets/TerrainPBR/NaturalEarth/**/*.tfw

@@ -22,39 +22,8 @@ void UWLCampaignTerritoryLayerComponent::RebuildResourceMarkers()
 		return;
 	}
 	ResourceMarkerMesh->ClearAllMeshSections();
-
-	FMeshBuildBuffer Buffer;
-	for (const FRegionRecord& Region : Regions)
-	{
-		if (Region.bCountry || !Region.View.bIsResourceRich || Region.View.ResourcesText.IsEmpty())
-		{
-			continue;
-		}
-		const FVector Center = Region.View.WorldLocation + FVector(0.f, 0.f, 900.f);
-		const float Size = Region.View.bIsCapitalRegion ? 1050.f : 760.f;
-		const int32 Base = Buffer.Verts.Num();
-		Buffer.Verts.Append({
-			Center + FVector(Size, 0.f, 0.f),
-			Center + FVector(0.f, Size, 0.f),
-			Center + FVector(-Size, 0.f, 0.f),
-			Center + FVector(0.f, -Size, 0.f)
-		});
-		Buffer.Tris.Append({ Base, Base + 1, Base + 2, Base, Base + 2, Base + 3 });
-		Buffer.Normals.Append({ FVector::UpVector, FVector::UpVector, FVector::UpVector, FVector::UpVector });
-		Buffer.UVs.Append({ FVector2D::ZeroVector, FVector2D::ZeroVector, FVector2D::ZeroVector, FVector2D::ZeroVector });
-		const FColor Color = ToFColor(FLinearColor(0.76f, 0.58f, 0.20f, 1.f));
-		Buffer.Colors.Append({ Color, Color, Color, Color });
-	}
-
-	if (!Buffer.Verts.IsEmpty())
-	{
-		ResourceMarkerMesh->CreateMeshSection(0, Buffer.Verts, Buffer.Tris, Buffer.Normals,
-			Buffer.UVs, Buffer.Colors, Buffer.Tangents, false);
-		if (VertexColorMaterial)
-		{
-			ResourceMarkerMesh->SetMaterial(0, VertexColorMaterial);
-		}
-	}
+	ResourceMarkerMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ResourceMarkerMesh->SetVisibility(false, true);
 }
 
 void UWLCampaignTerritoryLayerComponent::RebuildHighlightMesh(
@@ -122,16 +91,18 @@ void UWLCampaignTerritoryLayerComponent::ApplyVisibility(float CameraHeight)
 	const bool bRegion = CameraHeight >= 185000.f && !bGlobal;
 	const bool bDetailedTerritoryVisible = CameraHeight < 115000.f;
 
-	const bool bNationalVisible = bLayerActive && bShowBorders && bGlobal;
+	const bool bNationalVisible = bLayerActive && bShowBorders && (bGlobal || bRegion);
 	// Antes, al bajar de 115k se dibujaba la rejilla de TODAS las provincias (58 en
 	// CO/VE) con sus nombres -> tapaba el mapa con una telarana de lineas. Se desactiva
 	// la rejilla y los nombres de provincia: el mapa queda limpio. Las provincias
 	// siguen siendo seleccionables (hit meshes) y se resaltan al pasar el cursor o al
 	// seleccionarlas (hover/selected highlight, mas abajo).
 	const bool bProvinceVisible = false;
-	const bool bCountryLabelsVisible = bLayerActive && bShowLabels && bGlobal;
+	const bool bCountryLabelsVisible = bLayerActive && bShowLabels && (bGlobal || bRegion);
 	const bool bProvinceLabelsVisible = false;
-	const bool bResourcesVisible = bLayerActive && bShowResources && bShowProvinces && bDetailedTerritoryVisible;
+	// Resource diamonds were placeholder debug markers; they read as random yellow
+	// squares over cities/sea at close zoom and do not belong in the accepted map view.
+	const bool bResourcesVisible = false;
 
 	if (NationalBorderMesh)
 	{
@@ -175,9 +146,9 @@ void UWLCampaignTerritoryLayerComponent::ApplyVisibility(float CameraHeight)
 		{
 			continue;
 		}
-		const bool bHitEnabled = Region.bCountry
+		const bool bHitEnabled = Region.View.bSelectable && (Region.bCountry
 			? (bLayerActive && (bGlobal || bRegion))
-			: (bLayerActive && bShowProvinces && !bGlobal);
+			: (bLayerActive && bShowProvinces && !bGlobal));
 		Region.HitComponent->SetCollisionEnabled(bHitEnabled ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		Region.HitComponent->SetVisibility(true, true);
 		Region.HitComponent->SetHiddenInGame(false, true);

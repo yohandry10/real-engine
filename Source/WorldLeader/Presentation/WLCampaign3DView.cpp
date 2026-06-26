@@ -42,6 +42,28 @@
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
 
+namespace
+{
+	UProceduralMeshComponent* FindRoadDetailMesh(AActor* Owner)
+	{
+		if (!Owner)
+		{
+			return nullptr;
+		}
+
+		TArray<UProceduralMeshComponent*> Components;
+		Owner->GetComponents<UProceduralMeshComponent>(Components);
+		for (UProceduralMeshComponent* Component : Components)
+		{
+			if (Component && Component->GetFName() == TEXT("RoadDetailMesh"))
+			{
+				return Component;
+			}
+		}
+		return nullptr;
+	}
+}
+
 AWLCampaign3DView::AWLCampaign3DView()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -60,12 +82,16 @@ AWLCampaign3DView::AWLCampaign3DView()
 
 	TerrainMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("TerrainMesh"));
 	TerrainMesh->SetupAttachment(SceneRoot);
+	TerrainDetailMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("TerrainDetailMesh"));
+	TerrainDetailMesh->SetupAttachment(SceneRoot);
 
 	BoundaryMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("BoundaryMesh"));
 	BoundaryMesh->SetupAttachment(SceneRoot);
 
 	RoadMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RoadMesh"));
 	RoadMesh->SetupAttachment(SceneRoot);
+	UProceduralMeshComponent* RoadDetailMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RoadDetailMesh"));
+	RoadDetailMesh->SetupAttachment(SceneRoot);
 
 	SettlementMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SettlementMesh"));
 	SettlementMesh->SetupAttachment(SceneRoot);
@@ -117,6 +143,10 @@ AWLCampaign3DView::AWLCampaign3DView()
 	{
 		TerrainLitMaterial = TerrainLitFinder.Object;
 	}
+
+	// PBR cercano rechazado para 90k: era pesado y empeoraba la lectura. Dejamos los slots
+	// vacios para mantener el terreno base liviano de teatro en todos los zooms.
+	TerrainPBRBiomeMaterials.SetNum(static_cast<int32>(EWLVisualBiome::Count));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CityMeshFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	if (CityMeshFinder.Succeeded())
@@ -173,39 +203,19 @@ AWLCampaign3DView::AWLCampaign3DView()
 	if (CitySmallB.Object)   { CityModelSmallVariants.Add(CitySmallB.Object); }
 	if (CitySmallC.Object)   { CityModelSmallVariants.Add(CitySmallC.Object); }
 
-	// Modelos de NATURALEZA generados en Blender (gen_nature.py), importados a /Game/GenNature. UNLIT
-	// vertex-color (igual que terreno/ciudades). Orden = EWLNatureKind. Si un asset aun no esta
-	// importado, su Object queda null y su ISM simplemente no se configura (el scatter lo salta).
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatConifer(TEXT("/Game/GenNature/nature_conifer.nature_conifer"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatBroadleaf(TEXT("/Game/GenNature/nature_broadleaf.nature_broadleaf"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatPalm(TEXT("/Game/GenNature/nature_palm.nature_palm"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatRock(TEXT("/Game/GenNature/nature_rock.nature_rock"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatPeak(TEXT("/Game/GenNature/nature_peak.nature_peak"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> NatMount(TEXT("/Game/GenNature/nature_mount.nature_mount"));
+	// Naturaleza cercana desactivada: el scatter actual leia como hongos/rocas gigantes y rompia 90k.
 	NatureMeshes.SetNum(static_cast<int32>(EWLNatureKind::Count));
-	NatureMeshes[static_cast<int32>(EWLNatureKind::Conifer)]   = NatConifer.Object;
-	NatureMeshes[static_cast<int32>(EWLNatureKind::Broadleaf)] = NatBroadleaf.Object;
-	NatureMeshes[static_cast<int32>(EWLNatureKind::Palm)]      = NatPalm.Object;
-	NatureMeshes[static_cast<int32>(EWLNatureKind::Rock)]      = NatRock.Object;
-	NatureMeshes[static_cast<int32>(EWLNatureKind::Peak)]      = NatPeak.Object;
-	NatureMeshes[static_cast<int32>(EWLNatureKind::Mount)]     = NatMount.Object;
 	for (int32 i = 0; i < NatureInstances.Num(); ++i)
 	{
 		UInstancedStaticMeshComponent* Comp = NatureInstances[i];
-		UStaticMesh* Mesh = NatureMeshes.IsValidIndex(i) ? NatureMeshes[i] : nullptr;
-		if (!Comp || !Mesh)
+		if (!Comp)
 		{
 			continue;
 		}
-		Comp->SetStaticMesh(Mesh);
+		Comp->SetStaticMesh(nullptr);
 		Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Comp->SetMobility(EComponentMobility::Movable);
-		// Vertex-color UNLIT (los FBX traen 1 slot "NatureVColor"): NO un color plano, asi conservan
-		// el sombreado falso por cara y resaltan sobre el terreno sin ennegrecerse (ver AGENT_NOTES §2).
-		if (VertexColorMaterial)
-		{
-			Comp->SetMaterial(0, VertexColorMaterial);
-		}
+		Comp->SetVisibility(false, true);
 	}
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Road0(TEXT("/Game/Cartoon_City_Free/Meshes/Roads/SM_road_001.SM_road_001"));
@@ -324,6 +334,10 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	{
 		TerrainMesh->ClearAllMeshSections();
 	}
+	if (TerrainDetailMesh)
+	{
+		TerrainDetailMesh->ClearAllMeshSections();
+	}
 	if (BoundaryMesh)
 	{
 		BoundaryMesh->ClearAllMeshSections();
@@ -331,6 +345,10 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	if (RoadMesh)
 	{
 		RoadMesh->ClearAllMeshSections();
+	}
+	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	{
+		RoadDetailMesh->ClearAllMeshSections();
 	}
 	if (SettlementMesh)
 	{
@@ -484,6 +502,13 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: city flat pads collected=%d."), CityFlatPads.Num());
 	BuildTerrain();
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: terrain ready (flattened under cities)."));
+	if (TerrainDetailMesh)
+	{
+		TerrainDetailMesh->ClearAllMeshSections();
+		TerrainDetailMesh->SetVisibility(false, true);
+		TerrainDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: close PBR terrain detail disabled."));
 	BuildCampaignVisualLayer();
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D BuildView phase: campaign visual layer ready. Cities=%d Forces=%d"), CityViews.Num(), ForceViews.Num());
 	if (TerritoryLayer)

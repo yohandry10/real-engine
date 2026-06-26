@@ -355,10 +355,10 @@ void AWLCampaign3DView::BuildSea()
 {
 	FWLCampaignWaterBuildParams Params;
 	Params.Center = ProjectLonLat(TheaterCenterLonLat.X, TheaterCenterLonLat.Y);
-	Params.HalfSize = 3600000.f;
+	Params.HalfSize = 12000000.f;
 	Params.SeaZ = -2350.f;
 	Params.TileCount = 60;
-	Params.WaterMaterial = VertexColorMaterial;
+	Params.WaterMaterial = nullptr;
 	Params.DetailMaterial = VertexColorMaterial;
 
 	FWLCampaignWaterBuilder::Build(SeaMesh, SeaDetailMesh, Params, [this](float Lon, float Lat)
@@ -441,6 +441,19 @@ void AWLCampaign3DView::BuildTerrain()
 		Bounds);
 }
 
+void AWLCampaign3DView::BuildVenezuelaTerrainDetail()
+{
+	if (!TerrainDetailMesh)
+	{
+		return;
+	}
+
+	TerrainDetailMesh->ClearAllMeshSections();
+	TerrainDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	TerrainDetailMesh->SetVisibility(false, true);
+	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D Venezuela PBR terrain detail disabled."));
+}
+
 void AWLCampaign3DView::AddTerrainPatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset)
 {
 	if (!TerrainMesh || LonLatPoints.Num() < 3)
@@ -486,7 +499,7 @@ void AWLCampaign3DView::AddTerrainPatch(const TArray<FVector2D>& LonLatPoints, c
 	Colors.Init(FWLCampaignVisualStyle::ToVertexFColor(Color), Verts.Num());
 	TArray<FProcMeshTangent> Tangents;
 	const int32 SectionIndex = TerrainMesh->GetNumSections();
-	TerrainMesh->CreateMeshSection(SectionIndex, Verts, FinalTris, Normals, UVs, Colors, Tangents, true);
+	TerrainMesh->CreateMeshSection(SectionIndex, Verts, FinalTris, Normals, UVs, Colors, Tangents, false);
 	if (VertexColorMaterial)
 	{
 		TerrainMesh->SetMaterial(SectionIndex, VertexColorMaterial);

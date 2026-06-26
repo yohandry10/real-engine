@@ -166,15 +166,15 @@ FLinearColor FWLCampaignVisualStyle::VisualBiomeColor(EWLVisualBiome Biome)
 	switch (Biome)
 	{
 	case EWLVisualBiome::Coast:
-		return FLinearColor(0.540f, 0.490f, 0.320f);  // costa / arena (Pacifico y Caribe)
+		return FLinearColor(0.325f, 0.400f, 0.190f);  // base estrategica homogenea
 	case EWLVisualBiome::Jungle:
-		return FLinearColor(0.050f, 0.235f, 0.085f);  // Amazonia / selva
+		return FLinearColor(0.325f, 0.400f, 0.190f);
 	case EWLVisualBiome::Llanos:
-		return FLinearColor(0.340f, 0.370f, 0.155f);  // sabana / llanos
+		return FLinearColor(0.325f, 0.400f, 0.190f);
 	case EWLVisualBiome::Mountain:
-		return FLinearColor(0.185f, 0.300f, 0.190f);  // Andes: verde, se funde (sin franja palida)
+		return FLinearColor(0.325f, 0.400f, 0.190f);
 	case EWLVisualBiome::UrbanInfluence:
-		return FLinearColor(0.300f, 0.285f, 0.205f);
+		return FLinearColor(0.325f, 0.400f, 0.190f);
 	default:
 		return FLinearColor(0.050f, 0.105f, 0.070f);
 	}
@@ -182,12 +182,27 @@ FLinearColor FWLCampaignVisualStyle::VisualBiomeColor(EWLVisualBiome Biome)
 
 FLinearColor FWLCampaignVisualStyle::ShadeTerrainVertex(const FLinearColor& Base, float Lon, float Lat, float Height)
 {
-	// SIN realce por altura: antes el Andes alto se aclaraba y formaba una franja palida
-	// continua de Colombia a Chile que rompia el mapa. Ahora la altura NO cambia el color
-	// (la montana se ve como el resto del continente); el relieve 3D sigue por geometria.
-	const float Noise = 0.06f * FMath::Sin(Lon * 4.7f + Lat * 1.3f) + 0.04f * FMath::Cos(Lon * 2.1f - Lat * 3.4f);
-	const float Light = FMath::Clamp(0.92f + Noise, 0.74f, 1.06f);
-	FLinearColor Color(Base.R * Light, Base.G * Light, Base.B * Light, 1.f);
+	// Macro-variacion visible desde teatro: evita que el PBR tileado se lea como una alfombra verde
+	// continua. No usa altura para no crear una franja palida andina artificial.
+	const float Patch =
+		0.55f * FMath::Sin(Lon * 1.85f + Lat * 2.40f)
+		+ 0.35f * FMath::Cos(Lon * 3.15f - Lat * 1.30f)
+		+ 0.20f * FMath::Sin((Lon + Lat) * 4.25f);
+	const FLinearColor DryPatch(0.405f, 0.380f, 0.230f, 1.f);
+	const FLinearColor WetPatch(0.260f, 0.360f, 0.165f, 1.f);
+	FLinearColor Macro = Base;
+	if (Patch > 0.22f)
+	{
+		Macro = FMath::Lerp(Base, DryPatch, FMath::Clamp((Patch - 0.22f) * 0.60f, 0.f, 0.28f));
+	}
+	else if (Patch < -0.28f)
+	{
+		Macro = FMath::Lerp(Base, WetPatch, FMath::Clamp((-Patch - 0.28f) * 0.55f, 0.f, 0.25f));
+	}
+
+	const float Noise = 0.035f * FMath::Sin(Lon * 4.7f + Lat * 1.3f) + 0.025f * FMath::Cos(Lon * 2.1f - Lat * 3.4f);
+	const float Light = FMath::Clamp(0.98f + Noise, 0.88f, 1.08f);
+	FLinearColor Color(Macro.R * Light, Macro.G * Light, Macro.B * Light, 1.f);
 	Color.R = FMath::Clamp(Color.R, 0.f, 1.f);
 	Color.G = FMath::Clamp(Color.G, 0.f, 1.f);
 	Color.B = FMath::Clamp(Color.B, 0.f, 1.f);
@@ -196,7 +211,7 @@ FLinearColor FWLCampaignVisualStyle::ShadeTerrainVertex(const FLinearColor& Base
 
 FColor FWLCampaignVisualStyle::ToVertexFColor(const FLinearColor& Color)
 {
-	return Color.ToFColor(true);
+	return Color.ToFColor(false);
 }
 
 float FWLCampaignVisualStyle::VisualBiomeZOffset(EWLVisualBiome Biome, bool bCoreCountry)

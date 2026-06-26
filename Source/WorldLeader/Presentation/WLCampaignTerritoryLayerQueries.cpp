@@ -77,27 +77,6 @@ bool UWLCampaignTerritoryLayerComponent::TryGetTerritoryAtWorldLocation(
 		return true;
 	}
 
-	const FRegionRecord* NearestProvince = nullptr;
-	float NearestDistanceSq = FMath::Square(260000.f);
-	for (const FRegionRecord& Region : Regions)
-	{
-		if (Region.bCountry || !Region.View.bSelectable)
-		{
-			continue;
-		}
-		const float DistanceSq = FVector::DistSquared2D(Region.View.WorldLocation, WorldLocation);
-		if (DistanceSq < NearestDistanceSq)
-		{
-			NearestDistanceSq = DistanceSq;
-			NearestProvince = &Region;
-		}
-	}
-	if (NearestProvince)
-	{
-		OutRegion = NearestProvince->View;
-		return true;
-	}
-
 	if (bRequireProvince)
 	{
 		return false;

@@ -27,33 +27,33 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 # asfalto OSCURO -> la cuadricula de calles se LEE. (No pasar de ~0.70 en base: el shade del techo
 # x1.12 satura a blanco; ver Docs/CAMPAIGN3D_CITY_BLENDER.md §5 #5.)
 # Edificios: concreto claro dominante + variaciones (tan, gris frio, crema) + cristal claro.
-C_WALL   = (0.60, 0.60, 0.63)
-C_WALL2  = (0.64, 0.57, 0.46)
-C_WALL3  = (0.55, 0.59, 0.65)
-C_WALL4  = (0.67, 0.65, 0.59)
-C_GLASS  = (0.43, 0.57, 0.67)
-C_GLASS2 = (0.47, 0.61, 0.61)
-C_ROOF   = (0.42, 0.42, 0.45)
-C_ROOFT  = (0.55, 0.34, 0.27)   # azotea terracota (residencial) -> variacion calida tipo ciudad real
+C_WALL   = (0.58, 0.59, 0.62)
+C_WALL2  = (0.60, 0.50, 0.39)
+C_WALL3  = (0.49, 0.57, 0.66)
+C_WALL4  = (0.64, 0.62, 0.54)
+C_GLASS  = (0.40, 0.58, 0.70)
+C_GLASS2 = (0.40, 0.58, 0.60)
+C_ROOF   = (0.38, 0.38, 0.41)
+C_ROOFT  = (0.58, 0.33, 0.22)   # azotea terracota (residencial) -> variacion calida tipo ciudad real
 # Suelo: ASFALTO oscuro (la calle) + ACERA clara (alto contraste = se ven las calles) + plaza clara.
-C_STREET = (0.38, 0.38, 0.41)
-C_SIDE   = (0.62, 0.62, 0.65)
-C_PLAZA  = (0.70, 0.66, 0.57)
-C_FOUND  = (0.30, 0.30, 0.33)
-C_PARK   = (0.27, 0.48, 0.26)
-C_GRASS  = (0.44, 0.46, 0.27)  # apron = khaki seco que MEZCLA con el terreno (costa/llanos), no un
-C_TREE   = (0.18, 0.40, 0.20)
-C_TREE2  = (0.23, 0.46, 0.25)
+C_STREET = (0.24, 0.25, 0.27)
+C_SIDE   = (0.66, 0.67, 0.69)
+C_PLAZA  = (0.70, 0.65, 0.52)
+C_FOUND  = (0.27, 0.27, 0.29)
+C_PARK   = (0.32, 0.56, 0.30)
+C_GRASS  = (0.34, 0.46, 0.22)  # apron verde/oliva para fundir con el terreno sin verse como losa crema
+C_TREE   = (0.22, 0.48, 0.24)
+C_TREE2  = (0.27, 0.54, 0.29)
 C_TRUNK  = (0.30, 0.20, 0.12)
 C_CARS   = [(0.82, 0.82, 0.84), (0.66, 0.20, 0.18), (0.18, 0.24, 0.44), (0.30, 0.50, 0.62)]
-C_LINE   = (0.90, 0.82, 0.34)   # linea de carril amarilla brillante
-C_CROSS  = (0.82, 0.82, 0.84)   # paso de cebra / marcas claras
+C_LINE   = (0.90, 0.76, 0.26)   # linea de carril amarilla brillante
+C_CROSS  = (0.78, 0.78, 0.80)   # paso de cebra / marcas claras
 C_ACCENT = (0.86, 0.70, 0.32)
 WALLS = [C_WALL, C_WALL2, C_WALL3, C_WALL4]
 GLASS = [C_GLASS, C_GLASS2]
 
 # Shade falso por cara (orden: bottom, top, -Y, +X, +Y, -X). Sol fake desde +X +Z. Techo suave.
-SHADES = [0.55, 1.12, 0.82, 1.00, 0.90, 0.70]
+SHADES = [0.62, 1.14, 0.88, 1.05, 0.95, 0.78]
 
 bm = bmesh.new()
 col_layer = bm.loops.layers.color.new("Col")
@@ -130,14 +130,14 @@ def building(cx, cy, w, d, height, z0, kind):
 # === LAYOUT ===
 # N manzanas por lado, HMAX = altura tope del skyline (capital baja de 135 a 92 para no hacer agujas
 # ver Docs §5 #9). Calles ANCHAS (street/pitch ~28%) para que la cuadricula se lea de lejos.
-cfg = {"large": (8, 96.0), "medium": (5, 72.0), "small": (4, 36.0)}[SIZE]
+cfg = {"large": (8, 88.0), "medium": (5, 66.0), "small": (4, 32.0)}[SIZE]
 N, HMAX = cfg
-block, street = 28.0, 8.0
+block, street = 26.0, 10.0
 pitch = block + street
 span = N * pitch
 PODIUM = 60.0
 half = (N - 1) / 2.0
-PARK_P = 0.08 if SIZE == "large" else 0.07   # ciudad DENSA: pocos parques (no un parque con casas)
+PARK_P = 0.13 if SIZE == "large" else 0.11
 
 # --- Suelo ---
 # Apron de pasto (geometria Blender, no codigo): anillo verde que funde la ciudad con el terreno.
@@ -174,7 +174,7 @@ def pick_kind(h):
 
 def place_lot(ox, oy, cell, dist):
     # Edificio que NO llena la celda: deja hueco de acera alrededor (se ven veredas entre edificios).
-    fp = cell * random.uniform(0.80, 0.95)
+    fp = cell * random.uniform(0.58, 0.74)
     # CLAVE para que se VEA el suelo/calles/verde (como la maqueta): la MAYORIA de la ciudad es BAJA
     # (2-5 pisos) y solo un NUCLEO central pequeno es alto (downtown). Si todo es alto, desde el angulo
     # de camara (~46 grados) los edificios tapan el suelo entre ellos. Falloff fuerte = nucleo compacto.

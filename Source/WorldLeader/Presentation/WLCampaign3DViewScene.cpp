@@ -58,10 +58,8 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 		FRotator(-46.f, -12.f, 0.f));
 	if (ViewDirectionalLight && ViewDirectionalLight->GetLightComponent())
 	{
-		// Bajada de 6.0 -> 4.6: sombras menos duras. El terreno es UNLIT (siempre claro) pero las
-		// ciudades son LIT; con sol muy fuerte, las que caian en sombra del relieve salian oscuras.
-		ViewDirectionalLight->GetLightComponent()->SetIntensity(4.6f);
-		ViewDirectionalLight->GetLightComponent()->SetLightColor(FLinearColor(1.0f, 0.97f, 0.92f));
+		ViewDirectionalLight->GetLightComponent()->SetIntensity(5.25f);
+		ViewDirectionalLight->GetLightComponent()->SetLightColor(FLinearColor(1.0f, 0.95f, 0.86f));
 	}
 	ViewSkyLight = World->SpawnActor<ASkyLight>(
 		ASkyLight::StaticClass(),
@@ -78,9 +76,8 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 			SkyComp->Cubemap = Ambient;
 		}
 		SkyComp->bLowerHemisphereIsBlack = false;
-		// Restaurado al valor estable (2.9): el terreno vuelve a ser unlit (olivo).
-		SkyComp->SetLowerHemisphereColor(FLinearColor(0.55f, 0.57f, 0.58f));
-		SkyComp->SetIntensity(2.9f);
+		SkyComp->SetLowerHemisphereColor(FLinearColor(0.22f, 0.25f, 0.24f));
+		SkyComp->SetIntensity(1.35f);
 		SkyComp->RecaptureSky();
 	}
 
@@ -91,11 +88,11 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 		FRotator::ZeroRotator);
 	if (ViewFog && ViewFog->GetComponent())
 	{
-		ViewFog->GetComponent()->SetFogDensity(0.00034f);
+		ViewFog->GetComponent()->SetFogDensity(0.0f);
 		ViewFog->GetComponent()->SetFogHeightFalloff(0.060f);
-		ViewFog->GetComponent()->SetFogMaxOpacity(0.14f);
-		ViewFog->GetComponent()->SetStartDistance(118000.f);
-		ViewFog->GetComponent()->SetFogInscatteringColor(FLinearColor(0.010f, 0.018f, 0.019f));
+		ViewFog->GetComponent()->SetFogMaxOpacity(0.0f);
+		ViewFog->GetComponent()->SetStartDistance(220000.f);
+		ViewFog->GetComponent()->SetFogInscatteringColor(FLinearColor(0.018f, 0.250f, 0.305f));
 	}
 
 	FVector CameraLocation(Center.X, Center.Y, 320000.f);
@@ -116,6 +113,16 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 			CityLon = -68.00f;
 			CityLat = 10.20f;
 		}
+		else if (CityKey.Contains(TEXT("PUERTO")) || CityKey.Contains(TEXT("CABELLO")))
+		{
+			CityLon = -68.01f;
+			CityLat = 10.47f;
+		}
+		else if (CityKey.Contains(TEXT("PUNTO")) || CityKey.Contains(TEXT("FIJO")))
+		{
+			CityLon = -70.20f;
+			CityLat = 11.70f;
+		}
 		else if (CityKey.Contains(TEXT("BARQUISIMETO")))
 		{
 			CityLon = -69.32f;
@@ -124,8 +131,10 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 
 		float TestHeight = 52000.f;
 		FParse::Value(FCommandLine::Get(), TEXT("WLCityVisualHeight="), TestHeight);
-		TestHeight = FMath::Clamp(TestHeight, 42000.f, 120000.f);
-		const float Pitch = -46.f;
+		TestHeight = FMath::Clamp(TestHeight, 42000.f, 620000.f);
+		const float Pitch = TestHeight <= 60000.f
+			? FMath::GetMappedRangeValueClamped(FVector2D(15000.f, 60000.f), FVector2D(-64.f, -50.f), TestHeight)
+			: FMath::GetMappedRangeValueClamped(FVector2D(60000.f, 320000.f), FVector2D(-50.f, -84.f), TestHeight);
 		const FVector Focus = ProjectLonLat(CityLon, CityLat) + FVector(0.f, 0.f, 1800.f);
 		const float ForwardOffset = TestHeight / FMath::Tan(FMath::DegreesToRadians(FMath::Abs(Pitch)));
 		CameraLocation = Focus + FVector(-ForwardOffset, 0.f, TestHeight);
@@ -139,7 +148,18 @@ void AWLCampaign3DView::SetupLightingAndCamera()
 		CameraRotation);
 	if (ViewCamera && ViewCamera->GetCameraComponent())
 	{
-		ViewCamera->GetCameraComponent()->SetFieldOfView(46.f);
+		UCameraComponent* CameraComp = ViewCamera->GetCameraComponent();
+		CameraComp->SetFieldOfView(46.f);
+		CameraComp->PostProcessBlendWeight = 1.f;
+		FPostProcessSettings& PP = CameraComp->PostProcessSettings;
+		PP.bOverride_AutoExposureBias = true;
+		PP.AutoExposureBias = -0.55f;
+		PP.bOverride_ColorContrast = true;
+		PP.ColorContrast = FVector4(1.28f, 1.24f, 1.18f, 1.f);
+		PP.bOverride_ColorSaturation = true;
+		PP.ColorSaturation = FVector4(0.98f, 0.92f, 0.88f, 1.f);
+		PP.bOverride_ColorGamma = true;
+		PP.ColorGamma = FVector4(0.93f, 0.94f, 0.96f, 1.f);
 	}
 }
 

@@ -7,6 +7,15 @@
 class UMaterialInterface;
 class UProceduralMeshComponent;
 
+struct FWLCampaignTerrainExclusionZone
+{
+	float Lon = 0.f;
+	float Lat = 0.f;
+	float RadiusDeg = 0.f;
+	float HalfLonDeg = 0.f;
+	float HalfLatDeg = 0.f;
+};
+
 struct FWLCampaignTerrainBuildParams
 {
 	float RegionMinLon = 0.f;
@@ -15,6 +24,10 @@ struct FWLCampaignTerrainBuildParams
 	float RegionMaxLat = 0.f;
 	UMaterialInterface* TerrainMaterial = nullptr;
 	UMaterialInterface* BoundaryMaterial = nullptr;
+	TArray<UMaterialInterface*> TerrainMaterialsByBiome;
+	TArray<FWLCampaignTerrainExclusionZone> ExclusionZones;
+	FString IncludeOnlyIso;
+	bool bIncludeOnlyCoreCountries = false;
 	bool bCreateTerrainCollision = true;
 };
 

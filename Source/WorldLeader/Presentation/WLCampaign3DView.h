@@ -203,6 +203,7 @@ public:
 private:
 	UPROPERTY() USceneComponent* SceneRoot = nullptr;
 	UPROPERTY() UProceduralMeshComponent* TerrainMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* TerrainDetailMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SeaMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SeaDetailMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* OverviewMesh = nullptr;
@@ -217,6 +218,7 @@ private:
 	// bioma (vertex color), normal maps, tileable por posición de mundo. /Game/GenTerrain/M_TerrainLit.
 	// Reemplaza el VertexColorMaterial unlit del terreno. Ver Docs/CAMPAIGN3D_VISUAL_STANDARD.md.
 	UPROPERTY() UMaterialInterface* TerrainLitMaterial = nullptr;
+	UPROPERTY() TArray<UMaterialInterface*> TerrainPBRBiomeMaterials;
 	UPROPERTY() UStaticMesh* CityMesh = nullptr;
 	UPROPERTY() UStaticMesh* RouteMesh = nullptr;
 	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
@@ -326,6 +328,7 @@ private:
 	void BuildSea();
 	void BuildOverviewLayer();
 	void BuildTerrain();
+	void BuildVenezuelaTerrainDetail();
 	void BuildCampaignVisualLayer();
 	FVector2D NudgeSettlementToLand(float Lon, float Lat) const;
 	void AddTerrainPatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);

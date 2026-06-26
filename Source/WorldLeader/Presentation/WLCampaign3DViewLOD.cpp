@@ -42,12 +42,41 @@
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
 
+namespace
+{
+	constexpr float DetailedCityAndRoadMaxHeight = 260000.f;
+
+	UProceduralMeshComponent* FindRoadDetailMesh(AActor* Owner)
+	{
+		if (!Owner)
+		{
+			return nullptr;
+		}
+
+		TArray<UProceduralMeshComponent*> Components;
+		Owner->GetComponents<UProceduralMeshComponent>(Components);
+		for (UProceduralMeshComponent* Component : Components)
+		{
+			if (Component && Component->GetFName() == TEXT("RoadDetailMesh"))
+			{
+				return Component;
+			}
+		}
+		return nullptr;
+	}
+}
+
 void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 {
 	if (TerrainMesh)
 	{
 		TerrainMesh->SetVisibility(bVisible, true);
 		TerrainMesh->SetCollisionEnabled(bVisible ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
+	}
+	if (TerrainDetailMesh)
+	{
+		TerrainDetailMesh->SetVisibility(false, true);
+		TerrainDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (BoundaryMesh)
 	{
@@ -56,6 +85,10 @@ void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 	if (RoadMesh)
 	{
 		RoadMesh->SetVisibility(bVisible, true);
+	}
+	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	{
+		RoadDetailMesh->SetVisibility(bVisible, true);
 	}
 	for (UStaticMeshComponent* Road : RoadAssetComponents)
 	{
@@ -257,20 +290,24 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater || CurrentZoomLOD == EWLCampaign3DZoomLOD::Close);
 	const bool bFineDetail = bActive
 		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Close || CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater);
-	// Detalle de CIUDAD (mallas): aparecen en el mismo umbral que las carreteras (<=250k), no a 200k
-	// exacto (a 209k ya deben verse). El amasijo de nombres lo controla ahora el LOD por importancia.
-	const bool bCityDetail = bFineDetail && CameraHeight <= 250000.f;
-	// Carreteras: solo en zoom de DETALLE (<=250k). Mas lejos = solo las lineas de pais (frontera),
-	// sin marana de vias. Relevo limpio en 250k: arriba lineas de pais, abajo carreteras (y las
-	// ciudades aparecen <=200k). Resuelve el estado raro de ~318k (vias por todos lados sin ciudades).
-	const bool bRoads = bFineDetail && CameraHeight <= 250000.f;
+	// Detalle pesado rechazado: 90k debe conservar el suelo liviano de teatro hasta rehacer esta
+	// capa con assets que realmente mejoren calidad y rendimiento.
+	const bool bCloseTerrainDetail = false;
+	const bool bCityDetail = bFineDetail && CameraHeight <= DetailedCityAndRoadMaxHeight;
+	const bool bStrategicRoads = false;
+	const bool bDetailRoads = bFineDetail && CameraHeight <= DetailedCityAndRoadMaxHeight;
 
 	SetStrategicLayerVisible(bStrategic);
 	SetDetailedLayerVisible(bTheaterTerrain);
 	if (SeaDetailMesh)
 	{
-		SeaDetailMesh->SetVisibility(bFineDetail, true);
+		SeaDetailMesh->SetVisibility(bCloseTerrainDetail, true);
 		SeaDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (TerrainDetailMesh)
+	{
+		TerrainDetailMesh->SetVisibility(bCloseTerrainDetail, true);
+		TerrainDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 
 	// Frontera nacional (ribete): AYUDA cuando se ven varios paises (vista continental),
@@ -280,22 +317,26 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	// frontera en la vista continental.)
 	if (BoundaryMesh)
 	{
-		// Frontera (linea blanca) = la vista LEJANA: se muestra >=250k, justo donde se ocultan las
-		// carreteras. Asi de lejos se leen las formas de los paises (sin maraña de vias) y no hay hueco
-		// vacio. De cerca (<250k) se ocultan y mandan las carreteras/ciudades. (Antes >=440k.)
-		BoundaryMesh->SetVisibility(bTheaterTerrain && CameraHeight >= 250000.f, true);
+		// Frontera (linea blanca) = lectura estrategica de Teatro. Debe entrar antes de que las
+		// ciudades pesadas desaparezcan, para que 130k/210k no queden sin lineas ni paises.
+		BoundaryMesh->SetVisibility(bTheaterTerrain && CameraHeight >= 120000.f, true);
 	}
 
 	if (RoadMesh)
 	{
-		// Carreteras solo en zoom de DETALLE (<=250k). Mas lejos manda la frontera (lineas de pais).
-		RoadMesh->SetVisibility(bRoads, true);
+		// La red visible en detalle debe ser la malla recortada contra ciudades,
+		// y las ciudades se muestran en el mismo rango para evitar huecos flotantes.
+		RoadMesh->SetVisibility(bStrategicRoads, true);
+	}
+	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	{
+		RoadDetailMesh->SetVisibility(bDetailRoads, true);
 	}
 	for (UStaticMeshComponent* Road : RoadAssetComponents)
 	{
 		if (Road)
 		{
-			Road->SetVisibility(bRoads, true);
+			Road->SetVisibility(bDetailRoads, true);
 		}
 	}
 	if (SettlementMesh)
@@ -313,15 +354,18 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		if (Route)
 		{
-			Route->SetVisibility(bRoads, true);
+			Route->SetVisibility(bDetailRoads, true);
 		}
 	}
 	// Escala de pantalla (tamano casi CONSTANTE en pantalla a cualquier zoom): la usan los nombres de
 	// PAIS y de CIUDAD. (ref 52000 => ~22px para una ciudad normal.)
-	const float LabelScreenScale = FMath::Clamp(CameraHeight / 52000.f, 0.7f, 11.f);
+	const float LabelScreenScale = FMath::Clamp(CameraHeight / 70000.f, 0.7f, 8.0f);
 	// Etiquetas de PAIS: solo en Theater (Region usa el overview). Se reescalan por altura de camara
 	// (antes era tamano FIJO -> diminutas de lejos) y un poco mas grandes que las de ciudad (x1.25).
-	const bool bDetailedCountryLabels = bFineDetail && CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater;
+	const bool bDetailedCountryLabels = bFineDetail
+		&& CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater
+		&& CameraHeight > DetailedCityAndRoadMaxHeight
+		&& CameraHeight <= 620000.f;
 	for (int32 LabelIndex = 0; LabelIndex < Labels.Num(); ++LabelIndex)
 	{
 		UTextRenderComponent* Label = Labels[LabelIndex];
@@ -332,7 +376,7 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 		Label->SetVisibility(bDetailedCountryLabels, true);
 		if (CountryLabelBaseSizes.IsValidIndex(LabelIndex))
 		{
-			Label->SetWorldSize(CountryLabelBaseSizes[LabelIndex] * LabelScreenScale * 1.25f);
+			Label->SetWorldSize(CountryLabelBaseSizes[LabelIndex] * LabelScreenScale);
 		}
 	}
 	for (int32 LabelIndex = 0; LabelIndex < SettlementLabels.Num(); ++LabelIndex)
@@ -361,23 +405,24 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 			Building->SetVisibility(bCityDetail, true);
 		}
 	}
-	// Vegetacion / relieve de naturaleza: detalle fino (Teatro/Cercano), como antes los conos.
+	// Vegetacion / relieve de naturaleza: detalle cercano pesado; los meshes de ciudad y
+	// caminos recortados siguen visibles hasta 260k para que no queden huecos sin ciudad.
 	for (UInstancedStaticMeshComponent* Nature : NatureInstances)
 	{
 		if (Nature)
 		{
-			Nature->SetVisibility(bFineDetail, true);
+			Nature->SetVisibility(false, true);
 		}
 	}
 	if (ArmyMarkerInstances)
 	{
-		ArmyMarkerInstances->SetVisibility(bFineDetail, true);
+		ArmyMarkerInstances->SetVisibility(bCityDetail, true);
 	}
 	for (UStaticMeshComponent* Marker : ForceMarkerComponents)
 	{
 		if (Marker)
 		{
-			Marker->SetVisibility(bFineDetail, true);
+			Marker->SetVisibility(bCityDetail, true);
 			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
@@ -385,7 +430,7 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		if (Marker)
 		{
-			Marker->SetCollisionEnabled(bFineDetail ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetCollisionEnabled(bCityDetail ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 			Marker->SetVisibility(false, true);
 			Marker->SetHiddenInGame(false, true);
 		}
@@ -394,23 +439,23 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bFineDetail, true);
+			Label->SetVisibility(bCityDetail, true);
 		}
 	}
 	if (PortInstances)
 	{
-		PortInstances->SetVisibility(bFineDetail, true);
+		PortInstances->SetVisibility(bCityDetail, true);
 	}
 	if (MovementRoutePreviewMesh)
 	{
-		MovementRoutePreviewMesh->SetVisibility(bFineDetail && !PreviewMovementDestinationNodeId.IsEmpty(), true);
+		MovementRoutePreviewMesh->SetVisibility(bCityDetail && !PreviewMovementDestinationNodeId.IsEmpty(), true);
 		MovementRoutePreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	for (UStaticMeshComponent* Marker : MovementDestinationComponents)
 	{
 		if (Marker)
 		{
-			Marker->SetVisibility(bFineDetail, true);
+			Marker->SetVisibility(bCityDetail, true);
 			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
@@ -418,7 +463,7 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		if (Marker)
 		{
-			Marker->SetCollisionEnabled(bFineDetail ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetCollisionEnabled(bCityDetail ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 			Marker->SetVisibility(false, true);
 			Marker->SetHiddenInGame(false, true);
 		}
@@ -427,14 +472,14 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bFineDetail, true);
+			Label->SetVisibility(bCityDetail, true);
 		}
 	}
 	for (UPrimitiveComponent* Marker : CitySelectionMarkers)
 	{
 		if (Marker)
 		{
-			Marker->SetCollisionEnabled(bFineDetail ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetCollisionEnabled(bCityDetail ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 			Marker->SetVisibility(false, true);
 			Marker->SetHiddenInGame(false, true);
 		}
@@ -442,7 +487,7 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	if (SelectionHighlightMesh)
 	{
 		SelectionHighlightMesh->SetVisibility(
-			bFineDetail && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty() || !SelectedForceHighlightId.IsEmpty()),
+			bCityDetail && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty() || !SelectedForceHighlightId.IsEmpty()),
 			true);
 	}
 	if (TerritoryLayer)
@@ -453,17 +498,21 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 
 void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 {
-	const bool bDetailVisible = bActive
+	const float CameraHeight = ViewCamera ? ViewCamera->GetActorLocation().Z : DefaultCameraLocation.Z;
+	const bool bTheaterVisible = bActive
 		&& (CurrentZoomLOD == EWLCampaign3DZoomLOD::Close || CurrentZoomLOD == EWLCampaign3DZoomLOD::Theater);
+	const bool bCloseDetailVisible = bTheaterVisible && CameraHeight <= DetailedCityAndRoadMaxHeight;
+	const bool bStrategicRoadVisible = false;
+	const bool bRoadDetailVisible = bTheaterVisible && CameraHeight <= DetailedCityAndRoadMaxHeight;
 
 	if (SeaMesh)
 	{
 		SeaMesh->SetVisibility(bActive, true);
-		SeaMesh->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
+		SeaMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (SeaDetailMesh)
 	{
-		SeaDetailMesh->SetVisibility(bActive && CurrentZoomLOD != EWLCampaign3DZoomLOD::Global, true);
+		SeaDetailMesh->SetVisibility(false, true);
 		SeaDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (OverviewMesh)
@@ -476,30 +525,39 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		TerrainMesh->SetVisibility(bActive, true);
 		TerrainMesh->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 	}
+	if (TerrainDetailMesh)
+	{
+		TerrainDetailMesh->SetVisibility(false, true);
+		TerrainDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 	if (BoundaryMesh)
 	{
-		BoundaryMesh->SetVisibility(bActive, true);
+		BoundaryMesh->SetVisibility(bTheaterVisible && CameraHeight >= 120000.f, true);
 		BoundaryMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (RoadMesh)
 	{
-		// Las carreteras SOLO en detalle fino (Teatro + Cercano), nunca al alejar a Region.
-		// (Antes aqui era bActive y reanulaba la regla de LOD => la red continental de
-		// carreteras aparecia en la vista Region y tapaba el mapa.)
-		RoadMesh->SetVisibility(bDetailVisible, true);
+		// La version estrategica sin recorte queda apagada; RoadDetailMesh cubre el
+		// rango de ciudades para que los recortes siempre tengan ciudad visible.
+		RoadMesh->SetVisibility(bStrategicRoadVisible, true);
 		RoadMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	{
+		RoadDetailMesh->SetVisibility(bRoadDetailVisible, true);
+		RoadDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	for (UStaticMeshComponent* Road : RoadAssetComponents)
 	{
 		if (Road)
 		{
-			Road->SetVisibility(bDetailVisible, true);
+			Road->SetVisibility(bRoadDetailVisible, true);
 			Road->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
 	if (SettlementMesh)
 	{
-		SettlementMesh->SetVisibility(bActive, true);
+		SettlementMesh->SetVisibility(bCloseDetailVisible, true);
 		SettlementMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	for (UPrimitiveComponent* Marker : ProvinceMarkers)
@@ -508,7 +566,7 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		{
 			Marker->SetVisibility(false, true);
 			Marker->SetHiddenInGame(false, true);
-			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetCollisionEnabled(bCloseDetailVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
 	}
 	for (UPrimitiveComponent* Marker : CitySelectionMarkers)
@@ -517,26 +575,26 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		{
 			Marker->SetVisibility(false, true);
 			Marker->SetHiddenInGame(false, true);
-			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetCollisionEnabled(bCloseDetailVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
 	}
 	if (SelectionHighlightMesh)
 	{
 		SelectionHighlightMesh->SetVisibility(
-			bActive && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty() || !SelectedForceHighlightId.IsEmpty()),
+			bCloseDetailVisible && (!SelectedProvinceHighlightId.IsEmpty() || !SelectedCityHighlightId.IsEmpty() || !SelectedForceHighlightId.IsEmpty()),
 			true);
 		SelectionHighlightMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (MovementRoutePreviewMesh)
 	{
-		MovementRoutePreviewMesh->SetVisibility(bActive && !PreviewMovementDestinationNodeId.IsEmpty(), true);
+		MovementRoutePreviewMesh->SetVisibility(bCloseDetailVisible && !PreviewMovementDestinationNodeId.IsEmpty(), true);
 		MovementRoutePreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	for (UStaticMeshComponent* Marker : MovementDestinationComponents)
 	{
 		if (Marker)
 		{
-			Marker->SetVisibility(bActive, true);
+			Marker->SetVisibility(bCloseDetailVisible, true);
 			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
@@ -546,21 +604,21 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		{
 			Marker->SetVisibility(false, true);
 			Marker->SetHiddenInGame(false, true);
-			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetCollisionEnabled(bCloseDetailVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
 	}
 	for (UTextRenderComponent* Label : MovementDestinationLabels)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bActive, true);
+			Label->SetVisibility(bCloseDetailVisible, true);
 		}
 	}
 	for (UStaticMeshComponent* Marker : ForceMarkerComponents)
 	{
 		if (Marker)
 		{
-			Marker->SetVisibility(bActive, true);
+			Marker->SetVisibility(bCloseDetailVisible, true);
 			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
@@ -570,21 +628,21 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		{
 			Marker->SetVisibility(false, true);
 			Marker->SetHiddenInGame(false, true);
-			Marker->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			Marker->SetCollisionEnabled(bCloseDetailVisible ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
 	}
 	for (UTextRenderComponent* Label : ForceMarkerLabels)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bActive, true);
+			Label->SetVisibility(bCloseDetailVisible, true);
 		}
 	}
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{
 		if (Component)
 		{
-			Component->SetVisibility(bActive, true);
+			Component->SetVisibility(bCloseDetailVisible, true);
 			Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
@@ -597,7 +655,7 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	{
 		if (Instanced)
 		{
-			Instanced->SetVisibility(bActive, true);
+			Instanced->SetVisibility(bCloseDetailVisible, true);
 			Instanced->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
@@ -605,7 +663,7 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	{
 		if (Nature)
 		{
-			Nature->SetVisibility(bActive, true);
+			Nature->SetVisibility(false, true);
 			Nature->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
@@ -613,7 +671,7 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	{
 		if (Building)
 		{
-			Building->SetVisibility(bActive, true);
+			Building->SetVisibility(bCloseDetailVisible, true);
 			Building->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
@@ -621,34 +679,33 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	{
 		if (Route)
 		{
-			Route->SetVisibility(bDetailVisible, true);
+			Route->SetVisibility(bRoadDetailVisible, true);
 		}
 	}
 	for (UTextRenderComponent* Label : Labels)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bActive, true);
+			Label->SetVisibility(bTheaterVisible && CameraHeight > DetailedCityAndRoadMaxHeight && CameraHeight <= 620000.f, true);
 		}
 	}
 	for (UTextRenderComponent* Label : SettlementLabels)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bActive, true);
+			Label->SetVisibility(bTheaterVisible, true);
 		}
 	}
 	for (UTextRenderComponent* Label : OverviewLabels)
 	{
 		if (Label)
 		{
-			Label->SetVisibility(bActive, true);
+			Label->SetVisibility(bActive && (CurrentZoomLOD == EWLCampaign3DZoomLOD::Region || CurrentZoomLOD == EWLCampaign3DZoomLOD::Global), true);
 		}
 	}
 
 	if (bActive)
 	{
-		const float CameraHeight = ViewCamera ? ViewCamera->GetActorLocation().Z : DefaultCameraLocation.Z;
 		ApplyZoomLOD(CameraHeight);
 	}
 	else

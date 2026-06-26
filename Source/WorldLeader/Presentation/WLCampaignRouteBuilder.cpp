@@ -48,18 +48,18 @@ namespace
 			Style.SurfaceWidth = 820.f;
 			Style.ShoulderWidth = 1060.f;
 			Style.ZOffset = 990.f;
-			Style.SurfaceColor = FLinearColor(0.058f, 0.060f, 0.066f); // asfalto
-			Style.ShoulderColor = FLinearColor(0.205f, 0.180f, 0.138f); // grava/tierra
-			Style.CenterWearColor = FLinearColor(0.860f, 0.640f, 0.060f); // linea central amarilla
+			Style.SurfaceColor = FLinearColor(0.180f, 0.185f, 0.195f); // asfalto
+			Style.ShoulderColor = FLinearColor(0.300f, 0.285f, 0.240f); // grava/tierra
+			Style.CenterWearColor = FLinearColor(0.800f, 0.580f, 0.055f); // linea central amarilla
 			Style.CenterWearWidth = 46.f;
 			break;
 		case EWLCampaignRouteType::Secondary:
 			Style.SurfaceWidth = 680.f;
 			Style.ShoulderWidth = 880.f;
 			Style.ZOffset = 945.f;
-			Style.SurfaceColor = FLinearColor(0.066f, 0.068f, 0.074f);
-			Style.ShoulderColor = FLinearColor(0.190f, 0.166f, 0.126f);
-			Style.CenterWearColor = FLinearColor(0.840f, 0.620f, 0.060f);
+			Style.SurfaceColor = FLinearColor(0.195f, 0.200f, 0.210f);
+			Style.ShoulderColor = FLinearColor(0.310f, 0.292f, 0.245f);
+			Style.CenterWearColor = FLinearColor(0.780f, 0.560f, 0.055f);
 			Style.CenterWearWidth = 38.f;
 			break;
 		case EWLCampaignRouteType::Rural:
@@ -68,27 +68,27 @@ namespace
 			Style.SurfaceWidth = 520.f;
 			Style.ShoulderWidth = 700.f;
 			Style.ZOffset = 920.f;
-			Style.SurfaceColor = FLinearColor(0.070f, 0.072f, 0.078f);
-			Style.ShoulderColor = FLinearColor(0.185f, 0.162f, 0.124f);
-			Style.CenterWearColor = FLinearColor(0.820f, 0.600f, 0.060f);
+			Style.SurfaceColor = FLinearColor(0.210f, 0.212f, 0.220f);
+			Style.ShoulderColor = FLinearColor(0.320f, 0.300f, 0.250f);
+			Style.CenterWearColor = FLinearColor(0.760f, 0.540f, 0.055f);
 			Style.CenterWearWidth = 32.f;
 			break;
 		case EWLCampaignRouteType::PortAccess:
 			Style.SurfaceWidth = 620.f;
 			Style.ShoulderWidth = 820.f;
 			Style.ZOffset = 950.f;
-			Style.SurfaceColor = FLinearColor(0.060f, 0.062f, 0.068f);
-			Style.ShoulderColor = FLinearColor(0.195f, 0.172f, 0.132f);
-			Style.CenterWearColor = FLinearColor(0.840f, 0.620f, 0.060f);
+			Style.SurfaceColor = FLinearColor(0.190f, 0.195f, 0.205f);
+			Style.ShoulderColor = FLinearColor(0.310f, 0.292f, 0.245f);
+			Style.CenterWearColor = FLinearColor(0.780f, 0.560f, 0.055f);
 			Style.CenterWearWidth = 34.f;
 			break;
 		case EWLCampaignRouteType::BorderCrossing:
 			Style.SurfaceWidth = 740.f;
 			Style.ShoulderWidth = 980.f;
 			Style.ZOffset = 1005.f;
-			Style.SurfaceColor = FLinearColor(0.058f, 0.060f, 0.066f);
-			Style.ShoulderColor = FLinearColor(0.225f, 0.190f, 0.138f);
-			Style.CenterWearColor = FLinearColor(0.860f, 0.640f, 0.060f);
+			Style.SurfaceColor = FLinearColor(0.180f, 0.185f, 0.195f);
+			Style.ShoulderColor = FLinearColor(0.325f, 0.300f, 0.250f);
+			Style.CenterWearColor = FLinearColor(0.800f, 0.580f, 0.055f);
 			Style.CenterWearWidth = 42.f;
 			break;
 		default:

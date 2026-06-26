@@ -101,12 +101,32 @@ namespace
 				for (float Lat = MinLat; Lat < MaxLat; Lat += CellDegrees)
 				{
 					const FVector2D Center(Lon + CellDegrees * 0.5f, Lat + CellDegrees * 0.5f);
+					bool bInsideExclusion = false;
+					for (const FWLCampaignTerrainExclusionZone& Zone : Params.ExclusionZones)
+					{
+						const float DLon = Center.X - Zone.Lon;
+						const float DLat = Center.Y - Zone.Lat;
+						const bool bInsideBox = Zone.HalfLonDeg > 0.f && Zone.HalfLatDeg > 0.f
+							&& FMath::Abs(DLon) <= Zone.HalfLonDeg
+							&& FMath::Abs(DLat) <= Zone.HalfLatDeg;
+						const bool bInsideRadius = Zone.RadiusDeg > 0.f
+							&& (DLon * DLon + DLat * DLat) <= Zone.RadiusDeg * Zone.RadiusDeg;
+						if (bInsideBox || bInsideRadius)
+						{
+							bInsideExclusion = true;
+							break;
+						}
+					}
+					if (bInsideExclusion)
+					{
+						continue;
+					}
 					if (!FWLCampaignRegionGeometry::PointInLonLatRing(Center, Ring))
 					{
 						continue;
 					}
 
-					const EWLVisualBiome Biome = FWLCampaignVisualStyle::ClassifyVisualBiome(Center.X, Center.Y, bCoreCountry);
+					const EWLVisualBiome Biome = FWLCampaignVisualStyle::ClassifyVisualBiome(Center.X, Center.Y, true);
 					FTerrainSectionBuffer& Buffer = Buffers[static_cast<int32>(Biome)];
 					const float ZOffset = FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, bCoreCountry);
 					const int32 Base = Buffer.Verts.Num();
@@ -118,20 +138,28 @@ namespace
 					B.Z += ZOffset;
 					C.Z += ZOffset;
 					D.Z += ZOffset;
+					const auto TerrainUV = [](float UvLon, float UvLat) -> FVector2D
+					{
+						constexpr float MacroMinLon = -77.5f;
+						constexpr float MacroMaxLon = -63.0f;
+						constexpr float MacroMinLat = 5.0f;
+						constexpr float MacroMaxLat = 13.0f;
+						return FVector2D(
+							FMath::Clamp((UvLon - MacroMinLon) / (MacroMaxLon - MacroMinLon), 0.f, 1.f),
+							FMath::Clamp((MacroMaxLat - UvLat) / (MacroMaxLat - MacroMinLat), 0.f, 1.f));
+					};
 
 					Buffer.Verts.Add(A);
 					Buffer.Verts.Add(B);
 					Buffer.Verts.Add(C);
 					Buffer.Verts.Add(D);
-					Buffer.UVs.Add(FVector2D(0.f, 0.f));
-					Buffer.UVs.Add(FVector2D(1.f, 0.f));
-					Buffer.UVs.Add(FVector2D(1.f, 1.f));
-					Buffer.UVs.Add(FVector2D(0.f, 1.f));
-					// Para paises "teatro" pintamos por bioma (geografia); el contexto
-					// conserva su tono plano de pais.
-					const FLinearColor CellBaseColor = bCoreCountry
-						? FWLCampaignVisualStyle::VisualBiomeColor(Biome)
-						: Color;
+					Buffer.UVs.Add(TerrainUV(Lon, Lat));
+					Buffer.UVs.Add(TerrainUV(Lon + CellDegrees, Lat));
+					Buffer.UVs.Add(TerrainUV(Lon + CellDegrees, Lat + CellDegrees));
+					Buffer.UVs.Add(TerrainUV(Lon, Lat + CellDegrees));
+					// Pintamos todo el terreno por bioma. Antes el contexto usaba un color plano
+					// por pais; en zoom teatro alto se leia como rectangulos/costuras duras.
+					const FLinearColor CellBaseColor = FWLCampaignVisualStyle::VisualBiomeColor(Biome);
 					Buffer.Colors.Add(FWLCampaignVisualStyle::ToVertexFColor(FWLCampaignVisualStyle::ShadeTerrainVertex(CellBaseColor, Lon, Lat, A.Z)));
 					Buffer.Colors.Add(FWLCampaignVisualStyle::ToVertexFColor(FWLCampaignVisualStyle::ShadeTerrainVertex(CellBaseColor, Lon + CellDegrees, Lat, B.Z)));
 					Buffer.Colors.Add(FWLCampaignVisualStyle::ToVertexFColor(FWLCampaignVisualStyle::ShadeTerrainVertex(CellBaseColor, Lon + CellDegrees, Lat + CellDegrees, C.Z)));
@@ -161,9 +189,14 @@ namespace
 			TArray<FProcMeshTangent> Tangents;
 			const int32 SectionIndex = TerrainMesh->GetNumSections();
 			TerrainMesh->CreateMeshSection(SectionIndex, Buffer.Verts, Buffer.Tris, Normals, Buffer.UVs, Buffer.Colors, Tangents, Params.bCreateTerrainCollision);
-			if (Params.TerrainMaterial)
+			UMaterialInterface* SectionMaterial = Params.TerrainMaterial;
+			if (Params.TerrainMaterialsByBiome.IsValidIndex(Section) && Params.TerrainMaterialsByBiome[Section])
 			{
-				TerrainMesh->SetMaterial(SectionIndex, Params.TerrainMaterial);
+				SectionMaterial = Params.TerrainMaterialsByBiome[Section];
+			}
+			if (SectionMaterial)
+			{
+				TerrainMesh->SetMaterial(SectionIndex, SectionMaterial);
 			}
 		}
 	}
@@ -277,6 +310,14 @@ bool FWLCampaignTerrainBuilder::Build(
 
 	for (const FWLRegionalCountryGeometry& Country : Countries)
 	{
+		if (!Params.IncludeOnlyIso.IsEmpty() && !Country.Iso.Equals(Params.IncludeOnlyIso, ESearchCase::IgnoreCase))
+		{
+			continue;
+		}
+		if (Params.bIncludeOnlyCoreCountries && !Country.bCoreCountry)
+		{
+			continue;
+		}
 		AddCountryTerrain(TerrainMesh, Country.Rings, Country.Color, Country.bCoreCountry, Params, ProjectLonLat, Bounds);
 		for (const TArray<FVector2D>& Ring : Country.Rings)
 		{

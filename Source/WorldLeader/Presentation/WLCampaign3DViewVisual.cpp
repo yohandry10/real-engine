@@ -75,6 +75,25 @@ namespace
 		default: return TEXT("regional settlement");
 		}
 	}
+
+	UProceduralMeshComponent* FindRoadDetailMesh(AActor* Owner)
+	{
+		if (!Owner)
+		{
+			return nullptr;
+		}
+
+		TArray<UProceduralMeshComponent*> Components;
+		Owner->GetComponents<UProceduralMeshComponent>(Components);
+		for (UProceduralMeshComponent* Component : Components)
+		{
+			if (Component && Component->GetFName() == TEXT("RoadDetailMesh"))
+			{
+				return Component;
+			}
+		}
+		return nullptr;
+	}
 }
 
 #include "Presentation/WLCampaign3DViewSouthAmericaSettlements.inl"
@@ -114,24 +133,8 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 		FVector2D(-71.45f, 10.85f)  // boca del estrecho (NE)
 	}, FLinearColor(0.020f, 0.430f, 0.520f, 0.92f), 420.f);
 
-	// Carretera del teatro = UNA sola cinta continua (RoadMesh procedural). Cubre CO y VE
-	// con calzada ancha, asfalto y linea central. Se descarto la capa de tiles de asset
-	// (SM_road_001): al ser piezas discretas se veia "saltada"/rota en curvas y pendientes
-	// y no se podia ensanchar a varias calzadas sin estirar la textura. La cinta es
-	// continua, drapea sobre el relieve y permite ancho + marcas de carril controladas.
-	// Recorte de carretera en las huellas de ciudad: la cinta flota ~900u sobre el piso de la ciudad,
-	// asi que sin esto la cruza por encima. Recortando, llega al BORDE y para (la cuadricula interna
-	// hace de calles). Radio ~ borde del modelo (apron) = 0.72 * radio del flat pad. CityFlatPads ya
-	// esta poblado por la pre-pasada. Aplica a estas rutas y a BuildIntercityRoads (queda fijado).
-	{
-		TArray<FVector> RoadClipCircles;
-		RoadClipCircles.Reserve(CityFlatPads.Num());
-		for (const FCityFlatPad& Pad : CityFlatPads)
-		{
-			RoadClipCircles.Add(FVector(Pad.Lon, Pad.Lat, Pad.FlatRadiusDeg * 0.72f));
-		}
-		FWLCampaignRouteBuilder::SetCityClipCircles(RoadClipCircles);
-	}
+	// Dos mallas de carretera: una continua para teatro (130k/210k, sin ciudades visibles) y
+	// otra recortada para cercano (90k, con ciudades visibles para que la ruta no atraviese edificios).
 	// Mascara de tierra: la cinta NO se dibuja sobre el mar (la ruta costera flotaba sobre el agua a
 	// Z+990). Si no hay geometria de tierra cargada, no recorta (devuelve true).
 	FWLCampaignRouteBuilder::SetRoadLandMask([this](float Lon, float Lat) -> bool
@@ -149,6 +152,8 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 		}
 		return false;
 	});
+
+	FWLCampaignRouteBuilder::SetCityClipCircles({});
 	FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 		RoadMesh,
 		VertexColorMaterial,
@@ -156,6 +161,26 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 		{
 			return ProjectLonLat(Lon, Lat);
 		});
+
+	{
+		TArray<FVector> RoadClipCircles;
+		RoadClipCircles.Reserve(CityFlatPads.Num());
+		for (const FCityFlatPad& Pad : CityFlatPads)
+		{
+			RoadClipCircles.Add(FVector(Pad.Lon, Pad.Lat, Pad.FlatRadiusDeg * 0.72f));
+		}
+		FWLCampaignRouteBuilder::SetCityClipCircles(RoadClipCircles);
+	}
+	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	{
+		FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
+			RoadDetailMesh,
+			VertexColorMaterial,
+			[this](float Lon, float Lat)
+			{
+				return ProjectLonLat(Lon, Lat);
+			});
+	}
 	}
 
 	const auto AddTheaterCountryLabel = [this](const FString& Text, float Lon, float Lat, const FColor& Color, float WorldSize)
@@ -387,13 +412,10 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 
 	if (!bCollectFlatPadsOnly)
 	{
-	// Vegetacion: DESACTIVADA. El scatter de blobs unlit quedo descartado (ver estandar visual).
-	// Vuelve en M2 como FOLIAGE LIT con LODs (bosques). No reactivar AddVegetationScatter() unlit.
-	// AddVegetationScatter();
-
-	BuildIntercityRoads();
-	BuildMovementNodesAndEdges();
-	AddMilitaryForceMarkers();
+		FWLCampaignRouteBuilder::SetCityClipCircles({});
+		BuildIntercityRoads();
+		BuildMovementNodesAndEdges();
+		AddMilitaryForceMarkers();
 	}
 	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D visual layer complete. Cities=%d MovementNodes=%d Forces=%d."), CityViews.Num(), MovementNodes.Num(), ForceViews.Num());
 }
@@ -514,6 +536,27 @@ void AWLCampaign3DView::AddSettlementCluster(
 		// La ciudad se ancla SOBRE la superficie visible del bioma (offset, igual que el terreno); sin
 		// eso el terreno tapaba calles/aceras/parques. BuildMeshCity deduce el bioma desde el ISO.
 		BuildMeshCity(Lon, Lat, Type, CountryIso);
+		if (Type == EWLCampaignSettlementType::Port)
+		{
+			const bool bCoreCountry = FWLCampaignRegionGeometry::IsTheaterIso(CountryIso);
+			const EWLVisualBiome PortBiome = FWLCampaignVisualStyle::ClassifyVisualBiome(Lon, Lat, bCoreCountry);
+			const float SurfaceZ = FWLCampaignVisualStyle::VisualBiomeZOffset(PortBiome, bCoreCountry);
+			const FVector Ground = ProjectLonLat(Lon, Lat) + FVector(0.f, 0.f, SurfaceZ + 120.f);
+			const FRotator NorthFacing(0.f, 0.f, 0.f);
+
+			AddInstance(PortInstances, Ground + FVector(1750.f, -720.f, 80.f), NorthFacing, FVector(30.f, 3.1f, 0.70f));
+			AddInstance(PortInstances, Ground + FVector(2580.f, 760.f, 82.f), NorthFacing, FVector(24.f, 2.8f, 0.70f));
+			AddInstance(PortInstances, Ground + FVector(900.f, 0.f, 88.f), NorthFacing, FVector(8.5f, 11.0f, 0.75f));
+			AddInstance(PortInstances, Ground + FVector(1320.f, 650.f, 90.f), NorthFacing, FVector(6.0f, 4.2f, 0.70f));
+			AddInstance(SettlementBlockInstances, Ground + FVector(1020.f, -520.f, 180.f), NorthFacing, FVector(2.8f, 1.0f, 0.85f));
+			AddInstance(SettlementBlockInstances, Ground + FVector(1040.f, -160.f, 180.f), NorthFacing, FVector(2.7f, 1.0f, 0.85f));
+			AddInstance(SettlementBlockInstances, Ground + FVector(1080.f, 300.f, 180.f), NorthFacing, FVector(3.0f, 1.0f, 0.85f));
+			AddInstance(SettlementBlockInstances, Ground + FVector(1340.f, 680.f, 180.f), NorthFacing, FVector(2.6f, 1.0f, 0.85f));
+			AddInstance(SettlementTowerInstances, Ground + FVector(1680.f, -980.f, 640.f), NorthFacing, FVector(0.45f, 0.45f, 6.0f));
+			AddInstance(SettlementTowerInstances, Ground + FVector(1680.f, -980.f, 1230.f), NorthFacing, FVector(0.45f, 4.6f, 0.45f));
+			AddInstance(SettlementTowerInstances, Ground + FVector(2240.f, 1060.f, 620.f), NorthFacing, FVector(0.45f, 0.45f, 5.7f));
+			AddInstance(SettlementTowerInstances, Ground + FVector(2240.f, 1060.f, 1180.f), NorthFacing, FVector(0.45f, 4.2f, 0.45f));
+		}
 	}
 	else
 	{
@@ -550,12 +593,12 @@ void AWLCampaign3DView::AddSettlementCluster(
 	float LabelZ;
 	switch (Type)
 	{
-	case EWLCampaignSettlementType::Capital:    LabelZ = 8800.f; break;
-	case EWLCampaignSettlementType::LargeCity:  LabelZ = 4800.f; break;
-	case EWLCampaignSettlementType::Port:       LabelZ = 4000.f; break;
-	case EWLCampaignSettlementType::Industrial: LabelZ = 4400.f; break;
-	case EWLCampaignSettlementType::Frontier:   LabelZ = 2200.f; break;
-	default:                                    LabelZ = 4400.f; break;
+	case EWLCampaignSettlementType::Capital:    LabelZ = 10800.f; break;
+	case EWLCampaignSettlementType::LargeCity:  LabelZ = 5600.f; break;
+	case EWLCampaignSettlementType::Port:       LabelZ = 4800.f; break;
+	case EWLCampaignSettlementType::Industrial: LabelZ = 5200.f; break;
+	case EWLCampaignSettlementType::Frontier:   LabelZ = 2600.f; break;
+	default:                                    LabelZ = 5200.f; break;
 	}
 	const float GroundZ = Base.Z - (bCapital ? 2450.f : 2050.f);
 	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
@@ -631,9 +674,17 @@ void AWLCampaign3DView::BuildMeshCity(float Lon, float Lat, EWLCampaignSettlemen
 	const FVector Ext = Model->GetBounds().BoxExtent;
 	const float ModelWidth = FMath::Max(1.f, FMath::Max(Ext.X, Ext.Y) * 2.f);
 	const float UniformScale = TargetWidth / ModelWidth;
-	// Algo de presencia vertical (skyline) sin pasarse: x2.4 hacia torres flacas que tapaban el
-	// suelo y los nombres. x1.4 da altura legible dejando ver las calles.
-	const FVector Scale(UniformScale, UniformScale, UniformScale * 1.4f);
+	float VerticalPresence = 1.45f;
+	switch (Type)
+	{
+	case EWLCampaignSettlementType::Capital:    VerticalPresence = 1.78f; break;
+	case EWLCampaignSettlementType::Industrial: VerticalPresence = 1.62f; break;
+	case EWLCampaignSettlementType::LargeCity:  VerticalPresence = 1.58f; break;
+	case EWLCampaignSettlementType::Port:       VerticalPresence = 1.52f; break;
+	case EWLCampaignSettlementType::Frontier:   VerticalPresence = 1.32f; break;
+	default:                                    VerticalPresence = 1.45f; break;
+	}
+	const FVector Scale(UniformScale, UniformScale, UniformScale * VerticalPresence);
 
 	const float YawHash = GridHash01(FMath::RoundToInt(Lon * 97.f), FMath::RoundToInt(Lat * 89.f), 7);
 	const FRotator Rot(0.f, FMath::RoundToFloat(YawHash * 4.f) * 90.f, 0.f);
