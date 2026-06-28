@@ -42,27 +42,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
 
-namespace
-{
-	UProceduralMeshComponent* FindRoadDetailMesh(AActor* Owner)
-	{
-		if (!Owner)
-		{
-			return nullptr;
-		}
-
-		TArray<UProceduralMeshComponent*> Components;
-		Owner->GetComponents<UProceduralMeshComponent>(Components);
-		for (UProceduralMeshComponent* Component : Components)
-		{
-			if (Component && Component->GetFName() == TEXT("RoadDetailMesh"))
-			{
-				return Component;
-			}
-		}
-		return nullptr;
-	}
-}
+#include "Presentation/WLCampaign3DViewRoadDetail.h"
 
 AWLCampaign3DView::AWLCampaign3DView()
 {
@@ -484,7 +464,7 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	{
 		RoadMesh->ClearAllMeshSections();
 	}
-	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	if (UProceduralMeshComponent* RoadDetailMesh = WLRoadDetail::FindRoadDetailMesh(this))
 	{
 		RoadDetailMesh->ClearAllMeshSections();
 	}

@@ -11,6 +11,7 @@
 #include "Presentation/WLCampaignTerrainBuilder.h"
 #include "Presentation/WLCampaignVisualStyle.h"
 #include "Presentation/WLCampaignWaterBuilder.h"
+#include "Presentation/WLCampaign3DViewRoadDetail.h"
 #include "ProceduralMeshComponent.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -76,24 +77,6 @@ namespace
 		}
 	}
 
-	UProceduralMeshComponent* FindRoadDetailMesh(AActor* Owner)
-	{
-		if (!Owner)
-		{
-			return nullptr;
-		}
-
-		TArray<UProceduralMeshComponent*> Components;
-		Owner->GetComponents<UProceduralMeshComponent>(Components);
-		for (UProceduralMeshComponent* Component : Components)
-		{
-			if (Component && Component->GetFName() == TEXT("RoadDetailMesh"))
-			{
-				return Component;
-			}
-		}
-		return nullptr;
-	}
 
 	constexpr float BorderOutpostMinCityClearanceKm = 14.f;
 	constexpr float BorderOutpostDesiredRoadOffsetKm = 12.f;
@@ -287,7 +270,7 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 		}
 		FWLCampaignRouteBuilder::SetCityClipCircles(RoadClipCircles);
 	}
-	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	if (UProceduralMeshComponent* RoadDetailMesh = WLRoadDetail::FindRoadDetailMesh(this))
 	{
 		FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 			RoadDetailMesh,

@@ -22,6 +22,15 @@ struct FWLCampaignForceCompositionEntry
 	FString Label;
 	int32 Count = 0;
 };
+
+// Boton de reclutamiento del panel: una unidad reclutable con su coste y turnos.
+struct FWLCampaignRecruitButton
+{
+	FString UnitType;
+	FString Label;
+	int64 Cost = 0;
+	int32 Turns = 0;
+};
 struct FWLCampaign3DMovementNodeView;
 struct FWLCampaignTerritoryRegionView;
 struct FInputKeyEventArgs;
@@ -119,9 +128,9 @@ public:
 	const TArray<FWLCampaignForceCompositionEntry>& GetSelectedForceComposition() const { return SelectedForceComposition; }
 	// Reclutamiento (Fase 3): tropas base + reclutadas, etiqueta del boton, estado de la cola, y la accion.
 	TArray<FWLCampaignForceCompositionEntry> GetSelectedForceTotalComposition() const;
-	FString GetSelectedForceRecruitLabel() const;
+	TArray<FWLCampaignRecruitButton> GetSelectedForceRecruitOptions() const;  // unidades reclutables (por categoria)
 	FString GetSelectedForceRecruitStatus() const;
-	bool QueueRecruitForSelectedForce(FString& OutMessage);
+	bool QueueRecruitForSelectedForce(const FString& UnitType, FString& OutMessage);
 	bool CanSelectedForceMove() const { return bSelectedForceMovable; }
 	bool IsForceMovementModeActive() const { return ForceMovementOrderMode != EWLCampaignForceMovementOrderMode::None; }
 	bool HasForceMovementDestination() const { return ForceMovementOrderMode == EWLCampaignForceMovementOrderMode::DestinationSelected; }

@@ -192,34 +192,45 @@ void DrawCampaignSelectionPanel(
 		// (DisabledStartY = ActionY+40) -> mantener en sync.
 		if (!PC->IsForceMovementModeActive())
 		{
-			const float RecruitBtnX = PanelX + 18.f;
-			const float RecruitBtnY = DisabledStartY;
-			const float RecruitBtnW = PanelW - 36.f;
-			const float RecruitBtnH = 26.f;
-			HUD->DrawRect(FLinearColor(0.30f, 0.42f, 0.20f, 0.96f), RecruitBtnX, RecruitBtnY, RecruitBtnW, RecruitBtnH);
-			const FString RecruitLabel = PC->GetSelectedForceRecruitLabel();
-			HUD->DrawText(RecruitLabel.IsEmpty() ? TEXT("Reclutar") : RecruitLabel, Text, RecruitBtnX + 12.f, RecruitBtnY + 6.f, SmallFont, 0.68f);
-			HUD->DrawText(ShortenForPanel(PC->GetSelectedForceRecruitStatus(), 60), Muted, PanelX + 18.f, RecruitBtnY + 32.f, SmallFont, 0.64f);
+			// RECLUTAR: una carta-boton por unidad reclutable (estilo Total War). El layout (RBtnW/RBtnH/
+			// RGridY) DEBE coincidir con el hit-test de Views.cpp -> mantener en sync.
+			HUD->DrawText(TEXT("RECLUTAR"), Gold, PanelX + 18.f, DisabledStartY, SmallFont, 0.76f);
+			const TArray<FWLCampaignRecruitButton> Options = PC->GetSelectedForceRecruitOptions();
+			const float RBtnW = (PanelW - 48.f) * 0.5f;
+			const float RBtnH = 24.f;
+			const float RBtnGap = 6.f;
+			const float RGridY = DisabledStartY + 18.f;
+			const int32 MaxOpt = FMath::Min(Options.Num(), 6);
+			for (int32 i = 0; i < MaxOpt; ++i)
+			{
+				const float bx = PanelX + 18.f + static_cast<float>(i % 2) * (RBtnW + RBtnGap);
+				const float by = RGridY + static_cast<float>(i / 2) * (RBtnH + RBtnGap);
+				HUD->DrawRect(FLinearColor(0.28f, 0.40f, 0.20f, 0.96f), bx, by, RBtnW, RBtnH);
+				HUD->DrawText(ShortenForPanel(Options[i].Label, 11), Text, bx + 8.f, by + 5.f, SmallFont, 0.58f);
+				HUD->DrawText(FString::Printf(TEXT("%lld"), static_cast<long long>(Options[i].Cost)), Gold, bx + RBtnW - 48.f, by + 5.f, SmallFont, 0.56f);
+			}
+			const int32 RRows = (MaxOpt + 1) / 2;
+			const float AfterGridY = RGridY + static_cast<float>(RRows) * (RBtnH + RBtnGap) + 2.f;
+			HUD->DrawText(ShortenForPanel(PC->GetSelectedForceRecruitStatus(), 60), Muted, PanelX + 18.f, AfterGridY, SmallFont, 0.62f);
 
-			HUD->DrawText(TEXT("TROPAS (guarnicion)"), Gold, PanelX + 18.f, RecruitBtnY + 52.f, SmallFont, 0.76f);
+			const float TroopsHeaderY = AfterGridY + 18.f;
+			HUD->DrawText(TEXT("TROPAS (guarnicion)"), Gold, PanelX + 18.f, TroopsHeaderY, SmallFont, 0.74f);
 			const TArray<FWLCampaignForceCompositionEntry> Comp = PC->GetSelectedForceTotalComposition();
 			if (Comp.Num() == 0)
 			{
-				HUD->DrawText(TEXT("Sin tropas aun. Recluta y avanza el mes [M]."), Muted, PanelX + 18.f, RecruitBtnY + 72.f, SmallFont, 0.62f);
+				HUD->DrawText(TEXT("Sin tropas. Recluta y avanza el mes [M]."), Muted, PanelX + 18.f, TroopsHeaderY + 18.f, SmallFont, 0.60f);
 			}
 			const FLinearColor CardBg(0.05f, 0.085f, 0.095f, 0.96f);
 			const FLinearColor CardBand(0.34f, 0.40f, 0.22f, 0.95f);
-			const int32 MaxCards = FMath::Min(Comp.Num(), 6);
-			for (int32 Index = 0; Index < MaxCards; ++Index)
+			const int32 MaxCards = FMath::Min(Comp.Num(), 4);
+			for (int32 i = 0; i < MaxCards; ++i)
 			{
-				const int32 Col = Index % 2;
-				const int32 Row = Index / 2;
-				const float CardX = ButtonX0 + static_cast<float>(Col) * (ButtonW + Gap);
-				const float CardY = RecruitBtnY + 72.f + static_cast<float>(Row) * (ButtonH + Gap);
-				HUD->DrawRect(CardBg, CardX, CardY, ButtonW, ButtonH);
-				HUD->DrawRect(CardBand, CardX, CardY, 4.f, ButtonH);              // banda de color (tipo carta)
-				HUD->DrawText(FString::Printf(TEXT("%d"), Comp[Index].Count), Gold, CardX + 12.f, CardY + 5.f, SmallFont, 0.88f);
-				HUD->DrawText(ShortenForPanel(Comp[Index].Label, 13), Text, CardX + 52.f, CardY + 7.f, SmallFont, 0.64f);
+				const float cx = PanelX + 18.f + static_cast<float>(i % 2) * (RBtnW + RBtnGap);
+				const float cy = TroopsHeaderY + 18.f + static_cast<float>(i / 2) * (RBtnH + RBtnGap);
+				HUD->DrawRect(CardBg, cx, cy, RBtnW, RBtnH);
+				HUD->DrawRect(CardBand, cx, cy, 4.f, RBtnH);
+				HUD->DrawText(FString::Printf(TEXT("%d"), Comp[i].Count), Gold, cx + 10.f, cy + 4.f, SmallFont, 0.78f);
+				HUD->DrawText(ShortenForPanel(Comp[i].Label, 11), Text, cx + 46.f, cy + 5.f, SmallFont, 0.58f);
 			}
 		}
 

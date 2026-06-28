@@ -41,29 +41,11 @@
 #include "Dom/JsonObject.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
+#include "Presentation/WLCampaign3DViewRoadDetail.h"
 
 namespace
 {
 	constexpr float DetailedCityAndRoadMaxHeight = 260000.f;
-
-	UProceduralMeshComponent* FindRoadDetailMesh(AActor* Owner)
-	{
-		if (!Owner)
-		{
-			return nullptr;
-		}
-
-		TArray<UProceduralMeshComponent*> Components;
-		Owner->GetComponents<UProceduralMeshComponent>(Components);
-		for (UProceduralMeshComponent* Component : Components)
-		{
-			if (Component && Component->GetFName() == TEXT("RoadDetailMesh"))
-			{
-				return Component;
-			}
-		}
-		return nullptr;
-	}
 }
 
 void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
@@ -86,7 +68,7 @@ void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 	{
 		RoadMesh->SetVisibility(bVisible, true);
 	}
-	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	if (UProceduralMeshComponent* RoadDetailMesh = WLRoadDetail::FindRoadDetailMesh(this))
 	{
 		RoadDetailMesh->SetVisibility(bVisible, true);
 	}
@@ -358,7 +340,7 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 		// y las ciudades se muestran en el mismo rango para evitar huecos flotantes.
 		RoadMesh->SetVisibility(bStrategicRoads, true);
 	}
-	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	if (UProceduralMeshComponent* RoadDetailMesh = WLRoadDetail::FindRoadDetailMesh(this))
 	{
 		RoadDetailMesh->SetVisibility(bDetailRoads, true);
 	}
@@ -577,7 +559,7 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		RoadMesh->SetVisibility(bStrategicRoadVisible, true);
 		RoadMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
-	if (UProceduralMeshComponent* RoadDetailMesh = FindRoadDetailMesh(this))
+	if (UProceduralMeshComponent* RoadDetailMesh = WLRoadDetail::FindRoadDetailMesh(this))
 	{
 		RoadDetailMesh->SetVisibility(bRoadDetailVisible, true);
 		RoadDetailMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);

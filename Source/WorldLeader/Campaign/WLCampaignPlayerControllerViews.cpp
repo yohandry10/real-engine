@@ -304,16 +304,23 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 		// (DisabledStartY = ActionY+40 en WLCampaignHUDPanels.inl) -> mantener en sync.
 		if (!IsForceMovementModeActive())
 		{
-			const float RecruitBtnX = PanelX + 18.f;
-			const float RecruitBtnY = ActionY + 40.f;
-			const float RecruitBtnW = PanelW - 36.f;
-			const float RecruitBtnH = 26.f;
-			if (IsPointInControllerRect(MouseX, MouseY, RecruitBtnX, RecruitBtnY, RecruitBtnW, RecruitBtnH))
+			const TArray<FWLCampaignRecruitButton> Options = GetSelectedForceRecruitOptions();
+			const float RBtnW = (PanelW - 48.f) * 0.5f;
+			const float RBtnH = 24.f;
+			const float RBtnGap = 6.f;
+			const float RGridY = (ActionY + 40.f) + 18.f;   // = DisabledStartY(no-mov)+18 (sync con el .inl)
+			const int32 MaxOpt = FMath::Min(Options.Num(), 6);
+			for (int32 i = 0; i < MaxOpt; ++i)
 			{
-				FString Msg;
-				const bool bOk = QueueRecruitForSelectedForce(Msg);
-				SetLastActionMessage(Msg, bOk);
-				return true;
+				const float bx = PanelX + 18.f + static_cast<float>(i % 2) * (RBtnW + RBtnGap);
+				const float by = RGridY + static_cast<float>(i / 2) * (RBtnH + RBtnGap);
+				if (IsPointInControllerRect(MouseX, MouseY, bx, by, RBtnW, RBtnH))
+				{
+					FString Msg;
+					const bool bOk = QueueRecruitForSelectedForce(Options[i].UnitType, Msg);
+					SetLastActionMessage(Msg, bOk);
+					return true;
+				}
 			}
 		}
 
