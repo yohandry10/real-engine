@@ -160,6 +160,10 @@ bool AWLCampaign3DView::TryGetForceNearWorldLocation(
 	int32 BestIndex = INDEX_NONE;
 	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
 	{
+		if (!IsForceSelectableByProximity(Index))
+		{
+			continue;
+		}
 		const FWLCampaign3DForceView& Force = ForceViews[Index];
 		const float DistanceSq = FVector::DistSquared2D(WorldLocation, Force.WorldLocation);
 		if (DistanceSq < BestDistanceSq)
@@ -175,6 +179,29 @@ bool AWLCampaign3DView::TryGetForceNearWorldLocation(
 
 	OutForce = ForceViews[BestIndex];
 	return true;
+}
+
+bool AWLCampaign3DView::IsForceSelectableByProximity(int32 Index) const
+{
+	if (!ForceViews.IsValidIndex(Index))
+	{
+		return false;
+	}
+
+	const FWLCampaign3DForceView& Force = ForceViews[Index];
+	if (Force.bIsRecruitmentBase)
+	{
+		return false;
+	}
+	if (!ForceHasTroopsForToken(Index))
+	{
+		return false;
+	}
+	if (!ForceMarkerComponents.IsValidIndex(Index) || !ForceMarkerComponents[Index])
+	{
+		return false;
+	}
+	return ForceMarkerComponents[Index]->IsVisible();
 }
 
 bool AWLCampaign3DView::TryGetMovementDestinationForComponent(
@@ -343,6 +370,13 @@ bool AWLCampaign3DView::UpdateForceMovementLocation(
 		return false;
 	}
 
+	TArray<FWLCampaign3DMovementNodeView> RouteNodes;
+	int32 EstimatedTurns = 0;
+	if (!BuildMovementRouteForForce(ForceId, DestinationNodeId, RouteNodes, EstimatedTurns))
+	{
+		return false;
+	}
+
 	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
 	{
 		FWLCampaign3DForceView& Force = ForceViews[Index];
@@ -351,6 +385,7 @@ bool AWLCampaign3DView::UpdateForceMovementLocation(
 			continue;
 		}
 
+		const FVector StartLocation = Force.WorldLocation;
 		Force.MovementNodeId = DestinationNode->Id;
 		Force.MovementStatus = TEXT("reubicado");
 		Force.LocationName = DestinationNode->Name;
@@ -363,19 +398,7 @@ bool AWLCampaign3DView::UpdateForceMovementLocation(
 		Force.Lon = DestinationNode->Lon;
 		Force.Lat = DestinationNode->Lat;
 
-		if (ForceMarkerComponents.IsValidIndex(Index) && ForceMarkerComponents[Index])
-		{
-			ForceMarkerComponents[Index]->SetWorldLocation(Force.WorldLocation);
-		}
-		if (ForceSelectionMarkers.IsValidIndex(Index) && ForceSelectionMarkers[Index])
-		{
-			ForceSelectionMarkers[Index]->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 1400.f));
-		}
-		if (ForceMarkerLabels.IsValidIndex(Index) && ForceMarkerLabels[Index])
-		{
-			ForceMarkerLabels[Index]->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 3400.f));
-			ForceMarkerLabels[Index]->SetText(FText::FromString(Force.Name));
-		}
+		StartForceMovementAnimation(Index, RouteNodes, StartLocation);
 
 		OutForce = Force;
 		if (SelectedForceHighlightId.Equals(Force.Id, ESearchCase::IgnoreCase))
@@ -526,17 +549,8 @@ void AWLCampaign3DView::SetSelectedForceHighlight(const FString& ForceId)
 	}
 	RefreshMilitaryForceMarkerVisuals();
 
-	for (const FWLCampaign3DForceView& Force : ForceViews)
-	{
-		if (Force.Id.Equals(ForceId, ESearchCase::IgnoreCase))
-		{
-			RebuildPointSelectionHighlight(Force.WorldLocation + FVector(0.f, 0.f, 880.f),
-				Force.bNaval ? 7600.f : 6600.f,
-				Force.bAir ? FLinearColor(0.72f, 0.86f, 0.98f, 1.f) : FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
-			return;
-		}
-	}
-
+	// NADA de aro/oreola en el suelo para fuerzas: el feedback de seleccion es el propio token (la unidad se
+	// agranda y se tinta en RefreshMilitaryForceMarkerVisuals). El anillo dorado se veia mal sobre el tanque.
 	if (SelectionHighlightMesh)
 	{
 		SelectionHighlightMesh->ClearAllMeshSections();

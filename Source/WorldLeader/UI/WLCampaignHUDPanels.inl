@@ -84,6 +84,169 @@ void DrawCampaignSelectionPanel(
 		HUD->DrawText(ShortenForPanel(Entry.DetailLevel, 46), Muted, PanelX + 18.f, PanelY + PanelH - 24.f, SmallFont, 0.70f);
 	}
 
+	// Color de banda por categoria de unidad (deducida de la etiqueta), estilo Total War.
+	FLinearColor CampaignTroopCardColor(const FString& Label)
+	{
+		const FString L = Label.ToLower();
+		if (L.Contains(TEXT("artill")))                                                       return FLinearColor(0.74f, 0.46f, 0.20f, 1.f); // naranja
+		if (L.Contains(TEXT("tanque")) || L.Contains(TEXT("veh")) || L.Contains(TEXT("blind"))) return FLinearColor(0.40f, 0.46f, 0.52f, 1.f); // acero
+		if (L.Contains(TEXT("transp")))                                                       return FLinearColor(0.55f, 0.50f, 0.30f, 1.f); // tan
+		if (L.Contains(TEXT("heli")) || L.Contains(TEXT("aero")) || L.Contains(TEXT("caza")) || L.Contains(TEXT("avion"))) return FLinearColor(0.28f, 0.46f, 0.62f, 1.f); // azul aire
+		if (L.Contains(TEXT("buque")) || L.Contains(TEXT("naval")) || L.Contains(TEXT("marin"))) return FLinearColor(0.24f, 0.52f, 0.54f, 1.f); // teal naval
+		return FLinearColor(0.42f, 0.52f, 0.26f, 1.f); // olivo (infanteria / por defecto)
+	}
+
+	// Categoria de icono deducida de la etiqueta de la unidad.
+	enum class EWLTroopIcon { Infantry, Tank, Artillery, Transport, Air, Naval };
+	EWLTroopIcon CampaignTroopIconFor(const FString& Label)
+	{
+		const FString L = Label.ToLower();
+		if (L.Contains(TEXT("artill")))                                                        return EWLTroopIcon::Artillery;
+		if (L.Contains(TEXT("tanque")) || L.Contains(TEXT("veh")) || L.Contains(TEXT("blind"))) return EWLTroopIcon::Tank;
+		if (L.Contains(TEXT("transp")))                                                        return EWLTroopIcon::Transport;
+		if (L.Contains(TEXT("heli")) || L.Contains(TEXT("aero")) || L.Contains(TEXT("caza")) || L.Contains(TEXT("avion"))) return EWLTroopIcon::Air;
+		if (L.Contains(TEXT("buque")) || L.Contains(TEXT("naval")) || L.Contains(TEXT("marin"))) return EWLTroopIcon::Naval;
+		return EWLTroopIcon::Infantry;
+	}
+
+	// Dibuja una SILUETA de unidad (estilo icono Total War) con rectangulos dentro de (ix,iy,iw,ih), para
+	// identificar de un vistazo el tipo: infanteria, tanque, artilleria, transporte, avion, buque.
+	void DrawTroopIcon(AWLCampaignHUD* HUD, EWLTroopIcon Icon, float ix, float iy, float iw, float ih)
+	{
+		const FLinearColor Body(0.84f, 0.88f, 0.92f, 1.f);
+		const FLinearColor Dark(0.32f, 0.36f, 0.40f, 1.f);
+		auto R = [&](float fx, float fy, float fw, float fh, const FLinearColor& C)
+		{
+			HUD->DrawRect(C, ix + iw * fx, iy + ih * fy, iw * fw, ih * fh);
+		};
+		switch (Icon)
+		{
+		case EWLTroopIcon::Tank:
+			R(0.05f, 0.66f, 0.90f, 0.20f, Dark);   // orugas
+			R(0.12f, 0.44f, 0.76f, 0.26f, Body);   // casco
+			R(0.34f, 0.22f, 0.34f, 0.24f, Body);   // torreta
+			R(0.62f, 0.31f, 0.40f, 0.08f, Body);   // canon
+			break;
+		case EWLTroopIcon::Artillery:
+			R(0.16f, 0.62f, 0.20f, 0.30f, Dark);   // rueda izq
+			R(0.46f, 0.62f, 0.20f, 0.30f, Dark);   // rueda der
+			R(0.16f, 0.48f, 0.54f, 0.16f, Body);   // cureña
+			R(0.40f, 0.24f, 0.58f, 0.10f, Body);   // canon largo
+			break;
+		case EWLTroopIcon::Transport:
+			R(0.14f, 0.66f, 0.20f, 0.26f, Dark);   // rueda izq
+			R(0.56f, 0.66f, 0.20f, 0.26f, Dark);   // rueda der
+			R(0.08f, 0.32f, 0.52f, 0.36f, Body);   // caja
+			R(0.60f, 0.42f, 0.30f, 0.26f, Body);   // cabina
+			break;
+		case EWLTroopIcon::Air:
+			R(0.44f, 0.06f, 0.12f, 0.86f, Body);   // fuselaje
+			R(0.08f, 0.40f, 0.84f, 0.13f, Body);   // alas
+			R(0.30f, 0.80f, 0.40f, 0.10f, Body);   // cola
+			break;
+		case EWLTroopIcon::Naval:
+			R(0.06f, 0.56f, 0.88f, 0.22f, Body);   // casco
+			R(0.30f, 0.34f, 0.40f, 0.24f, Body);   // superestructura
+			R(0.47f, 0.14f, 0.09f, 0.22f, Dark);   // chimenea
+			break;
+		case EWLTroopIcon::Infantry:
+		default:
+			R(0.42f, 0.05f, 0.16f, 0.18f, Body);   // cabeza
+			R(0.34f, 0.24f, 0.32f, 0.42f, Body);   // torso
+			R(0.36f, 0.66f, 0.11f, 0.30f, Body);   // pierna izq
+			R(0.53f, 0.66f, 0.11f, 0.30f, Body);   // pierna der
+			R(0.64f, 0.22f, 0.06f, 0.48f, Dark);   // fusil
+			break;
+		}
+	}
+
+	// Barra de TROPAS estilo Total War: fila ANCHA de cartas grandes a lo largo de la parte inferior de la
+	// pantalla (no amontonadas en el panel lateral). Muestra TODA la composicion de la fuerza seleccionada.
+	void DrawCampaignForceTroopBar(
+		AWLCampaignHUD* HUD,
+		UCanvas* Canvas,
+		UFont* Font,
+		UFont* SmallFont,
+		const AWLCampaignPlayerController* PC)
+	{
+		if (!HUD || !Canvas || !PC || PC->GetCampaignSelectionKind() != EWLCampaignSelectionKind::Force)
+		{
+			return;
+		}
+		const TArray<FWLCampaignForceCompositionEntry> Comp = PC->GetSelectedForceTotalComposition();
+		if (Comp.Num() == 0)
+		{
+			return;   // fuerte vacio o fuerza sin tropas -> sin barra
+		}
+
+		const float W = Canvas->ClipX;
+		const float H = Canvas->ClipY;
+		const FLinearColor Gold(0.88f, 0.70f, 0.26f, 1.f);
+		const FLinearColor Text(0.90f, 0.94f, 0.95f, 1.f);
+		const FLinearColor Muted(0.58f, 0.68f, 0.70f, 1.f);
+		const FLinearColor BarBg(0.016f, 0.028f, 0.032f, 0.96f);
+		const FLinearColor CardBg(0.055f, 0.090f, 0.100f, 0.98f);
+
+		const float CardW = 132.f;
+		const float CardH = 110.f;
+		const float CardGap = 10.f;
+		const float PadX = 18.f;
+		const float NameW = 236.f;   // bloque izquierdo: nombre del ejercito + efectivos
+
+		// Cuantas cartas caben a lo ancho (todas las demas se resumen en "+N").
+		const float AvailW = W - 40.f - (NameW + 18.f + PadX * 2.f);
+		const int32 MaxVisible = FMath::Max(1, FMath::FloorToInt((AvailW + CardGap) / (CardW + CardGap)));
+		const int32 N = Comp.Num();
+		const int32 Shown = FMath::Min(N, MaxVisible);
+
+		const float CardsW = static_cast<float>(Shown) * CardW + static_cast<float>(Shown - 1) * CardGap;
+		const float ContentW = NameW + 18.f + CardsW + PadX * 2.f;
+		const float BarH = CardH + 32.f;
+		const float BarX = FMath::Max(16.f, (W - ContentW) * 0.5f);
+		const float BarY = H - BarH - 30.f;
+
+		HUD->DrawRect(BarBg, BarX, BarY, ContentW, BarH);
+		HUD->DrawRect(FLinearColor(0.50f, 0.40f, 0.18f, 0.95f), BarX, BarY, ContentW, 3.f);
+
+		int32 Total = 0;
+		for (const FWLCampaignForceCompositionEntry& E : Comp)
+		{
+			Total += E.Count;
+		}
+		HUD->DrawText(TEXT("EJERCITO"), Gold, BarX + PadX, BarY + 12.f, SmallFont, 0.74f);
+		HUD->DrawText(ShortenForPanel(PC->GetSelectedForceName(), 24), Text, BarX + PadX, BarY + 34.f, SmallFont, 0.94f);
+		HUD->DrawText(FString::Printf(TEXT("Efectivos: %d  -  %d tipos"), Total, N), Muted, BarX + PadX, BarY + 60.f, SmallFont, 0.70f);
+
+		const float CardsY = BarY + (BarH - CardH) * 0.5f;
+		float cx = BarX + PadX + NameW + 18.f;
+		const FLinearColor DarkText(0.06f, 0.07f, 0.05f, 1.f);
+		const FLinearColor BadgeBg(0.03f, 0.045f, 0.05f, 0.95f);
+		for (int32 i = 0; i < Shown; ++i)
+		{
+			const bool bOverflow = (i == Shown - 1) && (N > Shown);
+			const FLinearColor Band = bOverflow ? FLinearColor(0.30f, 0.34f, 0.36f, 1.f) : CampaignTroopCardColor(Comp[i].Label);
+			HUD->DrawRect(CardBg, cx, CardsY, CardW, CardH);
+			HUD->DrawRect(Band, cx, CardsY, CardW, 20.f);   // banda de categoria (arriba) con la etiqueta
+			if (bOverflow)
+			{
+				HUD->DrawText(TEXT("MAS"), DarkText, cx + 8.f, CardsY + 3.f, SmallFont, 0.66f);
+				HUD->DrawText(FString::Printf(TEXT("+%d"), N - Shown + 1), Gold, cx + 12.f, CardsY + 46.f, Font, 1.6f);
+				HUD->DrawText(TEXT("tipos mas"), Muted, cx + 12.f, CardsY + CardH - 22.f, SmallFont, 0.60f);
+			}
+			else
+			{
+				HUD->DrawText(ShortenForPanel(Comp[i].Label, 15), DarkText, cx + 7.f, CardsY + 3.f, SmallFont, 0.64f);
+				// Silueta de la unidad: identifica el tipo de un vistazo (tanque, infanteria, avion, etc.).
+				DrawTroopIcon(HUD, CampaignTroopIconFor(Comp[i].Label), cx + 16.f, CardsY + 24.f, CardW - 32.f, 52.f);
+				// Badge inferior con el numero de efectivos (grande).
+				HUD->DrawRect(BadgeBg, cx + 6.f, CardsY + CardH - 28.f, CardW - 12.f, 24.f);
+				HUD->DrawText(FString::Printf(TEXT("%d"), Comp[i].Count), Gold, cx + 12.f, CardsY + CardH - 26.f, Font, 0.92f);
+				HUD->DrawText(TEXT("ef."), Muted, cx + CardW - 32.f, CardsY + CardH - 22.f, SmallFont, 0.62f);
+			}
+			cx += CardW + CardGap;
+		}
+	}
+
 	void DrawCampaignForcePanel(
 		AWLCampaignHUD* HUD,
 		UCanvas* Canvas,
@@ -173,7 +336,10 @@ void DrawCampaignSelectionPanel(
 		if (PC->IsForceMovementModeActive())
 		{
 			const FString RouteText = PC->HasForceMovementDestination()
-				? FString::Printf(TEXT("Ruta: %s (%d turno placeholder)"), *PC->GetForceMovementRouteSummary(), PC->GetForceMovementEstimatedTurns())
+				? FString::Printf(TEXT("Ruta: %s (%d turno%s)"),
+					*PC->GetForceMovementRouteSummary(),
+					PC->GetForceMovementEstimatedTurns(),
+					PC->GetForceMovementEstimatedTurns() == 1 ? TEXT("") : TEXT("s"))
 				: TEXT("Hover/click en destino valido para previsualizar ruta.");
 			HUD->DrawText(ShortenForPanel(RouteText, 60), Muted, PanelX + 18.f, ActionY + 38.f, SmallFont, 0.64f);
 
@@ -192,47 +358,34 @@ void DrawCampaignSelectionPanel(
 		// (DisabledStartY = ActionY+40) -> mantener en sync.
 		if (!PC->IsForceMovementModeActive())
 		{
-			// RECLUTAR: una carta-boton por unidad reclutable (estilo Total War). El layout (RBtnW/RBtnH/
-			// RGridY) DEBE coincidir con el hit-test de Views.cpp -> mantener en sync.
-			HUD->DrawText(TEXT("RECLUTAR"), Gold, PanelX + 18.f, DisabledStartY, SmallFont, 0.76f);
+			// RECLUTAR (solo FUERTES): una carta-boton por unidad. El layout (RBtnW/RBtnH/RGridY) DEBE
+			// coincidir con el hit-test de Views.cpp -> mantener en sync. Un ejercito de campo no recluta
+			// (Options vacio). Las TROPAS ya NO van aqui: se muestran GRANDES en la BARRA INFERIOR (Total War).
 			const TArray<FWLCampaignRecruitButton> Options = PC->GetSelectedForceRecruitOptions();
-			const float RBtnW = (PanelW - 48.f) * 0.5f;
-			const float RBtnH = 24.f;
-			const float RBtnGap = 6.f;
-			const float RGridY = DisabledStartY + 18.f;
-			const int32 MaxOpt = FMath::Min(Options.Num(), 6);
-			for (int32 i = 0; i < MaxOpt; ++i)
+			if (Options.Num() > 0)
 			{
-				const float bx = PanelX + 18.f + static_cast<float>(i % 2) * (RBtnW + RBtnGap);
-				const float by = RGridY + static_cast<float>(i / 2) * (RBtnH + RBtnGap);
-				HUD->DrawRect(FLinearColor(0.28f, 0.40f, 0.20f, 0.96f), bx, by, RBtnW, RBtnH);
-				HUD->DrawText(ShortenForPanel(Options[i].Label, 11), Text, bx + 8.f, by + 5.f, SmallFont, 0.58f);
-				HUD->DrawText(FString::Printf(TEXT("%lld"), static_cast<long long>(Options[i].Cost)), Gold, bx + RBtnW - 48.f, by + 5.f, SmallFont, 0.56f);
-			}
-			const int32 RRows = (MaxOpt + 1) / 2;
-			const float AfterGridY = RGridY + static_cast<float>(RRows) * (RBtnH + RBtnGap) + 2.f;
-			HUD->DrawText(ShortenForPanel(PC->GetSelectedForceRecruitStatus(), 60), Muted, PanelX + 18.f, AfterGridY, SmallFont, 0.62f);
-
-			const float TroopsHeaderY = AfterGridY + 18.f;
-			HUD->DrawText(TEXT("TROPAS (guarnicion)"), Gold, PanelX + 18.f, TroopsHeaderY, SmallFont, 0.74f);
-			const TArray<FWLCampaignForceCompositionEntry> Comp = PC->GetSelectedForceTotalComposition();
-			if (Comp.Num() == 0)
-			{
-				HUD->DrawText(TEXT("Sin tropas. Recluta y avanza el mes [M]."), Muted, PanelX + 18.f, TroopsHeaderY + 18.f, SmallFont, 0.60f);
-			}
-			const FLinearColor CardBg(0.05f, 0.085f, 0.095f, 0.96f);
-			const FLinearColor CardBand(0.34f, 0.40f, 0.22f, 0.95f);
-			const int32 MaxCards = FMath::Min(Comp.Num(), 4);
-			for (int32 i = 0; i < MaxCards; ++i)
-			{
-				const float cx = PanelX + 18.f + static_cast<float>(i % 2) * (RBtnW + RBtnGap);
-				const float cy = TroopsHeaderY + 18.f + static_cast<float>(i / 2) * (RBtnH + RBtnGap);
-				HUD->DrawRect(CardBg, cx, cy, RBtnW, RBtnH);
-				HUD->DrawRect(CardBand, cx, cy, 4.f, RBtnH);
-				HUD->DrawText(FString::Printf(TEXT("%d"), Comp[i].Count), Gold, cx + 10.f, cy + 4.f, SmallFont, 0.78f);
-				HUD->DrawText(ShortenForPanel(Comp[i].Label, 11), Text, cx + 46.f, cy + 5.f, SmallFont, 0.58f);
+				const float RBtnW = (PanelW - 48.f) * 0.5f;
+				const float RBtnH = 30.f;
+				const float RBtnGap = 6.f;
+				HUD->DrawText(TEXT("RECLUTAR"), Gold, PanelX + 18.f, DisabledStartY, SmallFont, 0.76f);
+				const float RGridY = DisabledStartY + 18.f;
+				const int32 MaxOpt = FMath::Min(Options.Num(), 6);
+				for (int32 i = 0; i < MaxOpt; ++i)
+				{
+					const float bx = PanelX + 18.f + static_cast<float>(i % 2) * (RBtnW + RBtnGap);
+					const float by = RGridY + static_cast<float>(i / 2) * (RBtnH + RBtnGap);
+					HUD->DrawRect(FLinearColor(0.28f, 0.40f, 0.20f, 0.96f), bx, by, RBtnW, RBtnH);
+					HUD->DrawText(ShortenForPanel(Options[i].Label, 14), Text, bx + 10.f, by + 8.f, SmallFont, 0.74f);
+					HUD->DrawText(FString::Printf(TEXT("%lld"), static_cast<long long>(Options[i].Cost)), Gold, bx + RBtnW - 58.f, by + 8.f, SmallFont, 0.70f);
+				}
+				const int32 RRows = (MaxOpt + 1) / 2;
+				const float AfterGridY = RGridY + static_cast<float>(RRows) * (RBtnH + RBtnGap) + 2.f;
+				HUD->DrawText(ShortenForPanel(PC->GetSelectedForceRecruitStatus(), 60), Muted, PanelX + 18.f, AfterGridY, SmallFont, 0.62f);
 			}
 		}
+
+		// Las TROPAS de la fuerza seleccionada se muestran GRANDES en la barra inferior (estilo Total War).
+		DrawCampaignForceTroopBar(HUD, Canvas, Font, SmallFont, PC);
 
 		HUD->DrawText(ShortenForPanel(PC->GetSelectedForceDetailLevel(), 46), Muted, PanelX + 18.f, PanelY + PanelH - 24.f, SmallFont, 0.70f);
 	}

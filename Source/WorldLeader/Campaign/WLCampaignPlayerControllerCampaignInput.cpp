@@ -60,7 +60,7 @@ void AWLCampaignPlayerController::UpdateCampaignForceHover()
 
 	FVector GroundPoint = FVector::ZeroVector;
 	if (GetCampaignGroundPointFromScreen(MouseX, MouseY, GroundPoint)
-		&& Campaign3DView->TryGetForceNearWorldLocation(GroundPoint, 15000.f, ForceView))
+		&& Campaign3DView->TryGetForceNearWorldLocation(GroundPoint, 2800.f, ForceView))
 	{
 		Campaign3DView->SetHoveredForceHighlight(ForceView.Id);
 		return;

@@ -630,5 +630,165 @@ FVector AWLCampaign3DView::GetForceMarkerLocationForNode(
 	const FWLCampaign3DForceView& Force,
 	const FWLCampaign3DMovementNodeView& Node) const
 {
+	// Un EJERCITO reclutado (token tanque) se APOYA en el terreno del nodo destino via raycast -> no flota
+	// al moverlo. Las demas fuerzas conservan su altura de marcador sobre el nodo.
+	if (!Force.bNaval && !Force.bAir && Force.Id.StartsWith(TEXT("ARMY-")))
+	{
+		return GroundedLandTokenLocation(Node.Lon, Node.Lat);
+	}
 	return Node.WorldLocation + FVector(0.f, 0.f, Force.bNaval ? 450.f : 550.f);
+}
+
+FVector AWLCampaign3DView::GetForceSelectionProxyLocation(
+	const FWLCampaign3DForceView& Force,
+	const FVector& MarkerLocation) const
+{
+	if (Force.bIsRecruitmentBase)
+	{
+		return MarkerLocation + FVector(0.f, 0.f, 820.f);
+	}
+	return MarkerLocation + FVector(0.f, 0.f, Force.bNaval ? 1560.f : (Force.bAir ? 1320.f : 1080.f));
+}
+
+FVector AWLCampaign3DView::GetForceLabelLocation(
+	const FWLCampaign3DForceView& Force,
+	const FVector& MarkerLocation) const
+{
+	return MarkerLocation + FVector(0.f, 0.f, Force.bNaval ? 4940.f : (Force.bAir ? 4180.f : 3420.f));
+}
+
+void AWLCampaign3DView::StartForceMovementAnimation(
+	int32 ForceIndex,
+	const TArray<FWLCampaign3DMovementNodeView>& RouteNodes,
+	const FVector& StartLocation)
+{
+	if (!ForceViews.IsValidIndex(ForceIndex))
+	{
+		return;
+	}
+
+	FForceMovementAnimation Animation;
+	Animation.ForceId = ForceViews[ForceIndex].Id;
+	Animation.ForceIndex = ForceIndex;
+	Animation.Points.Add(StartLocation);
+	for (int32 Index = 1; Index < RouteNodes.Num(); ++Index)
+	{
+		const FVector Next = GetForceMarkerLocationForNode(ForceViews[ForceIndex], RouteNodes[Index]);
+		if (FVector::DistSquared(Animation.Points.Last(), Next) > 100.f)
+		{
+			Animation.Points.Add(Next);
+		}
+	}
+	if (Animation.Points.Num() < 2)
+	{
+		Animation.Points.Reset();
+		Animation.Points.Add(StartLocation);
+		Animation.Points.Add(ForceViews[ForceIndex].WorldLocation);
+	}
+
+	float TotalDistance = 0.f;
+	for (int32 Index = 0; Index + 1 < Animation.Points.Num(); ++Index)
+	{
+		TotalDistance += FVector::Dist2D(Animation.Points[Index], Animation.Points[Index + 1]);
+	}
+	Animation.DurationSeconds = FMath::Clamp(TotalDistance / 56000.f, 0.75f, 2.8f);
+
+	for (int32 Index = ForceMovementAnimations.Num() - 1; Index >= 0; --Index)
+	{
+		if (ForceMovementAnimations[Index].ForceId.Equals(Animation.ForceId, ESearchCase::IgnoreCase))
+		{
+			ForceMovementAnimations.RemoveAtSwap(Index);
+		}
+	}
+	ForceMovementAnimations.Add(MoveTemp(Animation));
+}
+
+void AWLCampaign3DView::UpdateForceMovementAnimations(float DeltaSeconds)
+{
+	for (int32 AnimIndex = ForceMovementAnimations.Num() - 1; AnimIndex >= 0; --AnimIndex)
+	{
+		FForceMovementAnimation& Animation = ForceMovementAnimations[AnimIndex];
+		if (!ForceViews.IsValidIndex(Animation.ForceIndex) || Animation.Points.Num() < 2 || Animation.DurationSeconds <= 0.f)
+		{
+			ForceMovementAnimations.RemoveAtSwap(AnimIndex);
+			continue;
+		}
+
+		FWLCampaign3DForceView& Force = ForceViews[Animation.ForceIndex];
+		if (!Force.Id.Equals(Animation.ForceId, ESearchCase::IgnoreCase))
+		{
+			ForceMovementAnimations.RemoveAtSwap(AnimIndex);
+			continue;
+		}
+
+		Animation.ElapsedSeconds += FMath::Max(0.f, DeltaSeconds);
+		const float LinearAlpha = FMath::Clamp(Animation.ElapsedSeconds / Animation.DurationSeconds, 0.f, 1.f);
+		const float SmoothAlpha = LinearAlpha * LinearAlpha * (3.f - 2.f * LinearAlpha);
+
+		float TotalDistance = 0.f;
+		for (int32 Index = 0; Index + 1 < Animation.Points.Num(); ++Index)
+		{
+			TotalDistance += FVector::Dist2D(Animation.Points[Index], Animation.Points[Index + 1]);
+		}
+
+		FVector Current = Animation.Points.Last();
+		FVector Direction = Animation.Points.Last() - Animation.Points[Animation.Points.Num() - 2];
+		float TargetDistance = TotalDistance * SmoothAlpha;
+		for (int32 Index = 0; Index + 1 < Animation.Points.Num(); ++Index)
+		{
+			const FVector A = Animation.Points[Index];
+			const FVector B = Animation.Points[Index + 1];
+			const float SegmentDistance = FVector::Dist2D(A, B);
+			if (SegmentDistance <= KINDA_SMALL_NUMBER)
+			{
+				continue;
+			}
+			if (TargetDistance <= SegmentDistance || Index + 2 == Animation.Points.Num())
+			{
+				const float SegmentAlpha = FMath::Clamp(TargetDistance / SegmentDistance, 0.f, 1.f);
+				Current = FMath::Lerp(A, B, SegmentAlpha);
+				Direction = B - A;
+				break;
+			}
+			TargetDistance -= SegmentDistance;
+		}
+
+		if (UStaticMeshComponent* Marker = ForceMarkerComponents.IsValidIndex(Animation.ForceIndex) ? ForceMarkerComponents[Animation.ForceIndex] : nullptr)
+		{
+			Marker->SetWorldLocation(Current);
+			const FVector FlatDirection(Direction.X, Direction.Y, 0.f);
+			if (FlatDirection.SizeSquared() > 1.f)
+			{
+				const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(FlatDirection.Y, FlatDirection.X));
+				Marker->SetWorldRotation(FRotator(0.f, Yaw, 0.f));
+			}
+		}
+		if (UPrimitiveComponent* Proxy = ForceSelectionMarkers.IsValidIndex(Animation.ForceIndex) ? ForceSelectionMarkers[Animation.ForceIndex] : nullptr)
+		{
+			Proxy->SetWorldLocation(GetForceSelectionProxyLocation(Force, Current));
+		}
+		if (UTextRenderComponent* Label = ForceMarkerLabels.IsValidIndex(Animation.ForceIndex) ? ForceMarkerLabels[Animation.ForceIndex] : nullptr)
+		{
+			Label->SetWorldLocation(GetForceLabelLocation(Force, Current));
+			Label->SetText(FText::FromString(Force.Name));
+		}
+
+		if (LinearAlpha >= 1.f)
+		{
+			const FVector FinalLocation = Force.WorldLocation;
+			if (UStaticMeshComponent* Marker = ForceMarkerComponents.IsValidIndex(Animation.ForceIndex) ? ForceMarkerComponents[Animation.ForceIndex] : nullptr)
+			{
+				Marker->SetWorldLocation(FinalLocation);
+			}
+			if (UPrimitiveComponent* Proxy = ForceSelectionMarkers.IsValidIndex(Animation.ForceIndex) ? ForceSelectionMarkers[Animation.ForceIndex] : nullptr)
+			{
+				Proxy->SetWorldLocation(GetForceSelectionProxyLocation(Force, FinalLocation));
+			}
+			if (UTextRenderComponent* Label = ForceMarkerLabels.IsValidIndex(Animation.ForceIndex) ? ForceMarkerLabels[Animation.ForceIndex] : nullptr)
+			{
+				Label->SetWorldLocation(GetForceLabelLocation(Force, FinalLocation));
+			}
+			ForceMovementAnimations.RemoveAtSwap(AnimIndex);
+		}
+	}
 }

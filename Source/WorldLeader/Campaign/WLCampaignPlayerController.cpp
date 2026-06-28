@@ -143,6 +143,15 @@ void AWLCampaignPlayerController::OnAdvanceMonth()
 		const int32 AIBuildCount = Tick->GetLastEconomicAIBuildCount();
 		SetLastActionMessage(FString::Printf(TEXT("Mes avanzado a %02d/%d. IA economica: %d construcciones."),
 			Tick->GetCurrentMonth(), Tick->GetCurrentYear(), AIBuildCount), true);
+
+		// Tras avanzar el mes: (1) materializa/actualiza el ejercito movible de cada fuerte que termino de
+		// reclutar, y (2) re-evalua el LOD a la altura de camara actual para que el token de ejercito (tanque)
+		// aparezca de inmediato. Sin esto, el ejercito no se mostraria hasta el siguiente zoom/pan.
+		if (Campaign3DView)
+		{
+			Campaign3DView->SyncRecruitedArmyTokens();
+			Campaign3DView->ApplyZoomLOD(GetCampaignCameraHeight());
+		}
 	}
 }
 
@@ -238,7 +247,7 @@ void AWLCampaignPlayerController::OnSelectCountry()
 		}
 
 		FWLCampaign3DForceView ForceView;
-		if (Campaign3DView->TryGetForceNearWorldLocation(WorldLocation, 15000.f, ForceView))
+		if (Campaign3DView->TryGetForceNearWorldLocation(WorldLocation, 2800.f, ForceView))
 		{
 			SelectCampaignForce(ForceView);
 			ClearSelectedCountry();
@@ -313,7 +322,7 @@ void AWLCampaignPlayerController::OnSelectCountry()
 			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected force: %s (%s)"), *SelectedForceName, *SelectedForceId);
 			return;
 		}
-		if (Campaign3DView && Campaign3DView->TryGetForceNearWorldLocation(Hit.Location, 15000.f, ForceView))
+		if (Campaign3DView && Campaign3DView->TryGetForceNearWorldLocation(Hit.Location, 2800.f, ForceView))
 		{
 			SelectCampaignForce(ForceView);
 			ClearSelectedCountry();

@@ -199,7 +199,7 @@ void AWLCampaignPlayerController::ConfirmForceMovementOrder()
 	FWLCampaign3DForceView UpdatedForce;
 	if (!Campaign3DView->UpdateForceMovementLocation(SelectedForceId, PendingForceMoveDestinationNodeId, UpdatedForce))
 	{
-		SetLastActionMessage(TEXT("No se pudo ejecutar el movimiento placeholder."), false);
+		SetLastActionMessage(TEXT("No se pudo ejecutar el movimiento."), false);
 		return;
 	}
 
@@ -470,6 +470,7 @@ void AWLCampaignPlayerController::SelectCampaignForce(const FWLCampaign3DForceVi
 	}
 	SelectedForceCategory = Force.MarkerCategory;
 	bSelectedForceMovable = Force.bMovable;
+	bSelectedForceIsRecruitmentBase = Force.bIsRecruitmentBase;
 	SelectedForceMovementNodeId = Force.MovementNodeId;
 	SelectedForceMovementStatus = Force.MovementStatus;
 
@@ -517,6 +518,12 @@ TArray<FWLCampaignForceCompositionEntry> AWLCampaignPlayerController::GetSelecte
 TArray<FWLCampaignRecruitButton> AWLCampaignPlayerController::GetSelectedForceRecruitOptions() const
 {
 	TArray<FWLCampaignRecruitButton> Out;
+	// Solo los FUERTES (bases de reclutamiento) entrenan tropas. Un ejercito de campo seleccionado muestra
+	// sus tropas y se mueve, pero NO recluta (modelo Total War: recluta en el edificio).
+	if (!bSelectedForceIsRecruitmentBase)
+	{
+		return Out;
+	}
 	const UGameInstance* GI = GetGameInstance();
 	const UWLStrategicTickSubsystem* Tick = GI ? GI->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr;
 	if (!Tick || SelectedForceId.IsEmpty())

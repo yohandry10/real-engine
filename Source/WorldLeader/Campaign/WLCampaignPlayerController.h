@@ -307,6 +307,7 @@ private:
 	TArray<FWLCampaignForceCompositionEntry> SelectedForceComposition;
 	FString SelectedForceCategory;  // land|air|naval (para elegir que unidad recluta el boton)
 	bool bSelectedForceMovable = true;
+	bool bSelectedForceIsRecruitmentBase = false;  // solo los FUERTES reclutan (no los ejercitos de campo)
 	FString SelectedForceMovementNodeId;
 	FString SelectedForceMovementStatus;
 	EWLCampaignForceMovementOrderMode ForceMovementOrderMode = EWLCampaignForceMovementOrderMode::None;

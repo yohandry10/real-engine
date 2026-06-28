@@ -435,12 +435,16 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	{
 		ArmyMarkerInstances->SetVisibility(bCityDetail, true);
 	}
-	for (UStaticMeshComponent* Marker : ForceMarkerComponents)
+	for (int32 Index = 0; Index < ForceMarkerComponents.Num(); ++Index)
 	{
+		UStaticMeshComponent* Marker = ForceMarkerComponents[Index];
 		if (Marker)
 		{
-			Marker->SetVisibility(bCityDetail, true);
-			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			// Token visible por zoom Y solo si la fuerza tiene tropas (fuerte vacio -> sin tanque). La
+			// colision de seleccion sigue a la visibilidad: si ves el tanque, lo puedes clicar.
+			const bool bShow = bCityDetail && ForceHasTroopsForToken(Index);
+			Marker->SetVisibility(bShow, true);
+			Marker->SetCollisionEnabled(bShow ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
 	}
 	for (UPrimitiveComponent* Marker : ForceSelectionMarkers)
@@ -636,11 +640,13 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 			Label->SetVisibility(bCloseDetailVisible, true);
 		}
 	}
-	for (UStaticMeshComponent* Marker : ForceMarkerComponents)
+	for (int32 Index = 0; Index < ForceMarkerComponents.Num(); ++Index)
 	{
+		UStaticMeshComponent* Marker = ForceMarkerComponents[Index];
 		if (Marker)
 		{
-			Marker->SetVisibility(bCloseDetailVisible, true);
+			// Token visible por detalle Y solo si la fuerza tiene tropas (fuerte vacio -> sin tanque).
+			Marker->SetVisibility(bCloseDetailVisible && ForceHasTroopsForToken(Index), true);
 			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}

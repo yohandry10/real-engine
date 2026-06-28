@@ -125,6 +125,9 @@ struct FWLCampaign3DForceView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bAir = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bNaval = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bMovable = true;
+	// Ancla de reclutamiento (un FUERTE/edificio): muestra opciones de reclutar y NO se mueve. El ejercito
+	// que produce es un token movible SEPARADO (ver SyncRecruitedArmyTokens).
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bIsRecruitmentBase = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") TArray<FWLForceUnitGroup> Composition;
 };
 
@@ -199,6 +202,9 @@ public:
 	EWLCampaign3DZoomLOD GetCurrentZoomLOD() const { return CurrentZoomLOD; }
 	FString GetCurrentZoomLODLabel() const;
 	void ApplyZoomLOD(float CameraHeight);
+	// Crea/actualiza el token de EJERCITO movible de cada fuerte cuya guarnicion ha reclutado tropas
+	// (modelo Total War: recluta en el edificio, despliega un ejercito aparte que avanza por carretera).
+	void SyncRecruitedArmyTokens();
 
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") FVector2D TheaterCenterLonLat = FVector2D(-68.6f, 7.2f);
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float GeoScale = 9000.f;
@@ -411,8 +417,18 @@ private:
 	void RegisterBorderOutpostFlatPad(float Lon, float Lat);
 	void AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale);
 	void AddMilitaryForceMarkers();
-	void AddMilitaryForceMarker(const FWLCampaign3DForceView& Force);
+	void AddMilitaryForceMarker(const FWLCampaign3DForceView& Force, bool bSpawnTokenMesh = true);
 	void RefreshMilitaryForceMarkerVisuals();
+	bool IsForceSelectableByProximity(int32 Index) const;
+	// Token de fuerza visible solo si tiene tropas (composicion base o guarnicion reclutada): un fuerte
+	// vacio no muestra tanque hasta reclutar. Usado por ApplyZoomLOD y RefreshMilitaryForceMarkerVisuals.
+	bool ForceHasTroopsForToken(int32 Index) const;
+	// Posicion aterrizada para el token de un EJERCITO terrestre: traza un rayo contra el TERRENO (solo el
+	// TerrainMesh, ignora edificios/proxies) para apoyar el tanque EXACTAMENTE sobre la superficie visible
+	// -> nunca flota ni se hunde, en campo abierto o en ciudad. Usado al crear y al mover el ejercito.
+	FVector GroundedLandTokenLocation(float Lon, float Lat) const;
+	FVector GetForceSelectionProxyLocation(const FWLCampaign3DForceView& Force, const FVector& MarkerLocation) const;
+	FVector GetForceLabelLocation(const FWLCampaign3DForceView& Force, const FVector& MarkerLocation) const;
 	void BuildMovementNodesAndEdges();
 	void BuildIntercityRoads();
 	void BuildVenezuelaRoadAssetLayer();
@@ -427,6 +443,17 @@ private:
 	void AddMovementRoutePreviewSegment(const FVector& Start, const FVector& End, const FLinearColor& Color, int32 SectionIndex);
 	void DestroyMovementDestinationMarkers();
 	FVector GetForceMarkerLocationForNode(const FWLCampaign3DForceView& Force, const FWLCampaign3DMovementNodeView& Node) const;
+	struct FForceMovementAnimation
+	{
+		FString ForceId;
+		int32 ForceIndex = INDEX_NONE;
+		TArray<FVector> Points;
+		float ElapsedSeconds = 0.f;
+		float DurationSeconds = 0.f;
+	};
+	TArray<FForceMovementAnimation> ForceMovementAnimations;
+	void StartForceMovementAnimation(int32 ForceIndex, const TArray<FWLCampaign3DMovementNodeView>& RouteNodes, const FVector& StartLocation);
+	void UpdateForceMovementAnimations(float DeltaSeconds);
 	void RebuildPointSelectionHighlight(const FVector& Location, float Radius, const FLinearColor& Color);
 	void AddVegetationScatter();
 	void AddInstance(UInstancedStaticMeshComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale);

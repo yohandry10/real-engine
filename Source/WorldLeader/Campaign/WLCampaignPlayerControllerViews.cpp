@@ -306,7 +306,7 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 		{
 			const TArray<FWLCampaignRecruitButton> Options = GetSelectedForceRecruitOptions();
 			const float RBtnW = (PanelW - 48.f) * 0.5f;
-			const float RBtnH = 24.f;
+			const float RBtnH = 30.f;
 			const float RBtnGap = 6.f;
 			const float RGridY = (ActionY + 40.f) + 18.f;   // = DisabledStartY(no-mov)+18 (sync con el .inl)
 			const int32 MaxOpt = FMath::Min(Options.Num(), 6);

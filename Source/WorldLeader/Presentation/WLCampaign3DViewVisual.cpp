@@ -1404,9 +1404,13 @@ void AWLCampaign3DView::AddBorderOutpost(
 		Garrison.NearbyCity = Name;
 		Garrison.Lon = OutpostLonLat.X;
 		Garrison.Lat = OutpostLonLat.Y;
-		Garrison.WorldLocation = Base + FVector(0.f, 0.f, 2600.f);
-		Garrison.bMovable = false;       // los fuertes no se mueven; solo reclutan
-		AddMilitaryForceMarker(Garrison);
+		Garrison.WorldLocation = Base + FVector(0.f, 0.f, 1000.f);
+		Garrison.bMovable = false;            // el FUERTE (edificio) no se mueve: solo recluta
+		Garrison.bIsRecruitmentBase = true;   // -> el panel muestra opciones de reclutar
+		// El fuerte es un EDIFICIO clicable SIN token (nada de tanque flotante). Al reclutar tropas, sale
+		// un EJERCITO movible aparte (token tanque) generado por SyncRecruitedArmyTokens, que avanza por
+		// carretera (modelo Total War). bSpawnTokenMesh=false -> el fuerte solo aporta la hitbox de clic.
+		AddMilitaryForceMarker(Garrison, false);
 	}
 
 	float NearestCityKm = 9999.f;

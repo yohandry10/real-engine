@@ -4,6 +4,7 @@
 
 #include "WorldLeader.h"
 #include "Campaign/WLDataRegistry.h"
+#include "Campaign/WLStrategicTickSubsystem.h"
 #include "Presentation/WLCampaignOverviewBuilder.h"
 #include "Presentation/WLCampaignRegionGeometry.h"
 #include "Presentation/WLCampaignRouteBuilder.h"
@@ -12,6 +13,8 @@
 #include "Presentation/WLCampaignVisualStyle.h"
 #include "Presentation/WLCampaignWaterBuilder.h"
 #include "ProceduralMeshComponent.h"
+#include "CollisionQueryParams.h"
+#include "Engine/HitResult.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
@@ -337,9 +340,13 @@ void AWLCampaign3DView::AddMilitaryForceMarkers()
 		Force.WorldLocation = ProjectLonLat(Force.Lon, Force.Lat) + FVector(0.f, 0.f, Force.bNaval ? 2350.f : 2600.f);
 		AddMilitaryForceMarker(Force);
 	}
+
+	// Materializa ejercitos para guarniciones ya reclutadas (p.ej. al cargar partida). En juego nuevo no
+	// hay ninguna, asi que no crea nada.
+	SyncRecruitedArmyTokens();
 }
 
-void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& Force)
+void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& Force, bool bSpawnTokenMesh)
 {
 	if (Force.Id.IsEmpty())
 	{
@@ -358,53 +365,56 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 		return;
 	}
 
-	// Token de ejercito (NPC) = modelo de unidad por categoria (tanque/buque/caza). Respaldo: cono.
-	UStaticMesh* TokenMesh = Force.bNaval ? ForceTokenNavalMesh
-		: (Force.bAir ? ForceTokenAirMesh : ForceTokenLandMesh);
-	if (!TokenMesh)
-	{
-		TokenMesh = ConeMesh;
-	}
-	if (!TokenMesh)
-	{
-		return;
-	}
-
 	const int32 ForceIndex = ForceViews.Num();
 	const FLinearColor BaseColor = CampaignMilitaryForceColor(Force);
-
-	// El modelo es 1u~=1m; el mapa mide decenas de km. Escalamos a un ANCHO DE TOKEN visible (icono de
-	// ejercito tipo Total War, no a escala real).
 	const float TargetTokenWidth = Force.bNaval ? 5200.f : (Force.bAir ? 4400.f : 3600.f);
-	const FVector Ext = TokenMesh->GetBounds().BoxExtent;
-	const float ModelW = FMath::Max(1.f, FMath::Max(Ext.X, Ext.Y) * 2.f);
-	const float TokenScaleU = TargetTokenWidth / ModelW;
-	const FVector TokenScale(TokenScaleU, TokenScaleU, TokenScaleU);
-	const float LabelZ = TargetTokenWidth * 0.95f;
 
-	UStaticMeshComponent* Marker = NewObject<UStaticMeshComponent>(this);
-	if (!Marker)
+	// Token de UNIDAD (NPC) SOLO si se pide. Los FUERTES NO llevan token: son un edificio clicable (la
+	// guarnicion se ve en el panel; las tropas como icono movil son un paso aparte). Sin token -> Marker
+	// nullptr (las arrays paralelas lo toleran; Queries/LOD null-chequean).
+	UStaticMeshComponent* Marker = nullptr;
+	FVector TokenScale(1.f, 1.f, 1.f);
+	if (bSpawnTokenMesh)
 	{
-		return;
-	}
-	Marker->SetupAttachment(SceneRoot);
-	Marker->RegisterComponent();
-	Marker->SetStaticMesh(TokenMesh);
-	Marker->SetWorldLocation(Force.WorldLocation);
-	Marker->SetWorldRotation(FRotator(0.f, Force.bNaval ? 45.f : 0.f, 0.f));
-	Marker->SetWorldScale3D(TokenScale);
-	Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Marker->SetCollisionObjectType(ECC_WorldDynamic);
-	Marker->ComponentTags.Add(TEXT("WorldLeaderCampaign3DForce"));
-	Marker->ComponentTags.Add(FName(*Force.Id));
-	// Material UNLIT vertex-color (igual que ciudades/vehiculos): muestra el camuflaje del modelo y
-	// queda coherente con el mapa (un material LIT saldria oscuro -> doc #4).
-	if (VertexColorMaterial)
-	{
-		const int32 NumMats = FMath::Max(1, Marker->GetNumMaterials());
-		for (int32 i = 0; i < NumMats; ++i)
+		UStaticMesh* TokenMesh = Force.bNaval ? ForceTokenNavalMesh
+			: (Force.bAir ? ForceTokenAirMesh : ForceTokenLandMesh);
+		if (!TokenMesh)
 		{
-			Marker->SetMaterial(i, VertexColorMaterial);
+			TokenMesh = ConeMesh;
+		}
+		if (TokenMesh)
+		{
+			const FVector Ext = TokenMesh->GetBounds().BoxExtent;
+			const float ModelW = FMath::Max(1.f, FMath::Max(Ext.X, Ext.Y) * 2.f);
+			const float TokenScaleU = TargetTokenWidth / ModelW;
+			TokenScale = FVector(TokenScaleU, TokenScaleU, TokenScaleU);
+			Marker = NewObject<UStaticMeshComponent>(this);
+			if (Marker)
+			{
+				Marker->SetupAttachment(SceneRoot);
+				Marker->RegisterComponent();
+				Marker->SetStaticMesh(TokenMesh);
+				Marker->SetWorldLocation(Force.WorldLocation);
+				Marker->SetWorldRotation(FRotator(0.f, Force.bNaval ? 45.f : 0.f, 0.f));
+				Marker->SetWorldScale3D(TokenScale);
+				// El TOKEN (la unidad visible) es CLICABLE: bloquea el trazo de seleccion. Asi "si ves el
+				// tanque, lo puedes clicar" (el LOD activa/desactiva esta colision junto con la visibilidad,
+				// evitando el bug de "visible pero no seleccionable"). TryGetForceForComponent lo reconoce.
+				Marker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+				Marker->SetCollisionObjectType(ECC_WorldDynamic);
+				Marker->SetCollisionResponseToAllChannels(ECR_Ignore);
+				Marker->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+				Marker->ComponentTags.Add(TEXT("WorldLeaderCampaign3DForce"));
+				Marker->ComponentTags.Add(FName(*Force.Id));
+				if (VertexColorMaterial)
+				{
+					const int32 NumMats = FMath::Max(1, Marker->GetNumMaterials());
+					for (int32 i = 0; i < NumMats; ++i)
+					{
+						Marker->SetMaterial(i, VertexColorMaterial);
+					}
+				}
+			}
 		}
 	}
 
@@ -414,13 +424,18 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 	USphereComponent* SelectionProxy = NewObject<USphereComponent>(this);
 	if (!SelectionProxy)
 	{
-		Marker->DestroyComponent();
+		if (Marker)
+		{
+			Marker->DestroyComponent();
+		}
 		return;
 	}
 	SelectionProxy->SetupAttachment(SceneRoot);
 	SelectionProxy->RegisterComponent();
-	SelectionProxy->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, TargetTokenWidth * 0.30f));
-	SelectionProxy->SetSphereRadius(TargetTokenWidth * 0.72f);
+	SelectionProxy->SetWorldLocation(GetForceSelectionProxyLocation(Force, Force.WorldLocation));
+	// El fuerte y el tanque quedan cerca, pero sus hitboxes NO deben solaparse: clicar fuerte selecciona
+	// fuerte; clicar tanque selecciona ejercito. El fallback por proximidad se mantiene todavia mas chico.
+	SelectionProxy->SetSphereRadius(bSpawnTokenMesh ? TargetTokenWidth * 0.64f : 2200.f);
 	SelectionProxy->SetVisibility(false, true);
 	SelectionProxy->SetHiddenInGame(false, true);
 	SelectionProxy->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -436,7 +451,7 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 	{
 		Label->SetupAttachment(SceneRoot);
 		Label->RegisterComponent();
-		Label->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, LabelZ));
+		Label->SetWorldLocation(GetForceLabelLocation(Force, Force.WorldLocation));
 		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 		Label->SetHorizontalAlignment(EHTA_Center);
 		Label->SetWorldSize(Force.bNaval ? 430.f : 390.f);
@@ -452,10 +467,190 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 	ForceMarkerBaseScales.Add(TokenScale);
 	ForceMarkerBaseColors.Add(BaseColor);
 
-	if (ForceMarkerComponents.IsValidIndex(ForceIndex))
+	if (ForceMarkerComponents.IsValidIndex(ForceIndex) && ForceMarkerComponents[ForceIndex])
 	{
 		ForceMarkerComponents[ForceIndex]->SetVisibility(!IsHidden(), true);
 	}
+}
+
+FVector AWLCampaign3DView::GroundedLandTokenLocation(float Lon, float Lat) const
+{
+	const FVector Projected = ProjectLonLat(Lon, Lat);
+
+	// Superficie visible EXACTA: raycast hacia abajo contra SOLO el TerrainMesh (su colision se cuece de los
+	// mismos vertices que se dibujan, asi que el impacto = el suelo que se ve, con bioma/pads ya incluidos).
+	// LineTraceComponent ignora edificios, proxies y cualquier otra cosa -> el tanque apoya en el terreno.
+	float SurfaceZ;
+	bool bHit = false;
+	if (TerrainMesh)
+	{
+		const FVector Start(Projected.X, Projected.Y, Projected.Z + 600000.f);
+		const FVector End(Projected.X, Projected.Y, Projected.Z - 600000.f);
+		FHitResult Hit;
+		FCollisionQueryParams Q(FName(TEXT("WLArmyGround")), true);
+		if (TerrainMesh->LineTraceComponent(Hit, Start, End, Q))
+		{
+			SurfaceZ = Hit.ImpactPoint.Z;
+			bHit = true;
+		}
+	}
+	if (!bHit)
+	{
+		// Respaldo analitico (campo abierto): ProjectLonLat + offset de bioma, igual que ciudades/fuertes.
+		const bool bCore = true;
+		const EWLVisualBiome Biome = FWLCampaignVisualStyle::ClassifyVisualBiome(Lon, Lat, bCore);
+		SurfaceZ = Projected.Z + FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, bCore) + 16.f;
+	}
+
+	// Asiento: lleva el punto MAS BAJO del modelo a la superficie (admite cualquier pivote del FBX).
+	float Seat = 0.f;
+	if (ForceTokenLandMesh)
+	{
+		const FVector Ext = ForceTokenLandMesh->GetBounds().BoxExtent;
+		const FVector Orig = ForceTokenLandMesh->GetBounds().Origin;
+		const float ModelW = FMath::Max(1.f, FMath::Max(Ext.X, Ext.Y) * 2.f);
+		const float Scale = 3600.f / ModelW;   // = TargetTokenWidth terrestre en AddMilitaryForceMarker
+		Seat = (Ext.Z - Orig.Z) * Scale;
+	}
+
+	return FVector(Projected.X, Projected.Y, SurfaceZ + Seat);
+}
+
+void AWLCampaign3DView::SyncRecruitedArmyTokens()
+{
+	const UWLStrategicTickSubsystem* Tick = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr;
+	if (!Tick)
+	{
+		return;
+	}
+
+	// Recolecta los FUERTES primero: abajo se ANADEN ejercitos a ForceViews, lo que invalidaria las
+	// referencias si iteraramos el array en vivo.
+	struct FFortInfo { FString Id; FString Name; FString Iso; FVector Loc; float Lon; float Lat; };
+	TArray<FFortInfo> Forts;
+	for (const FWLCampaign3DForceView& F : ForceViews)
+	{
+		if (F.bIsRecruitmentBase)
+		{
+			Forts.Add({ F.Id, F.Name, F.CountryIso, F.WorldLocation, F.Lon, F.Lat });
+		}
+	}
+
+	for (const FFortInfo& Fort : Forts)
+	{
+		const TArray<FWLGarrisonGroup> Garrison = Tick->GetGarrisonRecruited(Fort.Id);
+		if (Garrison.Num() == 0)
+		{
+			continue;   // nada reclutado todavia -> el fuerte aun no despliega ejercito
+		}
+
+		TArray<FWLForceUnitGroup> Comp;
+		for (const FWLGarrisonGroup& G : Garrison)
+		{
+			FWLForceUnitGroup U;
+			U.UnitType = G.UnitType;
+			U.Label = G.Label;
+			U.Count = G.Count;
+			Comp.Add(U);
+		}
+
+		const FString ArmyId = TEXT("ARMY-") + Fort.Id;
+
+		// Si el ejercito ya existe, solo sincroniza su composicion (puede haberse movido: no tocar posicion).
+		bool bExists = false;
+		for (FWLCampaign3DForceView& F : ForceViews)
+		{
+			if (F.Id.Equals(ArmyId, ESearchCase::IgnoreCase))
+			{
+				F.Composition = Comp;
+				bExists = true;
+				break;
+			}
+		}
+		if (bExists)
+		{
+			continue;
+		}
+
+		// Crea el ejercito movible cerca del fuerte, desplazado hacia el nodo de carretera mas cercano (asi
+		// queda "sobre la ruta" y su hitbox no se solapa con la del fuerte).
+		FWLCampaign3DForceView Army;
+		Army.Id = ArmyId;
+		// Nombre limpio: "Ejercito de <region>" (quita "border fort"/"fronterizo"). Cada fuerte (Este, Sur,
+		// Norte...) produce su PROPIO ejercito, asi que un pais puede tener muchos desplegados a la vez.
+		FString Region = Fort.Name;
+		Region.ReplaceInline(TEXT(" border fort"), TEXT(""), ESearchCase::IgnoreCase);
+		Region.ReplaceInline(TEXT("Fuerte fronterizo"), TEXT(""), ESearchCase::IgnoreCase);
+		Region.ReplaceInline(TEXT(" fronterizo"), TEXT(""), ESearchCase::IgnoreCase);
+		Region.TrimStartAndEndInline();
+		Army.Name = FString::Printf(TEXT("Ejercito de %s"), Region.IsEmpty() ? *Fort.Name : *Region);
+		Army.CountryIso = Fort.Iso;
+		Army.CountryName = Fort.Iso;
+		Army.ForceType = TEXT("Ejercito de campo");
+		Army.MarkerCategory = TEXT("land");
+		Army.Mobility = TEXT("movil");
+		Army.OperationalState = TEXT("desplegado");
+		Army.Posture = TEXT("en marcha");
+		Army.bMovable = true;
+		Army.bIsRecruitmentBase = false;
+		Army.Composition = Comp;
+
+		// Posiciona el ejercito junto al fuerte, desplazado ~5000u hacia el nodo de carretera mas cercano
+		// (para no solaparse con el edificio) y APOYADO en el terreno via raycast (GroundedLandTokenLocation
+		// -> imposible que flote). El bug anterior anclaba la Z del fuerte en una posicion lejana con otro
+		// relieve.
+		float ArmyLon = Fort.Lon;
+		float ArmyLat = Fort.Lat;
+		FWLCampaign3DForceView Probe;
+		Probe.WorldLocation = ProjectLonLat(Fort.Lon, Fort.Lat);
+		const FString NearestId = FindNearestMovementNodeId(Probe);
+		if (const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(NearestId))
+		{
+			FVector2D Dir(Node->Lon - Fort.Lon, Node->Lat - Fort.Lat);
+			if (Dir.SizeSquared() > KINDA_SMALL_NUMBER)
+			{
+				Dir.Normalize();
+				ArmyLon = Fort.Lon + Dir.X * 0.14f;   // ~5000u hacia el nodo, fuera del fuerte
+				ArmyLat = Fort.Lat + Dir.Y * 0.14f;
+			}
+			Army.MovementNodeId = NearestId;
+			Army.LocationName = Node->Name;
+			Army.NearbyCity = Node->Name;
+			Army.ProvinceId = Node->ProvinceId;
+			Army.ProvinceName = Node->ProvinceName;
+		}
+		Army.WorldLocation = GroundedLandTokenLocation(ArmyLon, ArmyLat);
+		Army.Lon = ArmyLon;
+		Army.Lat = ArmyLat;
+
+		int32 Total = 0;
+		for (const FWLForceUnitGroup& U : Comp)
+		{
+			Total += U.Count;
+		}
+		Army.EstimatedStrength = Total;
+
+		AddMilitaryForceMarker(Army, true);
+	}
+}
+
+bool AWLCampaign3DView::ForceHasTroopsForToken(int32 Index) const
+{
+	if (!ForceViews.IsValidIndex(Index))
+	{
+		return false;
+	}
+	const FWLCampaign3DForceView& Force = ForceViews[Index];
+	if (Force.Composition.Num() > 0)
+	{
+		return true;   // fuerzas de ciudad: composicion base -> siempre visibles
+	}
+	// Fuertes (guarnicion vacia al inicio): el token aparece cuando se ha reclutado algo.
+	if (const UWLStrategicTickSubsystem* Tick = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr)
+	{
+		return Tick->GetGarrisonRecruited(Force.Id).Num() > 0;
+	}
+	return false;
 }
 
 void AWLCampaign3DView::RefreshMilitaryForceMarkerVisuals()
@@ -469,6 +664,10 @@ void AWLCampaign3DView::RefreshMilitaryForceMarkerVisuals()
 		}
 
 		const FWLCampaign3DForceView& Force = ForceViews[Index];
+
+		// Token visible solo si la fuerza TIENE TROPAS (un fuerte vacio no muestra tanque hasta reclutar).
+		Marker->SetVisibility(ForceHasTroopsForToken(Index) && !IsHidden(), true);
+
 		const bool bSelected = !SelectedForceHighlightId.IsEmpty() && Force.Id.Equals(SelectedForceHighlightId, ESearchCase::IgnoreCase);
 		const bool bHovered = !HoveredForceHighlightId.IsEmpty() && Force.Id.Equals(HoveredForceHighlightId, ESearchCase::IgnoreCase);
 		const FVector BaseScale = ForceMarkerBaseScales.IsValidIndex(Index) ? ForceMarkerBaseScales[Index] : CampaignMilitaryForceScale(Force);

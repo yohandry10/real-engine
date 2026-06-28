@@ -248,6 +248,8 @@ void AWLCampaign3DView::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	UpdateForceMovementAnimations(DeltaSeconds);
+
 	if (PendingCityVisualScreenshotSeconds >= 0.f && !bCityVisualScreenshotRequested)
 	{
 		PendingCityVisualScreenshotSeconds -= DeltaSeconds;
@@ -433,6 +435,7 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	SelectedCityHighlightId.Reset();
 	SelectedForceHighlightId.Reset();
 	HoveredForceHighlightId.Reset();
+	ForceMovementAnimations.Reset();
 	ForceMarkerBaseScales.Reset();
 	ForceMarkerBaseColors.Reset();
 
