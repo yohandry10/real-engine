@@ -121,14 +121,31 @@ namespace
 					{
 						continue;
 					}
-					if (!FWLCampaignRegionGeometry::PointInLonLatRing(Center, Ring))
+					// Ciudades: dentro del disco de una ciudad FORZAR el terreno (rellena huecos costeros
+					// donde el centro de celda cae en mar) y UNIFICAR el offset de bioma al del ancla de la
+					// ciudad. Sin esto, celdas de bioma mas alto (Montaña +560 junto a un puerto Costa +95)
+					// sobresalen sobre el piso de la ciudad y entierran los edificios -> "ciudad incompleta".
+					bool bInCityPad = false;
+					float CityPadZOffset = 0.f;
+					for (const FWLCampaignCityLevelPad& Pad : Params.CityLevelPads)
+					{
+						const float DLonPad = Center.X - Pad.Lon;
+						const float DLatPad = Center.Y - Pad.Lat;
+						if (DLonPad * DLonPad + DLatPad * DLatPad <= Pad.RadiusDeg * Pad.RadiusDeg)
+						{
+							bInCityPad = true;
+							CityPadZOffset = Pad.ZOffset;
+							break;
+						}
+					}
+					if (!bInCityPad && !FWLCampaignRegionGeometry::PointInLonLatRing(Center, Ring))
 					{
 						continue;
 					}
 
 					const EWLVisualBiome Biome = FWLCampaignVisualStyle::ClassifyVisualBiome(Center.X, Center.Y, true);
 					FTerrainSectionBuffer& Buffer = Buffers[static_cast<int32>(Biome)];
-					const float ZOffset = FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, bCoreCountry);
+					const float ZOffset = bInCityPad ? CityPadZOffset : FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, bCoreCountry);
 					const int32 Base = Buffer.Verts.Num();
 					FVector A = ProjectLonLat(Lon, Lat);
 					FVector B = ProjectLonLat(Lon + CellDegrees, Lat);
@@ -235,6 +252,24 @@ namespace
 			const float SegmentMinLat = FMath::Min(A.Y, B.Y);
 			const float SegmentMaxLat = FMath::Max(A.Y, B.Y);
 			if (!FWLCampaignRegionGeometry::LonLatBoundsIntersect(SegmentMinLon, SegmentMaxLon, SegmentMinLat, SegmentMaxLat, MinLon, MaxLon, MinLat, MaxLat))
+			{
+				continue;
+			}
+
+			// No trazar el contorno SOBRE las ciudades: la linea blanca tapaba puertos como
+			// Guayaquil (el estuario entra justo donde esta la ciudad). Saltar el segmento si su
+			// punto medio cae dentro de una huella -> deja un pequeno hueco limpio en el ribete.
+			const FVector2D SegMid = (A + B) * 0.5f;
+			bool bInsideCity = false;
+			for (const FVector& Circle : Params.BoundaryClipCircles)
+			{
+				if (FVector2D::DistSquared(SegMid, FVector2D(Circle.X, Circle.Y)) < Circle.Z * Circle.Z)
+				{
+					bInsideCity = true;
+					break;
+				}
+			}
+			if (bInsideCity)
 			{
 				continue;
 			}

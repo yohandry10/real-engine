@@ -10,6 +10,33 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWLOnMonthAdvanced, int32, Year, int32, Month);
 
+// --- Reclutamiento de tropas por turnos (estilo Total War) ---
+struct FWLRecruitOption   // una entrada del catalogo (RecruitableUnits.json)
+{
+	FString UnitType;     // mbt|ifv|apc|infantry|artillery|heli|aircraft|ship
+	FString Label;
+	FString Category;     // land|air|naval
+	int32   Batch = 0;    // efectivos que produce una orden completada
+	int64   Cost = 0;     // coste en tesoro
+	int32   Turns = 0;    // turnos que tarda
+};
+
+struct FWLRecruitOrder    // una orden en la cola de una base
+{
+	FString UnitType;
+	FString Label;
+	int32   Batch = 0;
+	int32   TurnsRemaining = 0;
+	int32   TurnsTotal = 0;
+};
+
+struct FWLGarrisonGroup   // tropa YA producida en una base (para mostrar en cartas)
+{
+	FString UnitType;
+	FString Label;
+	int32   Count = 0;
+};
+
 /**
  * Motor de campania estrategica. Mantiene la fecha de juego (1 tick = 1 mes,
  * ver roadmap) y aplica la economia mensual a cada nacion. Es deliberadamente
@@ -79,6 +106,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Construction")
 	TArray<FString> GetProvinceBuildings(const FString& ProvinceId) const;
 
+	// --- Reclutamiento (Fase 2: cola + avance por turno) ---
+	/** Catalogo de unidades reclutables (coste/turnos/lote). */
+	TArray<FWLRecruitOption> GetRecruitOptions() const;
+	/** Encola una unidad en una base; cobra el coste del tesoro de la nacion. */
+	bool QueueRecruit(const FString& BaseId, const FString& NationIso, const FString& UnitType, FString& OutMessage);
+	/** Cola de ordenes pendientes en una base (la [0] es la que se entrena). */
+	TArray<FWLRecruitOrder> GetRecruitQueue(const FString& BaseId) const;
+	/** Tropa ya producida (acumulada) en una base. */
+	TArray<FWLGarrisonGroup> GetGarrisonRecruited(const FString& BaseId) const;
+
 	/**
 	 * Ejecuta la IA economica para todas las naciones salvo PlayerNationIso.
 	 * Es determinista: una decision igual con datos iguales produce el mismo edificio.
@@ -127,6 +164,12 @@ private:
 	/** Estado mutable por provincia: poblacion actual y orden publico. */
 	TMap<FString, FWLProvinceRuntimeState> ProvinceStates;
 
+	/** Reclutamiento: cola de ordenes por base + tropa ya producida por base (baseId -> unit -> count). */
+	TMap<FString, TArray<FWLRecruitOrder>> RecruitQueues;
+	TMap<FString, TMap<FString, int32>> GarrisonRecruited;
+	mutable TArray<FWLRecruitOption> RecruitCatalog;
+	mutable bool bRecruitCatalogLoaded = false;
+
 	UPROPERTY()
 	TArray<FString> LastEconomicAIReports;
 
@@ -146,6 +189,10 @@ private:
 
 	/** Ingreso mensual extra de los edificios construidos en una provincia. */
 	int64 GetProvinceBuildingIncome(const FString& ProvinceId, const FWLBalanceRules& Rules) const;
+
+	void EnsureRecruitCatalog() const;
+	const FWLRecruitOption* FindRecruitOption(const FString& UnitType) const;
+	void AdvanceRecruitment();   // llamado por AdvanceMonth: avanza colas y completa ordenes
 
 	class UWLDataRegistry* GetDataRegistry() const;
 	class UWLBalanceSubsystem* GetBalanceSubsystem() const;

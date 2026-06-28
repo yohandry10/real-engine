@@ -1,0 +1,13 @@
+{
+  "_comment": "Catalogo de unidades reclutables (estilo Total War): cada orden cuesta 'cost' del tesoro, tarda 'turns' turnos y al terminar añade 'batch' efectivos de ese tipo a la guarnicion/fuerza de la base. unit = mismo tipo que la composicion de fuerzas (mbt|ifv|apc|infantry|artillery|heli|aircraft|ship).",
+  "units": [
+    { "unit": "infantry",  "label": "Infanteria",   "batch": 50, "cost": 1200, "turns": 1, "category": "land" },
+    { "unit": "apc",       "label": "Transportes",  "batch": 6,  "cost": 1800, "turns": 1, "category": "land" },
+    { "unit": "ifv",       "label": "Veh. combate", "batch": 5,  "cost": 2600, "turns": 2, "category": "land" },
+    { "unit": "mbt",       "label": "Tanques",      "batch": 4,  "cost": 4200, "turns": 2, "category": "land" },
+    { "unit": "artillery", "label": "Artilleria",   "batch": 4,  "cost": 3200, "turns": 2, "category": "land" },
+    { "unit": "heli",      "label": "Helicopteros", "batch": 3,  "cost": 5200, "turns": 3, "category": "air"  },
+    { "unit": "aircraft",  "label": "Cazas",        "batch": 4,  "cost": 6400, "turns": 3, "category": "air"  },
+    { "unit": "ship",      "label": "Buques",       "batch": 2,  "cost": 9000, "turns": 4, "category": "naval" }
+  ]
+}

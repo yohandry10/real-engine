@@ -194,6 +194,26 @@ variación por seed entre ciudades del mismo tipo, muros/río/puerto por tipo.
    gen_city):** `bShowMilitaryForceMarkers=false` en `WLCampaign3DView.h`; `AddMilitaryForceMarker`
    registra los datos en `ForceViews` (paneles/reactivación) pero **no crea cono/etiqueta/hitbox** (el
    hitbox además se tragaba el click de la ciudad). Reactivar con `true` cuando las fuerzas sean jugables.
+13. **CIUDAD = REJÍCULA DE CRUCES BLANCAS (parecía wireframe roto).** `gen_city.py` dibujaba pasos de
+   cebra (`C_CROSS`) de `block*0.5` (= MEDIA manzana, ~13u) y muy brillantes (0.78) en CADA intersección,
+   + aceras casi blancas (`C_SIDE 0.66`), + edificios chicos y separados (footprint 0.58–0.74, falloff
+   fuerte). Resultado: una retícula blanca dominaba sobre clusters dispersos de edificios = "graph paper",
+   no ciudad. **Solución (SOLO gen_city, NO tocar el puerto que es C++ `AddPortFacility`/`*Instances`):**
+   crosswalks PEQUEÑOS contenidos en el ancho de calle (`street*0.62` largo, `C_CROSS 0.52`); acera a tono
+   medio (`C_SIDE 0.45`); línea de carril algo más tenue (`C_LINE 0.74`); manzana DENSA (footprint
+   0.78–0.94, falloff suave `dist*1.1**1.8`, piso de altura 0.22·HMAX); calles más finas (block 28/street 8).
+   Regenerar las 9 variantes + reimportar (sin compilar; es solo el modelo). Verificado con `preview_city.py`.
+14. **CIUDADES-PUERTO se veían "rotas"/diminutas (Valparaíso, Mar del Plata).** El MODELO estaba bien
+   (se ve perfecto en `preview_city.py` oblicuo/steep). El problema era de ESCALA: `Port` usaba
+   `TargetWidth=5800` (apenas > Frontier 4400), así que estas ciudades MAYORES salían minúsculas al
+   lado de las capitales (17000) y leían como un tablero plano. Confirmado que NO era bug del sur ni de
+   geometría: Puerto Cabello (teatro core) renderiza idéntico a Valparaíso. **Solución (SOLO ciudad, NO
+   tocar `AddPortFacility`/`PortInstances` = el muelle):** subir `Port TargetWidth` 5800→**8000** en los
+   **3 sitios que DEBEN ir en sync**: `BuildMeshCity` (WLCampaign3DViewVisual.cpp), `RegisterCityFlatPad`
+   (WLCampaign3DViewGeometry.cpp) y la llamada a `NudgePortSettlementFootprintToLand` (Visual.cpp). El
+   nudge siguió dando `land=81/81` (ciudad entera en tierra). Pista de diagnóstico: la cámara de captura
+   de `StandalonePortScreenshot` era **cenital pura** (`-90°`) y ocultaba escala/skyline; se pasó a
+   **oblicua ~52°** para validar como lo ve el jugador. Es C++ → recompilar (no hace falta reimportar).
 
 ---
 

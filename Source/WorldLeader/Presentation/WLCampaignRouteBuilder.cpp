@@ -326,9 +326,10 @@ namespace
 		}
 
 		const FRouteStyle Style = StyleFor(Spec.Type);
-		// Densificado a ~0.12 grados (~13 km) para que la cinta pegue al relieve y la
-		// cordillera no "corte" los caminos largos (costa<->selva en Peru, etc.).
-		const TArray<FVector2D> Smoothed = DensifyLonLat(SmoothPoints(Spec.Points, Spec.Smoothness), 0.12f);
+		// Densificado a ~0.06 grados (~6.5 km) para que la cinta pegue al relieve y la
+		// cordillera no "corte" los caminos que la cruzan (Quito<->Sto Domingo, Quito<->Amazonia,
+		// costa<->selva en Peru, etc.). Antes 0.12 dejaba la cinta hundida bajo la cresta entre puntos.
+		const TArray<FVector2D> Smoothed = DensifyLonLat(SmoothPoints(Spec.Points, Spec.Smoothness), 0.06f);
 		// Recorta la cinta en cada huella de ciudad (la via llega al borde y para, no la cruza por
 		// encima) y sobre el AGUA (no flota sobre el mar). Sin recortes, una sola sub-polilinea.
 		for (const TArray<FVector2D>& Sub : ClipRoute(Smoothed))
@@ -786,6 +787,514 @@ void FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 			EWLCampaignRouteType::BorderCrossing,
 			{ FVector2D(-61.11f, 4.60f), FVector2D(-61.13f, 4.48f), FVector2D(-60.85f, 3.60f), FVector2D(-60.67f, 2.82f) },
 			6,
+			false
+		},
+		// --- ECUADOR: red vial real, mismo pipeline curado que CO/VE (conecta las 10 ciudades
+		//     por corredores reales). El cruce CO-EC (Ipiales-Tulcan) ya esta arriba; el cruce
+		//     EC-PE (Loja-Macara / La Tina) lo genera el paso automatico de fronteras.
+		// Troncal de la Sierra (Panamericana E35): Tulcan -> Ibarra -> Quito -> Latacunga ->
+		// Ambato -> Riobamba -> Azogues -> Cuenca -> Loja. Eje andino, pasa POR las ciudades.
+		{
+			TEXT("EC Panamericana Sierra E35"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-77.72f, 0.81f), FVector2D(-78.12f, 0.35f), FVector2D(-78.14f, 0.04f),
+				FVector2D(-78.45f, -0.15f), FVector2D(-78.52f, -0.22f), FVector2D(-78.57f, -0.51f),
+				FVector2D(-78.62f, -0.93f), FVector2D(-78.62f, -1.24f), FVector2D(-78.65f, -1.67f),
+				FVector2D(-78.84f, -2.20f), FVector2D(-78.85f, -2.74f), FVector2D(-79.00f, -2.90f),
+				FVector2D(-79.15f, -3.45f), FVector2D(-79.20f, -3.99f)
+			},
+			6,
+			false
+		},
+		// Aloag - Santo Domingo (E20): conecta Quito con la costa noroccidental. Linea oeste
+		// monotona (sin la V a Aloag) para cruzar la cordillera occidental de un solo paso y
+		// que la cinta no se hunda bajo la cresta (se veia "rota" entre Quito y Sto Domingo).
+		{
+			TEXT("EC Quito Santo Domingo E20"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-78.52f, -0.22f), FVector2D(-78.72f, -0.26f), FVector2D(-78.95f, -0.27f), FVector2D(-79.17f, -0.25f) },
+			5,
+			false
+		},
+		// Troncal de la Costa (E25): Santo Domingo -> Quevedo -> Babahoyo -> Guayaquil.
+		{
+			TEXT("EC Troncal Costa E25 north"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-79.17f, -0.25f), FVector2D(-79.32f, -0.75f), FVector2D(-79.47f, -1.03f),
+				FVector2D(-79.53f, -1.80f), FVector2D(-79.78f, -2.05f), FVector2D(-79.90f, -2.19f)
+			},
+			6,
+			false
+		},
+		// E25 sur: Guayaquil -> Naranjal -> Machala (litoral de El Oro).
+		{
+			TEXT("EC Guayaquil Machala E25 south"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-79.90f, -2.19f), FVector2D(-79.78f, -2.45f), FVector2D(-79.62f, -2.67f), FVector2D(-79.83f, -3.05f), FVector2D(-79.97f, -3.26f) },
+			5,
+			false
+		},
+		// E40 sierra-costa: Guayaquil -> Molleturo (paso del Cajas) -> Cuenca.
+		{
+			TEXT("EC Guayaquil Cuenca E40"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-79.90f, -2.19f), FVector2D(-79.62f, -2.50f), FVector2D(-79.40f, -2.78f), FVector2D(-79.18f, -2.88f), FVector2D(-79.00f, -2.90f) },
+			5,
+			false
+		},
+		// E30/E15: Santo Domingo -> Chone -> Portoviejo -> Manta (Manabi).
+		{
+			TEXT("EC Santo Domingo Manta E30"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-79.17f, -0.25f), FVector2D(-79.55f, -0.45f), FVector2D(-80.09f, -0.70f), FVector2D(-80.45f, -1.05f), FVector2D(-80.72f, -0.95f) },
+			5,
+			false
+		},
+		// E15 litoral: Manta -> Jipijapa -> Guayaquil.
+		{
+			TEXT("EC Manta Guayaquil coast E15"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-80.72f, -0.95f), FVector2D(-80.58f, -1.35f), FVector2D(-80.23f, -1.75f), FVector2D(-80.00f, -2.05f), FVector2D(-79.90f, -2.19f) },
+			5,
+			false
+		},
+		// E30 central: Riobamba -> Pallatanga -> Bucay -> Guayaquil (rama sierra-costa central).
+		{
+			TEXT("EC Riobamba Guayaquil E30"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-78.65f, -1.67f), FVector2D(-78.96f, -1.99f), FVector2D(-79.13f, -2.19f), FVector2D(-79.50f, -2.20f), FVector2D(-79.90f, -2.19f) },
+			5,
+			false
+		},
+		// E50/E35 sur: Machala -> Pasaje -> Saraguro -> Loja (cierra el anillo costa-sierra sur).
+		{
+			TEXT("EC Machala Loja E50"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-79.97f, -3.26f), FVector2D(-79.80f, -3.33f), FVector2D(-79.45f, -3.55f), FVector2D(-79.24f, -3.70f), FVector2D(-79.20f, -3.99f) },
+			5,
+			false
+		},
+		// Troncal Amazonica (E45/E20): Quito -> Papallacta -> Baeza -> Lumbaqui -> Nueva Loja
+		// (Lago Agrio). Conecta la ciudad amazonica que quedaba aislada (sin via).
+		{
+			TEXT("EC Quito Nueva Loja Amazonia"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-78.52f, -0.22f), FVector2D(-78.14f, -0.37f), FVector2D(-77.82f, -0.40f), FVector2D(-77.30f, -0.05f), FVector2D(-76.89f, 0.09f) },
+			5,
+			false
+		},
+		// Panamericana sur (E25): Machala -> Arenillas -> Huaquillas (frontera con Peru). El cruce
+		// Huaquillas-Tumbes va curado abajo (EC y PE ya son paises curados).
+		{
+			TEXT("EC Machala Huaquillas border"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-79.97f, -3.26f), FVector2D(-80.06f, -3.45f), FVector2D(-80.23f, -3.48f) },
+			4,
+			false
+		},
+		// ====================== PERU ======================
+		// Panamericana (costa): Tumbes -> Piura -> Chiclayo -> Trujillo -> Chimbote -> Lima -> Ica
+		// -> Nazca -> Camana -> Arequipa -> Moquegua -> Tacna. Eje costero, pasa POR las ciudades.
+		{
+			TEXT("PE Panamericana coast"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-80.45f, -3.57f), FVector2D(-80.63f, -5.19f), FVector2D(-79.84f, -6.77f),
+				FVector2D(-79.03f, -8.11f), FVector2D(-78.59f, -9.08f), FVector2D(-77.63f, -11.10f),
+				FVector2D(-77.04f, -12.05f), FVector2D(-76.20f, -13.42f), FVector2D(-75.73f, -14.07f),
+				FVector2D(-74.94f, -14.83f), FVector2D(-73.40f, -15.70f), FVector2D(-72.71f, -16.62f),
+				FVector2D(-71.54f, -16.41f), FVector2D(-70.93f, -17.19f), FVector2D(-70.25f, -18.01f)
+			},
+			6,
+			false
+		},
+		// Carretera Central: Lima -> La Oroya -> Jauja -> Huancayo.
+		{
+			TEXT("PE Carretera Central Huancayo"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-77.04f, -12.05f), FVector2D(-76.40f, -11.72f), FVector2D(-75.90f, -11.52f), FVector2D(-75.50f, -11.78f), FVector2D(-75.21f, -12.07f) },
+			5,
+			false
+		},
+		// Sierra sur: Arequipa -> Juliaca -> Puno (altiplano del Titicaca).
+		{
+			TEXT("PE Arequipa Juliaca Puno"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-71.54f, -16.41f), FVector2D(-71.00f, -15.90f), FVector2D(-70.13f, -15.49f), FVector2D(-70.02f, -15.84f) },
+			5,
+			false
+		},
+		// Sierra (Ruta 3S): Juliaca -> Sicuani -> Cusco.
+		{
+			TEXT("PE Juliaca Cusco"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-70.13f, -15.49f), FVector2D(-70.85f, -14.60f), FVector2D(-71.97f, -13.53f) },
+			5,
+			false
+		},
+		// Interoceanica Sur: Cusco -> Puerto Maldonado (Amazonia sur, hacia Bolivia/Brasil).
+		{
+			TEXT("PE Interoceanica Cusco Maldonado"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-71.97f, -13.53f), FVector2D(-71.20f, -13.20f), FVector2D(-70.20f, -12.80f), FVector2D(-69.18f, -12.59f) },
+			5,
+			false
+		},
+		// Cusco -> Abancay -> Puquio -> Nazca: enlaza la sierra sur con la Panamericana (en el punto Nazca).
+		{
+			TEXT("PE Cusco Abancay Nazca"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-71.97f, -13.53f), FVector2D(-72.88f, -13.63f), FVector2D(-73.80f, -14.30f), FVector2D(-74.94f, -14.83f) },
+			5,
+			false
+		},
+		// Selva central: Huancayo -> Cerro de Pasco -> Huanuco -> Tingo Maria -> Pucallpa.
+		{
+			TEXT("PE Huancayo Pucallpa"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-75.21f, -12.07f), FVector2D(-76.26f, -10.68f), FVector2D(-76.24f, -9.93f), FVector2D(-75.99f, -9.29f), FVector2D(-74.55f, -8.38f) },
+			5,
+			false
+		},
+		// IIRSA Norte: Iquitos -> Yurimaguas -> Tarapoto -> Moyobamba -> Bagua -> Chiclayo. Conecta
+		// Iquitos (real fluvial) con la costa por el corredor norte para que no quede aislada.
+		{
+			TEXT("PE IIRSA Norte Iquitos Chiclayo"),
+			EWLCampaignRouteType::Rural,
+			{
+				FVector2D(-73.25f, -3.75f), FVector2D(-75.20f, -5.10f), FVector2D(-76.11f, -5.90f),
+				FVector2D(-76.37f, -6.49f), FVector2D(-76.97f, -6.03f), FVector2D(-78.00f, -6.00f),
+				FVector2D(-78.53f, -5.66f), FVector2D(-79.84f, -6.77f)
+			},
+			5,
+			false
+		},
+		// ====================== CHILE ======================
+		// Panamericana Ruta 5 Norte: Arica -> Iquique -> Antofagasta -> Copiapo -> La Serena -> Santiago.
+		{
+			TEXT("CL Ruta 5 north"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-70.31f, -18.48f), FVector2D(-70.13f, -20.22f), FVector2D(-70.05f, -21.40f),
+				FVector2D(-70.40f, -23.65f), FVector2D(-70.40f, -25.40f), FVector2D(-70.33f, -27.37f),
+				FVector2D(-71.00f, -28.80f), FVector2D(-71.25f, -29.90f), FVector2D(-71.50f, -31.90f),
+				FVector2D(-70.95f, -32.85f), FVector2D(-70.65f, -33.45f)
+			},
+			6,
+			false
+		},
+		// Spur al puerto de Valparaiso.
+		{
+			TEXT("CL Santiago Valparaiso"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-70.65f, -33.45f), FVector2D(-71.20f, -33.20f), FVector2D(-71.62f, -33.05f) },
+			4,
+			false
+		},
+		// Panamericana Ruta 5 Sur: Santiago -> Talca -> Chillan -> Concepcion -> Temuco -> Valdivia -> Puerto Montt.
+		{
+			TEXT("CL Ruta 5 south"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-70.65f, -33.45f), FVector2D(-71.00f, -34.20f), FVector2D(-71.67f, -35.43f),
+				FVector2D(-72.10f, -36.61f), FVector2D(-73.05f, -36.83f), FVector2D(-72.59f, -38.74f),
+				FVector2D(-73.25f, -39.81f), FVector2D(-73.10f, -40.60f), FVector2D(-72.94f, -41.47f)
+			},
+			6,
+			false
+		},
+		// Carretera Austral / Patagonia: Puerto Montt -> Coyhaique -> Puerto Natales -> Punta Arenas.
+		// Trazada por el interior (mainland, dipping a la Patagonia argentina donde no hay tierra
+		// chilena continua) para no caer en los fiordos; la mascara deja pasar cualquier tierra.
+		{
+			TEXT("CL Austral Patagonia"),
+			EWLCampaignRouteType::Secondary,
+			{
+				FVector2D(-72.94f, -41.47f), FVector2D(-72.40f, -43.50f), FVector2D(-72.07f, -45.57f),
+				FVector2D(-71.80f, -48.50f), FVector2D(-72.00f, -50.80f), FVector2D(-72.51f, -51.73f),
+				FVector2D(-70.92f, -53.16f)
+			},
+			5,
+			false
+		},
+		// ============ CRUCES FRONTERIZOS CURADOS (entre paises ya curados) ============
+		// EC<->PE costero: Huaquillas -> Tumbes (Panamericana, Aguas Verdes).
+		{
+			TEXT("EC-PE Huaquillas Tumbes crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-80.23f, -3.48f), FVector2D(-80.34f, -3.50f), FVector2D(-80.45f, -3.57f) },
+			4,
+			false
+		},
+		// PE<->CL: Tacna -> Arica (Panamericana, hito de la Concordia).
+		{
+			TEXT("PE-CL Tacna Arica crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-70.25f, -18.01f), FVector2D(-70.28f, -18.25f), FVector2D(-70.31f, -18.48f) },
+			4,
+			false
+		},
+		// ====================== ARGENTINA ======================
+		// RN9/RN34 NO: Buenos Aires -> Rosario -> Cordoba -> Tucuman -> Salta -> La Quiaca (a Bolivia).
+		{
+			TEXT("AR RN9 northwest spine"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-58.38f, -34.60f), FVector2D(-60.64f, -32.95f), FVector2D(-64.18f, -31.42f),
+				FVector2D(-64.80f, -29.00f), FVector2D(-65.22f, -26.82f), FVector2D(-65.41f, -24.79f),
+				FVector2D(-65.50f, -23.60f), FVector2D(-65.59f, -22.10f)
+			},
+			6,
+			false
+		},
+		// RN7 Cuyo: Cordoba -> Rio Cuarto -> San Luis -> Mendoza (hacia Chile).
+		{
+			TEXT("AR RN7 Cuyo"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-64.18f, -31.42f), FVector2D(-64.35f, -33.13f), FVector2D(-66.34f, -33.30f), FVector2D(-68.84f, -32.89f) },
+			5,
+			false
+		},
+		// RN3 Atlantica/Patagonia: Buenos Aires -> Bahia Blanca -> Comodoro -> Rio Gallegos -> Ushuaia.
+		{
+			TEXT("AR RN3 Patagonia"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-58.38f, -34.60f), FVector2D(-62.27f, -38.72f), FVector2D(-65.10f, -43.30f),
+				FVector2D(-67.48f, -45.86f), FVector2D(-68.50f, -49.00f), FVector2D(-69.22f, -51.62f),
+				FVector2D(-68.80f, -53.00f), FVector2D(-68.30f, -54.80f)
+			},
+			6,
+			false
+		},
+		// Spur a Mar del Plata.
+		{
+			TEXT("AR Mar del Plata spur"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-58.38f, -34.60f), FVector2D(-57.80f, -37.00f), FVector2D(-57.55f, -38.00f) },
+			4,
+			false
+		},
+		// Mesopotamia (RN12/14): Buenos Aires -> Concordia -> Posadas -> Puerto Iguazu.
+		{
+			TEXT("AR Mesopotamia"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-58.38f, -34.60f), FVector2D(-58.00f, -31.40f), FVector2D(-55.90f, -27.37f), FVector2D(-54.58f, -25.60f) },
+			5,
+			false
+		},
+		// RN40 Andina: Mendoza -> Neuquen -> Bariloche.
+		{
+			TEXT("AR RN40 Andean"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-68.84f, -32.89f), FVector2D(-68.06f, -38.95f), FVector2D(-71.31f, -41.13f) },
+			5,
+			false
+		},
+		// ====================== URUGUAY ======================
+		// Costa (Interbalnearia): Colonia -> Montevideo -> Punta del Este -> Chuy.
+		{
+			TEXT("UY coast Interbalnearia"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-57.84f, -34.47f), FVector2D(-56.16f, -34.90f), FVector2D(-54.95f, -34.97f), FVector2D(-53.90f, -34.00f), FVector2D(-53.46f, -33.69f) },
+			5,
+			false
+		},
+		// Ruta 5 interior: Montevideo -> Rivera (a Brasil).
+		{
+			TEXT("UY Ruta 5 Rivera"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-56.16f, -34.90f), FVector2D(-56.00f, -32.40f), FVector2D(-55.55f, -30.90f) },
+			5,
+			false
+		},
+		// Ruta 3 NO: Montevideo -> Fray Bentos -> Salto -> Artigas.
+		{
+			TEXT("UY Ruta 3 northwest"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-56.16f, -34.90f), FVector2D(-57.00f, -34.00f), FVector2D(-58.30f, -33.12f), FVector2D(-57.96f, -31.38f), FVector2D(-56.47f, -30.40f) },
+			5,
+			false
+		},
+		// Ruta 8: Montevideo -> Melo.
+		{
+			TEXT("UY Ruta 8 Melo"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-56.16f, -34.90f), FVector2D(-55.20f, -33.70f), FVector2D(-54.18f, -32.37f) },
+			4,
+			false
+		},
+		// ====================== BRASIL ======================
+		// Litoral Atlantico (BR-101/116): Belem -> Sao Luis -> Fortaleza -> Natal -> Recife -> Salvador
+		// -> Vitoria -> Rio -> Sao Paulo -> Curitiba -> Florianopolis -> Porto Alegre.
+		{
+			TEXT("BR Atlantic coast"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-48.50f, -1.46f), FVector2D(-44.30f, -2.53f), FVector2D(-38.54f, -3.73f),
+				FVector2D(-35.21f, -5.79f), FVector2D(-34.88f, -8.05f), FVector2D(-38.51f, -12.97f),
+				FVector2D(-40.34f, -20.32f), FVector2D(-43.20f, -22.91f), FVector2D(-46.63f, -23.55f),
+				FVector2D(-49.27f, -25.43f), FVector2D(-48.55f, -27.59f), FVector2D(-51.23f, -30.03f)
+			},
+			7,
+			false
+		},
+		// Interior SE: Sao Paulo -> Belo Horizonte -> Brasilia -> Goiania.
+		{
+			TEXT("BR interior southeast"),
+			EWLCampaignRouteType::Primary,
+			{ FVector2D(-46.63f, -23.55f), FVector2D(-43.94f, -19.92f), FVector2D(-47.88f, -15.79f), FVector2D(-49.25f, -16.68f) },
+			5,
+			false
+		},
+		// NE interior (BR-020/226): Brasilia -> Teresina.
+		{
+			TEXT("BR Brasilia Teresina"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-47.88f, -15.79f), FVector2D(-46.00f, -11.00f), FVector2D(-44.00f, -7.00f), FVector2D(-42.80f, -5.09f) },
+			5,
+			false
+		},
+		// Belem-Brasilia (BR-153): corredor interior norte-sur.
+		{
+			TEXT("BR Belem Brasilia"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-48.50f, -1.46f), FVector2D(-48.00f, -7.00f), FVector2D(-48.50f, -11.00f), FVector2D(-47.88f, -15.79f) },
+			5,
+			false
+		},
+		// BR-364 Centro-Oeste/Amazonia: Sao Paulo -> Campo Grande -> Cuiaba -> Porto Velho -> Rio Branco -> Brasileia.
+		{
+			TEXT("BR BR-364 west"),
+			EWLCampaignRouteType::Primary,
+			{
+				FVector2D(-46.63f, -23.55f), FVector2D(-54.62f, -20.45f), FVector2D(-56.10f, -15.60f),
+				FVector2D(-63.90f, -8.76f), FVector2D(-67.81f, -9.97f), FVector2D(-68.75f, -11.01f)
+			},
+			6,
+			false
+		},
+		// Spur a Corumba (Pantanal, a Bolivia).
+		{
+			TEXT("BR Corumba spur"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-54.62f, -20.45f), FVector2D(-56.00f, -19.50f), FVector2D(-57.65f, -19.01f) },
+			4,
+			false
+		},
+		// Amazonia Norte (BR-319/174): Porto Velho -> Manaus -> Boa Vista -> Pacaraima (a Venezuela).
+		{
+			TEXT("BR Amazon north"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-63.90f, -8.76f), FVector2D(-60.02f, -3.10f), FVector2D(-60.30f, 0.00f), FVector2D(-60.67f, 2.82f), FVector2D(-61.15f, 4.48f) },
+			6,
+			false
+		},
+		// Amazonia Oeste: Manaus -> Tabatinga (frontera tripartita; real fluvial).
+		{
+			TEXT("BR Manaus Tabatinga"),
+			EWLCampaignRouteType::Rural,
+			{ FVector2D(-60.02f, -3.10f), FVector2D(-65.00f, -4.00f), FVector2D(-69.94f, -4.25f) },
+			4,
+			false
+		},
+		// Amapa: Belem -> Macapa -> Oiapoque (norte, a la Guayana Francesa).
+		{
+			TEXT("BR Amapa north"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-48.50f, -1.46f), FVector2D(-51.06f, 0.03f), FVector2D(-51.50f, 2.00f), FVector2D(-51.83f, 3.84f) },
+			5,
+			false
+		},
+		// BR-163: Cuiaba -> Santarem (corredor de la soja).
+		{
+			TEXT("BR BR-163 Santarem"),
+			EWLCampaignRouteType::Rural,
+			{ FVector2D(-56.10f, -15.60f), FVector2D(-55.00f, -8.00f), FVector2D(-54.70f, -2.44f) },
+			5,
+			false
+		},
+		// Sur (BR-277): Curitiba -> Foz do Iguacu.
+		{
+			TEXT("BR Curitiba Foz"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-49.27f, -25.43f), FVector2D(-52.00f, -25.50f), FVector2D(-54.59f, -25.54f) },
+			4,
+			false
+		},
+		// Sur (BR-290): Porto Alegre -> Uruguaiana (a Argentina).
+		{
+			TEXT("BR Porto Alegre Uruguaiana"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-51.23f, -30.03f), FVector2D(-54.00f, -29.80f), FVector2D(-57.09f, -29.75f) },
+			4,
+			false
+		},
+		// Sur (BR-158): Porto Alegre -> Santana do Livramento (a Uruguay/Rivera).
+		{
+			TEXT("BR Porto Alegre Santana"),
+			EWLCampaignRouteType::Secondary,
+			{ FVector2D(-51.23f, -30.03f), FVector2D(-53.00f, -30.50f), FVector2D(-55.53f, -30.89f) },
+			4,
+			false
+		},
+		// ============ CRUCES FRONTERIZOS CURADOS (cono sur, entre paises curados) ============
+		// CL<->AR: Santiago -> Mendoza (Cristo Redentor / Los Libertadores).
+		{
+			TEXT("CL-AR Santiago Mendoza crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-70.65f, -33.45f), FVector2D(-69.80f, -33.00f), FVector2D(-68.84f, -32.89f) },
+			4,
+			false
+		},
+		// CL<->AR sur: Puerto Montt -> Bariloche (paso Cardenal Samore).
+		{
+			TEXT("CL-AR Puerto Montt Bariloche crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-72.94f, -41.47f), FVector2D(-72.10f, -41.30f), FVector2D(-71.31f, -41.13f) },
+			4,
+			false
+		},
+		// AR<->UY: Buenos Aires -> Fray Bentos (puente Gualeguaychu, por tierra del lado argentino).
+		{
+			TEXT("AR-UY Buenos Aires Fray Bentos crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-58.38f, -34.60f), FVector2D(-58.60f, -33.50f), FVector2D(-58.30f, -33.12f) },
+			4,
+			false
+		},
+		// AR<->BR: Puerto Iguazu -> Foz do Iguacu (Triple Frontera).
+		{
+			TEXT("AR-BR Iguazu crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-54.58f, -25.60f), FVector2D(-54.59f, -25.54f) },
+			3,
+			false
+		},
+		// UY<->BR: Rivera -> Santana do Livramento (frontera seca, ciudades gemelas).
+		{
+			TEXT("UY-BR Rivera Santana crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-55.55f, -30.90f), FVector2D(-55.53f, -30.89f) },
+			3,
+			false
+		},
+		// PE<->BR: Puerto Maldonado -> Brasileia (Interoceanica, Inapari/Assis Brasil).
+		{
+			TEXT("PE-BR Maldonado Brasileia crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-69.18f, -12.59f), FVector2D(-68.95f, -11.80f), FVector2D(-68.75f, -11.01f) },
+			4,
+			false
+		},
+		// CO<->BR: Leticia -> Tabatinga (frontera amazonica, ciudades gemelas).
+		{
+			TEXT("CO-BR Leticia Tabatinga crossing"),
+			EWLCampaignRouteType::BorderCrossing,
+			{ FVector2D(-69.94f, -4.22f), FVector2D(-69.94f, -4.25f) },
+			3,
 			false
 		}
 	};

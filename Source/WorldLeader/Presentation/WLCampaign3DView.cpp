@@ -95,6 +95,10 @@ AWLCampaign3DView::AWLCampaign3DView()
 
 	SettlementMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SettlementMesh"));
 	SettlementMesh->SetupAttachment(SceneRoot);
+	BorderOutpostMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("BorderOutpostMesh"));
+	BorderOutpostMesh->SetupAttachment(SceneRoot);
+	PortFacilityMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("PortFacilityMesh"));
+	PortFacilityMesh->SetupAttachment(SceneRoot);
 
 	SelectionHighlightMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SelectionHighlightMesh"));
 	SelectionHighlightMesh->SetupAttachment(SceneRoot);
@@ -171,6 +175,14 @@ AWLCampaign3DView::AWLCampaign3DView()
 	{
 		ConeMesh = ConeMeshFinder.Object;
 	}
+
+	// Tokens de ejercito (NPC en el mapa): modelos de unidad unlit vertex-color de /Game/GenVehicle.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> TokenLand(TEXT("/Game/GenVehicle/veh_mbt.veh_mbt"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> TokenNaval(TEXT("/Game/GenVehicle/veh_ship.veh_ship"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> TokenAir(TEXT("/Game/GenVehicle/veh_aircraft.veh_aircraft"));
+	if (TokenLand.Succeeded())  { ForceTokenLandMesh = TokenLand.Object; }
+	if (TokenNaval.Succeeded()) { ForceTokenNavalMesh = TokenNaval.Object; }
+	if (TokenAir.Succeeded())   { ForceTokenAirMesh = TokenAir.Object; }
 
 	ConfigureInstancedComponent(SettlementBlockInstances, CubeMesh, FLinearColor(0.34f, 0.305f, 0.235f));
 	ConfigureInstancedComponent(SettlementTowerInstances, CubeMesh, FLinearColor(0.56f, 0.50f, 0.355f));
@@ -283,6 +295,132 @@ void AWLCampaign3DView::Tick(float DeltaSeconds)
 		}
 	}
 
+	if (PendingBorderOutpostScreenshotIndex != INDEX_NONE)
+	{
+		PendingBorderOutpostScreenshotSeconds -= DeltaSeconds;
+		if (PendingBorderOutpostScreenshotSeconds <= 0.f)
+		{
+			if (PendingBorderOutpostScreenshotIndex < PendingBorderOutpostScreenshotKeys.Num()
+				&& PendingBorderOutpostScreenshotIndex < PendingBorderOutpostScreenshotLonLats.Num())
+			{
+				const FString& TargetKey = PendingBorderOutpostScreenshotKeys[PendingBorderOutpostScreenshotIndex];
+				const FVector2D LonLat = PendingBorderOutpostScreenshotLonLats[PendingBorderOutpostScreenshotIndex];
+				const FVector Focus = ProjectLonLat(LonLat.X, LonLat.Y) + FVector(0.f, 0.f, 1600.f);
+				const FVector CameraLocation = Focus + FVector(0.f, 0.f, BorderOutpostScreenshotHeight);
+				const FRotator CameraRotation(-90.f, 0.f, 0.f);
+				if (ViewCamera)
+				{
+					ViewCamera->SetActorLocation(CameraLocation);
+					ViewCamera->SetActorRotation(CameraRotation);
+				}
+				DefaultCameraLocation = CameraLocation;
+				DefaultCameraRotation = CameraRotation;
+
+				const FString ScreenshotPath = FPaths::ProjectSavedDir()
+					/ FString::Printf(
+						TEXT("Screenshots/Windows/BorderOutpost_%02d_%s.png"),
+						PendingBorderOutpostScreenshotIndex + 1,
+						*TargetKey);
+				FScreenshotRequest::RequestScreenshot(ScreenshotPath, false, false, false, FIntRect(), true);
+				UE_LOG(
+					LogWorldLeader,
+					Log,
+					TEXT("Campaign3D border outpost screenshot requested: %s lon=%.3f lat=%.3f"),
+					*ScreenshotPath,
+					LonLat.X,
+					LonLat.Y);
+
+				++PendingBorderOutpostScreenshotIndex;
+				PendingBorderOutpostScreenshotSeconds = 1.6f;
+			}
+			else
+			{
+				UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D border outpost screenshot sequence complete."));
+				PendingBorderOutpostScreenshotIndex = INDEX_NONE;
+				PendingBorderOutpostScreenshotSeconds = -1.f;
+				if (bBorderOutpostScreenshotQuitAfterSequence)
+				{
+					BorderOutpostScreenshotQuitCountdownSeconds = 3.f;
+				}
+			}
+		}
+	}
+
+	if (BorderOutpostScreenshotQuitCountdownSeconds >= 0.f)
+	{
+		BorderOutpostScreenshotQuitCountdownSeconds -= DeltaSeconds;
+		if (BorderOutpostScreenshotQuitCountdownSeconds <= 0.f)
+		{
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D border outpost screenshot sequence exit requested."));
+			FPlatformMisc::RequestExit(false);
+			BorderOutpostScreenshotQuitCountdownSeconds = -1.f;
+		}
+	}
+
+	if (PendingPortFacilityScreenshotIndex != INDEX_NONE)
+	{
+		PendingPortFacilityScreenshotSeconds -= DeltaSeconds;
+		if (PendingPortFacilityScreenshotSeconds <= 0.f)
+		{
+			if (PendingPortFacilityScreenshotIndex < PendingPortFacilityScreenshotKeys.Num()
+				&& PendingPortFacilityScreenshotIndex < PendingPortFacilityScreenshotLonLats.Num())
+			{
+				const FString& TargetKey = PendingPortFacilityScreenshotKeys[PendingPortFacilityScreenshotIndex];
+				const FVector2D LonLat = PendingPortFacilityScreenshotLonLats[PendingPortFacilityScreenshotIndex];
+				const FVector Focus = ProjectLonLat(LonLat.X, LonLat.Y) + FVector(0.f, 0.f, 2200.f);
+				// Vista OBLICUA (~52 grados) que reproduce el angulo real de juego, no cenital -> la captura
+				// valida lo que ve el usuario (antes -90 cenital ocultaba el skyline y la escala real).
+				const FVector CameraLocation = Focus + FVector(-PortFacilityScreenshotHeight * 0.78f, 0.f, PortFacilityScreenshotHeight);
+				const FRotator CameraRotation(-52.f, 0.f, 0.f);
+				if (ViewCamera)
+				{
+					ViewCamera->SetActorLocation(CameraLocation);
+					ViewCamera->SetActorRotation(CameraRotation);
+				}
+				DefaultCameraLocation = CameraLocation;
+				DefaultCameraRotation = CameraRotation;
+
+				const FString ScreenshotPath = FPaths::ProjectSavedDir()
+					/ FString::Printf(
+						TEXT("Screenshots/Windows/PortFacility_%02d_%s.png"),
+						PendingPortFacilityScreenshotIndex + 1,
+						*TargetKey);
+				FScreenshotRequest::RequestScreenshot(ScreenshotPath, false, false, false, FIntRect(), true);
+				UE_LOG(
+					LogWorldLeader,
+					Log,
+					TEXT("Campaign3D port facility screenshot requested: %s lon=%.3f lat=%.3f"),
+					*ScreenshotPath,
+					LonLat.X,
+					LonLat.Y);
+
+				++PendingPortFacilityScreenshotIndex;
+				PendingPortFacilityScreenshotSeconds = 1.6f;
+			}
+			else
+			{
+				UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D port facility screenshot sequence complete."));
+				PendingPortFacilityScreenshotIndex = INDEX_NONE;
+				PendingPortFacilityScreenshotSeconds = -1.f;
+				if (bPortFacilityScreenshotQuitAfterSequence)
+				{
+					PortFacilityScreenshotQuitCountdownSeconds = 3.f;
+				}
+			}
+		}
+	}
+
+	if (PortFacilityScreenshotQuitCountdownSeconds >= 0.f)
+	{
+		PortFacilityScreenshotQuitCountdownSeconds -= DeltaSeconds;
+		if (PortFacilityScreenshotQuitCountdownSeconds <= 0.f)
+		{
+			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D port facility screenshot sequence exit requested."));
+			FPlatformMisc::RequestExit(false);
+			PortFacilityScreenshotQuitCountdownSeconds = -1.f;
+		}
+	}
+
 	if (!SeaDetailMesh || IsHidden())
 	{
 		return;
@@ -353,6 +491,16 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 	if (SettlementMesh)
 	{
 		SettlementMesh->ClearAllMeshSections();
+	}
+	if (BorderOutpostMesh)
+	{
+		BorderOutpostMesh->ClearAllMeshSections();
+		BorderOutpostMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (PortFacilityMesh)
+	{
+		PortFacilityMesh->ClearAllMeshSections();
+		PortFacilityMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	if (SelectionHighlightMesh)
 	{
@@ -533,6 +681,140 @@ void AWLCampaign3DView::BuildView(const FString& PlayerNationIso)
 		bCityVisualQuitAfterScreenshot = FParse::Param(FCommandLine::Get(), TEXT("WLCityVisualQuitAfterScreenshot"));
 		CityVisualQuitCountdownSeconds = -1.f;
 		UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D visual screenshot scheduled in %.2fs."), PendingCityVisualScreenshotSeconds);
+	}
+
+	FString OutpostSequenceValue;
+	if (FParse::Value(FCommandLine::Get(), TEXT("WLBorderOutpostScreenshotSequence="), OutpostSequenceValue))
+	{
+		PendingBorderOutpostScreenshotKeys.Reset();
+		PendingBorderOutpostScreenshotLonLats.Reset();
+
+		TArray<FString> RequestedTargets;
+		const FString SequenceKey = OutpostSequenceValue.TrimStartAndEnd().ToUpper();
+		if (SequenceKey.Equals(TEXT("COUNTRIES")))
+		{
+			const TCHAR* CountryTargets[] = {
+				TEXT("VENEZUELA"), TEXT("COLOMBIA"), TEXT("ECUADOR"), TEXT("PERU"), TEXT("CHILE"),
+				TEXT("ARGENTINA"), TEXT("BOLIVIA"), TEXT("URUGUAY"), TEXT("PARAGUAY"), TEXT("BRASIL")
+			};
+			for (const TCHAR* Target : CountryTargets)
+			{
+				RequestedTargets.Add(Target);
+			}
+		}
+		else if (SequenceKey.Equals(TEXT("ALL")))
+		{
+			const TCHAR* AllTargets[] = {
+				TEXT("BO-CO-VE-TACHIRA"), TEXT("BO-CO-VE-GUAJIRA"), TEXT("BO-CO-VE-ARAUCA"), TEXT("BO-CO-VE-ORINOCO"),
+				TEXT("BO-VE-BR-SANTA-ELENA"), TEXT("BO-VE-GY-GUAYANA"), TEXT("BO-CO-EC-RUMICHACA"),
+				TEXT("BO-CO-BR-LETICIA"), TEXT("BO-EC-PE-HUAQUILLAS"), TEXT("BO-PE-CL-TACNA"),
+				TEXT("BO-PE-BR-INAPARI"), TEXT("BO-PE-BO-DESAGUADERO"), TEXT("BO-CL-AR-LIBERTADORES"),
+				TEXT("BO-CL-AR-SAMORE"), TEXT("BO-AR-BO-LAQUIACA"), TEXT("BO-AR-PY-ENCARNACION"),
+				TEXT("BO-AR-UY-FRAY-BENTOS"), TEXT("BO-AR-BR-IGUAZU"), TEXT("BO-BO-BR-CORUMBA"),
+				TEXT("BO-BO-PY-CHACO"), TEXT("BO-UY-BR-RIVERA"), TEXT("BO-UY-BR-CHUY"),
+				TEXT("BO-PY-BR-GUAIRA"), TEXT("BO-PY-BR-PJC"), TEXT("BO-BR-GY-LETHEM"),
+				TEXT("BO-BR-GF-OIAPOQUE")
+			};
+			for (const TCHAR* Target : AllTargets)
+			{
+				RequestedTargets.Add(Target);
+			}
+		}
+		else
+		{
+			OutpostSequenceValue.ParseIntoArray(RequestedTargets, TEXT(","), true);
+		}
+
+		for (FString Target : RequestedTargets)
+		{
+			Target = Target.TrimStartAndEnd().ToUpper();
+			FVector2D LonLat;
+			if (!ResolveBorderOutpostVisualTarget(Target, LonLat))
+			{
+				UE_LOG(LogWorldLeader, Warning, TEXT("Campaign3D outpost screenshot skipped unknown target: %s"), *Target);
+				continue;
+			}
+			Target.ReplaceInline(TEXT(" "), TEXT("_"));
+			Target.ReplaceInline(TEXT("/"), TEXT("_"));
+			Target.ReplaceInline(TEXT("\\"), TEXT("_"));
+			Target.ReplaceInline(TEXT(":"), TEXT("_"));
+			PendingBorderOutpostScreenshotKeys.Add(Target);
+			PendingBorderOutpostScreenshotLonLats.Add(LonLat);
+		}
+
+		if (!PendingBorderOutpostScreenshotKeys.IsEmpty())
+		{
+			FParse::Value(FCommandLine::Get(), TEXT("WLBorderOutpostVisualHeight="), BorderOutpostScreenshotHeight);
+			BorderOutpostScreenshotHeight = FMath::Clamp(BorderOutpostScreenshotHeight, 18000.f, 180000.f);
+			PendingBorderOutpostScreenshotIndex = 0;
+			PendingBorderOutpostScreenshotSeconds = 2.f;
+			BorderOutpostScreenshotQuitCountdownSeconds = -1.f;
+			bBorderOutpostScreenshotQuitAfterSequence = FParse::Param(FCommandLine::Get(), TEXT("WLBorderOutpostQuitAfterSequence"));
+			UE_LOG(
+				LogWorldLeader,
+				Log,
+				TEXT("Campaign3D border outpost screenshot sequence scheduled: %d targets height=%.0f."),
+				PendingBorderOutpostScreenshotKeys.Num(),
+				BorderOutpostScreenshotHeight);
+		}
+	}
+
+	FString PortSequenceValue;
+	if (FParse::Value(FCommandLine::Get(), TEXT("WLPortFacilityScreenshotSequence="), PortSequenceValue))
+	{
+		PendingPortFacilityScreenshotKeys.Reset();
+		PendingPortFacilityScreenshotLonLats.Reset();
+
+		TArray<FString> RequestedTargets;
+		const FString SequenceKey = PortSequenceValue.TrimStartAndEnd().ToUpper();
+		if (SequenceKey.Equals(TEXT("COUNTRIES")) || SequenceKey.Equals(TEXT("ALL")))
+		{
+			const TCHAR* CountryTargets[] = {
+				TEXT("VENEZUELA"), TEXT("COLOMBIA"), TEXT("ECUADOR"), TEXT("PERU"), TEXT("CHILE"),
+				TEXT("ARGENTINA"), TEXT("BOLIVIA"), TEXT("URUGUAY"), TEXT("PARAGUAY"), TEXT("BRASIL")
+			};
+			for (const TCHAR* Target : CountryTargets)
+			{
+				RequestedTargets.Add(Target);
+			}
+		}
+		else
+		{
+			PortSequenceValue.ParseIntoArray(RequestedTargets, TEXT(","), true);
+		}
+
+		for (FString Target : RequestedTargets)
+		{
+			Target = Target.TrimStartAndEnd().ToUpper();
+			FVector2D LonLat;
+			if (!ResolvePortFacilityVisualTarget(Target, LonLat))
+			{
+				UE_LOG(LogWorldLeader, Warning, TEXT("Campaign3D port facility screenshot skipped unknown target: %s"), *Target);
+				continue;
+			}
+			Target.ReplaceInline(TEXT(" "), TEXT("_"));
+			Target.ReplaceInline(TEXT("/"), TEXT("_"));
+			Target.ReplaceInline(TEXT("\\"), TEXT("_"));
+			Target.ReplaceInline(TEXT(":"), TEXT("_"));
+			PendingPortFacilityScreenshotKeys.Add(Target);
+			PendingPortFacilityScreenshotLonLats.Add(LonLat);
+		}
+
+		if (!PendingPortFacilityScreenshotKeys.IsEmpty())
+		{
+			FParse::Value(FCommandLine::Get(), TEXT("WLPortFacilityVisualHeight="), PortFacilityScreenshotHeight);
+			PortFacilityScreenshotHeight = FMath::Clamp(PortFacilityScreenshotHeight, 18000.f, 120000.f);
+			PendingPortFacilityScreenshotIndex = 0;
+			PendingPortFacilityScreenshotSeconds = 2.f;
+			PortFacilityScreenshotQuitCountdownSeconds = -1.f;
+			bPortFacilityScreenshotQuitAfterSequence = FParse::Param(FCommandLine::Get(), TEXT("WLPortFacilityQuitAfterSequence"));
+			UE_LOG(
+				LogWorldLeader,
+				Log,
+				TEXT("Campaign3D port facility screenshot sequence scheduled: %d targets height=%.0f."),
+				PendingPortFacilityScreenshotKeys.Num(),
+				PortFacilityScreenshotHeight);
+		}
 	}
 }
 

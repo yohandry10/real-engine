@@ -1,10 +1,14 @@
 param(
-    [ValidateSet('Env', 'GitStatus', 'Build', 'Standalone', 'StandaloneAmerica')]
+    [ValidateSet('Env', 'GitStatus', 'Build', 'Standalone', 'StandaloneAmerica', 'StandaloneOutpostScreenshot', 'StandalonePortScreenshot')]
     [string]$Action = 'Env',
 
     [switch]$WaitForBuildView,
     [int]$WaitTimeoutSeconds = 300,
-    [switch]$NoStopEditor
+    [switch]$NoStopEditor,
+    [string]$OutpostVisualTest = 'VENEZUELA',
+    [float]$OutpostVisualHeight = 42000,
+    [string]$PortVisualTest = 'VENEZUELA',
+    [float]$PortVisualHeight = 36000
 )
 
 $ErrorActionPreference = 'Stop'
@@ -181,5 +185,126 @@ switch ($Action) {
         if ($WaitForBuildView) {
             Wait-WorldLeaderBuildView -Process $process -TimeoutSeconds $WaitTimeoutSeconds
         }
+    }
+
+    'StandaloneOutpostScreenshot' {
+        Stop-UnrealProcesses
+        $editor = Join-Path $EngineRoot 'Engine\Binaries\Win64\UnrealEditor.exe'
+        $screenshot = Join-Path $RepoRoot 'Saved\Screenshots\Windows\CodexCityVisual.png'
+        if (Test-Path $screenshot) {
+            Remove-Item -LiteralPath $screenshot -Force
+        }
+        $isSequence = $OutpostVisualTest -in @('ALL', 'COUNTRIES')
+        $args = @(
+            $Project,
+            '/Engine/Maps/Entry?game=/Script/WorldLeader.WLCampaignGameMode',
+            '-game',
+            '-windowed',
+            '-ResX=1600',
+            '-ResY=900',
+            '-WLAutoStart=CO',
+            '-unattended',
+            "-WLBorderOutpostVisualTest=$OutpostVisualTest",
+            "-WLBorderOutpostVisualHeight=$OutpostVisualHeight",
+            "-ShaderWorkingDir=$($envInfo.ShaderWorkingDir)",
+            '-DDC-ForceMemoryCache',
+            '-NoZenAutoLaunch',
+            '-log'
+        )
+        if ($isSequence) {
+            $args += "-WLBorderOutpostScreenshotSequence=$OutpostVisualTest"
+            $args += '-WLBorderOutpostQuitAfterSequence'
+        }
+        else {
+            $args += '-WLCityVisualScreenshot=6'
+            $args += '-WLCityVisualQuitAfterScreenshot'
+        }
+        $startedAt = Get-Date
+        $process = Start-Process -FilePath $editor -ArgumentList $args -PassThru
+        $process
+        $deadline = (Get-Date).AddSeconds($WaitTimeoutSeconds)
+        while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 3
+            if ($isSequence -and -not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+                Get-ChildItem (Join-Path $RepoRoot 'Saved\Screenshots\Windows') -Filter 'BorderOutpost_*.png' |
+                    Where-Object { $_.LastWriteTime -ge $startedAt } |
+                    Sort-Object Name
+                return
+            }
+            if ((Test-Path $screenshot) -and -not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+                Get-Item $screenshot
+                return
+            }
+            if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+                break
+            }
+        }
+        if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+            Stop-Process -Id $process.Id -Force
+        }
+        if ($isSequence) {
+            $sequenceShots = Get-ChildItem (Join-Path $RepoRoot 'Saved\Screenshots\Windows') -Filter 'BorderOutpost_*.png' |
+                Where-Object { $_.LastWriteTime -ge $startedAt } |
+                Sort-Object Name
+            if (-not $sequenceShots) {
+                throw "Outpost screenshot sequence was not created for $OutpostVisualTest"
+            }
+            $sequenceShots
+            return
+        }
+        if (-not (Test-Path $screenshot)) {
+            throw "Outpost screenshot was not created for $OutpostVisualTest"
+        }
+        Get-Item $screenshot
+    }
+
+    'StandalonePortScreenshot' {
+        Stop-UnrealProcesses
+        $editor = Join-Path $EngineRoot 'Engine\Binaries\Win64\UnrealEditor.exe'
+        $isSequence = $true
+        $args = @(
+            $Project,
+            '/Engine/Maps/Entry?game=/Script/WorldLeader.WLCampaignGameMode',
+            '-game',
+            '-windowed',
+            '-ResX=1600',
+            '-ResY=900',
+            '-WLAutoStart=CO',
+            '-unattended',
+            "-WLPortFacilityVisualTest=$PortVisualTest",
+            "-WLPortFacilityVisualHeight=$PortVisualHeight",
+            "-ShaderWorkingDir=$($envInfo.ShaderWorkingDir)",
+            '-DDC-ForceMemoryCache',
+            '-NoZenAutoLaunch',
+            '-log'
+        )
+        $args += "-WLPortFacilityScreenshotSequence=$PortVisualTest"
+        $args += '-WLPortFacilityQuitAfterSequence'
+        $startedAt = Get-Date
+        $process = Start-Process -FilePath $editor -ArgumentList $args -PassThru
+        $process
+        $deadline = (Get-Date).AddSeconds($WaitTimeoutSeconds)
+        while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 3
+            if ($isSequence -and -not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+                Get-ChildItem (Join-Path $RepoRoot 'Saved\Screenshots\Windows') -Filter 'PortFacility_*.png' |
+                    Where-Object { $_.LastWriteTime -ge $startedAt } |
+                    Sort-Object Name
+                return
+            }
+            if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+                break
+            }
+        }
+        if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+            Stop-Process -Id $process.Id -Force
+        }
+        $sequenceShots = Get-ChildItem (Join-Path $RepoRoot 'Saved\Screenshots\Windows') -Filter 'PortFacility_*.png' |
+            Where-Object { $_.LastWriteTime -ge $startedAt } |
+            Sort-Object Name
+        if (-not $sequenceShots) {
+            throw "Port facility screenshot sequence was not created for $PortVisualTest"
+        }
+        $sequenceShots
     }
 }

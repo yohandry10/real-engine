@@ -81,6 +81,18 @@ struct FWLCampaign3DCityView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bPort = false;
 };
 
+// Una "unidad" dentro de la composicion de una fuerza (estilo carta de Total War): tipo + cuantos
+// efectivos/vehiculos. Una fuerza = N de estos (p.ej. 20 Tanques + 200 Infanteria).
+USTRUCT(BlueprintType)
+struct FWLForceUnitGroup
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString UnitType; // mbt|ifv|apc|infantry|aircraft|heli|ship|artillery
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString Label;     // texto para la carta ("Tanques")
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 Count = 0;   // efectivos en esta unidad
+};
+
 USTRUCT(BlueprintType)
 struct FWLCampaign3DForceView
 {
@@ -113,6 +125,7 @@ struct FWLCampaign3DForceView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bAir = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bNaval = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bMovable = true;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") TArray<FWLForceUnitGroup> Composition;
 };
 
 USTRUCT(BlueprintType)
@@ -210,6 +223,8 @@ private:
 	UPROPERTY() UProceduralMeshComponent* BoundaryMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* RoadMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SettlementMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* BorderOutpostMesh = nullptr;
+	UPROPERTY() UProceduralMeshComponent* PortFacilityMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* SelectionHighlightMesh = nullptr;
 	UPROPERTY() UProceduralMeshComponent* MovementRoutePreviewMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
@@ -223,6 +238,10 @@ private:
 	UPROPERTY() UStaticMesh* RouteMesh = nullptr;
 	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
 	UPROPERTY() UStaticMesh* ConeMesh = nullptr;
+	// Tokens de ejercito en el mapa (estilo "NPC" de Total War): un modelo de unidad por categoria.
+	UPROPERTY() UStaticMesh* ForceTokenLandMesh = nullptr;   // tanque (tierra)
+	UPROPERTY() UStaticMesh* ForceTokenNavalMesh = nullptr;  // buque (naval)
+	UPROPERTY() UStaticMesh* ForceTokenAirMesh = nullptr;    // caza (aire)
 	UPROPERTY() UInstancedStaticMeshComponent* SettlementBlockInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* SettlementTowerInstances = nullptr;
 	UPROPERTY() UInstancedStaticMeshComponent* PortInstances = nullptr;
@@ -254,7 +273,7 @@ private:
 	// Fuerzas militares = placeholder sin gameplay todavia. En false NO se crean conos/etiquetas/
 	// hitbox: limpia los "triangulos amarillos" y la etiqueta que duplicaba el nombre de la ciudad
 	// (p.ej. el segundo "Caracas"). Los datos siguen en ForceViews. Poner true al activar el gameplay.
-	bool bShowMilitaryForceMarkers = false;
+	bool bShowMilitaryForceMarkers = true;  // tokens de ejercito activos (NPC clicable estilo Total War)
 	UPROPERTY() TArray<UStaticMeshComponent*> MovementDestinationComponents;
 	UPROPERTY() TArray<UPrimitiveComponent*> MovementDestinationSelectionMarkers;
 	UPROPERTY() TArray<UTextRenderComponent*> MovementDestinationLabels;
@@ -306,7 +325,7 @@ private:
 	// la ciudad (un mesh rigido y plano) no quede "comida"/inclinada por el relieve o el ruido sobre su
 	// huella (~2600u sobre la huella de la capital). Se recopilan en una pre-pasada (bCollectFlatPadsOnly)
 	// ANTES de mallar el terreno; el relieve de alrededor (Andes/Merida) se conserva fuera del pad.
-	struct FCityFlatPad { float Lon; float Lat; float FlatRadiusDeg; float OuterRadiusDeg; float Height; };
+	struct FCityFlatPad { float Lon; float Lat; float FlatRadiusDeg; float OuterRadiusDeg; float Height; float BiomeZOffset = 0.f; bool bIsCity = false; };
 	TArray<FCityFlatPad> CityFlatPads;
 	bool bCollectFlatPadsOnly = false;
 	float WaterAnimationTime = 0.f;
@@ -314,8 +333,24 @@ private:
 	float CityVisualQuitCountdownSeconds = -1.f;
 	bool bCityVisualScreenshotRequested = false;
 	bool bCityVisualQuitAfterScreenshot = false;
+	TArray<FString> PendingBorderOutpostScreenshotKeys;
+	TArray<FVector2D> PendingBorderOutpostScreenshotLonLats;
+	int32 PendingBorderOutpostScreenshotIndex = INDEX_NONE;
+	float PendingBorderOutpostScreenshotSeconds = -1.f;
+	float BorderOutpostScreenshotHeight = 42000.f;
+	float BorderOutpostScreenshotQuitCountdownSeconds = -1.f;
+	bool bBorderOutpostScreenshotQuitAfterSequence = false;
+	TArray<FString> PendingPortFacilityScreenshotKeys;
+	TArray<FVector2D> PendingPortFacilityScreenshotLonLats;
+	int32 PendingPortFacilityScreenshotIndex = INDEX_NONE;
+	float PendingPortFacilityScreenshotSeconds = -1.f;
+	float PortFacilityScreenshotHeight = 36000.f;
+	float PortFacilityScreenshotQuitCountdownSeconds = -1.f;
+	bool bPortFacilityScreenshotQuitAfterSequence = false;
 
 	UWLDataRegistry* GetRegistry() const;
+	bool ResolveBorderOutpostVisualTarget(const FString& TargetKey, FVector2D& OutLonLat) const;
+	bool ResolvePortFacilityVisualTarget(const FString& TargetKey, FVector2D& OutLonLat) const;
 	FVector ProjectLonLat(float Lon, float Lat) const;
 	FVector ProjectStrategicLonLat(float Lon, float Lat) const;
 	float GetVisualTerrainWorldZ(float Lon, float Lat, bool bCoreCountry) const;
@@ -331,6 +366,7 @@ private:
 	void BuildVenezuelaTerrainDetail();
 	void BuildCampaignVisualLayer();
 	FVector2D NudgeSettlementToLand(float Lon, float Lat) const;
+	FVector2D NudgePortSettlementFootprintToLand(float Lon, float Lat, float TargetWidthWorldUnits) const;
 	void AddTerrainPatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);
 	void AddPolylineSegment(const FVector& Start, const FVector& End, const FLinearColor& Color, float RadiusScale);
 	void AddCoastline(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float RadiusScale);
@@ -338,6 +374,26 @@ private:
 	void AddBiomePatch(const TArray<FVector2D>& LonLatPoints, const FLinearColor& Color, float ZOffset);
 	void BuildTheaterSettlementLayer();
 	void BuildSouthAmericaFrontierSettlementLayer();
+	void BuildBorderOutpostLayer();
+	void AddBorderOutpost(
+		const FString& OutpostId,
+		const FString& Name,
+		const FVector2D& RoadA,
+		const FVector2D& RoadB,
+		float PreferredSideSign);
+	bool ShouldBuildPortFacility(const FString& CityId) const;
+	void AddPortFacility(
+		const FString& CityId,
+		float Lon,
+		float Lat,
+		const FString& CountryIso,
+		EWLCampaignSettlementType Type);
+	FVector2D ResolveBorderOutpostPlacement(
+		const FVector2D& RoadA,
+		const FVector2D& RoadB,
+		float PreferredSideSign,
+		float MinCityClearanceKm,
+		float DesiredRoadOffsetKm) const;
 	void AddSettlementCluster(
 		const FString& CityId,
 		const FString& Name,
@@ -351,7 +407,8 @@ private:
 	// Construye una ciudad con mallas reales (edificios del pack) en vez de cajas.
 	void BuildMeshCity(float Lon, float Lat, EWLCampaignSettlementType Type, const FString& CountryIso);
 	// Registra un "flat pad" (disco de terreno aplanado) bajo la ciudad para que el relieve no la coma.
-	void RegisterCityFlatPad(float Lon, float Lat, EWLCampaignSettlementType Type);
+	void RegisterCityFlatPad(float Lon, float Lat, EWLCampaignSettlementType Type, const FString& CountryIso);
+	void RegisterBorderOutpostFlatPad(float Lon, float Lat);
 	void AddCitySelectionProxy(const FWLCampaign3DCityView& City, float RadiusScale);
 	void AddMilitaryForceMarkers();
 	void AddMilitaryForceMarker(const FWLCampaign3DForceView& Force);

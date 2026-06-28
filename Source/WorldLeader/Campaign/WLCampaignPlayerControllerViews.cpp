@@ -300,7 +300,24 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 			}
 		}
 
-		SetLastActionMessage(TEXT("Seleccion militar activa. Solo Mover esta habilitado en esta fase."), true);
+		// Boton RECLUTAR (solo en modo no-movimiento). MISMO Y/anchura que el dibujo del panel
+		// (DisabledStartY = ActionY+40 en WLCampaignHUDPanels.inl) -> mantener en sync.
+		if (!IsForceMovementModeActive())
+		{
+			const float RecruitBtnX = PanelX + 18.f;
+			const float RecruitBtnY = ActionY + 40.f;
+			const float RecruitBtnW = PanelW - 36.f;
+			const float RecruitBtnH = 26.f;
+			if (IsPointInControllerRect(MouseX, MouseY, RecruitBtnX, RecruitBtnY, RecruitBtnW, RecruitBtnH))
+			{
+				FString Msg;
+				const bool bOk = QueueRecruitForSelectedForce(Msg);
+				SetLastActionMessage(Msg, bOk);
+				return true;
+			}
+		}
+
+		SetLastActionMessage(TEXT("Fuerza seleccionada. Pulsa Mover o Reclutar."), true);
 		return true;
 	}
 

@@ -101,6 +101,16 @@ void AWLCampaign3DView::SetDetailedLayerVisible(bool bVisible)
 	{
 		SettlementMesh->SetVisibility(bVisible, true);
 	}
+	if (BorderOutpostMesh)
+	{
+		BorderOutpostMesh->SetVisibility(bVisible, true);
+		BorderOutpostMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (PortFacilityMesh)
+	{
+		PortFacilityMesh->SetVisibility(bVisible, true);
+		PortFacilityMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 	for (UPrimitiveComponent* Marker : ProvinceMarkers)
 	{
 		if (Marker)
@@ -243,11 +253,31 @@ void AWLCampaign3DView::SetStrategicLayerVisible(bool bVisible)
 void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 {
 	const bool bActive = !IsHidden();
+	FString BorderOutpostVisualTest;
+	FString BorderOutpostScreenshotSequence;
+	FString PortFacilityVisualTest;
+	FString PortFacilityScreenshotSequence;
+	const bool bLockBorderOutpostVisualCamera = FParse::Value(
+		FCommandLine::Get(),
+		TEXT("WLBorderOutpostVisualTest="),
+		BorderOutpostVisualTest)
+		|| FParse::Value(
+			FCommandLine::Get(),
+			TEXT("WLBorderOutpostScreenshotSequence="),
+			BorderOutpostScreenshotSequence)
+		|| FParse::Value(
+			FCommandLine::Get(),
+			TEXT("WLPortFacilityVisualTest="),
+			PortFacilityVisualTest)
+		|| FParse::Value(
+			FCommandLine::Get(),
+			TEXT("WLPortFacilityScreenshotSequence="),
+			PortFacilityScreenshotSequence);
 
 	// Camara inclinada con pitch DINAMICO (estilo Total War): casi cenital al alejar
 	// (para leer el mapa) e inclinada al acercar (para ver el mundo en 3D). La
 	// navegacion y la seleccion usan deproyeccion, asi que funcionan a cualquier angulo.
-	if (ViewCamera)
+	if (ViewCamera && !bLockBorderOutpostVisualCamera)
 	{
 		// Pitch en "V": CERCA picado (-64) para VER el suelo/las calles de la ciudad mirando HACIA
 		// DENTRO de la cuadricula (a -46 las fachadas tapaban el suelo); TEATRO mas oblicuo (-50) para
@@ -342,6 +372,11 @@ void AWLCampaign3DView::ApplyZoomLOD(float CameraHeight)
 	if (SettlementMesh)
 	{
 		SettlementMesh->SetVisibility(bCityDetail, true);
+	}
+	if (BorderOutpostMesh)
+	{
+		BorderOutpostMesh->SetVisibility(bCityDetail, true);
+		BorderOutpostMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	for (UStaticMeshComponent* Component : VisualComponents)
 	{
@@ -559,6 +594,11 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 	{
 		SettlementMesh->SetVisibility(bCloseDetailVisible, true);
 		SettlementMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (BorderOutpostMesh)
+	{
+		BorderOutpostMesh->SetVisibility(bCloseDetailVisible, true);
+		BorderOutpostMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	for (UPrimitiveComponent* Marker : ProvinceMarkers)
 	{

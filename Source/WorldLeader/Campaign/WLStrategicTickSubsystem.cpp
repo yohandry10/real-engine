@@ -76,6 +76,8 @@ void UWLStrategicTickSubsystem::ResetCampaignState()
 	CurrentYear = Rules.StartYear;
 	CurrentMonth = Rules.StartMonth;
 	ProvinceBuildings.Reset();
+	RecruitQueues.Reset();
+	GarrisonRecruited.Reset();
 	LastEconomicAIReports.Reset();
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
@@ -93,6 +95,7 @@ void UWLStrategicTickSubsystem::AdvanceMonth()
 
 	ApplyMonthlyEconomy();
 	ApplyMonthlyProvinceState();
+	AdvanceRecruitment();
 
 	LastEconomicAIReports.Reset();
 	const FString PlayerNationIso = GetActivePlayerNationIsoForAI();

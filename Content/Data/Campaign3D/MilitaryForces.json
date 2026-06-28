@@ -17,6 +17,13 @@
       "lon": -74.08,
       "lat": 4.68,
       "strength": 18000,
+      "composition": [
+        { "unit": "mbt", "count": 20 },
+        { "unit": "ifv", "count": 14 },
+        { "unit": "apc", "count": 18 },
+        { "unit": "infantry", "count": 220 },
+        { "unit": "artillery", "count": 12 }
+      ],
       "mobility": "media",
       "operational_state": "preparacion defensiva",
       "supply": "estable",

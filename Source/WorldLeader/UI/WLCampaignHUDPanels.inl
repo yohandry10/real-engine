@@ -187,25 +187,40 @@ void DrawCampaignSelectionPanel(
 			DisabledStartY = ConfirmY + 40.f;
 		}
 
-		HUD->DrawText(TEXT("ACCIONES BLOQUEADAS"), Gold, PanelX + 18.f, DisabledStartY, SmallFont, 0.76f);
-		DisabledStartY += 22.f;
-		TArray<FString> DisabledActions;
-		for (const FString& Action : PC->GetSelectedForceDisabledActions())
+		// RECLUTAMIENTO + TROPAS (solo cuando NO estas dando una orden de movimiento). El boton "Reclutar"
+		// va al MISMO Y/anchura que comprueba el handler de clic en WLCampaignPlayerControllerViews.cpp
+		// (DisabledStartY = ActionY+40) -> mantener en sync.
+		if (!PC->IsForceMovementModeActive())
 		{
-			if (!Action.Equals(TEXT("Mover"), ESearchCase::IgnoreCase))
+			const float RecruitBtnX = PanelX + 18.f;
+			const float RecruitBtnY = DisabledStartY;
+			const float RecruitBtnW = PanelW - 36.f;
+			const float RecruitBtnH = 26.f;
+			HUD->DrawRect(FLinearColor(0.30f, 0.42f, 0.20f, 0.96f), RecruitBtnX, RecruitBtnY, RecruitBtnW, RecruitBtnH);
+			const FString RecruitLabel = PC->GetSelectedForceRecruitLabel();
+			HUD->DrawText(RecruitLabel.IsEmpty() ? TEXT("Reclutar") : RecruitLabel, Text, RecruitBtnX + 12.f, RecruitBtnY + 6.f, SmallFont, 0.68f);
+			HUD->DrawText(ShortenForPanel(PC->GetSelectedForceRecruitStatus(), 60), Muted, PanelX + 18.f, RecruitBtnY + 32.f, SmallFont, 0.64f);
+
+			HUD->DrawText(TEXT("TROPAS (guarnicion)"), Gold, PanelX + 18.f, RecruitBtnY + 52.f, SmallFont, 0.76f);
+			const TArray<FWLCampaignForceCompositionEntry> Comp = PC->GetSelectedForceTotalComposition();
+			if (Comp.Num() == 0)
 			{
-				DisabledActions.Add(Action);
+				HUD->DrawText(TEXT("Sin tropas aun. Recluta y avanza el mes [M]."), Muted, PanelX + 18.f, RecruitBtnY + 72.f, SmallFont, 0.62f);
 			}
-		}
-		const int32 MaxActions = FMath::Min(DisabledActions.Num(), PC->IsForceMovementModeActive() ? 4 : 6);
-		for (int32 Index = 0; Index < MaxActions; ++Index)
-		{
-			const int32 Col = Index % 2;
-			const int32 Row = Index / 2;
-			const float ButtonX = ButtonX0 + static_cast<float>(Col) * (ButtonW + Gap);
-			const float ButtonY = DisabledStartY + static_cast<float>(Row) * (ButtonH + Gap);
-			HUD->DrawRect(Disabled, ButtonX, ButtonY, ButtonW, ButtonH);
-			HUD->DrawText(ShortenForPanel(DisabledActions[Index], 20), Muted, ButtonX + 9.f, ButtonY + 7.f, SmallFont, 0.64f);
+			const FLinearColor CardBg(0.05f, 0.085f, 0.095f, 0.96f);
+			const FLinearColor CardBand(0.34f, 0.40f, 0.22f, 0.95f);
+			const int32 MaxCards = FMath::Min(Comp.Num(), 6);
+			for (int32 Index = 0; Index < MaxCards; ++Index)
+			{
+				const int32 Col = Index % 2;
+				const int32 Row = Index / 2;
+				const float CardX = ButtonX0 + static_cast<float>(Col) * (ButtonW + Gap);
+				const float CardY = RecruitBtnY + 72.f + static_cast<float>(Row) * (ButtonH + Gap);
+				HUD->DrawRect(CardBg, CardX, CardY, ButtonW, ButtonH);
+				HUD->DrawRect(CardBand, CardX, CardY, 4.f, ButtonH);              // banda de color (tipo carta)
+				HUD->DrawText(FString::Printf(TEXT("%d"), Comp[Index].Count), Gold, CardX + 12.f, CardY + 5.f, SmallFont, 0.88f);
+				HUD->DrawText(ShortenForPanel(Comp[Index].Label, 13), Text, CardX + 52.f, CardY + 7.f, SmallFont, 0.64f);
+			}
 		}
 
 		HUD->DrawText(ShortenForPanel(PC->GetSelectedForceDetailLevel(), 46), Muted, PanelX + 18.f, PanelY + PanelH - 24.f, SmallFont, 0.70f);

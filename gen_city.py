@@ -36,18 +36,18 @@ C_GLASS2 = (0.40, 0.58, 0.60)
 C_ROOF   = (0.38, 0.38, 0.41)
 C_ROOFT  = (0.58, 0.33, 0.22)   # azotea terracota (residencial) -> variacion calida tipo ciudad real
 # Suelo: ASFALTO oscuro (la calle) + ACERA clara (alto contraste = se ven las calles) + plaza clara.
-C_STREET = (0.24, 0.25, 0.27)
-C_SIDE   = (0.66, 0.67, 0.69)
-C_PLAZA  = (0.70, 0.65, 0.52)
-C_FOUND  = (0.27, 0.27, 0.29)
+C_STREET = (0.22, 0.23, 0.25)
+C_SIDE   = (0.45, 0.46, 0.48)   # acera concreto MEDIO (antes 0.66 = casi blanco -> rejilla rota)
+C_PLAZA  = (0.55, 0.50, 0.40)
+C_FOUND  = (0.25, 0.25, 0.27)
 C_PARK   = (0.32, 0.56, 0.30)
 C_GRASS  = (0.34, 0.46, 0.22)  # apron verde/oliva para fundir con el terreno sin verse como losa crema
 C_TREE   = (0.22, 0.48, 0.24)
 C_TREE2  = (0.27, 0.54, 0.29)
 C_TRUNK  = (0.30, 0.20, 0.12)
 C_CARS   = [(0.82, 0.82, 0.84), (0.66, 0.20, 0.18), (0.18, 0.24, 0.44), (0.30, 0.50, 0.62)]
-C_LINE   = (0.90, 0.76, 0.26)   # linea de carril amarilla brillante
-C_CROSS  = (0.78, 0.78, 0.80)   # paso de cebra / marcas claras
+C_LINE   = (0.74, 0.62, 0.24)   # linea de carril amarilla (algo mas tenue, no domina la rejilla)
+C_CROSS  = (0.52, 0.52, 0.54)   # paso de cebra tenue (antes 0.78 + enorme = cruces blancas rotas)
 C_ACCENT = (0.86, 0.70, 0.32)
 WALLS = [C_WALL, C_WALL2, C_WALL3, C_WALL4]
 GLASS = [C_GLASS, C_GLASS2]
@@ -132,7 +132,7 @@ def building(cx, cy, w, d, height, z0, kind):
 # ver Docs §5 #9). Calles ANCHAS (street/pitch ~28%) para que la cuadricula se lea de lejos.
 cfg = {"large": (8, 88.0), "medium": (5, 66.0), "small": (4, 32.0)}[SIZE]
 N, HMAX = cfg
-block, street = 26.0, 10.0
+block, street = 28.0, 8.0
 pitch = block + street
 span = N * pitch
 PODIUM = 60.0
@@ -153,11 +153,13 @@ road_len = span + street
 for g in grid:
     add_box(0.0, g, 0.30, road_len, 0.5, 0.06, C_LINE)   # linea calle horizontal
     add_box(g, 0.0, 0.30, 0.5, road_len, 0.06, C_LINE)   # linea calle vertical
+# Paso de cebra PEQUENO y tenue, contenido en el ANCHO de la calle (antes media manzana = cruces
+# blancas gigantes que parecian wireframe roto). Solo cruza la calzada en el borde del cruce.
 for gx in grid:
     for gy in grid:
         for s in (-1, 1):
-            add_box(gx + s * street * 0.32, gy, 0.31, street * 0.16, block * 0.5, 0.05, C_CROSS)
-            add_box(gx, gy + s * street * 0.32, 0.31, block * 0.5, street * 0.16, 0.05, C_CROSS)
+            add_box(gx + s * street * 0.45, gy, 0.31, street * 0.12, street * 0.62, 0.05, C_CROSS)
+            add_box(gx, gy + s * street * 0.45, 0.31, street * 0.62, street * 0.12, 0.05, C_CROSS)
 # Coches sueltos en algunas calles.
 for g in grid[1:-1]:
     if random.random() < 0.6:
@@ -173,16 +175,16 @@ def pick_kind(h):
     return "resid"
 
 def place_lot(ox, oy, cell, dist):
-    # Edificio que NO llena la celda: deja hueco de acera alrededor (se ven veredas entre edificios).
-    fp = cell * random.uniform(0.58, 0.74)
-    # CLAVE para que se VEA el suelo/calles/verde (como la maqueta): la MAYORIA de la ciudad es BAJA
-    # (2-5 pisos) y solo un NUCLEO central pequeno es alto (downtown). Si todo es alto, desde el angulo
-    # de camara (~46 grados) los edificios tapan el suelo entre ellos. Falloff fuerte = nucleo compacto.
-    falloff = max(0.0, 1.0 - dist * 1.5) ** 2.5
-    base_h = HMAX * (0.06 + 0.94 * falloff)
-    h = max(7.0, base_h * (0.6 + random.random() * 0.7))
-    if dist < 0.22 and random.random() < 0.40:
-        h *= 1.45
+    # Edificio que casi llena la celda: solo un hueco FINO de acera (manzana DENSA, no clusters sueltos
+    # con rejilla blanca entre medio). fp alto = la ciudad se lee construida, no como graph-paper.
+    fp = cell * random.uniform(0.78, 0.94)
+    # Skyline: nucleo alto que decae al borde, pero con SUELO de altura (0.22) para que el borde no
+    # sean cubos minusculos perdidos en la rejilla. Falloff mas suave = mas ciudad con cuerpo.
+    falloff = max(0.0, 1.0 - dist * 1.1) ** 1.8
+    base_h = HMAX * (0.22 + 0.78 * falloff)
+    h = max(10.0, base_h * (0.7 + random.random() * 0.6))
+    if dist < 0.25 and random.random() < 0.45:
+        h *= 1.4
     building(ox, oy, fp, fp, h, 1.0, pick_kind(h))
 
 for ix in range(N):

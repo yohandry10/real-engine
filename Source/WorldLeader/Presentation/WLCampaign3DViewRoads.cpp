@@ -220,13 +220,27 @@ void AWLCampaign3DView::BuildIntercityRoads()
 	{
 		return Iso.Equals(TEXT("CO"), ESearchCase::IgnoreCase) || Iso.Equals(TEXT("VE"), ESearchCase::IgnoreCase);
 	};
+	// Paises con red INTERNA curada (BuildDefaultTheaterRoutes): CO, VE, EC, PE, CL, AR, UY, BR. Se
+	// excluyen del MST interno y de los cruces auto ENTRE paises curados (esos van a mano). Los
+	// cruces con paises NO curados (Bolivia, Paraguay) los sigue generando el paso automatico.
+	auto IsCuratedInternal = [](const FString& Iso) -> bool
+	{
+		return Iso.Equals(TEXT("CO"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("VE"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("EC"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("PE"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("CL"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("AR"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("UY"), ESearchCase::IgnoreCase)
+			|| Iso.Equals(TEXT("BR"), ESearchCase::IgnoreCase);
+	};
 
 	const float MaxEdgeDeg = 22.0f; // asegura continuidad interna en paises grandes (CA/US) sin afectar cruces internacionales
 	TArray<FWLCampaignRouteSpec> Network;
 	for (const TPair<FString, TArray<FRoadCity>>& Pair : ByCountry)
 	{
-		// CO/VE: red interna ya curada -> no MST aqui (si participan en cruces fronterizos).
-		if (IsTheaterCore(Pair.Key))
+		// CO/VE/EC: red interna ya curada -> no MST aqui (si participan en cruces fronterizos).
+		if (IsCuratedInternal(Pair.Key))
 		{
 			continue;
 		}
@@ -408,9 +422,9 @@ void AWLCampaign3DView::BuildIntercityRoads()
 		{
 			for (int32 ib = ia + 1; ib < Keys.Num(); ++ib)
 			{
-				if (IsTheaterCore(Keys[ia]) && IsTheaterCore(Keys[ib]))
+				if (IsCuratedInternal(Keys[ia]) && IsCuratedInternal(Keys[ib]))
 				{
-					continue; // par CO-VE: ya curado por la ruta de frontera del teatro
+					continue; // par entre paises curados (CO-VE, CO-EC): ya va a mano en el teatro
 				}
 				const TArray<FRoadCity>& CA = ByCountry[Keys[ia]];
 				const TArray<FRoadCity>& CB = ByCountry[Keys[ib]];

@@ -200,7 +200,7 @@ float AWLCampaign3DView::GetGroundWorldZAtWorld(float WorldX, float WorldY) cons
 	return SampleTerrainHeight(Lon, Lat) * VerticalDetailExaggeration;
 }
 
-void AWLCampaign3DView::RegisterCityFlatPad(float Lon, float Lat, EWLCampaignSettlementType Type)
+void AWLCampaign3DView::RegisterCityFlatPad(float Lon, float Lat, EWLCampaignSettlementType Type, const FString& CountryIso)
 {
 	// Ancho de huella por tipo = mismo TargetWidth que usa BuildMeshCity (incluye el apron de pasto).
 	float TargetWidth;
@@ -208,7 +208,7 @@ void AWLCampaign3DView::RegisterCityFlatPad(float Lon, float Lat, EWLCampaignSet
 	{
 	case EWLCampaignSettlementType::Capital:    TargetWidth = 17000.f; break;  // = BuildMeshCity (mantener en sync)
 	case EWLCampaignSettlementType::LargeCity:  TargetWidth = 7200.f;  break;
-	case EWLCampaignSettlementType::Port:       TargetWidth = 5800.f;  break;
+	case EWLCampaignSettlementType::Port:       TargetWidth = 8000.f;  break;  // = BuildMeshCity (sync)
 	case EWLCampaignSettlementType::Industrial: TargetWidth = 6600.f;  break;
 	case EWLCampaignSettlementType::Frontier:   TargetWidth = 4400.f;  break;
 	default:                                    TargetWidth = 7000.f;  break;
@@ -219,9 +219,36 @@ void AWLCampaign3DView::RegisterCityFlatPad(float Lon, float Lat, EWLCampaignSet
 	FCityFlatPad Pad;
 	Pad.Lon = Lon;
 	Pad.Lat = Lat;
-	Pad.FlatRadiusDeg = FootprintDeg * 0.5f * 1.35f;   // nucleo plano = media huella + 35% margen
-	Pad.OuterRadiusDeg = Pad.FlatRadiusDeg * 1.8f;     // rampa de vuelta al terreno natural
+	// "Tazon" plano GENEROSO alrededor de la ciudad. No basta con cubrir la huella: en ciudades sobre
+	// pendiente fuerte (Valparaiso al pie de los Andes), si el relieve natural sube JUSTO en el borde del
+	// pad, ese muro se come/tapa el lado cuesta-arriba -> "ciudad incompleta". Con 2.3x la media huella el
+	// terreno empinado queda EMPUJADO lejos del borde de la ciudad y la rampa (x2.2) sube suave.
+	Pad.FlatRadiusDeg = FootprintDeg * 0.5f * 2.3f;
+	Pad.OuterRadiusDeg = Pad.FlatRadiusDeg * 2.2f;     // rampa larga y suave de vuelta al relieve natural
 	Pad.Height = SampleTerrainHeightRaw(Lon, Lat);     // altura NATURAL del centro (sin pads)
+	// MISMO offset de bioma que el ancla de la ciudad (BuildMeshCity): el terreno bajo la huella usara
+	// este offset unico, asi queda al MISMO Z que el piso de la ciudad. Sin esto, una ciudad que abarca
+	// varios biomas (puerto Costa +95 junto a Montaña +560) tiene celdas que sobresalen y entierran los
+	// edificios de ese lado (la causa real de "ciudad incompleta" en puertos costeros).
+	const bool bCoreCountry = FWLCampaignRegionGeometry::IsTheaterIso(CountryIso);
+	const EWLVisualBiome Biome = FWLCampaignVisualStyle::ClassifyVisualBiome(Lon, Lat, bCoreCountry);
+	Pad.BiomeZOffset = FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, bCoreCountry);
+	Pad.bIsCity = true;
+	CityFlatPads.Add(Pad);
+}
+
+void AWLCampaign3DView::RegisterBorderOutpostFlatPad(float Lon, float Lat)
+{
+	// Misma idea que las ciudades: el fuerte es una pieza rigida y necesita una plataforma local.
+	// Radio pequeno para no alterar mar, costa ni relieve fuera de la huella militar.
+	constexpr float TargetWidth = 6200.f;
+	const float FootprintDeg = (TargetWidth / FMath::Max(1.f, DetailWorldUnitsPerKm)) / 111.32f;
+	FCityFlatPad Pad;
+	Pad.Lon = Lon;
+	Pad.Lat = Lat;
+	Pad.FlatRadiusDeg = FootprintDeg * 0.5f * 1.18f;
+	Pad.OuterRadiusDeg = Pad.FlatRadiusDeg * 1.65f;
+	Pad.Height = SampleTerrainHeightRaw(Lon, Lat);
 	CityFlatPads.Add(Pad);
 }
 
@@ -429,6 +456,33 @@ void AWLCampaign3DView::BuildTerrain()
 	Params.BoundaryMaterial = VertexColorMaterial;
 	FString CityVisualTestValue;
 	Params.bCreateTerrainCollision = !FParse::Value(FCommandLine::Get(), TEXT("WLCityVisualTest="), CityVisualTestValue);
+
+	// La linea de contorno (BoundaryMesh) NO debe dibujarse sobre las ciudades (tapaba puertos
+	// como Guayaquil al trazar el estuario). Los flat pads ya estan recolectados (pre-pasada
+	// antes de BuildTerrain). Radio = huella plana del pad -> hueco limpio del tamano de la ciudad.
+	Params.BoundaryClipCircles.Reserve(CityFlatPads.Num());
+	for (const FCityFlatPad& Pad : CityFlatPads)
+	{
+		Params.BoundaryClipCircles.Add(FVector(Pad.Lon, Pad.Lat, Pad.FlatRadiusDeg));
+	}
+
+	// Discos de ciudad: bajo cada ciudad el terreno se fuerza PLANO y al MISMO offset de bioma que el
+	// ancla de la ciudad (evita que biomas mixtos -p.ej. Montaña junto a un puerto Costa- sobresalgan y
+	// entierren los edificios = "ciudad incompleta") y rellena huecos costeros. Solo CIUDADES, no fuertes.
+	Params.CityLevelPads.Reserve(CityFlatPads.Num());
+	for (const FCityFlatPad& Pad : CityFlatPads)
+	{
+		if (!Pad.bIsCity)
+		{
+			continue;
+		}
+		FWLCampaignCityLevelPad LevelPad;
+		LevelPad.Lon = Pad.Lon;
+		LevelPad.Lat = Pad.Lat;
+		LevelPad.RadiusDeg = Pad.FlatRadiusDeg;
+		LevelPad.ZOffset = Pad.BiomeZOffset;
+		Params.CityLevelPads.Add(LevelPad);
+	}
 
 	FWLCampaignTerrainBuilder::Build(
 		TerrainMesh,

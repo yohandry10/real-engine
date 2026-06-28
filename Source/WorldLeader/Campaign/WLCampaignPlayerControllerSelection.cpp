@@ -460,6 +460,15 @@ void AWLCampaignPlayerController::SelectCampaignForce(const FWLCampaign3DForceVi
 	SelectedForceDetailLevel = Force.DetailLevel;
 	SelectedForceDisabledActions = Force.DisabledActions;
 	SelectedForceEstimatedStrength = Force.EstimatedStrength;
+	SelectedForceComposition.Reset();
+	for (const FWLForceUnitGroup& Group : Force.Composition)
+	{
+		FWLCampaignForceCompositionEntry Entry;
+		Entry.Label = Group.Label;
+		Entry.Count = Group.Count;
+		SelectedForceComposition.Add(Entry);
+	}
+	SelectedForceCategory = Force.MarkerCategory;
 	bSelectedForceMovable = Force.bMovable;
 	SelectedForceMovementNodeId = Force.MovementNodeId;
 	SelectedForceMovementStatus = Force.MovementStatus;
@@ -472,6 +481,97 @@ void AWLCampaignPlayerController::SelectCampaignForce(const FWLCampaign3DForceVi
 	{
 		Campaign3DView->SetSelectedForceHighlight(Force.Id);
 	}
+}
+
+namespace
+{
+	// Unidad por defecto que recluta el boton segun la categoria de la fuerza (v1: una unidad por boton).
+	FString DefaultRecruitUnitForCategory(const FString& Category)
+	{
+		const FString C = Category.ToLower();
+		if (C.Contains(TEXT("naval"))) { return TEXT("ship"); }
+		if (C.Contains(TEXT("air")))   { return TEXT("aircraft"); }
+		return TEXT("infantry");
+	}
+}
+
+TArray<FWLCampaignForceCompositionEntry> AWLCampaignPlayerController::GetSelectedForceTotalComposition() const
+{
+	TArray<FWLCampaignForceCompositionEntry> Out = SelectedForceComposition;  // base (del JSON)
+	const UGameInstance* GI = GetGameInstance();
+	const UWLStrategicTickSubsystem* Tick = GI ? GI->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr;
+	if (Tick && !SelectedForceId.IsEmpty())
+	{
+		for (const FWLGarrisonGroup& Group : Tick->GetGarrisonRecruited(SelectedForceId))
+		{
+			bool bMerged = false;
+			for (FWLCampaignForceCompositionEntry& Entry : Out)
+			{
+				if (Entry.Label.Equals(Group.Label, ESearchCase::IgnoreCase))
+				{
+					Entry.Count += Group.Count;
+					bMerged = true;
+					break;
+				}
+			}
+			if (!bMerged)
+			{
+				FWLCampaignForceCompositionEntry Entry;
+				Entry.Label = Group.Label;
+				Entry.Count = Group.Count;
+				Out.Add(Entry);
+			}
+		}
+	}
+	return Out;
+}
+
+FString AWLCampaignPlayerController::GetSelectedForceRecruitLabel() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	const UWLStrategicTickSubsystem* Tick = GI ? GI->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr;
+	if (!Tick || SelectedForceId.IsEmpty())
+	{
+		return FString();
+	}
+	const FString Unit = DefaultRecruitUnitForCategory(SelectedForceCategory);
+	for (const FWLRecruitOption& Option : Tick->GetRecruitOptions())
+	{
+		if (Option.UnitType == Unit)
+		{
+			return FString::Printf(TEXT("Reclutar %s  (-%lld, %dt)"), *Option.Label, static_cast<long long>(Option.Cost), Option.Turns);
+		}
+	}
+	return TEXT("Reclutar");
+}
+
+FString AWLCampaignPlayerController::GetSelectedForceRecruitStatus() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	const UWLStrategicTickSubsystem* Tick = GI ? GI->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr;
+	if (!Tick || SelectedForceId.IsEmpty())
+	{
+		return FString();
+	}
+	const TArray<FWLRecruitOrder> Queue = Tick->GetRecruitQueue(SelectedForceId);
+	if (Queue.Num() == 0)
+	{
+		return TEXT("Cola vacia. Pulsa Reclutar y avanza el mes [M].");
+	}
+	const FWLRecruitOrder& Front = Queue[0];
+	return FString::Printf(TEXT("Reclutando: %s  faltan %d turno(s)  ·  en cola: %d"), *Front.Label, Front.TurnsRemaining, Queue.Num());
+}
+
+bool AWLCampaignPlayerController::QueueRecruitForSelectedForce(FString& OutMessage)
+{
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	if (!Tick || SelectedForceId.IsEmpty())
+	{
+		OutMessage = TEXT("Selecciona una fuerza primero.");
+		return false;
+	}
+	const FString Unit = DefaultRecruitUnitForCategory(SelectedForceCategory);
+	return Tick->QueueRecruit(SelectedForceId, SelectedForceCountryIso, Unit, OutMessage);
 }
 
 bool AWLCampaignPlayerController::BuildRecommendedInSelectedProvince(FString& OutMessage)

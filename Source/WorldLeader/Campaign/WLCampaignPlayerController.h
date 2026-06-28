@@ -15,6 +15,13 @@ class AWLCampaign3DView;
 class UWLMainMenuWidget;
 struct FWLCampaign3DCityView;
 struct FWLCampaign3DForceView;
+
+// Carta de unidad para el panel de fuerza (espejo ligero de FWLForceUnitGroup): tropa + cuantos.
+struct FWLCampaignForceCompositionEntry
+{
+	FString Label;
+	int32 Count = 0;
+};
 struct FWLCampaign3DMovementNodeView;
 struct FWLCampaignTerritoryRegionView;
 struct FInputKeyEventArgs;
@@ -109,6 +116,12 @@ public:
 	const FString& GetSelectedForceDetailLevel() const { return SelectedForceDetailLevel; }
 	const TArray<FString>& GetSelectedForceDisabledActions() const { return SelectedForceDisabledActions; }
 	int32 GetSelectedForceEstimatedStrength() const { return SelectedForceEstimatedStrength; }
+	const TArray<FWLCampaignForceCompositionEntry>& GetSelectedForceComposition() const { return SelectedForceComposition; }
+	// Reclutamiento (Fase 3): tropas base + reclutadas, etiqueta del boton, estado de la cola, y la accion.
+	TArray<FWLCampaignForceCompositionEntry> GetSelectedForceTotalComposition() const;
+	FString GetSelectedForceRecruitLabel() const;
+	FString GetSelectedForceRecruitStatus() const;
+	bool QueueRecruitForSelectedForce(FString& OutMessage);
 	bool CanSelectedForceMove() const { return bSelectedForceMovable; }
 	bool IsForceMovementModeActive() const { return ForceMovementOrderMode != EWLCampaignForceMovementOrderMode::None; }
 	bool HasForceMovementDestination() const { return ForceMovementOrderMode == EWLCampaignForceMovementOrderMode::DestinationSelected; }
@@ -282,6 +295,8 @@ private:
 	FString SelectedForceDetailLevel;
 	TArray<FString> SelectedForceDisabledActions;
 	int32 SelectedForceEstimatedStrength = 0;
+	TArray<FWLCampaignForceCompositionEntry> SelectedForceComposition;
+	FString SelectedForceCategory;  // land|air|naval (para elegir que unidad recluta el boton)
 	bool bSelectedForceMovable = true;
 	FString SelectedForceMovementNodeId;
 	FString SelectedForceMovementStatus;

@@ -114,6 +114,87 @@ namespace
 		return Result;
 	}
 
+	FString ForceUnitLabel(const FString& UnitType)
+	{
+		const FString U = UnitType.ToLower();
+		if (U == TEXT("mbt"))       return TEXT("Tanques");
+		if (U == TEXT("ifv"))       return TEXT("Veh. combate");
+		if (U == TEXT("apc"))       return TEXT("Transportes");
+		if (U == TEXT("infantry"))  return TEXT("Infanteria");
+		if (U == TEXT("aircraft"))  return TEXT("Cazas");
+		if (U == TEXT("heli"))      return TEXT("Helicopteros");
+		if (U == TEXT("ship"))      return TEXT("Buques");
+		if (U == TEXT("artillery")) return TEXT("Artilleria");
+		return UnitType;
+	}
+
+	// Lee "composition": [ {"unit":"mbt","count":20}, ... ] del JSON de la fuerza.
+	TArray<FWLForceUnitGroup> ReadForceComposition(const TSharedPtr<FJsonObject>& Obj)
+	{
+		TArray<FWLForceUnitGroup> Result;
+		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+		if (!Obj.IsValid() || !Obj->TryGetArrayField(TEXT("composition"), Values) || !Values)
+		{
+			return Result;
+		}
+		for (const TSharedPtr<FJsonValue>& Value : *Values)
+		{
+			const TSharedPtr<FJsonObject>* Entry = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(Entry) || !Entry || !(*Entry).IsValid())
+			{
+				continue;
+			}
+			FWLForceUnitGroup Group;
+			Group.UnitType = ReadCampaignMilitaryForceStringField(*Entry, TEXT("unit")).ToLower();
+			Group.Count = FMath::Max(0, ReadCampaignMilitaryForceIntField(*Entry, TEXT("count")));
+			if (Group.UnitType.IsEmpty() || Group.Count <= 0)
+			{
+				continue;
+			}
+			Group.Label = ForceUnitLabel(Group.UnitType);
+			Result.Add(MoveTemp(Group));
+		}
+		return Result;
+	}
+
+	// Composicion plausible derivada de la categoria + efectivos cuando el JSON no la trae (asi TODA
+	// fuerza muestra cartas de tropas sin tener que editar cada entrada a mano).
+	TArray<FWLForceUnitGroup> DeriveDefaultComposition(const FString& Category, int32 Strength)
+	{
+		auto Add = [](TArray<FWLForceUnitGroup>& Out, const TCHAR* Type, int32 Count, int32 Cap)
+		{
+			Count = FMath::Clamp(Count, 0, Cap);
+			if (Count <= 0) { return; }
+			FWLForceUnitGroup G;
+			G.UnitType = Type;
+			G.Label = ForceUnitLabel(Type);
+			G.Count = Count;
+			Out.Add(G);
+		};
+		TArray<FWLForceUnitGroup> Out;
+		const int32 S = FMath::Max(0, Strength);
+		const FString C = Category.ToLower();
+		if (C.Contains(TEXT("naval")))
+		{
+			Add(Out, TEXT("ship"), FMath::RoundToInt(S / 700.f), 40);
+			Add(Out, TEXT("infantry"), FMath::RoundToInt(S / 120.f), 200);
+		}
+		else if (C.Contains(TEXT("air")))
+		{
+			Add(Out, TEXT("aircraft"), FMath::RoundToInt(S / 130.f), 200);
+			Add(Out, TEXT("heli"), FMath::RoundToInt(S / 360.f), 120);
+		}
+		else
+		{
+			Add(Out, TEXT("infantry"), FMath::RoundToInt(S / 85.f), 400);
+			Add(Out, TEXT("mbt"), FMath::RoundToInt(S / 1400.f), 60);
+			Add(Out, TEXT("ifv"), FMath::RoundToInt(S / 2000.f), 50);
+			Add(Out, TEXT("apc"), FMath::RoundToInt(S / 2400.f), 50);
+			Add(Out, TEXT("artillery"), FMath::RoundToInt(S / 3500.f), 30);
+		}
+		return Out;
+	}
+
 	FLinearColor CampaignMilitaryForceColor(const FWLCampaign3DForceView& Force)
 	{
 		const FString Category = Force.MarkerCategory.ToLower();
@@ -224,6 +305,11 @@ namespace
 			Force.bAir = Category.Contains(TEXT("air"));
 			Force.bNaval = Category.Contains(TEXT("naval"));
 			Force.bMovable = ReadCampaignMilitaryForceBoolField(*ObjPtr, TEXT("movable"), !Force.bAir);
+			Force.Composition = ReadForceComposition(*ObjPtr);
+			if (Force.Composition.IsEmpty())
+			{
+				Force.Composition = DeriveDefaultComposition(Force.MarkerCategory, Force.EstimatedStrength);
+			}
 			if (!Force.Id.IsEmpty()
 				&& !Force.Name.IsEmpty()
 				&& FWLCampaignRegionGeometry::IsTheaterIso(Force.CountryIso)
@@ -272,14 +358,29 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 		return;
 	}
 
-	if (!ConeMesh)
+	// Token de ejercito (NPC) = modelo de unidad por categoria (tanque/buque/caza). Respaldo: cono.
+	UStaticMesh* TokenMesh = Force.bNaval ? ForceTokenNavalMesh
+		: (Force.bAir ? ForceTokenAirMesh : ForceTokenLandMesh);
+	if (!TokenMesh)
+	{
+		TokenMesh = ConeMesh;
+	}
+	if (!TokenMesh)
 	{
 		return;
 	}
 
 	const int32 ForceIndex = ForceViews.Num();
 	const FLinearColor BaseColor = CampaignMilitaryForceColor(Force);
-	const FVector BaseScale = CampaignMilitaryForceScale(Force);
+
+	// El modelo es 1u~=1m; el mapa mide decenas de km. Escalamos a un ANCHO DE TOKEN visible (icono de
+	// ejercito tipo Total War, no a escala real).
+	const float TargetTokenWidth = Force.bNaval ? 5200.f : (Force.bAir ? 4400.f : 3600.f);
+	const FVector Ext = TokenMesh->GetBounds().BoxExtent;
+	const float ModelW = FMath::Max(1.f, FMath::Max(Ext.X, Ext.Y) * 2.f);
+	const float TokenScaleU = TargetTokenWidth / ModelW;
+	const FVector TokenScale(TokenScaleU, TokenScaleU, TokenScaleU);
+	const float LabelZ = TargetTokenWidth * 0.95f;
 
 	UStaticMeshComponent* Marker = NewObject<UStaticMeshComponent>(this);
 	if (!Marker)
@@ -288,19 +389,28 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 	}
 	Marker->SetupAttachment(SceneRoot);
 	Marker->RegisterComponent();
-	Marker->SetStaticMesh(ConeMesh);
+	Marker->SetStaticMesh(TokenMesh);
 	Marker->SetWorldLocation(Force.WorldLocation);
 	Marker->SetWorldRotation(FRotator(0.f, Force.bNaval ? 45.f : 0.f, 0.f));
-	Marker->SetWorldScale3D(BaseScale);
+	Marker->SetWorldScale3D(TokenScale);
 	Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Marker->SetCollisionObjectType(ECC_WorldDynamic);
 	Marker->ComponentTags.Add(TEXT("WorldLeaderCampaign3DForce"));
 	Marker->ComponentTags.Add(FName(*Force.Id));
-	if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(BaseColor))
+	// Material UNLIT vertex-color (igual que ciudades/vehiculos): muestra el camuflaje del modelo y
+	// queda coherente con el mapa (un material LIT saldria oscuro -> doc #4).
+	if (VertexColorMaterial)
 	{
-		Marker->SetMaterial(0, Mat);
+		const int32 NumMats = FMath::Max(1, Marker->GetNumMaterials());
+		for (int32 i = 0; i < NumMats; ++i)
+		{
+			Marker->SetMaterial(i, VertexColorMaterial);
+		}
 	}
 
+	// Hitbox PEQUENO sobre el token. Antes era enorme (11800u): tapaba la ciudad y se tragaba su click
+	// (doc #10). Ahora solo el area del token selecciona la fuerza; el clic en la ciudad sigue yendo a
+	// la ciudad.
 	USphereComponent* SelectionProxy = NewObject<USphereComponent>(this);
 	if (!SelectionProxy)
 	{
@@ -309,8 +419,8 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 	}
 	SelectionProxy->SetupAttachment(SceneRoot);
 	SelectionProxy->RegisterComponent();
-	SelectionProxy->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 1400.f));
-	SelectionProxy->SetSphereRadius(Force.bNaval ? 14500.f : (Force.bAir ? 13200.f : 11800.f));
+	SelectionProxy->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, TargetTokenWidth * 0.30f));
+	SelectionProxy->SetSphereRadius(TargetTokenWidth * 0.72f);
 	SelectionProxy->SetVisibility(false, true);
 	SelectionProxy->SetHiddenInGame(false, true);
 	SelectionProxy->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -320,16 +430,17 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 	SelectionProxy->ComponentTags.Add(TEXT("WorldLeaderCampaign3DForce"));
 	SelectionProxy->ComponentTags.Add(FName(*Force.Id));
 
+	// Etiqueta = NOMBRE DE LA FUERZA (no la ciudad: antes duplicaba el nombre de la ciudad -> doc #10).
 	UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
 	if (Label)
 	{
 		Label->SetupAttachment(SceneRoot);
 		Label->RegisterComponent();
-		Label->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 2550.f));
+		Label->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, LabelZ));
 		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 		Label->SetHorizontalAlignment(EHTA_Center);
 		Label->SetWorldSize(Force.bNaval ? 430.f : 390.f);
-		Label->SetText(FText::FromString(Force.NearbyCity.IsEmpty() ? Force.Name : Force.NearbyCity));
+		Label->SetText(FText::FromString(Force.Name));
 		Label->SetTextRenderColor(Force.bAir ? FColor(200, 225, 245) : FColor(230, 214, 148));
 		Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		ForceMarkerLabels.Add(Label);
@@ -338,7 +449,7 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 	ForceViews.Add(Force);
 	ForceMarkerComponents.Add(Marker);
 	ForceSelectionMarkers.Add(SelectionProxy);
-	ForceMarkerBaseScales.Add(BaseScale);
+	ForceMarkerBaseScales.Add(TokenScale);
 	ForceMarkerBaseColors.Add(BaseColor);
 
 	if (ForceMarkerComponents.IsValidIndex(ForceIndex))

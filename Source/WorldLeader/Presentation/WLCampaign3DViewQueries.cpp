@@ -373,8 +373,8 @@ bool AWLCampaign3DView::UpdateForceMovementLocation(
 		}
 		if (ForceMarkerLabels.IsValidIndex(Index) && ForceMarkerLabels[Index])
 		{
-			ForceMarkerLabels[Index]->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 2550.f));
-			ForceMarkerLabels[Index]->SetText(FText::FromString(Force.NearbyCity.IsEmpty() ? Force.Name : Force.NearbyCity));
+			ForceMarkerLabels[Index]->SetWorldLocation(Force.WorldLocation + FVector(0.f, 0.f, 3400.f));
+			ForceMarkerLabels[Index]->SetText(FText::FromString(Force.Name));
 		}
 
 		OutForce = Force;
@@ -588,19 +588,17 @@ FBox2D AWLCampaign3DView::GetCameraBounds2D(float CameraHeight) const
 		return OverviewBounds;
 	}
 
-	if (CameraHeight < 155000.f)
+	// Bounds (terreno de DETALLE, ProjectLonLat ~35600 u/grado) y OverviewBounds (mesh America
+	// ESTRATEGICO, ProjectStrategicLonLat GeoScale=9000 u/grado) viven en ESPACIOS distintos (~4x).
+	// Mezclarlos por altura encogia el limite del teatro: el sur quedaba en ~Santiago (-33.5) y el
+	// este en ~lon -43 (cortaba el NE de Brasil). El teatro (rueda hasta 480k) usa SIEMPRE el
+	// continente de detalle completo; solo la vista America (boton, altura > tope de rueda) usa el
+	// box estrategico para centrar. Switch DURO, sin mezcla de espacios.
+	if (CameraHeight < 560000.f)
 	{
 		return Bounds;
 	}
-
-	FBox2D Combined = Bounds;
-	const float Blend = FMath::Clamp((CameraHeight - 155000.f) / 350000.f, 0.f, 1.f);
-	const FVector2D Center = Bounds.GetCenter();
-	const FVector2D OverviewMin = FMath::Lerp(Bounds.Min, OverviewBounds.Min, Blend);
-	const FVector2D OverviewMax = FMath::Lerp(Bounds.Max, OverviewBounds.Max, Blend);
-	Combined.Min = FVector2D(FMath::Min(OverviewMin.X, Center.X), FMath::Min(OverviewMin.Y, Center.Y));
-	Combined.Max = FVector2D(FMath::Max(OverviewMax.X, Center.X), FMath::Max(OverviewMax.Y, Center.Y));
-	return Combined;
+	return OverviewBounds;
 }
 
 FVector AWLCampaign3DView::GetTheaterFocusPoint() const
