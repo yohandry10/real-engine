@@ -44,13 +44,16 @@ comandas ejércitos. *Tu mayor enemigo puede estar sentado a tu mesa.*
   el **mismo modelo** (Skill · Lealtad · Ambición · Popularidad · Rasgos · Agenda). Se construye
   **una vez** y alimenta las 4 arenas. Es el principio organizador del proyecto.
 
-**Las 4 arenas + la base:**
+**Las 4 arenas + el motor económico:**
 
 - **GUERRA** — ejércitos liderados por generales (estilo Total War): reclutar en fuertes, marchar, batallas.
 - **ALTO MANDO** — tu círculo: ascender, purgar, oposición, sobrevivir golpes.
 - **DIPLOMACIA** — relaciones, tratados, embajadas, casus belli, declarar guerra.
 - **INTRIGA** — espías, sabotaje, financiar golpes/rebeldes en el rival, propaganda.
-- **Base: NACIÓN & ECONOMÍA** — el recurso que todo consume (no una meta en sí misma).
+- **ECONOMÍA (motor profundo — pilar clave, no un simple recurso).** Sistema realista con **causalidad**:
+  producción por **sectores**, **bienes** y **cadenas**, **mercado** con precios dinámicos y shocks,
+  **fisco** (impuestos/gasto/deuda), **comercio exterior** y **ciclo de crecimiento/recesión**. Es lo que
+  todo lo demás gasta y estresa, y lo que puede crecer o hundir a tu nación. Ver pilar **FE**.
 
 **Loop de turno:** ingresos/gastos → eventos & decisiones → órdenes (militar / interno / diplomacia)
 → fin de turno (IA, batallas, chequeo de golpe/revuelta).
@@ -58,9 +61,9 @@ comandas ejércitos. *Tu mayor enemigo puede estar sentado a tu mesa.*
 **Metas (victoria):** Dominación (someter al rival) · Hegemonía (control económico/diplomático) ·
 Régimen/Legado (mantente en el poder). **Derrota:** golpe, revolución o conquista.
 
-**Reorg de la ventana GOBIERNO:** RESUMEN (dashboard + economía) · ALTO MANDO · POLÍTICA (interno,
-pequeño) · DIPLOMACIA (reemplaza NACION) · REGISTROS. *NACION se elimina; su tabla de provincias se
-pliega en RESUMEN cuando llegue DIPLOMACIA (F3.6).*
+**Reorg de la ventana GOBIERNO:** RESUMEN (dashboard) · **ECONOMÍA** (presupuesto, sectores, bienes,
+comercio, PIB) · ALTO MANDO · POLÍTICA (interno, pequeño) · DIPLOMACIA (reemplaza NACION) · REGISTROS.
+*NACION se elimina; su tabla de provincias se pliega en RESUMEN/ECONOMÍA cuando lleguen DIPLOMACIA (F3.6) y FE.*
 
 ---
 
@@ -129,6 +132,70 @@ Criterio de "hecho" por tarea: **compila** + lo que indique la tarea.
 ### B — Batallas  *(paralelo; hasta entonces auto-resuelto)*
 - [ ] **B.1 — Auto-resolución.** Combate entre dos ejércitos por skill del general + composición → `EWLBattleResult`.
 - [ ] **B.2 — Batalla táctica.** (futuro) Total War real.
+
+---
+
+## 🏦 FE — ECONOMÍA (pilar profundo, *paralelo*)
+
+**Objetivo:** una economía **realista y con causalidad**, no un número plano. Hoy es una economía cerrada
+(recursos a precio fijo + impuesto per cápita − upkeep de infraestructura, × orden público) que **NO** modela
+comercio, mantenimiento de ejércitos, deuda, ni precios dinámicos. Esto lo convierte en un **motor por capas**:
+
+> **provincias → SECTORES producen BIENES** (con trabajo + insumos) → **DEMANDA** (población · industria ·
+> ejército · exportación) marca **superávit/déficit** → **MERCADO** fija **precios dinámicos** (+shocks) →
+> **FISCO** (impuestos − gasto, deuda, PIB) → **CRECIMIENTO / RECESIÓN**. **Comercio y ayuda exterior**
+> conectan economías (vía DIPLOMACIA F3).
+
+Se construye **de abajo hacia el jugador, MVP primero**. Cada sub-fase es un incremento jugable. *Recomendado
+intercalar **FE1 pronto**: tapa el hueco de "ejércitos gratis" y activa la tensión PODER⇄COSTE.*
+Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear balance).
+
+### FE1 — Fisco y presupuesto  *(fundamentos + huecos críticos)*
+- [ ] **FE1.1 — Mantenimiento de ejércitos por turno.** Cada ejército/guarnición drena tesoro cada mes
+  (coste por unidad). *Hecho = reclutar y mantener ejércitos baja el balance mensual.*
+- [ ] **FE1.2 — Palanca de impuestos.** Tasa ajustable por nación: subir = +ingreso, −orden público
+  (curva tipo Laffer). *Hecho = mover el impuesto cambia ingreso y orden.*
+- [ ] **FE1.3 — Presupuesto por categorías.** Gasto en militar / infraestructura / salarios / social + panel
+  ECONOMÍA que los desglosa. *Hecho = se ve ingreso y gasto por categoría.*
+- [ ] **FE1.4 — Deuda y déficit.** Tesoro negativo → interés mensual + límite de crédito + penalización.
+  *Hecho = gastar de más genera deuda con interés.*
+- [ ] **FE1.5 — PIB y crecimiento.** Métrica agregada de PIB + tasa de crecimiento mensual, en ECONOMÍA/RESUMEN.
+  *Hecho = se ve el PIB y si sube o baja.*
+
+### FE2 — Bienes, sectores y cadenas de producción  *(el corazón realista)*
+- [ ] **FE2.1 — Catálogo de bienes (JSON).** Crudos (petróleo, gas, carbón, minerales, alimentos, café) y
+  manufacturados (combustible, acero, bienes de consumo, armamento).
+- [ ] **FE2.2 — Sectores por provincia.** Extracción / manufactura / servicios producen bienes usando trabajo.
+- [ ] **FE2.3 — Cadenas de producción.** petróleo→refinería→combustible; hierro+carbón→acero→armas/maquinaria.
+- [ ] **FE2.4 — Empleo y productividad.** La población trabaja en sectores; desempleo; el nivel de
+  industrialización sube la productividad por trabajador.
+
+### FE3 — Demanda, mercado y precios dinámicos
+- [ ] **FE3.1 — Demanda.** Consumo de la población (según nivel de vida) + insumos de industria + suministro del ejército.
+- [ ] **FE3.2 — Balance por bien.** Superávit/déficit y sus efectos: déficit de alimentos → −orden público;
+  déficit de insumos → las fábricas subproducen.
+- [ ] **FE3.3 — Precios dinámicos.** Precio por oferta/demanda (reemplaza los precios fijos de `FWLBalanceRules`).
+- [ ] **FE3.4 — Shocks de mercado.** Shock del precio del petróleo, boom/crisis (evento; conecta con F5).
+
+### FE4 — Comercio exterior  *(conecta con DIPLOMACIA F3)*
+- [ ] **FE4.1 — Exportar/importar.** Vender superávit / comprar déficit en un mercado regional.
+- [ ] **FE4.2 — Acuerdos comerciales.** Suben volumen e ingreso de **ambos** países (se firman en Diplomacia).
+- [ ] **FE4.3 — Aranceles.** Ingreso + protección de la industria local, a costa de la relación.
+- [ ] **FE4.4 — Embargos / sanciones.** Arma económica: cortan el comercio del rival (daño mutuo).
+- [ ] **FE4.5 — Rutas comerciales.** Cortables en guerra (bloqueo naval, frontera cerrada) → escasez.
+
+### FE5 — Finanzas avanzadas, ayuda y ciclo económico
+- [ ] **FE5.1 — Bonos / préstamos.** Emitir deuda, calificación crediticia, riesgo de default, FMI.
+- [ ] **FE5.2 — Inflación.** Por masa monetaria / escasez; erosiona ingreso y nivel de vida.
+- [ ] **FE5.3 — Ayuda e inversión extranjera.** Aliados que subsidian/financian + FDI (empresas extranjeras
+  construyen en tu país).
+- [ ] **FE5.4 — Crecimiento vs recesión.** Motor con drivers ↑ (inversión, estabilidad, apertura comercial,
+  tecnología, precios favorables) y ↓ (guerra, sanciones, shock, inestabilidad, deuda, corrupción) + ciclo/recesión.
+
+### FE6 — Gobernanza económica  *(conecta con PERSONAJES)*
+- [ ] **FE6.1 — Ministro de Economía.** Su competencia/corrupción mueve el ingreso y la eficiencia de recaudación.
+- [ ] **FE6.2 — Corrupción sistémica.** Skim del tesoro + peor "facilidad de negocios" (menos inversión/crecimiento).
+- [ ] **FE6.3 — Modernización/tecnología.** Multiplicador de productividad por nivel tecnológico (hook para tech futura).
 
 ---
 
