@@ -55,11 +55,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
 	void AdvanceMonth();
 
+	// Avanza UN DIA (accion del jugador): corre economia/reclutamiento/IA una vez y adelanta la fecha 1 dia
+	// (con rollover a mes/anio). Es el "avanzar tiempo" clicable del HUD (antes solo existia el mes por tecla).
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
+	void AdvanceDay();
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Campaign")
 	int32 GetCurrentYear() const { return CurrentYear; }
 
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Campaign")
 	int32 GetCurrentMonth() const { return CurrentMonth; }
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Campaign")
+	int32 GetCurrentDay() const { return CurrentDay; }
 
 	/** Tesoro actual de una nacion (creditos). 0 si no existe. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
@@ -116,6 +124,14 @@ public:
 	/** Tropa ya producida (acumulada) en una base. */
 	TArray<FWLGarrisonGroup> GetGarrisonRecruited(const FString& BaseId) const;
 
+	/** Efectivos militares totales de una nacion (fuerzas desplegadas + guarniciones reclutadas). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int64 GetNationMilitaryStrength(const FString& NationIso) const;
+
+	/** Upkeep militar mensual de una nacion = efectivos * MilitaryUpkeepPerStrength (FE1.1). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int64 GetNationMilitaryUpkeep(const FString& NationIso) const;
+
 	/**
 	 * Ejecuta la IA economica para todas las naciones salvo PlayerNationIso.
 	 * Es determinista: una decision igual con datos iguales produce el mismo edificio.
@@ -154,6 +170,7 @@ public:
 private:
 	int32 CurrentYear = 0;
 	int32 CurrentMonth = 0;
+	int32 CurrentDay = 1;   // dia del mes (1..30) para el avance por dias del jugador
 
 	/** Tesoro nacional en runtime (ISO -> creditos). */
 	TMap<FString, int64> Treasuries;
@@ -169,6 +186,11 @@ private:
 	TMap<FString, TMap<FString, int32>> GarrisonRecruited;
 	mutable TArray<FWLRecruitOption> RecruitCatalog;
 	mutable bool bRecruitCatalogLoaded = false;
+
+	/** Efectivos desplegados por nacion (de MilitaryForces.json), cache perezoso para el upkeep militar (FE1.1). */
+	mutable TMap<FString, int64> PreplacedMilitaryStrength;
+	mutable bool bMilitaryCatalogLoaded = false;
+	void EnsureMilitaryCatalog() const;
 
 	UPROPERTY()
 	TArray<FString> LastEconomicAIReports;

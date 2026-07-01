@@ -75,6 +75,10 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Infrastructure", meta = (ClampMin = "0"))
 	int32 InfrastructureUpkeepFactor = 8;
 
+	/** Upkeep militar mensual por punto de efectivo (fuerza). 0 = ejercitos gratis (estado previo a FE1.1). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Military", meta = (ClampMin = "0.0"))
+	double MilitaryUpkeepPerStrength = 0.35;
+
 	/** Activa la IA economica mensual para naciones no controladas por el jugador. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Economic AI")
 	bool bEnableEconomicAI = true;
@@ -124,6 +128,7 @@ struct FWLBalanceRules
 		Out.PublicOrderBankruptcyPenalty = FMath::Max(0, Out.PublicOrderBankruptcyPenalty);
 		Out.OccupationPublicOrderPenalty = FMath::Clamp(Out.OccupationPublicOrderPenalty, 0, 100);
 		Out.InfrastructureUpkeepFactor = FMath::Max(0, Out.InfrastructureUpkeepFactor);
+		Out.MilitaryUpkeepPerStrength = FMath::Max(0.0, Out.MilitaryUpkeepPerStrength);
 		Out.EconomicAIMinTreasuryReserve = FMath::Max<int64>(0, Out.EconomicAIMinTreasuryReserve);
 		Out.EconomicAIMaxBuildsPerNationPerMonth = FMath::Max(0, Out.EconomicAIMaxBuildsPerNationPerMonth);
 		Out.EconomicAIMaxPaybackMonths = FMath::Max(0, Out.EconomicAIMaxPaybackMonths);

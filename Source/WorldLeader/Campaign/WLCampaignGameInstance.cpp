@@ -45,6 +45,17 @@ bool UWLCampaignGameInstance::StartNewCampaign(const FString& NationIso)
 		Military->ResetMilitaryState();
 	}
 	UE_LOG(LogWorldLeader, Log, TEXT("Campania iniciada con %s (%s)."), *Nation.Name, *Nation.Iso);
+	// Instantanea economica al iniciar (incluye el upkeep militar de FE1.1) para diagnostico/verificacion.
+	for (const TCHAR* SnapIso : { TEXT("CO"), TEXT("VE") })
+	{
+		UE_LOG(LogWorldLeader, Log,
+			TEXT("[Economia %s] fuerza=%lld  upkeepMilitar/mes=%lld  balance/mes=%lld  tesoro=%lld"),
+			SnapIso,
+			static_cast<long long>(Tick->GetNationMilitaryStrength(SnapIso)),
+			static_cast<long long>(Tick->GetNationMilitaryUpkeep(SnapIso)),
+			static_cast<long long>(Tick->GetMonthlyBalance(SnapIso)),
+			static_cast<long long>(Tick->GetTreasury(SnapIso)));
+	}
 	return true;
 }
 

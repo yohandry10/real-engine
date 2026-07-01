@@ -26,8 +26,8 @@
 
 ## 📍 Estado actual
 
-- **Fase activa:** F1 — Personajes & Generales
-- **Próxima tarea:** **F1.2** — Almacén de personajes (subsistema)
+- **Fase activa:** FE — Economía (el usuario priorizó economía). *F1 Generales queda en pausa (próxima F1.2).*
+- **Próxima tarea:** **FE1.2** — Palanca de impuestos
 - **Última actualización:** 2026-07-01
 
 ---
@@ -151,8 +151,9 @@ intercalar **FE1 pronto**: tapa el hueco de "ejércitos gratis" y activa la tens
 Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear balance).
 
 ### FE1 — Fisco y presupuesto  *(fundamentos + huecos críticos)*
-- [ ] **FE1.1 — Mantenimiento de ejércitos por turno.** Cada ejército/guarnición drena tesoro cada mes
+- [x] **FE1.1 — Mantenimiento de ejércitos por turno.** Cada ejército/guarnición drena tesoro cada mes
   (coste por unidad). *Hecho = reclutar y mantener ejércitos baja el balance mensual.*
+  ✅ Verificado runtime: CO 34.200 efectivos → 11.970/mes (balance 51.470→39.500); VE 28.800 → 10.080/mes.
 - [ ] **FE1.2 — Palanca de impuestos.** Tasa ajustable por nación: subir = +ingreso, −orden público
   (curva tipo Laffer). *Hecho = mover el impuesto cambia ingreso y orden.*
 - [ ] **FE1.3 — Presupuesto por categorías.** Gasto en militar / infraestructura / salarios / social + panel
@@ -202,5 +203,10 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-01 · FE1.1** — Upkeep militar mensual = efectivos (fuerzas desplegadas de MilitaryForces.json +
+  guarniciones reclutadas) × `MilitaryUpkeepPerStrength` (0.35). Restado en `GetMonthlyBalance` y sumado al
+  "Mantenimiento/mes" del RESUMEN. Verificado en runtime: CO 34.200→11.970/mes (balance 51.470→39.500),
+  VE 28.800→10.080/mes. Archivos: `WLBalanceTypes.h`, `WLStrategicTickSubsystem.h/.cpp`,
+  `WLStrategicTickSubsystemRecruit.cpp`, `WLGovernmentWidget.cpp`, `WLCampaignGameInstance.cpp` (instantánea económica).
 - **2026-07-01 · F1.1** — Modelo `FWLCharacter` + enums `EWLCharacterRole`/`EWLMilitaryRank` creados en
   `Source/WorldLeader/Core/WLCharacterTypes.h`. UHT procesa y el módulo compila+linkea (WorldLeaderEditor Development).

@@ -70,6 +70,55 @@ void UWLStrategicTickSubsystem::EnsureRecruitCatalog() const
 	UE_LOG(LogWorldLeader, Log, TEXT("Catalogo de reclutamiento cargado: %d unidades."), RecruitCatalog.Num());
 }
 
+void UWLStrategicTickSubsystem::EnsureMilitaryCatalog() const
+{
+	// FE1.1: efectivos DESPLEGADOS por nacion (MilitaryForces.json), para el upkeep militar mensual. Cache
+	// perezoso (una sola lectura). Las guarniciones reclutadas se suman aparte en GetNationMilitaryStrength.
+	if (bMilitaryCatalogLoaded)
+	{
+		return;
+	}
+	bMilitaryCatalogLoaded = true;
+	PreplacedMilitaryStrength.Reset();
+
+	const FString Path = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Campaign3D") / TEXT("MilitaryForces.json");
+	FString Raw;
+	if (!FFileHelper::LoadFileToString(Raw, *Path))
+	{
+		return;
+	}
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+	{
+		return;
+	}
+	const TArray<TSharedPtr<FJsonValue>>* Forces = nullptr;
+	if (!Root->TryGetArrayField(TEXT("forces"), Forces) || !Forces)
+	{
+		return;
+	}
+	for (const TSharedPtr<FJsonValue>& Value : *Forces)
+	{
+		const TSharedPtr<FJsonObject>* Obj = nullptr;
+		if (!Value.IsValid() || !Value->TryGetObject(Obj) || !Obj || !(*Obj).IsValid())
+		{
+			continue;
+		}
+		FString Iso;
+		(*Obj)->TryGetStringField(TEXT("country_iso"), Iso);
+		Iso = Iso.TrimStartAndEnd().ToUpper();
+		double Strength = 0.0;
+		(*Obj)->TryGetNumberField(TEXT("strength"), Strength);
+		if (Iso.IsEmpty() || Strength <= 0.0)
+		{
+			continue;
+		}
+		PreplacedMilitaryStrength.FindOrAdd(Iso) += static_cast<int64>(Strength);
+	}
+	UE_LOG(LogWorldLeader, Log, TEXT("Catalogo militar cargado: %d naciones con fuerzas desplegadas."), PreplacedMilitaryStrength.Num());
+}
+
 const FWLRecruitOption* UWLStrategicTickSubsystem::FindRecruitOption(const FString& UnitType) const
 {
 	EnsureRecruitCatalog();
@@ -107,8 +156,12 @@ bool UWLStrategicTickSubsystem::QueueRecruit(const FString& BaseId, const FStrin
 	int64* Treasury = Treasuries.Find(Iso);
 	if (!Treasury)
 	{
-		OutMessage = TEXT("Nacion sin tesoro.");
-		return false;
+		// TODOS los fuertes deben poder reclutar. En los datos (Nations.json) solo existen CO y VE, asi que los
+		// fuertes de los demas paises (EC/PE/CL/AR/BO/UY/PY/BR — el pais sale del id del fuerte) no tenian
+		// tesoro y fallaban con "Nacion sin tesoro". Les sembramos un tesoro por defecto la primera vez para
+		// que el edificio sea funcional (cada fuerte recluta para SU pais).
+		Treasury = &Treasuries.Add(Iso, 50000);
+		UE_LOG(LogWorldLeader, Log, TEXT("Tesoro por defecto sembrado para %s (fuerte sin nacion en datos)."), *Iso);
 	}
 	if (*Treasury < Option->Cost)
 	{

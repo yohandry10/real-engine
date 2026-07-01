@@ -773,6 +773,7 @@ UWLGovernmentWidget::FSummary UWLGovernmentWidget::BuildSummary() const
 		S.MonthlyUpkeep += Tick->GetProvinceMonthlyUpkeep(P.Id);
 		S.Controlled.Add(P);
 	}
+	S.MonthlyUpkeep += Tick->GetNationMilitaryUpkeep(Iso);   // FE1.1: mantenimiento militar en el total de gasto
 	S.AveragePublicOrder = S.ProvinceCount > 0 ? static_cast<int32>(OrderSum / S.ProvinceCount) : 0;
 	S.Controlled.Sort([](const FWLProvinceData& A, const FWLProvinceData& B) { return A.Population > B.Population; });
 	return S;

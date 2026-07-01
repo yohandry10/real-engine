@@ -24,6 +24,7 @@ void UWLStrategicTickSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	const FWLBalanceRules Rules = GetBalanceRules();
 	CurrentYear = Rules.StartYear;
 	CurrentMonth = Rules.StartMonth;
+	CurrentDay = 1;
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
 }
@@ -75,6 +76,7 @@ void UWLStrategicTickSubsystem::ResetCampaignState()
 	const FWLBalanceRules Rules = GetBalanceRules();
 	CurrentYear = Rules.StartYear;
 	CurrentMonth = Rules.StartMonth;
+	CurrentDay = 1;
 	ProvinceBuildings.Reset();
 	RecruitQueues.Reset();
 	GarrisonRecruited.Reset();
@@ -110,6 +112,42 @@ void UWLStrategicTickSubsystem::AdvanceMonth()
 
 	UE_LOG(LogWorldLeader, Log, TEXT("Tick estrategico -> %02d/%d | IA economica: %d construcciones"),
 		CurrentMonth, CurrentYear, LastEconomicAIReports.Num());
+	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
+}
+
+void UWLStrategicTickSubsystem::AdvanceDay()
+{
+	const FWLBalanceRules Rules = GetBalanceRules();
+
+	// Un "avanzar dia" (accion clara del jugador) corre el tick de economia, provincias y reclutamiento cada
+	// dia (progreso visible por dias). La IA economica corre al cerrar el MES (no cada dia -> no sobre-construye).
+	ApplyMonthlyEconomy();
+	ApplyMonthlyProvinceState();
+	AdvanceRecruitment();
+
+	bool bMonthRolled = false;
+	if (++CurrentDay > 30)
+	{
+		CurrentDay = 1;
+		bMonthRolled = true;
+		if (++CurrentMonth > Rules.MonthsPerYear)
+		{
+			CurrentMonth = 1;
+			++CurrentYear;
+		}
+	}
+
+	if (bMonthRolled)
+	{
+		LastEconomicAIReports.Reset();
+		const FString PlayerNationIso = GetActivePlayerNationIsoForAI();
+		if (!PlayerNationIso.IsEmpty())
+		{
+			RunEconomicAIInternal(PlayerNationIso, LastEconomicAIReports);
+		}
+	}
+
+	UE_LOG(LogWorldLeader, Log, TEXT("Avanzar dia -> %02d/%02d/%d"), CurrentDay, CurrentMonth, CurrentYear);
 	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
 }
 
@@ -197,7 +235,58 @@ int64 UWLStrategicTickSubsystem::GetMonthlyBalance(const FString& NationIso) con
 			Balance += GetProvinceMonthlyBalance(Province.Id);
 		}
 	}
+	Balance -= GetNationMilitaryUpkeep(NormalizedIso);   // FE1.1: los ejercitos cuestan cada mes
 	return Balance;
+}
+
+// FE1.1: nacion a la que se imputa la guarnicion de una base. "CO-FORCE-..." -> CO; "BO-CO-VE-GUAJIRA" -> CO
+// (primer token de nacion del teatro). Aproximacion suficiente para el upkeep de tropa reclutada.
+static FString MilitaryUpkeepNationFromBaseId(const FString& BaseId)
+{
+	TArray<FString> Parts;
+	BaseId.ParseIntoArray(Parts, TEXT("-"), true);
+	for (const FString& Part : Parts)
+	{
+		const FString Upper = Part.ToUpper();
+		if (Upper == TEXT("CO") || Upper == TEXT("VE"))
+		{
+			return Upper;
+		}
+	}
+	return Parts.Num() > 0 ? Parts[0].ToUpper() : FString();
+}
+
+int64 UWLStrategicTickSubsystem::GetNationMilitaryStrength(const FString& NationIso) const
+{
+	EnsureMilitaryCatalog();
+	const FString Iso = NormalizeIso(NationIso);
+	int64 Strength = 0;
+	if (const int64* Preplaced = PreplacedMilitaryStrength.Find(Iso))
+	{
+		Strength += *Preplaced;
+	}
+	// Guarniciones reclutadas: cada unidad producida aporta ~100 de fuerza (proxy hasta que F1.4 enlace
+	// ejercito<->nacion con precision).
+	for (const TPair<FString, TMap<FString, int32>>& Base : GarrisonRecruited)
+	{
+		if (MilitaryUpkeepNationFromBaseId(Base.Key) != Iso)
+		{
+			continue;
+		}
+		int64 Units = 0;
+		for (const TPair<FString, int32>& Unit : Base.Value)
+		{
+			Units += FMath::Max(0, Unit.Value);
+		}
+		Strength += Units * 100;
+	}
+	return Strength;
+}
+
+int64 UWLStrategicTickSubsystem::GetNationMilitaryUpkeep(const FString& NationIso) const
+{
+	const FWLBalanceRules Rules = GetBalanceRules();
+	return static_cast<int64>(static_cast<double>(GetNationMilitaryStrength(NationIso)) * Rules.MilitaryUpkeepPerStrength);
 }
 
 bool UWLStrategicTickSubsystem::GetProvinceState(const FString& ProvinceId, FWLProvinceRuntimeState& OutState) const
