@@ -734,9 +734,12 @@ void AWLCampaign3DView::BuildBorderOutpostLayer()
 		float PreferredSideSign;
 	};
 
-	// Standard de colocacion: un fuerte por corredor fronterizo jugable, fuera de la huella de ciudad.
-	// El solver de AddBorderOutpost mantiene separacion contra ciudades y mueve el fuerte al lado mas
-	// limpio de la carretera. Los cruces compartidos no se duplican por pais para no saturar la frontera.
+	// Standard de colocacion: fuera de la huella de ciudad; el solver de AddBorderOutpost mantiene
+	// separacion contra ciudades y mueve el fuerte al lado mas limpio de la carretera. MISMO PATRON en TODOS
+	// los paises: cada cruce se coloca a AMBOS lados (un fuerte por pais, ver el bucle de abajo) para que
+	// CADA pais tenga su puesto en SU lado de CADA frontera. Antes habia UN solo fuerte por cruce, que caia
+	// de un lado y dejaba al vecino sin fuerte (jugando CO, el mapa se veia vacio porque los fuertes caian
+	// del lado VE). Basta listar cada cruce UNA vez aqui; el bucle genera el fuerte del pais vecino.
 	static const FBorderOutpostSpec Outposts[] = {
 		// Venezuela primero: Colombia, Brasil y Guayana.
 		{ TEXT("BO-CO-VE-TACHIRA"), TEXT("Tachira border fort"), FVector2D(-72.44f, 7.82f), FVector2D(-72.50f, 7.90f), 1.f },
@@ -778,6 +781,21 @@ void AWLCampaign3DView::BuildBorderOutpostLayer()
 	for (const FBorderOutpostSpec& Spec : Outposts)
 	{
 		AddBorderOutpost(Spec.Id, Spec.Name, Spec.RoadA, Spec.RoadB, Spec.PreferredSideSign);
+
+		// Espejo para TODO cruce (mismo patron en todos los paises): coloca un SEGUNDO fuerte al OTRO lado,
+		// para el OTRO pais del cruce (id con los dos paises intercambiados) y con el signo de lado invertido.
+		// Asi CADA pais tiene su propio puesto en SU lado de CADA frontera, en vez de un unico fuerte que
+		// dejaba un lado vacio. AddBorderOutpost fija el dueno por punto-en-poligono (paises del teatro) y,
+		// para el resto, por el orden del id: original -> id[1], espejo -> el otro pais (nunca ambos iguales).
+		TArray<FString> IdParts;
+		FString(Spec.Id).ParseIntoArray(IdParts, TEXT("-"), true);
+		if (IdParts.Num() >= 3
+			&& !IdParts[1].Equals(IdParts[2], ESearchCase::IgnoreCase))
+		{
+			Swap(IdParts[1], IdParts[2]);
+			const FString MirrorId = FString::Join(IdParts, TEXT("-"));
+			AddBorderOutpost(MirrorId, Spec.Name, Spec.RoadA, Spec.RoadB, -Spec.PreferredSideSign);
+		}
 	}
 }
 
@@ -1389,14 +1407,57 @@ void AWLCampaign3DView::AddBorderOutpost(
 
 	// El fuerte es una BASE DE RECLUTAMIENTO (estilo Total War): lo registramos como una "fuerza/
 	// guarnicion" seleccionable (vacia al inicio) -> al hacer clic abre el panel de reclutamiento y se
-	// entrena tropa por turnos en este fuerte. El pais sale del id ("BO-CO-VE-..." -> CO) para el tesoro.
+	// entrena tropa por turnos en este fuerte. El pais duenno se resuelve por el LADO real (ver abajo).
 	{
 		FWLCampaign3DForceView Garrison;
 		Garrison.Id = OutpostId;
 		Garrison.Name = Name;
+		// Duenno del fuerte = el pais en cuyo LADO real cae el fuerte (no siempre el primero del id). Un cruce
+		// "BO-CO-VE-*" nombra CO y VE; el solver coloca el fuerte a ~12km de UN lado, asi que resolvemos el iso
+		// por punto-en-poligono entre los DOS paises del id: jugando VE, los fuertes del lado venezolano son de
+		// VE (reclutan para VE); jugando CO, los del lado colombiano son de CO. Fallback al 1er pais del id.
 		TArray<FString> IdParts;
 		OutpostId.ParseIntoArray(IdParts, TEXT("-"), true);
-		Garrison.CountryIso = IdParts.IsValidIndex(1) ? IdParts[1].ToUpper() : TEXT("CO");
+		const FString IsoA = IdParts.IsValidIndex(1) ? IdParts[1].ToUpper() : TEXT("CO");
+		const FString IsoB = IdParts.IsValidIndex(2) ? IdParts[2].ToUpper() : FString();
+		// Dueno = el pais en cuyo suelo REAL cae el fuerte. Solo tenemos poligono de los paises del teatro
+		// (CO/VE): si el fuerte cae dentro de uno, ese es el dueno; si NO cae en ningun poligono del teatro y
+		// solo uno de los dos paises del cruce es del teatro, entonces esta del lado del VECINO (no-teatro) ->
+		// dueno = el vecino (asi el fuerte del lado ecuatoriano de Rumichaca es de EC, no de CO). Fallback id[1].
+		auto CountryContains = [this, &OutpostLonLat](const FString& Iso) -> bool
+		{
+			for (const FWLRegionalCountryGeometry& Country : SettlementLandGeometry)
+			{
+				if (Country.Iso.Equals(Iso, ESearchCase::IgnoreCase))
+				{
+					return FWLCampaignRegionGeometry::PointInAnyLonLatRing(OutpostLonLat, Country.Rings);
+				}
+			}
+			return false;
+		};
+		Garrison.CountryIso = IsoA;   // fallback: primer pais del id
+		if (CountryContains(IsoA))
+		{
+			Garrison.CountryIso = IsoA;
+		}
+		else if (!IsoB.IsEmpty() && CountryContains(IsoB))
+		{
+			Garrison.CountryIso = IsoB;
+		}
+		else if (!IsoB.IsEmpty())
+		{
+			// No cae en ningun poligono del teatro: si exactamente uno es del teatro, esta del lado del otro.
+			const bool bATheater = FWLCampaignRegionGeometry::IsTheaterIso(IsoA);
+			const bool bBTheater = FWLCampaignRegionGeometry::IsTheaterIso(IsoB);
+			if (bATheater && !bBTheater)
+			{
+				Garrison.CountryIso = IsoB;
+			}
+			else if (bBTheater && !bATheater)
+			{
+				Garrison.CountryIso = IsoA;
+			}
+		}
 		Garrison.CountryName = Garrison.CountryIso;
 		Garrison.ForceType = TEXT("Fuerte fronterizo (base de reclutamiento)");
 		Garrison.MarkerCategory = TEXT("land");

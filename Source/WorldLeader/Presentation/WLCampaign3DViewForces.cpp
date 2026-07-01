@@ -367,7 +367,7 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 
 	const int32 ForceIndex = ForceViews.Num();
 	const FLinearColor BaseColor = CampaignMilitaryForceColor(Force);
-	const float TargetTokenWidth = Force.bNaval ? 5200.f : (Force.bAir ? 4400.f : 3600.f);
+	const float TargetTokenWidth = Force.bNaval ? 4200.f : (Force.bAir ? 3600.f : 2900.f);
 
 	// Token de UNIDAD (NPC) SOLO si se pide. Los FUERTES NO llevan token: son un edificio clicable (la
 	// guarnicion se ve en el panel; las tropas como icono movil son un paso aparte). Sin token -> Marker
@@ -406,12 +406,15 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 				Marker->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 				Marker->ComponentTags.Add(TEXT("WorldLeaderCampaign3DForce"));
 				Marker->ComponentTags.Add(FName(*Force.Id));
-				if (VertexColorMaterial)
+				// Material UNLIT (M_VehicleUnlit) -> el tanque muestra su vertex-color tan SIEMPRE igual, sin
+				// oscurecerse por luz/sombra (el VertexColorMaterial del Engine es LIT). Fallback al lit.
+				UMaterialInterface* TokenMat = ForceTokenMaterial ? ForceTokenMaterial : VertexColorMaterial;
+				if (TokenMat)
 				{
 					const int32 NumMats = FMath::Max(1, Marker->GetNumMaterials());
 					for (int32 i = 0; i < NumMats; ++i)
 					{
-						Marker->SetMaterial(i, VertexColorMaterial);
+						Marker->SetMaterial(i, TokenMat);
 					}
 				}
 			}
@@ -473,33 +476,26 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 	}
 }
 
-FVector AWLCampaign3DView::GroundedLandTokenLocation(float Lon, float Lat) const
+FVector AWLCampaign3DView::GroundedLandTokenLocationAtWorld(float WorldX, float WorldY) const
 {
-	const FVector Projected = ProjectLonLat(Lon, Lat);
-
-	// Superficie visible EXACTA: raycast hacia abajo contra SOLO el TerrainMesh (su colision se cuece de los
-	// mismos vertices que se dibujan, asi que el impacto = el suelo que se ve, con bioma/pads ya incluidos).
-	// LineTraceComponent ignora edificios, proxies y cualquier otra cosa -> el tanque apoya en el terreno.
-	float SurfaceZ;
-	bool bHit = false;
+	// Superficie visible EXACTA: raycast hacia abajo contra SOLO el TerrainMesh (su colision = los vertices
+	// dibujados, con bioma/pads ya incluidos). Ignora edificios/proxies -> el tanque apoya en el terreno.
+	// Sirve para cualquier punto del mundo (incluido a MITAD de carretera, no solo en ciudades).
+	float SurfaceZ = GetGroundWorldZAtWorld(WorldX, WorldY);
 	if (TerrainMesh)
 	{
-		const FVector Start(Projected.X, Projected.Y, Projected.Z + 600000.f);
-		const FVector End(Projected.X, Projected.Y, Projected.Z - 600000.f);
+		const FVector Start(WorldX, WorldY, SurfaceZ + 600000.f);
+		const FVector End(WorldX, WorldY, SurfaceZ - 600000.f);
 		FHitResult Hit;
 		FCollisionQueryParams Q(FName(TEXT("WLArmyGround")), true);
 		if (TerrainMesh->LineTraceComponent(Hit, Start, End, Q))
 		{
 			SurfaceZ = Hit.ImpactPoint.Z;
-			bHit = true;
 		}
-	}
-	if (!bHit)
-	{
-		// Respaldo analitico (campo abierto): ProjectLonLat + offset de bioma, igual que ciudades/fuertes.
-		const bool bCore = true;
-		const EWLVisualBiome Biome = FWLCampaignVisualStyle::ClassifyVisualBiome(Lon, Lat, bCore);
-		SurfaceZ = Projected.Z + FWLCampaignVisualStyle::VisualBiomeZOffset(Biome, bCore) + 16.f;
+		else
+		{
+			SurfaceZ += 120.f;   // respaldo si el raycast no impacta
+		}
 	}
 
 	// Asiento: lleva el punto MAS BAJO del modelo a la superficie (admite cualquier pivote del FBX).
@@ -513,7 +509,13 @@ FVector AWLCampaign3DView::GroundedLandTokenLocation(float Lon, float Lat) const
 		Seat = (Ext.Z - Orig.Z) * Scale;
 	}
 
-	return FVector(Projected.X, Projected.Y, SurfaceZ + Seat);
+	return FVector(WorldX, WorldY, SurfaceZ + Seat);
+}
+
+FVector AWLCampaign3DView::GroundedLandTokenLocation(float Lon, float Lat) const
+{
+	const FVector Projected = ProjectLonLat(Lon, Lat);
+	return GroundedLandTokenLocationAtWorld(Projected.X, Projected.Y);
 }
 
 void AWLCampaign3DView::SyncRecruitedArmyTokens()
@@ -528,12 +530,22 @@ void AWLCampaign3DView::SyncRecruitedArmyTokens()
 	// referencias si iteraramos el array en vivo.
 	struct FFortInfo { FString Id; FString Name; FString Iso; FVector Loc; float Lon; float Lat; };
 	TArray<FFortInfo> Forts;
+	const FString PlayerIso = ActivePlayerNationIso.TrimStartAndEnd().ToUpper();
 	for (const FWLCampaign3DForceView& F : ForceViews)
 	{
-		if (F.bIsRecruitmentBase)
+		if (!F.bIsRecruitmentBase)
 		{
-			Forts.Add({ F.Id, F.Name, F.CountryIso, F.WorldLocation, F.Lon, F.Lat });
+			continue;
 		}
+		// SOLO los fuertes de TU pais despliegan ejercito: un fuerte del otro lado de la frontera no crea
+		// tropa para el jugador. (Si no hay nacion activa por algun motivo, no filtramos para no dejar el
+		// mapa sin ejercitos.) El reclutamiento ya se bloquea en fuertes ajenos; esto lo garantiza tambien
+		// en el despliegue del token.
+		if (!PlayerIso.IsEmpty() && !F.CountryIso.Equals(PlayerIso, ESearchCase::IgnoreCase))
+		{
+			continue;
+		}
+		Forts.Add({ F.Id, F.Name, F.CountryIso, F.WorldLocation, F.Lon, F.Lat });
 	}
 
 	for (const FFortInfo& Fort : Forts)
@@ -610,8 +622,10 @@ void AWLCampaign3DView::SyncRecruitedArmyTokens()
 			if (Dir.SizeSquared() > KINDA_SMALL_NUMBER)
 			{
 				Dir.Normalize();
-				ArmyLon = Fort.Lon + Dir.X * 0.14f;   // ~5000u hacia el nodo, fuera del fuerte
-				ArmyLat = Fort.Lat + Dir.Y * 0.14f;
+				// JUSTO al lado del fuerte (no en la ciudad vecina): ~2850u hacia la carretera, fuera del
+				// hitbox del fuerte (2200) para que cada uno se clique por separado.
+				ArmyLon = Fort.Lon + Dir.X * 0.08f;
+				ArmyLat = Fort.Lat + Dir.Y * 0.08f;
 			}
 			Army.MovementNodeId = NearestId;
 			Army.LocationName = Node->Name;
@@ -619,7 +633,24 @@ void AWLCampaign3DView::SyncRecruitedArmyTokens()
 			Army.ProvinceId = Node->ProvinceId;
 			Army.ProvinceName = Node->ProvinceName;
 		}
-		Army.WorldLocation = GroundedLandTokenLocation(ArmyLon, ArmyLat);
+		// Nace SOBRE la carretera mas cercana al fuerte: asi el ejercito entra/sale por la via que tiene ENFRENTE.
+		// PERO solo si esa via esta DE VERDAD junto al fuerte: las polilineas de conduccion son solo las rutas
+		// curadas del teatro, y algunos cruces (p.ej. La Guajira/Maicao) no tienen una, asi que la "mas cercana"
+		// podia caer a >300km, en OTRA frontera -> el token aparecia lejos (bug "reclutas en Maicao y el ejercito
+		// sale en Cucuta"). Con el limite, si no hay via al lado, lo dejamos pegado al fuerte (se une a la red al
+		// moverlo). Si hay via cercana, cae al desplazamiento hacia el nodo.
+		const FVector FortWorld = ProjectLonLat(Fort.Lon, Fort.Lat);
+		const float MaxRoadSnapWorld = 45.f * DetailWorldUnitsPerKm;   // 45 km: al lado del fuerte, no otra frontera
+		FVector RoadSpawn;
+		if (NearestRoadPointWorld(FortWorld, RoadSpawn)
+			&& FVector::Dist2D(FortWorld, RoadSpawn) <= MaxRoadSnapWorld)
+		{
+			Army.WorldLocation = GroundedLandTokenLocationAtWorld(RoadSpawn.X, RoadSpawn.Y);
+		}
+		else
+		{
+			Army.WorldLocation = GroundedLandTokenLocation(ArmyLon, ArmyLat);
+		}
 		Army.Lon = ArmyLon;
 		Army.Lat = ArmyLat;
 
@@ -671,24 +702,8 @@ void AWLCampaign3DView::RefreshMilitaryForceMarkerVisuals()
 		const bool bSelected = !SelectedForceHighlightId.IsEmpty() && Force.Id.Equals(SelectedForceHighlightId, ESearchCase::IgnoreCase);
 		const bool bHovered = !HoveredForceHighlightId.IsEmpty() && Force.Id.Equals(HoveredForceHighlightId, ESearchCase::IgnoreCase);
 		const FVector BaseScale = ForceMarkerBaseScales.IsValidIndex(Index) ? ForceMarkerBaseScales[Index] : CampaignMilitaryForceScale(Force);
-		const FLinearColor BaseColor = ForceMarkerBaseColors.IsValidIndex(Index) ? ForceMarkerBaseColors[Index] : CampaignMilitaryForceColor(Force);
+		// Seleccion/hover = solo MAS GRANDE. NO se cambia el material: el token conserva su material UNLIT de
+		// vertex-color (tan constante). Antes se sobrescribia con un color solido LIT que oscurecia el tanque.
 		Marker->SetWorldScale3D(BaseScale * (bSelected ? 1.42f : (bHovered ? 1.22f : 1.0f)));
-
-		FLinearColor DisplayColor = BaseColor;
-		if (bSelected)
-		{
-			DisplayColor = (BaseColor * 0.58f) + FLinearColor(0.96f, 0.78f, 0.28f, 1.f) * 0.42f;
-			DisplayColor.A = 1.f;
-		}
-		else if (bHovered)
-		{
-			DisplayColor = (BaseColor * 0.72f) + FLinearColor(0.82f, 0.96f, 1.0f, 1.f) * 0.28f;
-			DisplayColor.A = 1.f;
-		}
-
-		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(DisplayColor))
-		{
-			Marker->SetMaterial(0, Mat);
-		}
 	}
 }
