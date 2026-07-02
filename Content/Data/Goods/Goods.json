@@ -40,27 +40,31 @@
 		"name": "Combustible",
 		"category": "manufactured",
 		"base_price": 6,
-		"inputs": ["oil"]
+		"inputs": ["oil"],
+		"industry_share": 0.25
 	},
 	{
 		"id": "steel",
 		"name": "Acero",
 		"category": "manufactured",
 		"base_price": 5,
-		"inputs": ["minerals", "coal"]
+		"inputs": ["minerals", "coal"],
+		"industry_share": 0.35
 	},
 	{
 		"id": "consumer_goods",
 		"name": "Bienes de consumo",
 		"category": "manufactured",
 		"base_price": 7,
-		"inputs": ["steel"]
+		"inputs": ["steel"],
+		"industry_share": 0.3
 	},
 	{
 		"id": "weapons",
 		"name": "Armamento",
 		"category": "manufactured",
 		"base_price": 9,
-		"inputs": ["steel"]
+		"inputs": ["steel"],
+		"industry_share": 0.1
 	}
 ]

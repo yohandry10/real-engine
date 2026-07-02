@@ -125,6 +125,67 @@ bool FWLNationBudgetBreakdownTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLProvinceSectorsProductionTest,
+	"WorldLeader.Economy.ProvinceSectorsProduction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLProvinceSectorsProductionTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	if (!Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	auto FindUnits = [](const TArray<FWLGoodOutput>& Production, const FString& GoodId) -> int64
+	{
+		for (const FWLGoodOutput& Out : Production)
+		{
+			if (Out.GoodId == GoodId)
+			{
+				return Out.Units;
+			}
+		}
+		return 0;
+	};
+
+	// CO-ARA (Arauca): rica en petroleo (base 720) y poco poblada -> el trabajo limita la produccion.
+	const FWLSectorEmployment Arauca = Tick->GetProvinceEmployment(TEXT("CO-ARA"));
+	TestTrue(TEXT("Arauca tiene fuerza laboral"), Arauca.Workforce > 0);
+	TestTrue(TEXT("Arauca esta limitada por trabajo"), Arauca.LaborCoverage > 0.0 && Arauca.LaborCoverage < 1.0);
+	TestTrue(TEXT("Empleo por sectores repartido"), Arauca.Extraction > 0 && Arauca.Services >= 0);
+
+	const TArray<FWLGoodOutput> AraucaProduction = Tick->GetProvinceProduction(TEXT("CO-ARA"));
+	const int64 AraucaOil = FindUnits(AraucaProduction, TEXT("oil"));
+	TestTrue(TEXT("Arauca produce petroleo"), AraucaOil > 0);
+	TestTrue(TEXT("La falta de trabajo subproduce petroleo"), AraucaOil < 720);
+
+	// CO-ANT (Antioquia): muy poblada -> trabajo pleno; la industria saca manufacturados por IndustryShare.
+	const FWLSectorEmployment Antioquia = Tick->GetProvinceEmployment(TEXT("CO-ANT"));
+	TestEqual(TEXT("Antioquia con trabajo pleno"), Antioquia.LaborCoverage, 1.0);
+	const TArray<FWLGoodOutput> AntioquiaProduction = Tick->GetProvinceProduction(TEXT("CO-ANT"));
+	TestTrue(TEXT("Antioquia produce acero"), FindUnits(AntioquiaProduction, TEXT("steel")) > 0);
+	TestTrue(TEXT("Antioquia produce bienes de consumo"), FindUnits(AntioquiaProduction, TEXT("consumer_goods")) > 0);
+
+	// Agregado nacional: la produccion de CO incluye al menos el petroleo de Arauca.
+	TestTrue(TEXT("La nacion agrega la produccion provincial"),
+		FindUnits(Tick->GetNationProduction(TEXT("CO")), TEXT("oil")) >= AraucaOil);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLGDPAndGrowthTest,
 	"WorldLeader.Balance.GDPAndGrowth",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -255,6 +316,9 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	Rules.DebtMonthlyInterestRate = 5.0;
 	Rules.DebtCreditLimitIncomeMonths = -3.0;
 	Rules.GDPPerCapitaActivity = -0.5;
+	Rules.LaborParticipationRate = 7.0;
+	Rules.WorkersPerBasePoint = -5;
+	Rules.SectorOutputPerBasePoint = -1.0;
 	Rules.EconomicAIMinTreasuryReserve = -5000;
 	Rules.EconomicAIMaxBuildsPerNationPerMonth = -2;
 	Rules.EconomicAIMaxPaybackMonths = -12;
@@ -281,6 +345,9 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Interes de deuda clamp"), Sanitized.DebtMonthlyInterestRate, 1.0);
 	TestEqual(TEXT("Limite de credito negativo saneado"), Sanitized.DebtCreditLimitIncomeMonths, 0.0);
 	TestEqual(TEXT("Actividad PIB negativa saneada"), Sanitized.GDPPerCapitaActivity, 0.0);
+	TestEqual(TEXT("Participacion laboral clamp"), Sanitized.LaborParticipationRate, 1.0);
+	TestEqual(TEXT("Trabajadores por punto saneados"), Sanitized.WorkersPerBasePoint, 0);
+	TestEqual(TEXT("Output por punto saneado"), Sanitized.SectorOutputPerBasePoint, 0.0);
 	TestEqual(TEXT("Reserva IA saneada"), Sanitized.EconomicAIMinTreasuryReserve, static_cast<int64>(0));
 	TestEqual(TEXT("Construcciones IA saneadas"), Sanitized.EconomicAIMaxBuildsPerNationPerMonth, 0);
 	TestEqual(TEXT("Retorno IA saneado"), Sanitized.EconomicAIMaxPaybackMonths, 0);

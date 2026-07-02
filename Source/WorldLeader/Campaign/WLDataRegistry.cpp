@@ -381,6 +381,9 @@ bool UWLDataRegistry::LoadGoodsFromFile(const FString& FilePath)
 		int32 Price = 0;
 		if (Obj->TryGetNumberField(TEXT("base_price"), Price)) G.BasePrice = Price;
 
+		double Share = 0.0;
+		if (Obj->TryGetNumberField(TEXT("industry_share"), Share)) G.IndustryShare = FMath::Max(0.0, Share);
+
 		const TArray<TSharedPtr<FJsonValue>>* Inputs = nullptr;
 		if (Obj->TryGetArrayField(TEXT("inputs"), Inputs) && Inputs)
 		{

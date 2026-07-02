@@ -335,6 +335,127 @@ double UWLStrategicTickSubsystem::GetNationGDPGrowth(const FString& NationIso) c
 	return Found ? *Found : 0.0;
 }
 
+// FE2.2: sectores por provincia. La extraccion produce crudos segun las bases de recursos y la manufactura
+// produce bienes segun la base industrial (repartida por IndustryShare del catalogo); ambas requieren
+// trabajadores (WorkersPerBasePoint) y subproducen si la fuerza laboral no alcanza (LaborCoverage).
+FWLSectorEmployment UWLStrategicTickSubsystem::GetProvinceEmployment(const FString& ProvinceId) const
+{
+	FWLSectorEmployment Employment;
+	const UWLDataRegistry* Registry = GetDataRegistry();
+	FWLProvinceData Province;
+	if (!Registry || !Registry->GetProvince(ProvinceId, Province))
+	{
+		return Employment;
+	}
+
+	const FWLBalanceRules Rules = GetBalanceRules();
+	FWLProvinceRuntimeState State;
+	const int64 Population = GetProvinceState(Province.Id, State)
+		? FMath::Max<int64>(0, State.Population)
+		: FMath::Max<int64>(0, Province.Population);
+
+	Employment.Workforce = static_cast<int64>(
+		FMath::RoundToDouble(static_cast<double>(Population) * Rules.LaborParticipationRate));
+
+	const int64 ExtractionBase = static_cast<int64>(Province.BaseOil) + Province.BaseGas
+		+ Province.BaseMinerals + Province.BaseFood;
+	const int64 RequiredWorkers =
+		(ExtractionBase + Province.BaseIndustry) * static_cast<int64>(Rules.WorkersPerBasePoint);
+
+	Employment.LaborCoverage = RequiredWorkers > 0
+		? FMath::Clamp(static_cast<double>(Employment.Workforce) / static_cast<double>(RequiredWorkers), 0.0, 1.0)
+		: 1.0;
+
+	Employment.Extraction = static_cast<int64>(FMath::RoundToDouble(
+		static_cast<double>(ExtractionBase * Rules.WorkersPerBasePoint) * Employment.LaborCoverage));
+	Employment.Manufacturing = static_cast<int64>(FMath::RoundToDouble(
+		static_cast<double>(static_cast<int64>(Province.BaseIndustry) * Rules.WorkersPerBasePoint) * Employment.LaborCoverage));
+	Employment.Services = FMath::Max<int64>(0,
+		Employment.Workforce - Employment.Extraction - Employment.Manufacturing);
+	return Employment;
+}
+
+TArray<FWLGoodOutput> UWLStrategicTickSubsystem::GetProvinceProduction(const FString& ProvinceId) const
+{
+	TArray<FWLGoodOutput> Output;
+	const UWLDataRegistry* Registry = GetDataRegistry();
+	FWLProvinceData Province;
+	if (!Registry || !Registry->GetProvince(ProvinceId, Province))
+	{
+		return Output;
+	}
+
+	const FWLBalanceRules Rules = GetBalanceRules();
+	const double Coverage = GetProvinceEmployment(Province.Id).LaborCoverage;
+	const double OutputPerPoint = Rules.SectorOutputPerBasePoint * Coverage;
+
+	auto AddOutput = [&Output](const FString& GoodId, int64 Units)
+	{
+		if (Units > 0)
+		{
+			FWLGoodOutput Out;
+			Out.GoodId = GoodId;
+			Out.Units = Units;
+			Output.Add(MoveTemp(Out));
+		}
+	};
+
+	// Extraccion: las bases de recursos producen crudos del catalogo.
+	AddOutput(TEXT("oil"), static_cast<int64>(FMath::RoundToDouble(Province.BaseOil * OutputPerPoint)));
+	AddOutput(TEXT("gas"), static_cast<int64>(FMath::RoundToDouble(Province.BaseGas * OutputPerPoint)));
+	AddOutput(TEXT("minerals"), static_cast<int64>(FMath::RoundToDouble(Province.BaseMinerals * OutputPerPoint)));
+	AddOutput(TEXT("food"), static_cast<int64>(FMath::RoundToDouble(Province.BaseFood * OutputPerPoint)));
+
+	// Manufactura: la base industrial se reparte entre manufacturados por IndustryShare (datos, no codigo).
+	// FE2.3 encadenara insumos; de momento la industria produce sin consumirlos.
+	const double IndustryUnits = Province.BaseIndustry * OutputPerPoint;
+	if (IndustryUnits > 0.0)
+	{
+		for (const FWLGoodData& Good : Registry->GetAllGoods())
+		{
+			if (Good.Category == EWLGoodCategory::Manufactured && Good.IndustryShare > 0.0)
+			{
+				AddOutput(Good.Id, static_cast<int64>(FMath::RoundToDouble(IndustryUnits * Good.IndustryShare)));
+			}
+		}
+	}
+	return Output;
+}
+
+TArray<FWLGoodOutput> UWLStrategicTickSubsystem::GetNationProduction(const FString& NationIso) const
+{
+	TMap<FString, int64> Totals;
+	const UWLDataRegistry* Registry = GetDataRegistry();
+	if (!Registry)
+	{
+		return TArray<FWLGoodOutput>();
+	}
+
+	const FString NormalizedIso = NormalizeIso(NationIso);
+	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
+	{
+		if (GetProvinceControllerIso(Province.Id) != NormalizedIso)
+		{
+			continue;
+		}
+		for (const FWLGoodOutput& Out : GetProvinceProduction(Province.Id))
+		{
+			Totals.FindOrAdd(Out.GoodId) += Out.Units;
+		}
+	}
+
+	TArray<FWLGoodOutput> Output;
+	for (const TPair<FString, int64>& Pair : Totals)
+	{
+		FWLGoodOutput Out;
+		Out.GoodId = Pair.Key;
+		Out.Units = Pair.Value;
+		Output.Add(MoveTemp(Out));
+	}
+	Output.Sort([](const FWLGoodOutput& A, const FWLGoodOutput& B) { return A.Units > B.Units; });
+	return Output;
+}
+
 void UWLStrategicTickSubsystem::UpdateGDPHistory()
 {
 	for (const TPair<FString, int64>& Pair : Treasuries)

@@ -165,6 +165,8 @@ struct FWLGoodData
 	UPROPERTY(BlueprintReadOnly, Category = "Good") int32 BasePrice = 0;
 	/** IDs de bienes necesarios para producirlo (vacio en crudos). */
 	UPROPERTY(BlueprintReadOnly, Category = "Good") TArray<FString> Inputs;
+	/** FE2.2: fraccion de la produccion industrial que sale como este bien (solo manufacturados). */
+	UPROPERTY(BlueprintReadOnly, Category = "Good") double IndustryShare = 0.0;
 
 	bool IsValid() const { return !Id.IsEmpty(); }
 };

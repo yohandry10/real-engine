@@ -45,6 +45,42 @@ struct FWLNationBudget
 	int64 Net() const { return TotalIncome() - TotalSpending(); }
 };
 
+/** FE2.2: unidades producidas de un bien al mes. */
+USTRUCT(BlueprintType)
+struct FWLGoodOutput
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	FString GoodId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Units = 0;
+};
+
+/** FE2.2: empleo de una provincia repartido por sector. */
+USTRUCT(BlueprintType)
+struct FWLSectorEmployment
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Workforce = 0;        // poblacion activa (poblacion x participacion laboral)
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Extraction = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Manufacturing = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Services = 0;         // resto de la fuerza laboral (MVP; desempleo llega en FE2.4)
+
+	/** 0..1: cuanta de la mano de obra que piden extraccion+manufactura queda cubierta. */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double LaborCoverage = 1.0;
+};
+
 // --- Reclutamiento de tropas por turnos (estilo Total War) ---
 struct FWLRecruitOption   // una entrada del catalogo (RecruitableUnits.json)
 {
@@ -127,6 +163,18 @@ public:
 	/** FE1.5: crecimiento del PIB entre los dos ultimos ticks economicos (0.01 = +1%). 0 hasta el segundo tick. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	double GetNationGDPGrowth(const FString& NationIso) const;
+
+	/** FE2.2: bienes que produce una provincia al mes (extraccion por bases + manufactura por industria). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	TArray<FWLGoodOutput> GetProvinceProduction(const FString& ProvinceId) const;
+
+	/** FE2.2: produccion mensual agregada de una nacion, por bien. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	TArray<FWLGoodOutput> GetNationProduction(const FString& NationIso) const;
+
+	/** FE2.2: empleo por sector de una provincia (el trabajo limita la produccion). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	FWLSectorEmployment GetProvinceEmployment(const FString& ProvinceId) const;
 
 	/** FE1.2: tasa de impuestos de una nacion (%). Si nunca se toco, el default de balance. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")

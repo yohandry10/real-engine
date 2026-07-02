@@ -79,6 +79,18 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GDP", meta = (ClampMin = "0.0"))
 	double GDPPerCapitaActivity = 0.002;
 
+	/** FE2.2: fraccion de la poblacion que es fuerza laboral. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sectors", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double LaborParticipationRate = 0.45;
+
+	/** FE2.2: trabajadores necesarios por punto de base economica para producir a pleno rendimiento. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sectors", meta = (ClampMin = "0"))
+	int32 WorkersPerBasePoint = 200;
+
+	/** FE2.2: unidades de bien producidas por punto de base economica al mes (con trabajo pleno). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sectors", meta = (ClampMin = "0.0"))
+	double SectorOutputPerBasePoint = 1.0;
+
 	/** Orden publico inicial para provincias sin estado guardado. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Public Order", meta = (ClampMin = "0", ClampMax = "100"))
 	int32 InitialPublicOrder = 72;
@@ -169,6 +181,9 @@ struct FWLBalanceRules
 		Out.DebtMonthlyInterestRate = FMath::Clamp(Out.DebtMonthlyInterestRate, 0.0, 1.0);
 		Out.DebtCreditLimitIncomeMonths = FMath::Max(0.0, Out.DebtCreditLimitIncomeMonths);
 		Out.GDPPerCapitaActivity = FMath::Max(0.0, Out.GDPPerCapitaActivity);
+		Out.LaborParticipationRate = FMath::Clamp(Out.LaborParticipationRate, 0.0, 1.0);
+		Out.WorkersPerBasePoint = FMath::Max(0, Out.WorkersPerBasePoint);
+		Out.SectorOutputPerBasePoint = FMath::Max(0.0, Out.SectorOutputPerBasePoint);
 		Out.InitialPublicOrder = FMath::Clamp(Out.InitialPublicOrder, 0, 100);
 		Out.PublicOrderNeutral = FMath::Clamp(Out.PublicOrderNeutral, 1, 100);
 		Out.LowOrderIncomePenaltyAtZero = FMath::Clamp(Out.LowOrderIncomePenaltyAtZero, 0.0, 1.0);

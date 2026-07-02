@@ -693,6 +693,47 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		}
 	}
 
+	// FE2.2: produccion nacional por bien (extraccion + manufactura, limitadas por trabajo).
+	{
+		const TArray<FWLGoodOutput> Production = Tick->GetNationProduction(Iso);
+		if (Production.Num() > 0)
+		{
+			AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PRODUCCION NACIONAL / MES"), 17, GovGold), 20.f);
+			const UWLDataRegistry* Registry = GetRegistry();
+			int32 Index = 0;
+			for (const FWLGoodOutput& Out : Production)
+			{
+				FWLGoodData Good;
+				const bool bHasGood = Registry && Registry->GetGood(Out.GoodId, Good);
+				const FString GoodName = bHasGood ? Good.Name : Out.GoodId;
+				const bool bManufactured = bHasGood && Good.Category == EWLGoodCategory::Manufactured;
+
+				UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
+				UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, GoodName, 14, GovText)))
+				{
+					S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+					S->SetVerticalAlignment(VAlign_Center);
+				}
+				USizeBox* KindBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+				KindBox->SetWidthOverride(120.f);
+				KindBox->SetContent(MakeText(WidgetTree, bManufactured ? TEXT("Manufactura") : TEXT("Extraccion"),
+					11, GovMuted, ETextJustify::Right));
+				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(KindBox)) { S->SetVerticalAlignment(VAlign_Center); }
+				USizeBox* UnitsBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+				UnitsBox->SetWidthOverride(110.f);
+				UnitsBox->SetContent(MakeText(WidgetTree, GovGroupThousands(Out.Units), 14, GovGold, ETextJustify::Right));
+				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(UnitsBox)) { S->SetVerticalAlignment(VAlign_Center); }
+				Row->SetContent(HB);
+				AddColumnChild(CenterBox, Row, 4.f);
+				++Index;
+			}
+			AddColumnChild(CenterBox, MakeText(WidgetTree,
+				TEXT("La produccion la limita la mano de obra disponible. Demanda, mercado y precios: proximas fases."),
+				12, GovMuted, ETextJustify::Left, true), 6.f);
+		}
+	}
+
 	// FE1.2: palanca de impuestos. Mover la tasa cambia la recaudacion (Laffer) y el orden publico mensual.
 	{
 		const int32 TaxRate = Tick->GetTaxRate(Iso);

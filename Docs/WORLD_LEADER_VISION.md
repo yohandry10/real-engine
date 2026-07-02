@@ -166,7 +166,7 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ### FE2 — Bienes, sectores y cadenas de producción  *(el corazón realista)*
 - [x] **FE2.1 — Catálogo de bienes (JSON).** Crudos (petróleo, gas, carbón, minerales, alimentos, café) y
   manufacturados (combustible, acero, bienes de consumo, armamento).
-- [ ] **FE2.2 — Sectores por provincia.** Extracción / manufactura / servicios producen bienes usando trabajo.
+- [x] **FE2.2 — Sectores por provincia.** Extracción / manufactura / servicios producen bienes usando trabajo.
 - [ ] **FE2.3 — Cadenas de producción.** petróleo→refinería→combustible; hierro+carbón→acero→armas/maquinaria.
 - [ ] **FE2.4 — Empleo y productividad.** La población trabaja en sectores; desempleo; el nivel de
   industrialización sube la productividad por trabajador.
@@ -203,6 +203,16 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-01 · FE2.2** — Sectores por provincia: extracción (bases oil/gas/minerals/food → crudos) y
+  manufactura (base_industry → manufacturados repartidos por `industry_share` del catálogo) producen bienes
+  usando TRABAJO: fuerza laboral = población × `LaborParticipationRate` (0.45); cada punto de base pide
+  `WorkersPerBasePoint` (200) trabajadores; si no alcanzan, `LaborCoverage` < 1 subproduce (Arauca ~0.6).
+  Servicios = resto del empleo (desempleo llega en FE2.4). API: `GetProvinceProduction`/`GetNationProduction`/
+  `GetProvinceEmployment` (`FWLGoodOutput`, `FWLSectorEmployment`). UI: sección PRODUCCIÓN NACIONAL/MES en
+  ECONOMIA (bien, sector, unidades). Aún sin consumir insumos (eso es FE2.3) ni demanda/precios (FE3).
+  Test `Economy.ProvinceSectorsProduction` (suite 20/21). Archivos: `WLBalanceTypes.h`, `Goods.json`,
+  `WLGameTypes.h`, `WLDataRegistry.cpp`, `WLStrategicTickSubsystem.h/.cpp`, `WLGovernmentWidget.cpp`,
+  `WLBalanceTests.cpp`.
 - **2026-07-01 · FE2.1** — Catálogo de bienes: `Content/Data/Goods/Goods.json` (6 crudos: oil/gas/coal/
   minerals/food/coffee · 4 manufacturados: fuel/steel/consumer_goods/weapons, con `inputs` ya declarados para
   FE2.3) + `FWLGoodData`/`EWLGoodCategory` en WLGameTypes + loader/getters en `WLDataRegistry`
