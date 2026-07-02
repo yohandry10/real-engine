@@ -166,6 +166,45 @@ namespace WLGovUI
 		return Tag;
 	}
 
+	/**
+	 * Titulo de seccion con jerarquia clara: barra de acento dorada + texto en mayusculas sobre una
+	 * franja tenue, y una linea divisoria debajo que separa cada bloque. Da la estructura visual que
+	 * una simple linea de texto dorada no consigue.
+	 */
+	inline UWidget* MakeSectionTitle(UWidgetTree* Tree, const FString& Title)
+	{
+		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+
+		UBorder* Strip = MakeBorder(Tree, FLinearColor(0.140f, 0.115f, 0.060f, 0.55f), FMargin(0.f));
+		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		USizeBox* Bar = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Bar->SetWidthOverride(5.f);
+		Bar->SetContent(MakeBorder(Tree, GovGold, FMargin(0.f)));
+		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(Bar))
+		{
+			S->SetVerticalAlignment(VAlign_Fill);
+		}
+		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(10.f, 6.f));
+		Pad->SetContent(MakeText(Tree, Title.ToUpper(), 16, GovGold));
+		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(Pad))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Strip->SetContent(Row);
+		VB->AddChildToVerticalBox(Strip);
+
+		// Linea divisoria fina bajo la franja.
+		USizeBox* Line = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Line->SetHeightOverride(2.f);
+		Line->SetContent(MakeBorder(Tree, GovGoldDim, FMargin(0.f)));
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(Line))
+		{
+			S->SetPadding(FMargin(0.f, 0.f, 0.f, 0.f));
+		}
+		return VB;
+	}
+
 	/** Insignia compacta de estado (riesgo, rol, area...) con color propio. */
 	inline UBorder* MakeBadge(UWidgetTree* Tree, const FString& S, const FLinearColor& Bg,
 		const FLinearColor& TextColor = FLinearColor(0.94f, 0.93f, 0.88f, 1.f))

@@ -331,7 +331,7 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 		return;
 	}
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PODER INTERNO"), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PODER INTERNO")), 6.f);
 
 	// Orden publico nacional (media real de provincias controladas).
 	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Orden publico nacional"), Sum.AveragePublicOrder,
@@ -399,7 +399,7 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 	// Gobierno P1: apoyo y presion de los grupos sociales.
 	{
 		const TArray<FWLPublicGroupSupportState> Groups = Political->GetPublicGroups(Iso);
-		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GRUPOS SOCIALES"), 17, GovGold), 20.f);
+		AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("GRUPOS SOCIALES")), 20.f);
 		if (Groups.Num() == 0)
 		{
 			AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin datos de grupos sociales."), 13, GovMuted), 8.f);
@@ -439,7 +439,7 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 	// Gobierno P1: capacidad estatal (burocracia, corrupcion, eficiencia, autoridad, riesgo de fallo).
 	{
 		const FWLStateCapacityState Capacity = Political->GetStateCapacity(Iso);
-		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("CAPACIDAD ESTATAL"), 17, GovGold), 20.f);
+		AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("CAPACIDAD ESTATAL")), 20.f);
 		AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Burocracia"), Capacity.Bureaucracy,
 			SupportColor(Capacity.Bureaucracy), GovCard,
 			TEXT("Cuanto Estado tienes para ejecutar. Bajo: los programas fallan.")), 8.f);
@@ -471,8 +471,8 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 			++PendingCount;
 		}
 	}
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("EVENTOS  (%d pendientes)"), PendingCount), 17, GovGold), 20.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("EVENTOS  (%d pendientes)"), PendingCount)), 20.f);
 	if (PendingCount == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
@@ -542,7 +542,7 @@ void UWLGovernmentWidget::BuildPoliticsAgendaSection()
 		bDraftAgendaLoaded = true;
 	}
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("AGENDA NACIONAL"), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("AGENDA NACIONAL")), 6.f);
 
 	// Agenda vigente segun el backend.
 	FString CurrentText;
@@ -618,7 +618,7 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 	const TArray<FWLMinistryProgramState> Active = Political->GetActiveMinistryPrograms(Iso);
 	const TArray<FWLMinistryProgramDefinition> Catalog = Political->GetAvailableMinistryPrograms(Iso);
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PROGRAMAS MINISTERIALES"), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PROGRAMAS MINISTERIALES")), 6.f);
 	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
 		TEXT("Capital politico %d · Tesoro %s · Riesgo de fallo de politicas %d%% (capacidad estatal)"),
 		Stats.PoliticalCapital, *GovGroupThousands(Treasury), Capacity.PolicyFailureRisk),
@@ -831,7 +831,7 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 		NameById.Add(Definition.ReformId, Definition.Name);
 	}
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("ARBOL DE LEYES Y REFORMAS"), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ARBOL DE LEYES Y REFORMAS")), 6.f);
 	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
 		TEXT("Coalicion %d · Capacidad estatal %d · Capital politico %d · Tesoro %s"),
 		Institutions.RulingCoalitionSupport, Capacity.AdministrativeEfficiency,
@@ -1084,7 +1084,7 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 	}
 
 	const FWLInstitutionalPowerState Institutions = Political->GetInstitutionalPower(Iso);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("CONGRESO Y BASE POLITICA"), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("CONGRESO Y BASE POLITICA")), 6.f);
 	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Coalicion oficialista"), Institutions.RulingCoalitionSupport,
 		SupportColor(Institutions.RulingCoalitionSupport), GovCard,
 		TEXT("Apoyo legislativo del gobierno. Las reformas exigen un minimo de coalicion.")), 8.f);
@@ -1179,7 +1179,7 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 
 	// Gobierno P2: red clientelar (patronazgo).
 	const FWLPatronageState Patronage = Political->GetPatronageState(Iso);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("RED CLIENTELAR (PATRONAZGO)"), 17, GovGold), 20.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("RED CLIENTELAR (PATRONAZGO)")), 20.f);
 	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Poder de patronazgo"), Patronage.PatronagePower,
 		SupportColor(Patronage.PatronagePower, 50, 20), GovCard,
 		TEXT("Cuantos favores puedes repartir sin romper el Estado.")), 8.f);
@@ -1235,7 +1235,7 @@ void UWLGovernmentWidget::BuildPoliticsElectionsSection()
 	}
 
 	const FWLElectionState Election = Political->GetElectionState(Iso);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("ELECCIONES Y LEGITIMIDAD"), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ELECCIONES Y LEGITIMIDAD")), 6.f);
 
 	UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
 	Grid->SetSlotPadding(FMargin(5.f));
@@ -1370,7 +1370,7 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 	}
 
 	const FWLMediaPublicOpinionState Media = Political->GetMediaPublicOpinion(Iso);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("MEDIOS Y OPINION PUBLICA"), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("MEDIOS Y OPINION PUBLICA")), 6.f);
 	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Aprobacion presidencial"), Media.PresidentialApproval,
 		SupportColor(Media.PresidentialApproval), GovCard), 8.f);
 	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Libertad de prensa"), Media.PressFreedom,
@@ -1438,8 +1438,8 @@ void UWLGovernmentWidget::BuildPoliticsRegionsSection()
 	}
 
 	const TArray<FWLRegionGovernorState> Regions = Political->GetRegionGovernors(Iso);
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("REGIONES Y GOBERNADORES  (%d)"), Regions.Num()), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("REGIONES Y GOBERNADORES  (%d)"), Regions.Num())), 6.f);
 	if (Regions.Num() == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin regiones registradas para esta nacion."), 13, GovMuted), 8.f);
@@ -1535,8 +1535,8 @@ void UWLGovernmentWidget::BuildPoliticsCrisisSection()
 			++ActiveCount;
 		}
 	}
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("CRISIS ENCADENADAS  (%d activas)"), ActiveCount), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("CRISIS ENCADENADAS  (%d activas)"), ActiveCount)), 6.f);
 	if (ActiveCount == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
@@ -1604,8 +1604,8 @@ void UWLGovernmentWidget::BuildPoliticsCrisisSection()
 
 	// Memoria politica: el pais no olvida.
 	const TArray<FWLPoliticalMemoryRecord> Memory = Political->GetPoliticalMemory(Iso);
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("MEMORIA POLITICA  (%d recuerdos)"), Memory.Num()), 17, GovGold), 18.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("MEMORIA POLITICA  (%d recuerdos)"), Memory.Num())), 18.f);
 	if (Memory.Num() == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
@@ -1660,7 +1660,7 @@ void UWLGovernmentWidget::BuildGovernanceOverviewCards()
 		}
 	}
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PULSO DE GOBIERNO"), 17, GovGold), 20.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PULSO DE GOBIERNO")), 20.f);
 	UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
 	Grid->SetSlotPadding(FMargin(5.f));
 	auto Place = [&](int32 Row, int32 Col, UBorder* Card)
@@ -2044,7 +2044,7 @@ void UWLGovernmentWidget::BuildAIPlansPanel()
 		}
 	}
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PANORAMA CONTINENTAL"), 17, GovGold), 18.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PANORAMA CONTINENTAL")), 18.f);
 
 	// Resumen del continente: cuantos gobiernos persiguen cada objetivo (solo cubos con datos).
 	{
@@ -2412,7 +2412,7 @@ void UWLGovernmentWidget::BuildDifficultyPanel()
 		}
 	};
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("DIFICULTAD"), 17, GovGold), 20.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("DIFICULTAD")), 20.f);
 
 	UBorder* Card = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
 	UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -2463,7 +2463,7 @@ void UWLGovernmentWidget::BuildCalibrationPanel()
 	}
 	const FWLGovernmentCalibrationState Calibration = Political->GetGovernmentCalibration(Iso);
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("CALIBRACION (PLAYTEST)"), 17, GovGold), 18.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("CALIBRACION (PLAYTEST)")), 18.f);
 	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
 		TEXT("Herramienta de debug: mide si cada dilema tiene tradeoff real. %d meses observados."),
 		Calibration.MonthsObserved), 12, GovMuted, ETextJustify::Left, true), 4.f);
