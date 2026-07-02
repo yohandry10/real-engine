@@ -6,10 +6,12 @@
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Politics/WLPoliticalSubsystem.h"
 #include "Map/WLWorldMap.h"
 #include "Presentation/WLCampaign3DView.h"
 #include "UI/WLCampaignHUD.h"
 #include "UI/WLCampaignSelectionPanelData.h"
+#include "UI/WLEventModalWidget.h"
 #include "UI/WLGovernmentWidget.h"
 #include "UI/WLMainMenuWidget.h"
 #include "WorldLeader.h"
@@ -289,6 +291,71 @@ void AWLCampaignPlayerController::SetGovernmentWindowOpen(bool bOpen)
 		// Restauramos el input de campania (el mapa vuelve a ser navegable).
 		EnterCampaignInputMode();
 		SetLastActionMessage(TEXT("Gobierno: consejo presidencial cerrado."), true);
+	}
+}
+
+void AWLCampaignPlayerController::ShowEventModalIfPending()
+{
+	// La ventana de Gobierno tiene prioridad: si el jugador ya la tiene abierta, los eventos
+	// estan a la vista en POLITICA y no interrumpimos con un segundo modal encima.
+	if (bGovernmentWindowOpen || bEventModalOpen)
+	{
+		return;
+	}
+	const UGameInstance* GI = GetGameInstance();
+	const UWLPoliticalSubsystem* Politics = GI ? GI->GetSubsystem<UWLPoliticalSubsystem>() : nullptr;
+	const UWLCampaignGameInstance* CampaignGI = Cast<UWLCampaignGameInstance>(GI);
+	if (!Politics || !CampaignGI)
+	{
+		return;
+	}
+	for (const FWLPoliticalEventInstance& Event : Politics->GetQueuedEvents(CampaignGI->GetSelectedNationIso()))
+	{
+		if (!Event.bResolved)
+		{
+			SetEventModalOpen(true);
+			return;
+		}
+	}
+}
+
+void AWLCampaignPlayerController::SetEventModalOpen(bool bOpen)
+{
+	if (bEventModalOpen == bOpen)
+	{
+		return;
+	}
+	bEventModalOpen = bOpen;
+
+	if (bOpen)
+	{
+		if (!EventModalWidget)
+		{
+			EventModalWidget = CreateWidget<UWLEventModalWidget>(this, UWLEventModalWidget::StaticClass());
+		}
+		if (EventModalWidget)
+		{
+			// Z-order por encima de la ventana de Gobierno (120): un evento manda sobre todo.
+			EventModalWidget->AddToViewport(140);
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(EventModalWidget->TakeWidget());
+			SetInputMode(InputMode);
+			bShowMouseCursor = true;
+		}
+		SetLastActionMessage(TEXT("Evento politico: decision requerida."), true);
+	}
+	else
+	{
+		if (EventModalWidget)
+		{
+			EventModalWidget->RemoveFromParent();
+			EventModalWidget = nullptr;
+		}
+		// Si el jugador no dejo abierta la ventana de Gobierno, devolvemos el input al mapa.
+		if (!bGovernmentWindowOpen)
+		{
+			EnterCampaignInputMode();
+		}
 	}
 }
 

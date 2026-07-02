@@ -142,6 +142,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
 	TArray<FWLActiveReformState> GetActivePolicyReforms(const FString& NationIso) const;
 
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	TArray<FWLEnactedPolicyReformState> GetEnactedPolicyReforms(const FString& NationIso) const;
+
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
 	bool EnactPolicyReform(const FString& NationIso, const FString& ReformId, FString& OutMessage);
 
@@ -213,6 +216,7 @@ public:
 
 	void WriteGovernmentP2SaveSnapshot(
 		TArray<FWLActiveReformState>& OutReforms,
+		TArray<FWLEnactedPolicyReformState>& OutEnactedReforms,
 		TArray<FWLPartyState>& OutParties,
 		TArray<FWLElectionState>& OutElections,
 		TArray<FWLCharacterPoliticalProfile>& OutCharacterProfiles,
@@ -243,6 +247,7 @@ public:
 
 	bool RestoreGovernmentP2SaveSnapshot(
 		const TArray<FWLActiveReformState>& SavedReforms,
+		const TArray<FWLEnactedPolicyReformState>& SavedEnactedReforms,
 		const TArray<FWLPartyState>& SavedParties,
 		const TArray<FWLElectionState>& SavedElections,
 		const TArray<FWLCharacterPoliticalProfile>& SavedCharacterProfiles,
@@ -298,6 +303,9 @@ private:
 
 	UPROPERTY()
 	TArray<FWLActiveReformState> ActivePolicyReforms;
+
+	UPROPERTY()
+	TArray<FWLEnactedPolicyReformState> EnactedPolicyReforms;
 
 	UPROPERTY()
 	TArray<FWLPartyState> PoliticalParties;
@@ -402,6 +410,10 @@ private:
 	void SeedCharacterProfilesForNation(const FString& NationIso);
 	bool GetPolicyReformDefinition(const FString& ReformId, FWLPolicyReformDefinition& OutDefinition) const;
 	bool HasReformMemory(const FString& NationIso, const FString& ReformId) const;
+	bool HasEnactedPolicyReform(const FString& NationIso, const FString& ReformId) const;
+	bool TrySpendTreasury(const FString& NationIso, int64 Amount, const FString& Reason, FString& OutMessage);
+	void RecordEnactedPolicyReform(const FString& NationIso, const FWLPolicyReformDefinition& Definition, const FString& Report);
+	void MarkCampaignPromiseFulfilled(const FString& NationIso, const FWLPolicyReformDefinition& Definition);
 	FWLPartyState* FindMutableParty(const FString& NationIso, const FString& PartyId);
 	FWLRegionGovernorState* FindMutableRegion(const FString& NationIso, const FString& RegionId);
 	FWLCrisisChainState& EnsureCrisisChain(const FString& NationIso, EWLCrisisChainType Type, const FString& Reason);

@@ -202,6 +202,14 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	Reform.ImplementationProgress = 35;
 	Save->ActivePolicyReforms.Add(Reform);
 
+	FWLEnactedPolicyReformState EnactedReform;
+	EnactedReform.NationIso = TEXT("VE");
+	EnactedReform.ReformId = TEXT("trade_customs_modernization");
+	EnactedReform.Name = TEXT("Modernizacion aduanera");
+	EnactedReform.Area = EWLPolicyReformArea::Trade;
+	EnactedReform.MonthsSinceEnacted = 9;
+	Save->EnactedPolicyReforms.Add(EnactedReform);
+
 	FWLPartyState Party;
 	Party.NationIso = TEXT("VE");
 	Party.PartyId = TEXT("ve_gov");
@@ -271,7 +279,7 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Nacion seleccionada"), Loaded->SelectedNationIso, FString(TEXT("VE")));
 	TestEqual(TEXT("Anio"), Loaded->CurrentYear, 2024);
 	TestEqual(TEXT("Mes"), Loaded->CurrentMonth, 2);
-	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 12);
+	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 13);
 	TestEqual(TEXT("Dificultad IA guardada"), static_cast<int32>(Loaded->AIDifficulty),
 		static_cast<int32>(EWLAIDifficulty::Hard));
 	TestEqual(TEXT("Tesoros guardados"), Loaded->NationTreasuries.Num(), 1);
@@ -327,6 +335,9 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 		static_cast<int32>(EWLGovernmentAIObjective::Industrialize));
 	TestEqual(TEXT("Reformas P2 guardadas"), Loaded->ActivePolicyReforms.Num(), 1);
 	TestEqual(TEXT("Reforma P2 guardada"), Loaded->ActivePolicyReforms[0].ReformId, FString(TEXT("tax_broad_base")));
+	TestEqual(TEXT("Reformas P2 consolidadas guardadas"), Loaded->EnactedPolicyReforms.Num(), 1);
+	TestEqual(TEXT("Reforma P2 consolidada guardada"), Loaded->EnactedPolicyReforms[0].ReformId,
+		FString(TEXT("trade_customs_modernization")));
 	TestEqual(TEXT("Partidos guardados"), Loaded->PoliticalParties.Num(), 1);
 	TestEqual(TEXT("Partido guardado"), Loaded->PoliticalParties[0].PartyId, FString(TEXT("ve_gov")));
 	TestEqual(TEXT("Elecciones guardadas"), Loaded->ElectionStates.Num(), 1);

@@ -73,15 +73,23 @@ void AWLCampaignHUD::DrawHUD()
 		Gold, 172.f, 11.f, SmallFont, 0.92f);
 
 	// F5.2: aviso de eventos pendientes — el juego te avisa, no hace falta abrir el tab correcto por azar.
+	// El popup modal se abre solo al cerrar el mes; este banner permite reabrirlo con [E] si lo pospusiste.
 	if (const UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
 	{
 		if (const UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
 		{
-			const int32 PendingEvents = Politics->GetQueuedEvents(CampaignGI->GetSelectedNationIso()).Num();
+			int32 PendingEvents = 0;
+			for (const FWLPoliticalEventInstance& Event : Politics->GetQueuedEvents(CampaignGI->GetSelectedNationIso()))
+			{
+				if (!Event.bResolved)
+				{
+					++PendingEvents;
+				}
+			}
 			if (PendingEvents > 0)
 			{
 				DrawRect(FLinearColor(0.30f, 0.23f, 0.06f, 0.96f), W * 0.5f - 250.f, 42.f, 500.f, 26.f);
-				DrawText(FString::Printf(TEXT("%d evento%s esperan tu decision — [C] GOBIERNO > POLITICA"),
+				DrawText(FString::Printf(TEXT("%d evento%s esperan tu decision — pulsa [E]"),
 					PendingEvents, PendingEvents == 1 ? TEXT("") : TEXT("s")),
 					Gold, W * 0.5f - 232.f, 47.f, SmallFont, 0.95f);
 			}
@@ -267,8 +275,40 @@ void AWLCampaignHUD::DrawHUD()
 		}
 	}
 
+	// Feed de noticias del mundo (guerras, golpes, espias, eventos IA...): cronica viva del mes,
+	// abajo-izquierda por encima del footer. Nuevas primero; se recorta a las mas recientes.
+	if (const UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
+	{
+		if (const UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
+		{
+			const TArray<FString>& News = Politics->GetNewsLog();
+			if (News.Num() > 0 && !bDiplomacy)
+			{
+				const int32 MaxLines = 5;
+				const int32 Shown = FMath::Min(MaxLines, News.Num());
+				const float FeedW = 470.f;
+				const float FeedLine = 16.f;
+				const float FeedH = 26.f + Shown * FeedLine;
+				const float FeedX = 36.f;
+				const float FeedY = H - 34.f - FeedH - 10.f;
+				DrawRect(Ink, FeedX, FeedY, FeedW, FeedH);
+				DrawRect(Gold, FeedX, FeedY, 3.f, FeedH);
+				DrawText(TEXT("NOTICIAS DEL MUNDO"), Gold, FeedX + 12.f, FeedY + 6.f, SmallFont, 0.9f);
+				for (int32 i = 0; i < Shown; ++i)
+				{
+					FString Line = News[i];
+					if (Line.Len() > 74)
+					{
+						Line = Line.Left(71) + TEXT("...");
+					}
+					DrawText(Line, i == 0 ? Text : Muted, FeedX + 12.f, FeedY + 24.f + i * FeedLine, SmallFont, 0.78f);
+				}
+			}
+		}
+	}
+
 	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
-	DrawText(TEXT("[D] Alternar vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [G] America   [C] Gobierno   [M] Avanzar dia   [F5] Guardar   [B] Construir"),
+	DrawText(TEXT("[D] Vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [G] America   [C] Gobierno   [E] Eventos   [M] Avanzar dia   [F5] Guardar   [B] Construir"),
 		Muted, 36.f, H - 24.f, SmallFont, 0.88f);
 
 	// F5.3/F5.4: fin de partida REAL — banner central por encima de todo; el avance de tiempo ya esta

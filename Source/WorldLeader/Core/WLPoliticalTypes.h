@@ -477,6 +477,33 @@ struct FWLActiveReformState
 };
 
 USTRUCT(BlueprintType)
+struct FWLEnactedPolicyReformState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString ReformId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString Name;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	EWLPolicyReformArea Area = EWLPolicyReformArea::Tax;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 MonthsSinceEnacted = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	bool bFulfilledCampaignPromise = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString LastReport;
+};
+
+USTRUCT(BlueprintType)
 struct FWLPartyState
 {
 	GENERATED_BODY()
@@ -563,7 +590,13 @@ struct FWLElectionState
 	bool bTermLimited = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 ConsecutiveTermsWon = 1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
 	FString CampaignPromiseReformId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	bool bCampaignPromiseFulfilled = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
 	FString LastElectionReport;

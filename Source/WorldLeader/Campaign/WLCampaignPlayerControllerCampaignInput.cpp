@@ -356,6 +356,12 @@ bool AWLCampaignPlayerController::HandleCampaignInputKey(const FInputKeyEventArg
 		ToggleGovernmentWindow();
 		return true;
 	}
+	if (Params.Key == EKeys::E)
+	{
+		// [E] abre el modal de eventos si hay decisiones pendientes (si no, no molesta).
+		ShowEventModalIfPending();
+		return true;
+	}
 
 	return false;
 }

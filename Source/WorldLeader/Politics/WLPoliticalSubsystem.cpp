@@ -56,10 +56,97 @@ namespace
 		return Definition;
 	}
 
+	bool ParseMinisterOffice(const FString& Raw, EWLMinisterOffice& OutOffice)
+	{
+		const FString S = Raw.TrimStartAndEnd().ToLower();
+		if (S == TEXT("economy") || S == TEXT("economia")) { OutOffice = EWLMinisterOffice::Economy; return true; }
+		if (S == TEXT("defense") || S == TEXT("defensa")) { OutOffice = EWLMinisterOffice::Defense; return true; }
+		if (S == TEXT("interior")) { OutOffice = EWLMinisterOffice::Interior; return true; }
+		if (S == TEXT("foreign") || S == TEXT("exterior")) { OutOffice = EWLMinisterOffice::Foreign; return true; }
+		if (S == TEXT("intelligence") || S == TEXT("inteligencia")) { OutOffice = EWLMinisterOffice::Intelligence; return true; }
+		return false;
+	}
+
+	bool LoadGovernmentProgramDefinitionsFromJson(TArray<FWLMinistryProgramDefinition>& OutDefinitions)
+	{
+		const FString FilePath = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Political") / TEXT("GovernmentPrograms.json");
+		FString Raw;
+		if (!FFileHelper::LoadFileToString(Raw, *FilePath))
+		{
+			return false;
+		}
+
+		TArray<TSharedPtr<FJsonValue>> Array;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+		if (!FJsonSerializer::Deserialize(Reader, Array))
+		{
+			UE_LOG(LogWorldLeader, Warning, TEXT("WLPoliticalSubsystem: GovernmentPrograms.json invalido; usando catalogo C++."));
+			return false;
+		}
+
+		TSet<FString> ProgramIds;
+		bool bInvalidCatalog = false;
+		for (const TSharedPtr<FJsonValue>& Value : Array)
+		{
+			const TSharedPtr<FJsonObject>* ObjPtr = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(ObjPtr) || !ObjPtr)
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonObject>& Obj = *ObjPtr;
+			FWLMinistryProgramDefinition Definition;
+			FString Office;
+			Obj->TryGetStringField(TEXT("program_id"), Definition.ProgramId);
+			Obj->TryGetStringField(TEXT("name"), Definition.Name);
+			Obj->TryGetStringField(TEXT("office"), Office);
+			Obj->TryGetNumberField(TEXT("duration_months"), Definition.DurationMonths);
+			Obj->TryGetNumberField(TEXT("political_capital_cost"), Definition.PoliticalCapitalCost);
+			double TreasuryCost = 0.0;
+			if (Obj->TryGetNumberField(TEXT("treasury_cost"), TreasuryCost))
+			{
+				Definition.TreasuryCost = static_cast<int64>(TreasuryCost);
+			}
+			Obj->TryGetBoolField(TEXT("requires_legislation"), Definition.bRequiresLegislation);
+			Obj->TryGetStringField(TEXT("description"), Definition.Description);
+			Definition.ProgramId = Definition.ProgramId.TrimStartAndEnd().ToLower();
+			if (!Definition.ProgramId.IsEmpty()
+				&& !Definition.Name.IsEmpty()
+				&& ParseMinisterOffice(Office, Definition.Office)
+				&& Definition.DurationMonths > 0)
+			{
+				if (ProgramIds.Contains(Definition.ProgramId))
+				{
+					UE_LOG(LogWorldLeader, Warning,
+						TEXT("WLPoliticalSubsystem: GovernmentPrograms.json duplica program_id '%s'."),
+						*Definition.ProgramId);
+					bInvalidCatalog = true;
+					continue;
+				}
+				ProgramIds.Add(Definition.ProgramId);
+				OutDefinitions.Add(MoveTemp(Definition));
+			}
+		}
+
+		if (bInvalidCatalog || OutDefinitions.Num() < 50)
+		{
+			UE_LOG(LogWorldLeader, Warning,
+				TEXT("WLPoliticalSubsystem: GovernmentPrograms.json invalido o incompleto (%d/50); usando catalogo C++."),
+				OutDefinitions.Num());
+			OutDefinitions.Reset();
+			return false;
+		}
+		return true;
+	}
+
 	const TArray<FWLMinistryProgramDefinition>& GovernmentProgramDefinitions()
 	{
 		static const TArray<FWLMinistryProgramDefinition> Definitions = []()
 		{
+			TArray<FWLMinistryProgramDefinition> Loaded;
+			if (LoadGovernmentProgramDefinitionsFromJson(Loaded))
+			{
+				return Loaded;
+			}
 			TArray<FWLMinistryProgramDefinition> Items;
 			Items.Reserve(50);
 			auto Add = [&Items](
@@ -229,10 +316,176 @@ namespace
 		return Definition;
 	}
 
+	bool ParsePolicyReformArea(const FString& Raw, EWLPolicyReformArea& OutArea)
+	{
+		const FString S = Raw.TrimStartAndEnd().ToLower();
+		if (S == TEXT("tax") || S == TEXT("tributaria")) { OutArea = EWLPolicyReformArea::Tax; return true; }
+		if (S == TEXT("labor") || S == TEXT("laboral")) { OutArea = EWLPolicyReformArea::Labor; return true; }
+		if (S == TEXT("security") || S == TEXT("seguridad")) { OutArea = EWLPolicyReformArea::Security; return true; }
+		if (S == TEXT("education") || S == TEXT("educacion")) { OutArea = EWLPolicyReformArea::Education; return true; }
+		if (S == TEXT("health") || S == TEXT("salud")) { OutArea = EWLPolicyReformArea::Health; return true; }
+		if (S == TEXT("decentralization") || S == TEXT("descentralizacion")) { OutArea = EWLPolicyReformArea::Decentralization; return true; }
+		if (S == TEXT("military") || S == TEXT("militar")) { OutArea = EWLPolicyReformArea::Military; return true; }
+		if (S == TEXT("justice") || S == TEXT("justicia")) { OutArea = EWLPolicyReformArea::Justice; return true; }
+		if (S == TEXT("media") || S == TEXT("medios")) { OutArea = EWLPolicyReformArea::Media; return true; }
+		if (S == TEXT("energy") || S == TEXT("energia")) { OutArea = EWLPolicyReformArea::Energy; return true; }
+		if (S == TEXT("trade") || S == TEXT("comercio")) { OutArea = EWLPolicyReformArea::Trade; return true; }
+		if (S == TEXT("constitution") || S == TEXT("constitucion")) { OutArea = EWLPolicyReformArea::Constitution; return true; }
+		return false;
+	}
+
+	bool ParsePublicGroup(const FString& Raw, EWLPublicGroup& OutGroup)
+	{
+		const FString S = Raw.TrimStartAndEnd().ToLower();
+		if (S == TEXT("business") || S == TEXT("empresarios")) { OutGroup = EWLPublicGroup::Business; return true; }
+		if (S == TEXT("military") || S == TEXT("militares")) { OutGroup = EWLPublicGroup::Military; return true; }
+		if (S == TEXT("workers") || S == TEXT("trabajadores")) { OutGroup = EWLPublicGroup::Workers; return true; }
+		if (S == TEXT("regions") || S == TEXT("regiones")) { OutGroup = EWLPublicGroup::Regions; return true; }
+		if (S == TEXT("middleclass") || S == TEXT("middle_class") || S == TEXT("clase_media")) { OutGroup = EWLPublicGroup::MiddleClass; return true; }
+		if (S == TEXT("unions") || S == TEXT("sindicatos")) { OutGroup = EWLPublicGroup::Unions; return true; }
+		return false;
+	}
+
+	TArray<FString> ReadStringArrayField(const TSharedPtr<FJsonObject>& Obj, const TCHAR* FieldName)
+	{
+		TArray<FString> Out;
+		const TArray<TSharedPtr<FJsonValue>>* Array = nullptr;
+		if (!Obj->TryGetArrayField(FieldName, Array) || !Array)
+		{
+			return Out;
+		}
+		for (const TSharedPtr<FJsonValue>& Value : *Array)
+		{
+			FString Item;
+			if (Value.IsValid() && Value->TryGetString(Item))
+			{
+				Item = Item.TrimStartAndEnd().ToLower();
+				if (!Item.IsEmpty())
+				{
+					Out.Add(Item);
+				}
+			}
+		}
+		return Out;
+	}
+
+	bool LoadPolicyReformDefinitionsFromJson(TArray<FWLPolicyReformDefinition>& OutDefinitions)
+	{
+		const FString FilePath = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Political") / TEXT("PolicyReforms.json");
+		FString Raw;
+		if (!FFileHelper::LoadFileToString(Raw, *FilePath))
+		{
+			return false;
+		}
+
+		TArray<TSharedPtr<FJsonValue>> Array;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+		if (!FJsonSerializer::Deserialize(Reader, Array))
+		{
+			UE_LOG(LogWorldLeader, Warning, TEXT("WLPoliticalSubsystem: PolicyReforms.json invalido; usando catalogo C++."));
+			return false;
+		}
+
+		TSet<FString> ReformIds;
+		bool bInvalidCatalog = false;
+		for (const TSharedPtr<FJsonValue>& Value : Array)
+		{
+			const TSharedPtr<FJsonObject>* ObjPtr = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(ObjPtr) || !ObjPtr)
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonObject>& Obj = *ObjPtr;
+			FWLPolicyReformDefinition Definition;
+			FString Area;
+			Obj->TryGetStringField(TEXT("reform_id"), Definition.ReformId);
+			Obj->TryGetStringField(TEXT("name"), Definition.Name);
+			Obj->TryGetStringField(TEXT("area"), Area);
+			Definition.PrerequisiteReformIds = ReadStringArrayField(Obj, TEXT("prerequisites"));
+			Obj->TryGetNumberField(TEXT("required_coalition_support"), Definition.RequiredCoalitionSupport);
+			Obj->TryGetNumberField(TEXT("required_state_capacity"), Definition.RequiredStateCapacity);
+			Obj->TryGetNumberField(TEXT("political_capital_cost"), Definition.PoliticalCapitalCost);
+			double TreasuryCost = 0.0;
+			if (Obj->TryGetNumberField(TEXT("treasury_cost"), TreasuryCost))
+			{
+				Definition.TreasuryCost = static_cast<int64>(TreasuryCost);
+			}
+			Obj->TryGetNumberField(TEXT("protest_risk"), Definition.ProtestRisk);
+			Obj->TryGetNumberField(TEXT("opposition_delta"), Definition.OppositionDelta);
+			Obj->TryGetNumberField(TEXT("public_order_delta"), Definition.PublicOrderDelta);
+			Obj->TryGetNumberField(TEXT("long_term_months"), Definition.LongTermMonths);
+			double MonthlyTreasuryDelta = 0.0;
+			if (Obj->TryGetNumberField(TEXT("monthly_treasury_delta"), MonthlyTreasuryDelta))
+			{
+				Definition.MonthlyTreasuryDelta = static_cast<int64>(MonthlyTreasuryDelta);
+			}
+			Obj->TryGetNumberField(TEXT("capacity_delta"), Definition.CapacityDelta);
+			Obj->TryGetNumberField(TEXT("corruption_delta"), Definition.CorruptionDelta);
+			Obj->TryGetNumberField(TEXT("legitimacy_delta"), Definition.LegitimacyDelta);
+			for (const FString& GroupName : ReadStringArrayField(Obj, TEXT("affected_groups")))
+			{
+				EWLPublicGroup Group = EWLPublicGroup::MiddleClass;
+				if (ParsePublicGroup(GroupName, Group))
+				{
+					Definition.AffectedGroups.Add(Group);
+				}
+			}
+			Obj->TryGetNumberField(TEXT("public_group_support_delta"), Definition.PublicGroupSupportDelta);
+			Obj->TryGetStringField(TEXT("description"), Definition.Description);
+			Definition.ReformId = Definition.ReformId.TrimStartAndEnd().ToLower();
+			if (!Definition.ReformId.IsEmpty()
+				&& !Definition.Name.IsEmpty()
+				&& ParsePolicyReformArea(Area, Definition.Area)
+				&& Definition.LongTermMonths >= 0)
+			{
+				if (ReformIds.Contains(Definition.ReformId))
+				{
+					UE_LOG(LogWorldLeader, Warning,
+						TEXT("WLPoliticalSubsystem: PolicyReforms.json duplica reform_id '%s'."),
+						*Definition.ReformId);
+					bInvalidCatalog = true;
+					continue;
+				}
+				ReformIds.Add(Definition.ReformId);
+				OutDefinitions.Add(MoveTemp(Definition));
+			}
+		}
+
+		for (const FWLPolicyReformDefinition& Definition : OutDefinitions)
+		{
+			for (const FString& Prerequisite : Definition.PrerequisiteReformIds)
+			{
+				if (Prerequisite == Definition.ReformId || !ReformIds.Contains(Prerequisite))
+				{
+					UE_LOG(LogWorldLeader, Warning,
+						TEXT("WLPoliticalSubsystem: PolicyReforms.json prerequisito invalido '%s' en '%s'."),
+						*Prerequisite,
+						*Definition.ReformId);
+					bInvalidCatalog = true;
+				}
+			}
+		}
+
+		if (bInvalidCatalog || OutDefinitions.Num() < 24)
+		{
+			UE_LOG(LogWorldLeader, Warning,
+				TEXT("WLPoliticalSubsystem: PolicyReforms.json invalido o incompleto (%d/24); usando catalogo C++."),
+				OutDefinitions.Num());
+			OutDefinitions.Reset();
+			return false;
+		}
+		return true;
+	}
+
 	const TArray<FWLPolicyReformDefinition>& PolicyReformDefinitions()
 	{
 		static const TArray<FWLPolicyReformDefinition> Definitions = []()
 		{
+			TArray<FWLPolicyReformDefinition> Loaded;
+			if (LoadPolicyReformDefinitionsFromJson(Loaded))
+			{
+				return Loaded;
+			}
 			TArray<FWLPolicyReformDefinition> Items;
 			Items.Reserve(24);
 			auto Add = [&Items](
@@ -582,6 +835,7 @@ void UWLPoliticalSubsystem::ResetPoliticalState()
 	PoliticalMemoryByKey.Reset();
 	GovernmentAIPlanByNation.Reset();
 	ActivePolicyReforms.Reset();
+	EnactedPolicyReforms.Reset();
 	PoliticalParties.Reset();
 	ElectionStateByNation.Reset();
 	CharacterPoliticalProfilesById.Reset();
@@ -975,30 +1229,90 @@ void UWLPoliticalSubsystem::SeedPoliticalPartiesForNation(const FString& NationI
 		return;
 	}
 	const FString Prefix = Iso.ToLower();
-	const TArray<FString> Existing = {
-		PartyKey(Iso, Prefix + TEXT("_gov")),
-		PartyKey(Iso, Prefix + TEXT("_ally_reg")),
-		PartyKey(Iso, Prefix + TEXT("_ally_market")),
-		PartyKey(Iso, Prefix + TEXT("_soft_opp")),
-		PartyKey(Iso, Prefix + TEXT("_hard_opp"))
-	};
-	for (const FString& Key : Existing)
+	TSet<FString> ExistingPartyKeys;
+	for (const FWLPartyState& Party : PoliticalParties)
 	{
-		if (PoliticalParties.ContainsByPredicate([&Key, this](const FWLPartyState& Party)
+		if (NormalizeIso(Party.NationIso) == Iso)
 		{
-			return PartyKey(Party.NationIso, Party.PartyId) == Key;
-		}))
-		{
-			return;
+			ExistingPartyKeys.Add(PartyKey(Party.NationIso, Party.PartyId));
 		}
 	}
 
-	auto AddParty = [this, &Iso](const FString& Suffix, const FString& Name, EWLPoliticalIdeology Ideology, EWLPartyRole Role,
+	auto SelectLeader = [this, &Iso](EWLPartyRole Role, EWLPoliticalIdeology Ideology)
+	{
+		if (const UWLCharacterSubsystem* Characters = GetCharacters())
+		{
+			const TArray<FWLCharacter> Roster = Characters->GetCharactersByNation(Iso);
+			auto FindByPredicate = [&Roster](auto Predicate)
+			{
+				for (const FWLCharacter& Candidate : Roster)
+				{
+					if (Candidate.bActive && Predicate(Candidate))
+					{
+						return UWLPoliticalSubsystem::NormalizeCharacterId(Candidate.Id);
+					}
+				}
+				return FString();
+			};
+
+			if (Role == EWLPartyRole::Ruling)
+			{
+				const FString LeaderId = FindByPredicate([](const FWLCharacter& Candidate)
+				{
+					return Candidate.Role == EWLCharacterRole::ForeignLeader;
+				});
+				if (!LeaderId.IsEmpty())
+				{
+					return LeaderId;
+				}
+			}
+			if (Role == EWLPartyRole::HardOpposition || Role == EWLPartyRole::SoftOpposition)
+			{
+				const FString OppositionId = FindByPredicate([](const FWLCharacter& Candidate)
+				{
+					return Candidate.Role == EWLCharacterRole::Opposition;
+				});
+				if (!OppositionId.IsEmpty())
+				{
+					return OppositionId;
+				}
+			}
+
+			const FString MinisterId = FindByPredicate([Ideology](const FWLCharacter& Candidate)
+			{
+				if (Candidate.Role != EWLCharacterRole::Minister)
+				{
+					return false;
+				}
+				if (Ideology == EWLPoliticalIdeology::Technocratic)
+				{
+					return Candidate.PreferredOffice == EWLMinisterOffice::Economy
+						|| Candidate.PreferredOffice == EWLMinisterOffice::Foreign;
+				}
+				if (Ideology == EWLPoliticalIdeology::Regionalist)
+				{
+					return Candidate.PreferredOffice == EWLMinisterOffice::Interior;
+				}
+				return true;
+			});
+			if (!MinisterId.IsEmpty())
+			{
+				return MinisterId;
+			}
+		}
+		return FString();
+	};
+
+	auto AddParty = [this, &Iso, &ExistingPartyKeys, &SelectLeader](const FString& Suffix, const FString& Name, EWLPoliticalIdeology Ideology, EWLPartyRole Role,
 		int32 Seats, int32 Discipline, int32 Loyalty, bool bCoalition)
 	{
 		FWLPartyState Party;
 		Party.NationIso = Iso;
 		Party.PartyId = Iso.ToLower() + TEXT("_") + Suffix;
+		if (ExistingPartyKeys.Contains(PartyKey(Party.NationIso, Party.PartyId)))
+		{
+			return;
+		}
 		Party.Name = Name;
 		Party.Ideology = Ideology;
 		Party.Role = Role;
@@ -1007,6 +1321,7 @@ void UWLPoliticalSubsystem::SeedPoliticalPartiesForNation(const FString& NationI
 		Party.LoyaltyToGovernment = Loyalty;
 		Party.Corruption = Role == EWLPartyRole::Ruling ? 28 : 18;
 		Party.bInCoalition = bCoalition;
+		Party.LeaderCharacterId = SelectLeader(Role, Ideology);
 		Party.LastIncident = TEXT("Bancada constituida.");
 		PoliticalParties.Add(Party);
 	};
@@ -1016,6 +1331,14 @@ void UWLPoliticalSubsystem::SeedPoliticalPartiesForNation(const FString& NationI
 	AddParty(TEXT("ally_market"), TEXT("Alianza de Centro"), EWLPoliticalIdeology::Technocratic, EWLPartyRole::Ally, 12, 62, 55, true);
 	AddParty(TEXT("soft_opp"), TEXT("Oposicion Institucional"), EWLPoliticalIdeology::SocialDemocrat, EWLPartyRole::SoftOpposition, 20, 64, 28, false);
 	AddParty(TEXT("hard_opp"), TEXT("Frente Duro"), EWLPoliticalIdeology::Nationalist, EWLPartyRole::HardOpposition, 16, 70, 8, false);
+
+	for (FWLPartyState& Party : PoliticalParties)
+	{
+		if (Party.NationIso == Iso && Party.LeaderCharacterId.IsEmpty())
+		{
+			Party.LeaderCharacterId = SelectLeader(Party.Role, Party.Ideology);
+		}
+	}
 }
 
 void UWLPoliticalSubsystem::SeedRegionsForNation(const FString& NationIso)
@@ -1083,6 +1406,15 @@ void UWLPoliticalSubsystem::SeedCharacterProfilesForNation(const FString& Nation
 	if (const UWLCharacterSubsystem* Characters = GetCharacters())
 	{
 		const TArray<FWLCharacter> Roster = Characters->GetCharactersByNation(Iso);
+		FString HeadOfStateId;
+		for (const FWLCharacter& Character : Roster)
+		{
+			if (Character.bActive && Character.Role == EWLCharacterRole::ForeignLeader)
+			{
+				HeadOfStateId = NormalizeCharacterId(Character.Id);
+				break;
+			}
+		}
 		for (const FWLCharacter& Character : Roster)
 		{
 			EnsureCharacterPoliticalProfile(Character);
@@ -1090,6 +1422,14 @@ void UWLPoliticalSubsystem::SeedCharacterProfilesForNation(const FString& Nation
 		for (int32 Index = 0; Index < Roster.Num(); ++Index)
 		{
 			FWLCharacterPoliticalProfile& Profile = EnsureCharacterPoliticalProfile(Roster[Index]);
+			if (Profile.PatronCharacterId.IsEmpty()
+				&& !HeadOfStateId.IsEmpty()
+				&& Profile.CharacterId != HeadOfStateId
+				&& Roster[Index].Role != EWLCharacterRole::Opposition)
+			{
+				Profile.PatronCharacterId = HeadOfStateId;
+				Profile.LastProfileEvent = TEXT("Alineado con el circulo presidencial.");
+			}
 			if (Roster.Num() > 1 && Profile.RivalCharacterIds.IsEmpty())
 			{
 				const FWLCharacter& Rival = Roster[(Index + 1) % Roster.Num()];
@@ -1317,6 +1657,16 @@ bool UWLPoliticalSubsystem::StartMinistryProgram(const FString& NationIso, const
 		}
 	}
 
+	if (Definition.TreasuryCost > 0)
+	{
+		UWLStrategicTickSubsystem* Tick = GetTick();
+		if (!Tick || Tick->GetTreasury(Iso) < Definition.TreasuryCost)
+		{
+			OutMessage = FString::Printf(TEXT("Tesoro insuficiente para %s."), *Definition.Name);
+			return false;
+		}
+	}
+
 	if (Definition.bRequiresLegislation)
 	{
 		FString VoteMessage;
@@ -1337,13 +1687,10 @@ bool UWLPoliticalSubsystem::StartMinistryProgram(const FString& NationIso, const
 		Characters->AdjustPoliticalCapital(Iso, -Definition.PoliticalCapitalCost);
 	}
 
-	if (Definition.TreasuryCost > 0)
+	if (Definition.TreasuryCost > 0
+		&& !TrySpendTreasury(Iso, Definition.TreasuryCost, Definition.Name, OutMessage))
 	{
-		if (UWLStrategicTickSubsystem* Tick = GetTick())
-		{
-			FString TreasuryMessage;
-			Tick->AdjustTreasury(Iso, -Definition.TreasuryCost, TreasuryMessage);
-		}
+		return false;
 	}
 
 	FWLMinistryProgramState Program;
@@ -1516,6 +1863,24 @@ TArray<FWLActiveReformState> UWLPoliticalSubsystem::GetActivePolicyReforms(const
 	return Out;
 }
 
+TArray<FWLEnactedPolicyReformState> UWLPoliticalSubsystem::GetEnactedPolicyReforms(const FString& NationIso) const
+{
+	TArray<FWLEnactedPolicyReformState> Out;
+	const FString Iso = NormalizeIso(NationIso);
+	for (const FWLEnactedPolicyReformState& Reform : EnactedPolicyReforms)
+	{
+		if (Reform.NationIso == Iso)
+		{
+			Out.Add(Reform);
+		}
+	}
+	Out.Sort([](const FWLEnactedPolicyReformState& A, const FWLEnactedPolicyReformState& B)
+	{
+		return A.ReformId < B.ReformId;
+	});
+	return Out;
+}
+
 bool UWLPoliticalSubsystem::GetPolicyReformDefinition(const FString& ReformId, FWLPolicyReformDefinition& OutDefinition) const
 {
 	const FString Id = ReformId.TrimStartAndEnd().ToLower();
@@ -1534,6 +1899,10 @@ bool UWLPoliticalSubsystem::HasReformMemory(const FString& NationIso, const FStr
 {
 	const FString Iso = NormalizeIso(NationIso);
 	const FString Id = ReformId.TrimStartAndEnd().ToLower();
+	if (HasEnactedPolicyReform(Iso, Id))
+	{
+		return true;
+	}
 	if (GetPoliticalMemoryValue(Iso, ReformMemoryKey(Id)) > 0)
 	{
 		return true;
@@ -1542,6 +1911,107 @@ bool UWLPoliticalSubsystem::HasReformMemory(const FString& NationIso, const FStr
 	{
 		return Reform.NationIso == Iso && Reform.ReformId == Id;
 	});
+}
+
+bool UWLPoliticalSubsystem::HasEnactedPolicyReform(const FString& NationIso, const FString& ReformId) const
+{
+	const FString Iso = NormalizeIso(NationIso);
+	const FString Id = ReformId.TrimStartAndEnd().ToLower();
+	return EnactedPolicyReforms.ContainsByPredicate([&Iso, &Id](const FWLEnactedPolicyReformState& Reform)
+	{
+		return Reform.NationIso == Iso && Reform.ReformId == Id;
+	});
+}
+
+bool UWLPoliticalSubsystem::TrySpendTreasury(
+	const FString& NationIso,
+	int64 Amount,
+	const FString& Reason,
+	FString& OutMessage)
+{
+	const FString Iso = NormalizeIso(NationIso);
+	if (Amount <= 0)
+	{
+		return true;
+	}
+
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	if (!Tick)
+	{
+		OutMessage = FString::Printf(TEXT("No hay sistema economico para pagar %s."), *Reason);
+		return false;
+	}
+	const int64 Treasury = Tick->GetTreasury(Iso);
+	if (Treasury < Amount)
+	{
+		OutMessage = FString::Printf(TEXT("Tesoro insuficiente para %s (%lld/%lld)."),
+			*Reason,
+			static_cast<long long>(Treasury),
+			static_cast<long long>(Amount));
+		return false;
+	}
+
+	FString TreasuryMessage;
+	Tick->AdjustTreasury(Iso, -Amount, TreasuryMessage);
+	return true;
+}
+
+void UWLPoliticalSubsystem::RecordEnactedPolicyReform(
+	const FString& NationIso,
+	const FWLPolicyReformDefinition& Definition,
+	const FString& Report)
+{
+	const FString Iso = NormalizeIso(NationIso);
+	if (!ValidateNation(Iso) || Definition.ReformId.IsEmpty())
+	{
+		return;
+	}
+	const FString PromiseFulfilledKey = TEXT("campaign_promise_fulfilled_") + Definition.ReformId;
+	const FWLElectionState Election = GetElectionState(Iso);
+	const bool bFulfilledPromise = Election.CampaignPromiseReformId == Definition.ReformId
+		|| Election.bCampaignPromiseFulfilled
+		|| GetPoliticalMemoryValue(Iso, PromiseFulfilledKey) > 0;
+	for (FWLEnactedPolicyReformState& Existing : EnactedPolicyReforms)
+	{
+		if (Existing.NationIso == Iso && Existing.ReformId == Definition.ReformId)
+		{
+			Existing.Name = Definition.Name;
+			Existing.Area = Definition.Area;
+			Existing.bFulfilledCampaignPromise = Existing.bFulfilledCampaignPromise || bFulfilledPromise;
+			Existing.LastReport = Report;
+			return;
+		}
+	}
+
+	FWLEnactedPolicyReformState Enacted;
+	Enacted.NationIso = Iso;
+	Enacted.ReformId = Definition.ReformId;
+	Enacted.Name = Definition.Name;
+	Enacted.Area = Definition.Area;
+	Enacted.MonthsSinceEnacted = 0;
+	Enacted.bFulfilledCampaignPromise = bFulfilledPromise;
+	Enacted.LastReport = Report;
+	EnactedPolicyReforms.Add(MoveTemp(Enacted));
+}
+
+void UWLPoliticalSubsystem::MarkCampaignPromiseFulfilled(
+	const FString& NationIso,
+	const FWLPolicyReformDefinition& Definition)
+{
+	FWLElectionState& Election = EnsureElectionState(NationIso);
+	if (Election.CampaignPromiseReformId != Definition.ReformId || Election.bCampaignPromiseFulfilled)
+	{
+		return;
+	}
+
+	Election.bCampaignPromiseFulfilled = true;
+	Election.Legitimacy = ClampPercent(Election.Legitimacy + 4);
+	Election.PollingGovernment = ClampPercent(Election.PollingGovernment + 3);
+	Election.LastElectionReport = FString::Printf(TEXT("%s cumple la promesa electoral: %s."),
+		*NormalizeIso(NationIso),
+		*Definition.Name);
+	AddPoliticalMemory(NationIso, TEXT("campaign_promise_fulfilled"), 1, 18, Election.LastElectionReport);
+	AddPoliticalMemory(NationIso, TEXT("campaign_promise_fulfilled_") + Definition.ReformId, 1, 84, Election.LastElectionReport);
 }
 
 bool UWLPoliticalSubsystem::EnactPolicyReform(const FString& NationIso, const FString& ReformId, FString& OutMessage)
@@ -1596,8 +2066,6 @@ bool UWLPoliticalSubsystem::EnactPolicyReform(const FString& NationIso, const FS
 			OutMessage = FString::Printf(TEXT("Tesoro insuficiente para %s."), *Definition.Name);
 			return false;
 		}
-		FString TreasuryMessage;
-		Tick->AdjustTreasury(Iso, -Definition.TreasuryCost, TreasuryMessage);
 	}
 
 	FString VoteMessage;
@@ -1606,11 +2074,23 @@ bool UWLPoliticalSubsystem::EnactPolicyReform(const FString& NationIso, const FS
 		OutMessage = VoteMessage;
 		return false;
 	}
+	if (Definition.TreasuryCost > 0
+		&& !TrySpendTreasury(Iso, Definition.TreasuryCost, Definition.Name, OutMessage))
+	{
+		return false;
+	}
 
 	FWLInternalPowerState& Internal = EnsureInternalPower(Iso);
 	FWLElectionState& Election = EnsureElectionState(Iso);
 	Internal.OppositionStrength = ClampPercent(Internal.OppositionStrength + Definition.OppositionDelta);
 	Election.Legitimacy = ClampPercent(Election.Legitimacy + Definition.LegitimacyDelta);
+	if (Definition.ReformId == TEXT("constitution_term_rules"))
+	{
+		Election.bTermLimited = false;
+		Election.ConsecutiveTermsWon = FMath::Min(Election.ConsecutiveTermsWon, 2);
+		AddPoliticalMemory(Iso, TEXT("constitutional_rules_changed"), 1, 36,
+			FString::Printf(TEXT("%s cambia reglas de mandato."), *Iso));
+	}
 	Capacity.Bureaucracy = ClampPercent(Capacity.Bureaucracy + Definition.CapacityDelta);
 	Capacity.Corruption = ClampPercent(Capacity.Corruption + Definition.CorruptionDelta);
 	if (UWLStrategicTickSubsystem* Tick = GetTick())
@@ -1635,6 +2115,7 @@ bool UWLPoliticalSubsystem::EnactPolicyReform(const FString& NationIso, const FS
 	Active.Backlash = Definition.ProtestRisk;
 	Active.LastReport = FString::Printf(TEXT("%s aprobo %s. %s"), *Iso, *Definition.Name, *VoteMessage);
 	ActivePolicyReforms.Add(Active);
+	MarkCampaignPromiseFulfilled(Iso, Definition);
 	AddPoliticalMemory(Iso, ReformMemoryKey(Definition.ReformId), 1, FMath::Max(60, Definition.LongTermMonths + 12), Active.LastReport);
 
 	const int32 Roll = static_cast<int32>((GetTypeHash(Iso + Definition.ReformId) + Definition.ProtestRisk * 7) % 100);
@@ -1753,6 +2234,7 @@ bool UWLPoliticalSubsystem::MakeCampaignPromise(const FString& NationIso, const 
 	}
 	FWLElectionState& Election = EnsureElectionState(Iso);
 	Election.CampaignPromiseReformId = Definition.ReformId;
+	Election.bCampaignPromiseFulfilled = HasReformMemory(Iso, Definition.ReformId);
 	Election.CampaignIntensity = ClampPercent(Election.CampaignIntensity + 12);
 	Election.PollingGovernment = ClampPercent(Election.PollingGovernment + 4);
 	Election.LastElectionReport = FString::Printf(TEXT("%s promete %s en campania."), *Iso, *Definition.Name);
@@ -1811,16 +2293,26 @@ bool UWLPoliticalSubsystem::UsePatronage(const FString& NationIso, EWLPatronageA
 	FWLPatronageState& Patronage = EnsurePatronageState(Iso);
 	FWLInstitutionalPowerState& Institutions = EnsureInstitutionalPower(Iso);
 	FWLStateCapacityState& Capacity = EnsureStateCapacity(Iso);
-	UWLStrategicTickSubsystem* Tick = GetTick();
-
-	auto SpendTreasury = [Tick, &Iso](int64 Amount)
+	int64 TreasuryCost = 0;
+	switch (Action)
 	{
-		if (Tick && Amount > 0)
-		{
-			FString TreasuryMessage;
-			Tick->AdjustTreasury(Iso, -Amount, TreasuryMessage);
-		}
-	};
+	case EWLPatronageActionType::AwardContract:
+		TreasuryCost = 2200;
+		break;
+	case EWLPatronageActionType::GrantFavor:
+		TreasuryCost = 900;
+		break;
+	case EWLPatronageActionType::FundGovernor:
+		TreasuryCost = 1800;
+		break;
+	default:
+		break;
+	}
+	if (TreasuryCost > 0
+		&& !TrySpendTreasury(Iso, TreasuryCost, TEXT("accion de patronazgo"), OutMessage))
+	{
+		return false;
+	}
 
 	switch (Action)
 	{
@@ -1832,20 +2324,17 @@ bool UWLPoliticalSubsystem::UsePatronage(const FString& NationIso, EWLPatronageA
 		Patronage.LastDeal = TEXT("Leales nombrados en cargos sensibles.");
 		break;
 	case EWLPatronageActionType::AwardContract:
-		SpendTreasury(2200);
 		Patronage.ContractCorruption = ClampPercent(Patronage.ContractCorruption + 12);
 		Patronage.PatronagePower = ClampPercent(Patronage.PatronagePower + 7);
 		AdjustPublicGroupSupport(Iso, EWLPublicGroup::Business, 3, TEXT("contratos publicos"));
 		Patronage.LastDeal = TEXT("Contratos publicos repartidos a aliados.");
 		break;
 	case EWLPatronageActionType::GrantFavor:
-		SpendTreasury(900);
 		Patronage.ClientelistPressure = ClampPercent(Patronage.ClientelistPressure + 8);
 		Institutions.RulingCoalitionSupport = ClampPercent(Institutions.RulingCoalitionSupport + 6);
 		Patronage.LastDeal = TEXT("Favores politicos aseguran votos temporales.");
 		break;
 	case EWLPatronageActionType::FundGovernor:
-		SpendTreasury(1800);
 		Patronage.RegionalMachines = ClampPercent(Patronage.RegionalMachines + 10);
 		AdjustPublicGroupSupport(Iso, EWLPublicGroup::Regions, 3, TEXT("financiacion regional"));
 		Patronage.LastDeal = TEXT("Gobernadores aliados reciben presupuesto regional.");
@@ -1977,10 +2466,9 @@ bool UWLPoliticalSubsystem::RunRegionPolicy(
 		Region->LastReport = TEXT("Gobernador leal nombrado.");
 		break;
 	case EWLRegionPolicyActionType::RegionalInvestment:
-		if (UWLStrategicTickSubsystem* Tick = GetTick())
+		if (!TrySpendTreasury(Iso, 1800, TEXT("inversion regional"), OutMessage))
 		{
-			FString TreasuryMessage;
-			Tick->AdjustTreasury(Iso, -1800, TreasuryMessage);
+			return false;
 		}
 		Region->InvestmentLevel = ClampPercent(Region->InvestmentLevel + 12);
 		Region->ProtestRisk = ClampPercent(Region->ProtestRisk - 10);
@@ -2204,13 +2692,15 @@ void UWLPoliticalSubsystem::ApplyGovernmentAgendaMonthly(const FString& NationIs
 			if (Tick) { Tick->AdjustNationPublicOrder(Iso, 1); }
 			break;
 		case EWLGovernmentPriority::Growth:
-			AdjustPublicGroupSupport(Iso, EWLPublicGroup::Business, 1, TEXT("agenda crecimiento"));
-			AdjustPublicGroupSupport(Iso, EWLPublicGroup::Workers, 1, TEXT("agenda crecimiento"));
 			if (Tick)
 			{
 				FString TreasuryMessage;
-				Tick->AdjustTreasury(Iso, -600, TreasuryMessage);
-				Tick->AdjustNationPublicOrder(Iso, 1);
+				if (TrySpendTreasury(Iso, 600, TEXT("agenda crecimiento"), TreasuryMessage))
+				{
+					AdjustPublicGroupSupport(Iso, EWLPublicGroup::Business, 1, TEXT("agenda crecimiento"));
+					AdjustPublicGroupSupport(Iso, EWLPublicGroup::Workers, 1, TEXT("agenda crecimiento"));
+					Tick->AdjustNationPublicOrder(Iso, 1);
+				}
 			}
 			break;
 		case EWLGovernmentPriority::Austerity:
@@ -2226,13 +2716,15 @@ void UWLPoliticalSubsystem::ApplyGovernmentAgendaMonthly(const FString& NationIs
 			}
 			break;
 		case EWLGovernmentPriority::Industrialization:
-			AdjustPublicGroupSupport(Iso, EWLPublicGroup::Business, 2, TEXT("agenda industrial"));
-			AdjustPublicGroupSupport(Iso, EWLPublicGroup::Workers, 1, TEXT("agenda industrial"));
-			Capacity.Bureaucracy = ClampPercent(Capacity.Bureaucracy + 1);
 			if (Tick)
 			{
 				FString TreasuryMessage;
-				Tick->AdjustTreasury(Iso, -800, TreasuryMessage);
+				if (TrySpendTreasury(Iso, 800, TEXT("agenda industrial"), TreasuryMessage))
+				{
+					AdjustPublicGroupSupport(Iso, EWLPublicGroup::Business, 2, TEXT("agenda industrial"));
+					AdjustPublicGroupSupport(Iso, EWLPublicGroup::Workers, 1, TEXT("agenda industrial"));
+					Capacity.Bureaucracy = ClampPercent(Capacity.Bureaucracy + 1);
+				}
 			}
 			break;
 		case EWLGovernmentPriority::Diplomacy:
@@ -2355,9 +2847,18 @@ void UWLPoliticalSubsystem::ApplyPolicyReformsMonthly(const FString& NationIso)
 		}
 		if (Reform.MonthsRemaining <= 0)
 		{
-			AddPoliticalMemory(Iso, ReformMemoryKey(Reform.ReformId), 1, 84,
-				FString::Printf(TEXT("%s queda consolidada."), *Reform.Name));
+			const FString Report = FString::Printf(TEXT("%s queda consolidada."), *Reform.Name);
+			RecordEnactedPolicyReform(Iso, Definition, Report);
+			AddPoliticalMemory(Iso, ReformMemoryKey(Reform.ReformId), 1, 84, Report);
 			ActivePolicyReforms.RemoveAt(Index);
+		}
+	}
+
+	for (FWLEnactedPolicyReformState& Reform : EnactedPolicyReforms)
+	{
+		if (Reform.NationIso == Iso)
+		{
+			++Reform.MonthsSinceEnacted;
 		}
 	}
 }
@@ -2452,20 +2953,53 @@ void UWLPoliticalSubsystem::UpdateElectionForNation(const FString& NationIso)
 	else if (Election.MonthsToElection <= 0)
 	{
 		Election.Phase = EWLElectionPhase::Election;
-		const int32 GovernmentScore = Election.PollingGovernment + Election.Legitimacy / 5 - Election.FraudRisk / 3;
-		const int32 OppositionScore = Election.PollingOpposition + Election.AbstentionRisk / 4;
+		int32 GovernmentScore = Election.PollingGovernment + Election.Legitimacy / 5 - Election.FraudRisk / 3;
+		int32 OppositionScore = Election.PollingOpposition + Election.AbstentionRisk / 4;
+		FString ElectionNote;
+		if (!Election.CampaignPromiseReformId.IsEmpty())
+		{
+			if (Election.bCampaignPromiseFulfilled || HasReformMemory(Iso, Election.CampaignPromiseReformId))
+			{
+				GovernmentScore += 8;
+				Election.Legitimacy = ClampPercent(Election.Legitimacy + 3);
+				ElectionNote += TEXT(" Promesa cumplida.");
+			}
+			else
+			{
+				GovernmentScore -= 12;
+				OppositionScore += 5;
+				Election.Legitimacy = ClampPercent(Election.Legitimacy - 6);
+				ElectionNote += TEXT(" Promesa incumplida.");
+				AddPoliticalMemory(Iso, TEXT("campaign_promise_broken"), 1, 24,
+					FString::Printf(TEXT("%s no cumplio la promesa %s antes de la eleccion."),
+						*Iso,
+						*Election.CampaignPromiseReformId));
+			}
+		}
+
+		const bool bConstitutionalTermRules = HasReformMemory(Iso, TEXT("constitution_term_rules"));
+		if (Election.bTermLimited && !bConstitutionalTermRules)
+		{
+			GovernmentScore -= 18;
+			OppositionScore += 8;
+			ElectionNote += TEXT(" Limite de mandato fuerza candidato sucesor.");
+			AddPoliticalMemory(Iso, TEXT("term_limit_pressure"), 1, 18,
+				FString::Printf(TEXT("%s llega a eleccion con limite de mandato."), *Iso));
+		}
 		Election.bLastElectionWon = GovernmentScore >= OppositionScore;
 		if (Election.bLastElectionWon)
 		{
-			Election.LastElectionReport = FString::Printf(TEXT("%s gana la eleccion (%d vs %d)."),
-				*Iso, GovernmentScore, OppositionScore);
+			Election.ConsecutiveTermsWon = FMath::Max(1, Election.ConsecutiveTermsWon + 1);
+			Election.LastElectionReport = FString::Printf(TEXT("%s gana la eleccion (%d vs %d).%s"),
+				*Iso, GovernmentScore, OppositionScore, *ElectionNote);
 			Election.Legitimacy = ClampPercent(Election.Legitimacy + 8 - Election.FraudRisk / 8);
 			Election.Phase = EWLElectionPhase::Transition;
 		}
 		else
 		{
-			Election.LastElectionReport = FString::Printf(TEXT("%s pierde la eleccion (%d vs %d)."),
-				*Iso, GovernmentScore, OppositionScore);
+			Election.ConsecutiveTermsWon = 0;
+			Election.LastElectionReport = FString::Printf(TEXT("%s pierde la eleccion (%d vs %d).%s"),
+				*Iso, GovernmentScore, OppositionScore, *ElectionNote);
 			Election.Legitimacy = ClampPercent(Election.Legitimacy - 10);
 			Election.Phase = Election.FraudRisk >= 55 ? EWLElectionPhase::Crisis : EWLElectionPhase::Transition;
 			TriggerGovernmentP2Crisis(Iso, EWLCrisisChainType::SoftCoup, 45, Election.LastElectionReport);
@@ -2478,9 +3012,12 @@ void UWLPoliticalSubsystem::UpdateElectionForNation(const FString& NationIso)
 				CampaignOutcome.Reason = Election.LastElectionReport;
 			}
 		}
+		const int32 MaxConsecutiveTerms = bConstitutionalTermRules ? 3 : 2;
+		Election.bTermLimited = Election.ConsecutiveTermsWon >= MaxConsecutiveTerms;
 		Election.MonthsToElection = ElectionCycleMonths;
 		Election.CampaignIntensity = 0;
 		Election.CampaignPromiseReformId.Reset();
+		Election.bCampaignPromiseFulfilled = false;
 		AddNews(Election.LastElectionReport);
 	}
 	else
@@ -2503,6 +3040,17 @@ void UWLPoliticalSubsystem::UpdateCharacterProfilesForNation(const FString& Nati
 			Profile.PersonalCorruption = ClampPercent(Profile.PersonalCorruption + (Character.Traits.Contains(TEXT("corrupto")) ? 2 : -1));
 			Profile.ScandalHeat = ClampPercent(Profile.ScandalHeat + Profile.PersonalCorruption / 25 + EnsurePatronageState(Iso).ContractCorruption / 30 - 2);
 			Profile.SuccessionScore = ClampPercent(Character.Popularity / 2 + Character.Renown / 3 + Profile.PresidentialAmbition / 4 - Profile.ScandalHeat / 5);
+			if (Character.Role == EWLCharacterRole::Minister && Character.AssignedOffice != EWLMinisterOffice::None)
+			{
+				Profile.SuccessionScore = ClampPercent(Profile.SuccessionScore + Character.Skill / 8 + Character.Loyalty / 12);
+				Profile.LastProfileEvent = FString::Printf(TEXT("%s gana peso politico desde %s."),
+					*Character.Name,
+					*UWLCharacterSubsystem::MinisterOfficeToString(Character.AssignedOffice));
+			}
+			else if (Character.Role == EWLCharacterRole::Opposition)
+			{
+				Profile.SuccessionScore = ClampPercent(Profile.SuccessionScore + GetInternalPower(Iso).OppositionPopularity / 8);
+			}
 			if (Profile.ScandalHeat >= 70)
 			{
 				Profile.LastProfileEvent = FString::Printf(TEXT("%s acumula expediente de escandalo."), *Character.Name);
@@ -3068,6 +3616,11 @@ void UWLPoliticalSubsystem::RunStrategicAIForNation(const FString& NationIso)
 	const int64 Treasury = Tick->GetTreasury(Iso);
 	const int64 OwnStrength = Tick->GetNationMilitaryStrength(Iso);
 	const int32 Month = Tick->GetCurrentMonth();
+	const FWLPoliticalAIPlanState DiplomaticPlan = GetGovernmentAIPlan(Iso);
+	const bool bBlocDoctrine = DiplomaticPlan.Objective == EWLGovernmentAIObjective::Align;
+	const bool bExpansionDoctrine = DiplomaticPlan.Objective == EWLGovernmentAIObjective::Expand
+		|| DiplomaticPlan.Objective == EWLGovernmentAIObjective::Militarize;
+	const bool bWarCooldown = GetPoliticalMemoryValue(Iso, TEXT("war_declared_recently")) > 0;
 
 	// 1) Fisco: en deficit o deuda sube impuestos; con bonanza los relaja hacia el default.
 	const int32 Tax = Tick->GetTaxRate(Iso);
@@ -3118,24 +3671,40 @@ void UWLPoliticalSubsystem::RunStrategicAIForNation(const FString& NationIso)
 			continue;
 		}
 
-		const int32 TreatyOffset = Rules.GetStrategicAITreatyOpinionOffset();
+		const int32 TreatyOffset = Rules.GetStrategicAITreatyOpinionOffset() + (bBlocDoctrine ? -10 : 0) + (bExpansionDoctrine ? 5 : 0);
 		if (Relation.Opinion >= 20 + TreatyOffset && !Relation.Treaties.Contains(EWLTreatyType::TradeAgreement))
 		{
-			SignTreaty(Iso, Other.Iso, EWLTreatyType::TradeAgreement, Message);
+			if (SignTreaty(Iso, Other.Iso, EWLTreatyType::TradeAgreement, Message))
+			{
+				AddPoliticalMemory(Iso, TEXT("diplomatic_bloc_building"), 1, 18, Message);
+			}
 		}
 		if (Relation.Opinion >= 25 + TreatyOffset && !Relation.Treaties.Contains(EWLTreatyType::NonAggression))
 		{
-			SignTreaty(Iso, Other.Iso, EWLTreatyType::NonAggression, Message);
+			if (SignTreaty(Iso, Other.Iso, EWLTreatyType::NonAggression, Message))
+			{
+				AddPoliticalMemory(Iso, TEXT("diplomatic_bloc_building"), 1, 18, Message);
+			}
 		}
 		if (Relation.Opinion >= 60 + TreatyOffset && !Relation.Treaties.Contains(EWLTreatyType::Alliance))
 		{
-			SignTreaty(Iso, Other.Iso, EWLTreatyType::Alliance, Message);
+			if (SignTreaty(Iso, Other.Iso, EWLTreatyType::Alliance, Message))
+			{
+				AddPoliticalMemory(Iso, TEXT("diplomatic_bloc_building"), 1, 24, Message);
+			}
 		}
-		if (Relation.Opinion <= Rules.GetStrategicAIWarOpinionThreshold()
-			&& static_cast<double>(OwnStrength) > static_cast<double>(OtherStrength) * Rules.GetStrategicAIWarStrengthRatio())
+		const int32 WarOpinionThreshold = Rules.GetStrategicAIWarOpinionThreshold() + (bExpansionDoctrine ? 8 : -8);
+		const double WarStrengthRatio = Rules.GetStrategicAIWarStrengthRatio() + (bExpansionDoctrine ? -0.15 : 0.25);
+		if (!bWarCooldown
+			&& Relation.Opinion <= WarOpinionThreshold
+			&& static_cast<double>(OwnStrength) > static_cast<double>(OtherStrength) * WarStrengthRatio)
 		{
-			DeclareWar(Iso, Other.Iso, Message);
-			UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: declara la guerra a %s."), *Iso, *Other.Iso);
+			if (DeclareWar(Iso, Other.Iso, Message))
+			{
+				AddPoliticalMemory(Iso, TEXT("war_declared_recently"), 1, 18, Message);
+				AddPoliticalMemory(Iso, TEXT("diplomatic_war_doctrine"), 1, 24, Message);
+				UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: declara la guerra a %s."), *Iso, *Other.Iso);
+			}
 		}
 
 		if (WorstIso.IsEmpty() || Relation.Opinion < WorstOpinion)
@@ -3146,7 +3715,10 @@ void UWLPoliticalSubsystem::RunStrategicAIForNation(const FString& NationIso)
 	}
 
 	// 4) Intriga contra su peor relacion: primero red, luego alterna financiar golpe / propaganda.
-	if (!WorstIso.IsEmpty() && WorstOpinion < Rules.GetStrategicAIIntrigueOpinionThreshold() && Characters)
+	if (!WorstIso.IsEmpty()
+		&& WorstOpinion < Rules.GetStrategicAIIntrigueOpinionThreshold()
+		&& GetPoliticalMemoryValue(Iso, TEXT("covert_pressure_recently")) < 3
+		&& Characters)
 	{
 		FString SpyId;
 		for (const FWLCharacter& Spy : Characters->GetCharactersByRole(Iso, EWLCharacterRole::Spy))
@@ -3169,6 +3741,7 @@ void UWLPoliticalSubsystem::RunStrategicAIForNation(const FString& NationIso)
 			{
 				RunSpyOperation(Iso, WorstIso, SpyId,
 					Month % 2 == 0 ? EWLSpyOperationType::FundCoup : EWLSpyOperationType::Propaganda, Message);
+				AddPoliticalMemory(Iso, TEXT("covert_pressure_recently"), 1, 12, Message);
 				UE_LOG(LogWorldLeader, Log, TEXT("IA %s vs %s: %s"), *Iso, *WorstIso, *Message);
 			}
 		}
@@ -4589,6 +5162,7 @@ void UWLPoliticalSubsystem::WriteGovernmentSaveSnapshot(
 
 void UWLPoliticalSubsystem::WriteGovernmentP2SaveSnapshot(
 	TArray<FWLActiveReformState>& OutReforms,
+	TArray<FWLEnactedPolicyReformState>& OutEnactedReforms,
 	TArray<FWLPartyState>& OutParties,
 	TArray<FWLElectionState>& OutElections,
 	TArray<FWLCharacterPoliticalProfile>& OutCharacterProfiles,
@@ -4599,6 +5173,7 @@ void UWLPoliticalSubsystem::WriteGovernmentP2SaveSnapshot(
 	TArray<FWLGovernmentCalibrationState>& OutCalibration) const
 {
 	OutReforms = ActivePolicyReforms;
+	OutEnactedReforms = EnactedPolicyReforms;
 	OutParties = PoliticalParties;
 	ElectionStateByNation.GenerateValueArray(OutElections);
 	CharacterPoliticalProfilesById.GenerateValueArray(OutCharacterProfiles);
@@ -4609,6 +5184,10 @@ void UWLPoliticalSubsystem::WriteGovernmentP2SaveSnapshot(
 	GovernmentCalibrationByNation.GenerateValueArray(OutCalibration);
 
 	OutReforms.Sort([](const FWLActiveReformState& A, const FWLActiveReformState& B)
+	{
+		return A.NationIso == B.NationIso ? A.ReformId < B.ReformId : A.NationIso < B.NationIso;
+	});
+	OutEnactedReforms.Sort([](const FWLEnactedPolicyReformState& A, const FWLEnactedPolicyReformState& B)
 	{
 		return A.NationIso == B.NationIso ? A.ReformId < B.ReformId : A.NationIso < B.NationIso;
 	});
@@ -4717,6 +5296,7 @@ bool UWLPoliticalSubsystem::RestoreSaveSnapshot(
 
 bool UWLPoliticalSubsystem::RestoreGovernmentP2SaveSnapshot(
 	const TArray<FWLActiveReformState>& SavedReforms,
+	const TArray<FWLEnactedPolicyReformState>& SavedEnactedReforms,
 	const TArray<FWLPartyState>& SavedParties,
 	const TArray<FWLElectionState>& SavedElections,
 	const TArray<FWLCharacterPoliticalProfile>& SavedCharacterProfiles,
@@ -4728,6 +5308,8 @@ bool UWLPoliticalSubsystem::RestoreGovernmentP2SaveSnapshot(
 	FString& OutMessage)
 {
 	ActivePolicyReforms.Reset();
+	EnactedPolicyReforms.Reset();
+	TSet<FString> RestoredActiveReformKeys;
 	for (FWLActiveReformState Reform : SavedReforms)
 	{
 		Reform.NationIso = NormalizeIso(Reform.NationIso);
@@ -4744,26 +5326,64 @@ bool UWLPoliticalSubsystem::RestoreGovernmentP2SaveSnapshot(
 		Reform.MonthsRemaining = FMath::Max(0, Reform.MonthsRemaining);
 		Reform.ImplementationProgress = ClampPercent(Reform.ImplementationProgress);
 		Reform.Backlash = ClampPercent(Reform.Backlash);
+		const FString ReformKey = Reform.NationIso + TEXT("|") + Reform.ReformId;
+		if (RestoredActiveReformKeys.Contains(ReformKey))
+		{
+			continue;
+		}
+		RestoredActiveReformKeys.Add(ReformKey);
 		ActivePolicyReforms.Add(MoveTemp(Reform));
 	}
+	for (FWLEnactedPolicyReformState Reform : SavedEnactedReforms)
+	{
+		Reform.NationIso = NormalizeIso(Reform.NationIso);
+		Reform.ReformId = Reform.ReformId.TrimStartAndEnd().ToLower();
+		FWLPolicyReformDefinition Definition;
+		if (!ValidateNation(Reform.NationIso)
+			|| !GetPolicyReformDefinition(Reform.ReformId, Definition)
+			|| HasEnactedPolicyReform(Reform.NationIso, Reform.ReformId))
+		{
+			continue;
+		}
+		Reform.ReformId = Definition.ReformId;
+		Reform.Name = Definition.Name;
+		Reform.Area = Definition.Area;
+		Reform.MonthsSinceEnacted = FMath::Max(0, Reform.MonthsSinceEnacted);
+		EnactedPolicyReforms.Add(MoveTemp(Reform));
+	}
+	ActivePolicyReforms.RemoveAll([this](const FWLActiveReformState& Reform)
+	{
+		return HasEnactedPolicyReform(Reform.NationIso, Reform.ReformId);
+	});
 
 	if (!SavedParties.IsEmpty())
 	{
 		PoliticalParties.Reset();
+		TSet<FString> RestoredPartyKeys;
 		for (FWLPartyState Party : SavedParties)
 		{
 			Party.NationIso = NormalizeIso(Party.NationIso);
 			Party.PartyId = Party.PartyId.TrimStartAndEnd().ToLower();
-			if (!ValidateNation(Party.NationIso) || Party.PartyId.IsEmpty())
+			const FString Key = PartyKey(Party.NationIso, Party.PartyId);
+			if (!ValidateNation(Party.NationIso) || Party.PartyId.IsEmpty() || RestoredPartyKeys.Contains(Key))
 			{
 				continue;
 			}
+			RestoredPartyKeys.Add(Key);
 			Party.Seats = FMath::Clamp(Party.Seats, 0, 100);
 			Party.Discipline = ClampPercent(Party.Discipline);
 			Party.LoyaltyToGovernment = ClampPercent(Party.LoyaltyToGovernment);
 			Party.Corruption = ClampPercent(Party.Corruption);
 			Party.MonthsSinceInternalElection = FMath::Max(0, Party.MonthsSinceInternalElection);
+			Party.LeaderCharacterId = NormalizeCharacterId(Party.LeaderCharacterId);
 			PoliticalParties.Add(MoveTemp(Party));
+		}
+	}
+	if (const UWLDataRegistry* Registry = GetRegistry())
+	{
+		for (const FWLNationData& Nation : Registry->GetAllNations())
+		{
+			SeedPoliticalPartiesForNation(Nation.Iso);
 		}
 	}
 
@@ -4785,6 +5405,8 @@ bool UWLPoliticalSubsystem::RestoreGovernmentP2SaveSnapshot(
 			Election.Legitimacy = ClampPercent(Election.Legitimacy);
 			Election.FraudRisk = ClampPercent(Election.FraudRisk);
 			Election.AbstentionRisk = ClampPercent(Election.AbstentionRisk);
+			Election.ConsecutiveTermsWon = FMath::Clamp(Election.ConsecutiveTermsWon, 0, 8);
+			Election.CampaignPromiseReformId = Election.CampaignPromiseReformId.TrimStartAndEnd().ToLower();
 			ElectionStateByNation.Add(Election.NationIso, MoveTemp(Election));
 		}
 	}
@@ -4804,7 +5426,23 @@ bool UWLPoliticalSubsystem::RestoreGovernmentP2SaveSnapshot(
 			Profile.PersonalCorruption = ClampPercent(Profile.PersonalCorruption);
 			Profile.ScandalHeat = ClampPercent(Profile.ScandalHeat);
 			Profile.SuccessionScore = ClampPercent(Profile.SuccessionScore);
+			Profile.PatronCharacterId = NormalizeCharacterId(Profile.PatronCharacterId);
+			for (FString& RivalId : Profile.RivalCharacterIds)
+			{
+				RivalId = NormalizeCharacterId(RivalId);
+			}
+			for (FString& AllyId : Profile.AllyCharacterIds)
+			{
+				AllyId = NormalizeCharacterId(AllyId);
+			}
 			CharacterPoliticalProfilesById.Add(Profile.CharacterId, MoveTemp(Profile));
+		}
+	}
+	if (const UWLDataRegistry* Registry = GetRegistry())
+	{
+		for (const FWLNationData& Nation : Registry->GetAllNations())
+		{
+			SeedCharacterProfilesForNation(Nation.Iso);
 		}
 	}
 
@@ -4851,13 +5489,17 @@ bool UWLPoliticalSubsystem::RestoreGovernmentP2SaveSnapshot(
 	if (!SavedRegions.IsEmpty())
 	{
 		RegionGovernors.Reset();
+		TSet<FString> RestoredRegionKeys;
 		for (FWLRegionGovernorState Region : SavedRegions)
 		{
 			Region.NationIso = NormalizeIso(Region.NationIso);
-			if (!ValidateNation(Region.NationIso) || Region.RegionId.TrimStartAndEnd().IsEmpty())
+			Region.RegionId = Region.RegionId.TrimStartAndEnd();
+			const FString RegionKey = Region.NationIso + TEXT("|") + Region.RegionId;
+			if (!ValidateNation(Region.NationIso) || Region.RegionId.IsEmpty() || RestoredRegionKeys.Contains(RegionKey))
 			{
 				continue;
 			}
+			RestoredRegionKeys.Add(RegionKey);
 			Region.Obedience = ClampPercent(Region.Obedience);
 			Region.Autonomy = ClampPercent(Region.Autonomy);
 			Region.ProtestRisk = ClampPercent(Region.ProtestRisk);
@@ -4866,6 +5508,13 @@ bool UWLPoliticalSubsystem::RestoreGovernmentP2SaveSnapshot(
 			Region.SecessionRisk = ClampPercent(Region.SecessionRisk);
 			Region.RebellionRisk = ClampPercent(Region.RebellionRisk);
 			RegionGovernors.Add(MoveTemp(Region));
+		}
+	}
+	if (const UWLDataRegistry* Registry = GetRegistry())
+	{
+		for (const FWLNationData& Nation : Registry->GetAllNations())
+		{
+			SeedRegionsForNation(Nation.Iso);
 		}
 	}
 
@@ -4910,8 +5559,9 @@ bool UWLPoliticalSubsystem::RestoreGovernmentP2SaveSnapshot(
 	}
 
 	OutMessage = FString::Printf(
-		TEXT("Gobierno P2 restaurado: %d reformas, %d partidos, %d elecciones, %d regiones, %d crisis."),
+		TEXT("Gobierno P2 restaurado: %d reformas activas, %d reformas consolidadas, %d partidos, %d elecciones, %d regiones, %d crisis."),
 		ActivePolicyReforms.Num(),
+		EnactedPolicyReforms.Num(),
 		PoliticalParties.Num(),
 		ElectionStateByNation.Num(),
 		RegionGovernors.Num(),

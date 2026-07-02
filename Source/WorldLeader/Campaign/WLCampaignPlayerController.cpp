@@ -167,6 +167,9 @@ void AWLCampaignPlayerController::OnAdvanceMonth()
 			{
 				Politics->ProcessPoliticalMonth();
 			}
+			// F5: al cerrar el mes, si el nuevo estado dejo eventos sin resolver, el juego los
+			// pone en primer plano con el popup modal (no hay que adivinar que abrir GOBIERNO).
+			ShowEventModalIfPending();
 		}
 		SetLastActionMessage(FString::Printf(TEXT("Dia avanzado: %02d/%02d/%d."),
 			Tick->GetCurrentDay(), Tick->GetCurrentMonth(), Tick->GetCurrentYear()), true);

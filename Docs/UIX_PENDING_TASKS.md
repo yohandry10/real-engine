@@ -4,6 +4,31 @@ Estado: backlog separado de frontend/UIX pendiente. El backend local P0/P1 ya ex
 
 Ultima validacion backend relacionada: build `WorldLeaderEditor Win64 Development` OK + suite `Automation RunTests WorldLeader` 55/55 (`EXIT CODE: 0`). Standalone no se abrio en la pasada de backend Gobierno P2.
 
+## Progreso UIX (2026-07-02, sesion Claude)
+
+Hecho y compilando (`Build.bat WorldLeaderEditor Win64 Development` OK):
+
+- **Gobierno P1/P2 UIX completo** en la pestana POLITICA, reconvertida en hub con 9 subsecciones
+  (PODER, AGENDA, PROGRAMAS, LEYES, CONGRESO, ELECCIONES, MEDIOS, REGIONES, CRISIS). Cada una lee sus
+  endpoints (`GetGovernmentAgenda`/`SetGovernmentAgenda`, `GetAvailable/ActiveMinistryPrograms`+`StartMinistryProgram`,
+  `GetAvailable/ActivePolicyReforms`+`EnactPolicyReform`, `GetPoliticalParties`+`NegotiatePartySupport`+`HoldPartyInternalElection`,
+  `GetElectionState`+`MakeCampaignPromise`, `GetPatronageState`+`UsePatronage`, `GetMediaPublicOpinion`+`RunMediaAction`,
+  `GetRegionGovernors`+`RunRegionPolicy`, `GetActiveCrisisChains`+`GetPoliticalMemory`, grupos sociales y capacidad estatal).
+  Bloqueos legibles (prerequisito/coalicion/capacidad/capital/tesoro), previews de impacto y confirmacion en dos clics.
+- **RESUMEN** gana grid "Pulso de Gobierno" (aprobacion, legitimidad, eleccion, coalicion, capacidad, crisis).
+- **ALTO MANDO**: gabinete vivo (rivalidad/escandalo/sabotaje/renuncia), comparador de candidatos por cartera
+  (`opencompare`/`appointc`/`hire`), fichas politicas de personajes ordenables (`GetCharacterPoliticalProfiles`).
+- **REGISTROS**: plan de IA politica por pais (`GetGovernmentAIPlan`) y panel de calibracion (`GetGovernmentCalibration`).
+- **Diplomacia continental**: listado compacto de 38 naciones con buscador (nombre/ISO), filtros de estado,
+  ordenamiento y panel de gestion por pais (tratados, guerra, ayuda, FDI, intriga). Sin lista plana.
+- **Eventos modal + feed**: `UWLEventModalWidget` (popup con opciones/coste/riesgo/impacto y confirmacion) que el
+  PlayerController abre al cerrar el mes o con [E]; feed de noticias del mundo en el HUD (bottom-left).
+- Infra compartida: `WLGovernmentWidgetShared.h` (paleta + fabrica de widgets: MakeGaugeRow, MakeBar, MakeBadge,
+  MakeAlert, MakeActionButton con estado de confirmacion). Widget partido en `WLGovernmentWidget.cpp` +
+  `WLGovernmentWidgetGovernance.cpp`.
+
+Pendiente de validar en Standalone (build compila; falta playtest visual).
+
 ## Principio De Implementacion
 
 - Mantener la logica de juego en subsistemas (`UWLPoliticalSubsystem`, `UWLCharacterSubsystem`, `WLStrategicTickSubsystem*`, `UWLMilitarySubsystem`, `UWLTacticalBattleSubsystem`, `UWLBalanceSubsystem`).

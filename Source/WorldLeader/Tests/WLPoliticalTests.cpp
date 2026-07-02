@@ -554,6 +554,7 @@ bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Restaurar crisis P2"),
 		Politics->RestoreGovernmentP2SaveSnapshot(
 			Politics->GetActivePolicyReforms(TEXT("CO")),
+			Politics->GetEnactedPolicyReforms(TEXT("CO")),
 			Politics->GetPoliticalParties(TEXT("CO")),
 			{ Politics->GetElectionState(TEXT("CO")) },
 			Politics->GetCharacterPoliticalProfiles(TEXT("CO")),
@@ -570,6 +571,7 @@ bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
 		Politics->GetGovernmentCalibration(TEXT("CO")).MonthsObserved > 0);
 
 	TArray<FWLActiveReformState> SavedReforms;
+	TArray<FWLEnactedPolicyReformState> SavedEnactedReforms;
 	TArray<FWLPartyState> SavedParties;
 	TArray<FWLElectionState> SavedElections;
 	TArray<FWLCharacterPoliticalProfile> SavedProfiles;
@@ -580,6 +582,7 @@ bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
 	TArray<FWLGovernmentCalibrationState> SavedCalibration;
 	Politics->WriteGovernmentP2SaveSnapshot(
 		SavedReforms,
+		SavedEnactedReforms,
 		SavedParties,
 		SavedElections,
 		SavedProfiles,
@@ -589,11 +592,192 @@ bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
 		SavedCrises,
 		SavedCalibration);
 	TestTrue(TEXT("Snapshot P2 guarda reformas"), SavedReforms.Num() > 0);
+	TestTrue(TEXT("Snapshot P2 expone reformas consolidadas"), SavedEnactedReforms.Num() >= 0);
 	TestTrue(TEXT("Snapshot P2 guarda partidos"), SavedParties.Num() >= 5);
 	TestTrue(TEXT("Snapshot P2 guarda elecciones"), SavedElections.Num() > 0);
 	TestTrue(TEXT("Snapshot P2 guarda perfiles"), SavedProfiles.Num() > 0);
 	TestTrue(TEXT("Snapshot P2 guarda regiones"), SavedRegions.Num() > 0);
 	TestTrue(TEXT("Snapshot P2 guarda calibracion"), SavedCalibration.Num() > 0);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLGovernmentP2InvariantsAndPersistenceTest,
+	"WorldLeader.Government.P2.InvariantsAndPersistence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLGovernmentP2InvariantsAndPersistenceTest::RunTest(const FString& Parameters)
+{
+	UWLCampaignGameInstance* GameInstance = NewObject<UWLCampaignGameInstance>();
+	TestNotNull(TEXT("Campaign GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+	TestTrue(TEXT("Campania CO"), GameInstance->StartNewCampaign(TEXT("CO")));
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	TestNotNull(TEXT("Tick subsystem"), Tick);
+	if (!Politics || !Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString Message;
+	const int64 InitialTreasury = Tick->GetTreasury(TEXT("CO"));
+	Tick->AdjustTreasury(TEXT("CO"), -InitialTreasury, Message);
+	TestEqual(TEXT("Tesoro CO queda en cero"), Tick->GetTreasury(TEXT("CO")), static_cast<int64>(0));
+	TestFalse(TEXT("Programa no inicia sin tesoro"),
+		Politics->StartMinistryProgram(TEXT("CO"), TEXT("econ_public_investment"), Message));
+	TestFalse(TEXT("Patronazgo no gasta sin tesoro"),
+		Politics->UsePatronage(TEXT("CO"), EWLPatronageActionType::AwardContract, Message));
+	TestEqual(TEXT("Contratos no mutan sin tesoro"),
+		Politics->GetPatronageState(TEXT("CO")).ContractCorruption, 0);
+
+	const TArray<FWLRegionGovernorState> Regions = Politics->GetRegionGovernors(TEXT("CO"));
+	TestTrue(TEXT("Hay regiones para politica territorial"), Regions.Num() > 0);
+	if (Regions.Num() > 0)
+	{
+		TestFalse(TEXT("Inversion regional no corre sin tesoro"),
+			Politics->RunRegionPolicy(TEXT("CO"), Regions[0].RegionId, EWLRegionPolicyActionType::RegionalInvestment, Message));
+	}
+
+	Tick->AdjustTreasury(TEXT("CO"), 100000, Message);
+	TestTrue(TEXT("Promesa electoral tax_broad_base"),
+		Politics->MakeCampaignPromise(TEXT("CO"), TEXT("tax_broad_base"), Message));
+	TestTrue(TEXT("Aprobar reforma prometida"),
+		Politics->EnactPolicyReform(TEXT("CO"), TEXT("tax_broad_base"), Message));
+	TestTrue(TEXT("Promesa queda marcada como cumplida"),
+		Politics->GetElectionState(TEXT("CO")).bCampaignPromiseFulfilled);
+	for (int32 Month = 0; Month < 25; ++Month)
+	{
+		Politics->ProcessPoliticalMonth();
+	}
+	const TArray<FWLEnactedPolicyReformState> Enacted = Politics->GetEnactedPolicyReforms(TEXT("CO"));
+	const FWLEnactedPolicyReformState* EnactedTaxReform = Enacted.FindByPredicate([](const FWLEnactedPolicyReformState& Reform)
+	{
+		return Reform.ReformId == TEXT("tax_broad_base");
+	});
+	TestTrue(TEXT("Reforma queda consolidada permanente"),
+		EnactedTaxReform != nullptr);
+	if (EnactedTaxReform)
+	{
+		TestTrue(TEXT("Reforma consolidada conserva promesa cumplida"),
+			EnactedTaxReform->bFulfilledCampaignPromise);
+	}
+	TestFalse(TEXT("Reforma consolidada no se duplica"),
+		Politics->EnactPolicyReform(TEXT("CO"), TEXT("tax_broad_base"), Message));
+
+	FWLPartyState PartialParty;
+	PartialParty.NationIso = TEXT("VE");
+	PartialParty.PartyId = TEXT("ve_gov");
+	PartialParty.Name = TEXT("Partido de Gobierno");
+	PartialParty.Role = EWLPartyRole::Ruling;
+	PartialParty.Seats = 36;
+	FWLActiveReformState DuplicateActiveReform;
+	DuplicateActiveReform.NationIso = TEXT("CO");
+	DuplicateActiveReform.ReformId = TEXT("tax_broad_base");
+	DuplicateActiveReform.MonthsRemaining = 12;
+	FWLEnactedPolicyReformState DuplicateEnactedReform;
+	DuplicateEnactedReform.NationIso = TEXT("CO");
+	DuplicateEnactedReform.ReformId = TEXT("tax_broad_base");
+	DuplicateEnactedReform.MonthsSinceEnacted = 1;
+	FWLCharacterPoliticalProfile PartialProfile;
+	PartialProfile.NationIso = TEXT("VE");
+	PartialProfile.CharacterId = TEXT("VE-MIN-ECO-SERRANO");
+	TestTrue(TEXT("Restore P2 parcial no deja Congreso incompleto"),
+		Politics->RestoreGovernmentP2SaveSnapshot(
+			{ DuplicateActiveReform, DuplicateActiveReform },
+			{ DuplicateEnactedReform },
+			{ PartialParty, PartialParty },
+			TArray<FWLElectionState>(),
+			{ PartialProfile },
+			TArray<FWLPatronageState>(),
+			TArray<FWLMediaPublicOpinionState>(),
+			TArray<FWLRegionGovernorState>(),
+			TArray<FWLCrisisChainState>(),
+			TArray<FWLGovernmentCalibrationState>(),
+			Message));
+	TestTrue(TEXT("Partidos VE faltantes se resembran"),
+		Politics->GetPoliticalParties(TEXT("VE")).Num() >= 5);
+	int32 GovPartyCount = 0;
+	for (const FWLPartyState& Party : Politics->GetPoliticalParties(TEXT("VE")))
+	{
+		if (Party.PartyId == TEXT("ve_gov"))
+		{
+			++GovPartyCount;
+		}
+	}
+	TestEqual(TEXT("Restore P2 deduplica partidos guardados"), GovPartyCount, 1);
+	TestFalse(TEXT("Reforma activa duplicada se elimina si ya esta consolidada"),
+		Politics->GetActivePolicyReforms(TEXT("CO")).ContainsByPredicate([](const FWLActiveReformState& Reform)
+		{
+			return Reform.ReformId == TEXT("tax_broad_base");
+		}));
+	TestEqual(TEXT("Restore P2 mantiene una sola reforma consolidada"),
+		Politics->GetEnactedPolicyReforms(TEXT("CO")).FilterByPredicate([](const FWLEnactedPolicyReformState& Reform)
+		{
+			return Reform.ReformId == TEXT("tax_broad_base");
+		}).Num(), 1);
+	TestTrue(TEXT("Restore P2 parcial resembrar perfiles faltantes"),
+		Politics->GetCharacterPoliticalProfiles(TEXT("VE")).Num() > 1);
+
+	FWLMediaPublicOpinionState StrongMedia;
+	StrongMedia.NationIso = TEXT("CO");
+	StrongMedia.PresidentialApproval = 95;
+	FWLElectionState Election;
+	Election.NationIso = TEXT("CO");
+	Election.MonthsToElection = 0;
+	Election.CampaignIntensity = 50;
+	Election.Legitimacy = 85;
+	Election.ConsecutiveTermsWon = 1;
+	TestTrue(TEXT("Restore eleccion para limite de mandato"),
+		Politics->RestoreGovernmentP2SaveSnapshot(
+			TArray<FWLActiveReformState>(),
+			TArray<FWLEnactedPolicyReformState>(),
+			TArray<FWLPartyState>(),
+			{ Election },
+			TArray<FWLCharacterPoliticalProfile>(),
+			TArray<FWLPatronageState>(),
+			{ StrongMedia },
+			TArray<FWLRegionGovernorState>(),
+			TArray<FWLCrisisChainState>(),
+			TArray<FWLGovernmentCalibrationState>(),
+			Message));
+	Politics->ProcessPoliticalMonth();
+	const FWLElectionState TermElection = Politics->GetElectionState(TEXT("CO"));
+	TestTrue(TEXT("Victoria consecutiva activa limite de mandato"), TermElection.bTermLimited);
+	TestTrue(TEXT("Terminos consecutivos avanzan"), TermElection.ConsecutiveTermsWon >= 2);
+
+	FWLElectionState BrokenPromiseElection;
+	BrokenPromiseElection.NationIso = TEXT("CO");
+	BrokenPromiseElection.MonthsToElection = 0;
+	BrokenPromiseElection.CampaignPromiseReformId = TEXT("edu_public_schools");
+	BrokenPromiseElection.bCampaignPromiseFulfilled = false;
+	BrokenPromiseElection.CampaignIntensity = 50;
+	BrokenPromiseElection.Legitimacy = 85;
+	TestTrue(TEXT("Restore eleccion con promesa incumplida"),
+		Politics->RestoreGovernmentP2SaveSnapshot(
+			TArray<FWLActiveReformState>(),
+			TArray<FWLEnactedPolicyReformState>(),
+			TArray<FWLPartyState>(),
+			{ BrokenPromiseElection },
+			TArray<FWLCharacterPoliticalProfile>(),
+			TArray<FWLPatronageState>(),
+			{ StrongMedia },
+			TArray<FWLRegionGovernorState>(),
+			TArray<FWLCrisisChainState>(),
+			TArray<FWLGovernmentCalibrationState>(),
+			Message));
+	Politics->ProcessPoliticalMonth();
+	TestTrue(TEXT("Promesa incumplida deja reporte electoral"),
+		Politics->GetElectionState(TEXT("CO")).LastElectionReport.Contains(TEXT("Promesa incumplida")));
 
 	GameInstance->Shutdown();
 	return true;

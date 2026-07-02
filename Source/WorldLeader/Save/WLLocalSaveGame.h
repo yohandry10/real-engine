@@ -58,7 +58,7 @@ class WORLDLEADER_API UWLLocalSaveGame : public USaveGame
 
 public:
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
-	int32 SaveVersion = 12;
+	int32 SaveVersion = 13;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	FString SelectedNationIso;
@@ -143,6 +143,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	TArray<FWLActiveReformState> ActivePolicyReforms;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLEnactedPolicyReformState> EnactedPolicyReforms;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	TArray<FWLPartyState> PoliticalParties;

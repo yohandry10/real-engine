@@ -16,6 +16,7 @@ class AWLWorldMap;
 class AWLCampaign3DView;
 class UWLMainMenuWidget;
 class UWLGovernmentWidget;
+class UWLEventModalWidget;
 struct FWLCampaign3DCityView;
 struct FWLCampaign3DForceView;
 
@@ -163,6 +164,12 @@ public:
 	bool IsGovernmentWindowOpen() const { return bGovernmentWindowOpen; }
 	void ToggleGovernmentWindow();
 	void SetGovernmentWindowOpen(bool bOpen);
+
+	// --- Popup modal de EVENTO POLITICO (F5): el juego pone las decisiones en primer plano ---
+	bool IsEventModalOpen() const { return bEventModalOpen; }
+	void SetEventModalOpen(bool bOpen);
+	/** Si hay eventos sin resolver del jugador, abre el modal (se llama al cerrar cada mes). */
+	void ShowEventModalIfPending();
 
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|CampaignView")
 	void ShowCampaign3DView();
@@ -351,4 +358,11 @@ private:
 
 	UPROPERTY()
 	UWLGovernmentWidget* GovernmentWidget = nullptr;
+
+	// Popup modal de evento politico (widget UMG). Solo estado de UI; el propio widget lee la cola
+	// de eventos del subsystem y se autocierra cuando no queda ninguno.
+	bool bEventModalOpen = false;
+
+	UPROPERTY()
+	UWLEventModalWidget* EventModalWidget = nullptr;
 };

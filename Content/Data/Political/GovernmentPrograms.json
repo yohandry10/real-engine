@@ -1,0 +1,502 @@
+[
+  {
+    "program_id": "econ_tax_reform",
+    "name": "Reforma tributaria",
+    "office": "Economy",
+    "duration_months": 3,
+    "political_capital_cost": 14,
+    "treasury_cost": 0,
+    "requires_legislation": true,
+    "description": "Ajusta impuestos y mejora recaudacion; tensiona trabajadores y sindicatos."
+  },
+  {
+    "program_id": "econ_public_investment",
+    "name": "Inversion publica",
+    "office": "Economy",
+    "duration_months": 4,
+    "political_capital_cost": 8,
+    "treasury_cost": 4500,
+    "requires_legislation": false,
+    "description": "Gasto en obra publica y empleo; mejora apoyo social y capacidad estatal."
+  },
+  {
+    "program_id": "econ_subsidies",
+    "name": "Subsidios focalizados",
+    "office": "Economy",
+    "duration_months": 2,
+    "political_capital_cost": 6,
+    "treasury_cost": 2500,
+    "requires_legislation": false,
+    "description": "Reduce presion social a costa del tesoro."
+  },
+  {
+    "program_id": "econ_privatization",
+    "name": "Privatizacion selectiva",
+    "office": "Economy",
+    "duration_months": 4,
+    "political_capital_cost": 12,
+    "treasury_cost": 0,
+    "requires_legislation": true,
+    "description": "Vende activos estatales; mejora caja y empresarios, pero golpea sindicatos."
+  },
+  {
+    "program_id": "econ_price_controls",
+    "name": "Control de precios",
+    "office": "Economy",
+    "duration_months": 3,
+    "political_capital_cost": 9,
+    "treasury_cost": 1800,
+    "requires_legislation": true,
+    "description": "Contiene costo de vida a costa de eficiencia y presion empresarial."
+  },
+  {
+    "program_id": "econ_debt_swap",
+    "name": "Canje de deuda",
+    "office": "Economy",
+    "duration_months": 3,
+    "political_capital_cost": 10,
+    "treasury_cost": 900,
+    "requires_legislation": false,
+    "description": "Reordena vencimientos y compra tiempo fiscal."
+  },
+  {
+    "program_id": "econ_industrial_credit",
+    "name": "Credito industrial",
+    "office": "Economy",
+    "duration_months": 4,
+    "political_capital_cost": 9,
+    "treasury_cost": 3600,
+    "requires_legislation": false,
+    "description": "Financia manufactura nacional y empleo urbano."
+  },
+  {
+    "program_id": "econ_anti_corruption_audit",
+    "name": "Auditoria anticorrupcion",
+    "office": "Economy",
+    "duration_months": 3,
+    "political_capital_cost": 11,
+    "treasury_cost": 1200,
+    "requires_legislation": false,
+    "description": "Persigue filtraciones de presupuesto; incomoda redes clientelares."
+  },
+  {
+    "program_id": "econ_food_stabilization",
+    "name": "Estabilizacion alimentaria",
+    "office": "Economy",
+    "duration_months": 2,
+    "political_capital_cost": 7,
+    "treasury_cost": 2200,
+    "requires_legislation": false,
+    "description": "Compra alimentos y baja presion de trabajadores."
+  },
+  {
+    "program_id": "econ_emergency_budget",
+    "name": "Presupuesto de emergencia",
+    "office": "Economy",
+    "duration_months": 2,
+    "political_capital_cost": 15,
+    "treasury_cost": 0,
+    "requires_legislation": true,
+    "description": "Reasigna gasto para sobrevivir una crisis fiscal."
+  },
+  {
+    "program_id": "def_doctrine",
+    "name": "Doctrina de defensa",
+    "office": "Defense",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 1800,
+    "requires_legislation": false,
+    "description": "Ordena mandos, sube apoyo militar y baja rivalidad del alto mando."
+  },
+  {
+    "program_id": "def_procurement",
+    "name": "Compras militares",
+    "office": "Defense",
+    "duration_months": 3,
+    "political_capital_cost": 10,
+    "treasury_cost": 4200,
+    "requires_legislation": false,
+    "description": "Procura equipo y prepara reclutamiento."
+  },
+  {
+    "program_id": "def_mobilization",
+    "name": "Movilizacion nacional",
+    "office": "Defense",
+    "duration_months": 2,
+    "political_capital_cost": 16,
+    "treasury_cost": 2000,
+    "requires_legislation": true,
+    "description": "Moviliza reservas; sube poder militar pero tensiona sociedad."
+  },
+  {
+    "program_id": "def_border_command",
+    "name": "Comando de frontera",
+    "office": "Defense",
+    "duration_months": 3,
+    "political_capital_cost": 9,
+    "treasury_cost": 2400,
+    "requires_legislation": false,
+    "description": "Refuerza provincias fronterizas y reduce crisis militares."
+  },
+  {
+    "program_id": "def_service_law",
+    "name": "Ley de servicio militar",
+    "office": "Defense",
+    "duration_months": 4,
+    "political_capital_cost": 15,
+    "treasury_cost": 1400,
+    "requires_legislation": true,
+    "description": "Amplia la base de reclutamiento y tensiona juventud/trabajadores."
+  },
+  {
+    "program_id": "def_military_industry",
+    "name": "Industria militar",
+    "office": "Defense",
+    "duration_months": 5,
+    "political_capital_cost": 13,
+    "treasury_cost": 5200,
+    "requires_legislation": false,
+    "description": "Crea proveedores nacionales y sube apoyo castrense."
+  },
+  {
+    "program_id": "def_veterans_package",
+    "name": "Paquete de veteranos",
+    "office": "Defense",
+    "duration_months": 2,
+    "political_capital_cost": 6,
+    "treasury_cost": 1600,
+    "requires_legislation": false,
+    "description": "Compra lealtad militar y legitimidad patriotica."
+  },
+  {
+    "program_id": "def_counterinsurgency",
+    "name": "Plan contrainsurgente",
+    "office": "Defense",
+    "duration_months": 3,
+    "political_capital_cost": 12,
+    "treasury_cost": 2200,
+    "requires_legislation": false,
+    "description": "Reduce rebelion regional con coste de derechos civiles."
+  },
+  {
+    "program_id": "def_joint_training",
+    "name": "Entrenamiento conjunto",
+    "office": "Defense",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 1800,
+    "requires_legislation": false,
+    "description": "Mejora coordinacion de mandos sin escalar guerra."
+  },
+  {
+    "program_id": "def_officer_rotation",
+    "name": "Rotacion de oficiales",
+    "office": "Defense",
+    "duration_months": 2,
+    "political_capital_cost": 9,
+    "treasury_cost": 900,
+    "requires_legislation": false,
+    "description": "Reduce camarillas militares y riesgo de golpe."
+  },
+  {
+    "program_id": "int_police_reform",
+    "name": "Reforma policial",
+    "office": "Interior",
+    "duration_months": 3,
+    "political_capital_cost": 10,
+    "treasury_cost": 1800,
+    "requires_legislation": true,
+    "description": "Mejora orden interno con menor coste politico futuro."
+  },
+  {
+    "program_id": "int_governors",
+    "name": "Pacto con gobernadores",
+    "office": "Interior",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 1200,
+    "requires_legislation": false,
+    "description": "Aumenta autoridad central y apoyo regional."
+  },
+  {
+    "program_id": "int_public_order",
+    "name": "Operacion de orden publico",
+    "office": "Interior",
+    "duration_months": 2,
+    "political_capital_cost": 7,
+    "treasury_cost": 1500,
+    "requires_legislation": false,
+    "description": "Contiene protestas sin llegar a golpe abierto."
+  },
+  {
+    "program_id": "int_decentralization_compact",
+    "name": "Pacto de descentralizacion",
+    "office": "Interior",
+    "duration_months": 4,
+    "political_capital_cost": 12,
+    "treasury_cost": 1700,
+    "requires_legislation": true,
+    "description": "Negocia autonomia y baja secesion a cambio de control central menor."
+  },
+  {
+    "program_id": "int_civil_service",
+    "name": "Servicio civil profesional",
+    "office": "Interior",
+    "duration_months": 5,
+    "political_capital_cost": 14,
+    "treasury_cost": 2600,
+    "requires_legislation": true,
+    "description": "Aumenta burocracia y reduce patronazgo a largo plazo."
+  },
+  {
+    "program_id": "int_mayor_network",
+    "name": "Red de alcaldes",
+    "office": "Interior",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 1300,
+    "requires_legislation": false,
+    "description": "Construye maquinaria local para gobernabilidad."
+  },
+  {
+    "program_id": "int_disaster_response",
+    "name": "Respuesta a emergencias",
+    "office": "Interior",
+    "duration_months": 2,
+    "political_capital_cost": 5,
+    "treasury_cost": 1900,
+    "requires_legislation": false,
+    "description": "Mejora legitimidad ante crisis territoriales."
+  },
+  {
+    "program_id": "int_prison_reform",
+    "name": "Reforma penitenciaria",
+    "office": "Interior",
+    "duration_months": 4,
+    "political_capital_cost": 10,
+    "treasury_cost": 2100,
+    "requires_legislation": true,
+    "description": "Reduce violencia criminal y choques de derechos humanos."
+  },
+  {
+    "program_id": "int_local_security",
+    "name": "Seguridad local",
+    "office": "Interior",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 1700,
+    "requires_legislation": false,
+    "description": "Invierte en policia municipal y control territorial."
+  },
+  {
+    "program_id": "int_social_dialogue",
+    "name": "Mesa social",
+    "office": "Interior",
+    "duration_months": 2,
+    "political_capital_cost": 7,
+    "treasury_cost": 900,
+    "requires_legislation": false,
+    "description": "Abre negociacion con sindicatos y regiones."
+  },
+  {
+    "program_id": "for_bloc",
+    "name": "Construir bloque diplomatico",
+    "office": "Foreign",
+    "duration_months": 4,
+    "political_capital_cost": 10,
+    "treasury_cost": 900,
+    "requires_legislation": false,
+    "description": "Busca acuerdos con paises afines y sube opinion exterior."
+  },
+  {
+    "program_id": "for_trade_drive",
+    "name": "Gira de acuerdos comerciales",
+    "office": "Foreign",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 1200,
+    "requires_legislation": false,
+    "description": "Prioriza tratados comerciales con socios receptivos."
+  },
+  {
+    "program_id": "for_sanctions",
+    "name": "Paquete de sanciones",
+    "office": "Foreign",
+    "duration_months": 2,
+    "political_capital_cost": 9,
+    "treasury_cost": 600,
+    "requires_legislation": true,
+    "description": "Embarga al rival mas hostil y endurece relaciones."
+  },
+  {
+    "program_id": "for_mediation",
+    "name": "Mediacion regional",
+    "office": "Foreign",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 800,
+    "requires_legislation": false,
+    "description": "Baja tension continental y gana legitimidad exterior."
+  },
+  {
+    "program_id": "for_multilateral_orgs",
+    "name": "Ofensiva en organismos",
+    "office": "Foreign",
+    "duration_months": 4,
+    "political_capital_cost": 10,
+    "treasury_cost": 1100,
+    "requires_legislation": false,
+    "description": "Activa foros regionales para respaldo diplomatico."
+  },
+  {
+    "program_id": "for_border_commission",
+    "name": "Comision fronteriza",
+    "office": "Foreign",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 700,
+    "requires_legislation": false,
+    "description": "Reduce crisis fronteriza y prepara paz."
+  },
+  {
+    "program_id": "for_aid_request",
+    "name": "Solicitud de ayuda exterior",
+    "office": "Foreign",
+    "duration_months": 2,
+    "political_capital_cost": 7,
+    "treasury_cost": 400,
+    "requires_legislation": false,
+    "description": "Busca asistencia fiscal con costo de soberania."
+  },
+  {
+    "program_id": "for_energy_diplomacy",
+    "name": "Diplomacia energetica",
+    "office": "Foreign",
+    "duration_months": 4,
+    "political_capital_cost": 9,
+    "treasury_cost": 900,
+    "requires_legislation": false,
+    "description": "Negocia energia, sanciones y dependencia de socios."
+  },
+  {
+    "program_id": "for_defense_pact",
+    "name": "Pacto de defensa",
+    "office": "Foreign",
+    "duration_months": 4,
+    "political_capital_cost": 13,
+    "treasury_cost": 1200,
+    "requires_legislation": true,
+    "description": "Formaliza alianzas militares y alarma rivales."
+  },
+  {
+    "program_id": "for_human_rights_track",
+    "name": "Ruta de derechos humanos",
+    "office": "Foreign",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 700,
+    "requires_legislation": false,
+    "description": "Repara imagen internacional tras represion."
+  },
+  {
+    "program_id": "spy_networks",
+    "name": "Expansion de redes",
+    "office": "Intelligence",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 1000,
+    "requires_legislation": false,
+    "description": "Fortalece inteligencia exterior contra rivales."
+  },
+  {
+    "program_id": "spy_counterintel",
+    "name": "Barrido de contraespionaje",
+    "office": "Intelligence",
+    "duration_months": 2,
+    "political_capital_cost": 7,
+    "treasury_cost": 900,
+    "requires_legislation": false,
+    "description": "Reduce exposicion propia y redes rivales."
+  },
+  {
+    "program_id": "spy_covert_ops",
+    "name": "Operaciones encubiertas",
+    "office": "Intelligence",
+    "duration_months": 3,
+    "political_capital_cost": 12,
+    "treasury_cost": 1500,
+    "requires_legislation": false,
+    "description": "Prepara sabotaje y propaganda contra objetivos hostiles."
+  },
+  {
+    "program_id": "spy_infiltrate_parties",
+    "name": "Infiltrar partidos",
+    "office": "Intelligence",
+    "duration_months": 4,
+    "political_capital_cost": 11,
+    "treasury_cost": 1200,
+    "requires_legislation": false,
+    "description": "Penetra oposicion y coaliciones aliadas."
+  },
+  {
+    "program_id": "spy_media_monitoring",
+    "name": "Monitoreo mediatico",
+    "office": "Intelligence",
+    "duration_months": 3,
+    "political_capital_cost": 8,
+    "treasury_cost": 900,
+    "requires_legislation": false,
+    "description": "Detecta campanias de prensa y fake news."
+  },
+  {
+    "program_id": "spy_purge_cells",
+    "name": "Desarticular celulas",
+    "office": "Intelligence",
+    "duration_months": 3,
+    "political_capital_cost": 10,
+    "treasury_cost": 1300,
+    "requires_legislation": false,
+    "description": "Reduce riesgo de golpe blando y protesta organizada."
+  },
+  {
+    "program_id": "spy_black_budget",
+    "name": "Presupuesto negro",
+    "office": "Intelligence",
+    "duration_months": 3,
+    "political_capital_cost": 13,
+    "treasury_cost": 2400,
+    "requires_legislation": true,
+    "description": "Financia operaciones sensibles con alto riesgo de escandalo."
+  },
+  {
+    "program_id": "spy_border_assets",
+    "name": "Activos fronterizos",
+    "office": "Intelligence",
+    "duration_months": 3,
+    "political_capital_cost": 9,
+    "treasury_cost": 1000,
+    "requires_legislation": false,
+    "description": "Anticipa crisis y movimientos hostiles en frontera."
+  },
+  {
+    "program_id": "spy_anti_corruption_files",
+    "name": "Expedientes anticorrupcion",
+    "office": "Intelligence",
+    "duration_months": 4,
+    "political_capital_cost": 12,
+    "treasury_cost": 1100,
+    "requires_legislation": false,
+    "description": "Reune pruebas contra redes corruptas y ministros rivales."
+  },
+  {
+    "program_id": "spy_false_flag_watch",
+    "name": "Alerta de bandera falsa",
+    "office": "Intelligence",
+    "duration_months": 3,
+    "political_capital_cost": 10,
+    "treasury_cost": 1000,
+    "requires_legislation": false,
+    "description": "Reduce provocaciones y atribucion incierta."
+  }
+]

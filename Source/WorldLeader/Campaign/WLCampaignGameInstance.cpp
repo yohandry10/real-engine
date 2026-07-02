@@ -15,7 +15,7 @@ namespace
 {
 	const FString WLLocalCampaignSlot = TEXT("WorldLeader_LocalCampaign");
 	constexpr int32 WLLocalCampaignUserIndex = 0;
-	constexpr int32 WLLocalCampaignSaveVersion = 12;
+	constexpr int32 WLLocalCampaignSaveVersion = 13;
 }
 
 UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
@@ -176,6 +176,7 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 			Save->GovernmentAIPlans);
 		Politics->WriteGovernmentP2SaveSnapshot(
 			Save->ActivePolicyReforms,
+			Save->EnactedPolicyReforms,
 			Save->PoliticalParties,
 			Save->ElectionStates,
 			Save->CharacterPoliticalProfiles,
@@ -294,6 +295,7 @@ bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 		}
 		if (!Politics->RestoreGovernmentP2SaveSnapshot(
 			Save->ActivePolicyReforms,
+			Save->EnactedPolicyReforms,
 			Save->PoliticalParties,
 			Save->ElectionStates,
 			Save->CharacterPoliticalProfiles,
