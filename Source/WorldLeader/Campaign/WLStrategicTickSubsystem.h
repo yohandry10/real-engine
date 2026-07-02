@@ -36,8 +36,12 @@ struct FWLNationBudget
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
 	int64 SocialSpending = 0;
 
+	/** FE1.4: interes mensual de la deuda (0 si el tesoro no es negativo). */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 DebtInterest = 0;
+
 	int64 TotalIncome() const { return ResourceIncome + TaxIncome; }
-	int64 TotalSpending() const { return MilitaryUpkeep + InfrastructureUpkeep + PublicWages + SocialSpending; }
+	int64 TotalSpending() const { return MilitaryUpkeep + InfrastructureUpkeep + PublicWages + SocialSpending + DebtInterest; }
 	int64 Net() const { return TotalIncome() - TotalSpending(); }
 };
 
@@ -111,6 +115,10 @@ public:
 	/** FE1.3: presupuesto mensual desglosado por categorias. GetMonthlyBalance == su neto. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	FWLNationBudget GetNationBudget(const FString& NationIso) const;
+
+	/** FE1.4: limite de credito de una nacion (hasta cuanto puede endeudarse gastando). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int64 GetCreditLimit(const FString& NationIso) const;
 
 	/** FE1.2: tasa de impuestos de una nacion (%). Si nunca se toco, el default de balance. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")

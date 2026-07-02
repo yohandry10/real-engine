@@ -125,6 +125,72 @@ bool FWLNationBudgetBreakdownTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLDebtAndCreditLimitTest,
+	"WorldLeader.Balance.DebtAndCreditLimit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLDebtAndCreditLimitTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	if (!Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	const FWLBalanceRules Rules = Tick->GetBalanceRules();
+	const int64 NetWithoutDebt = Tick->GetMonthlyBalance(TEXT("VE"));
+	TestEqual(TEXT("Sin deuda no hay intereses"), Tick->GetNationBudget(TEXT("VE")).DebtInterest, static_cast<int64>(0));
+
+	// Forzar deuda: restaurar snapshot con el tesoro de VE en -100000.
+	auto RestoreTreasury = [&](int64 Treasury)
+	{
+		TArray<FWLNationTreasurySave> Treasuries;
+		FWLNationTreasurySave Saved;
+		Saved.NationIso = TEXT("VE");
+		Saved.Treasury = Treasury;
+		Treasuries.Add(Saved);
+		FString Message;
+		return Tick->RestoreSaveSnapshot(Tick->GetCurrentYear(), Tick->GetCurrentMonth(),
+			Treasuries, TArray<FWLProvinceBuildingsSave>(), TArray<FWLProvinceRuntimeState>(), Message);
+	};
+	TestTrue(TEXT("Restaurar tesoro en deuda"), RestoreTreasury(-100000));
+
+	const int64 ExpectedInterest = static_cast<int64>(
+		FMath::RoundToDouble(100000.0 * Rules.DebtMonthlyInterestRate));
+	TestEqual(TEXT("Interes mensual sobre la deuda"),
+		Tick->GetNationBudget(TEXT("VE")).DebtInterest, ExpectedInterest);
+	TestEqual(TEXT("El interes drena el balance mensual"),
+		Tick->GetMonthlyBalance(TEXT("VE")), NetWithoutDebt - ExpectedInterest);
+
+	// Gastar en deficit genera deuda mientras quede credito.
+	const int64 CreditLimit = Tick->GetCreditLimit(TEXT("VE"));
+	TestTrue(TEXT("Limite de credito positivo"), CreditLimit > 0);
+	FString Message;
+	TestTrue(TEXT("Construir en deficit (dentro del credito)"),
+		Tick->BuildBuilding(TEXT("VE-ZU"), TEXT("oil_well"), Message));
+	TestTrue(TEXT("El gasto en deficit aumenta la deuda"), Tick->GetTreasury(TEXT("VE")) < -100000);
+
+	// Con el credito agotado, el gasto se bloquea.
+	TestTrue(TEXT("Restaurar tesoro al limite de credito"), RestoreTreasury(-Tick->GetCreditLimit(TEXT("VE"))));
+	TestFalse(TEXT("Credito agotado bloquea construir"),
+		Tick->BuildBuilding(TEXT("VE-ZU"), TEXT("oil_well"), Message));
+	TestTrue(TEXT("Mensaje explica el credito"), Message.Contains(TEXT("Credito agotado")));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLBalanceRulesSanitizeTest,
 	"WorldLeader.Balance.SanitizeRules",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -146,6 +212,8 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	Rules.InfrastructureUpkeepFactor = -2;
 	Rules.PublicWagesPerCapita = -1.0;
 	Rules.SocialSpendingPerCapita = -2.0;
+	Rules.DebtMonthlyInterestRate = 5.0;
+	Rules.DebtCreditLimitIncomeMonths = -3.0;
 	Rules.EconomicAIMinTreasuryReserve = -5000;
 	Rules.EconomicAIMaxBuildsPerNationPerMonth = -2;
 	Rules.EconomicAIMaxPaybackMonths = -12;
@@ -169,6 +237,8 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Upkeep negativo saneado"), Sanitized.InfrastructureUpkeepFactor, 0);
 	TestEqual(TEXT("Salarios negativos saneados"), Sanitized.PublicWagesPerCapita, 0.0);
 	TestEqual(TEXT("Gasto social negativo saneado"), Sanitized.SocialSpendingPerCapita, 0.0);
+	TestEqual(TEXT("Interes de deuda clamp"), Sanitized.DebtMonthlyInterestRate, 1.0);
+	TestEqual(TEXT("Limite de credito negativo saneado"), Sanitized.DebtCreditLimitIncomeMonths, 0.0);
 	TestEqual(TEXT("Reserva IA saneada"), Sanitized.EconomicAIMinTreasuryReserve, static_cast<int64>(0));
 	TestEqual(TEXT("Construcciones IA saneadas"), Sanitized.EconomicAIMaxBuildsPerNationPerMonth, 0);
 	TestEqual(TEXT("Retorno IA saneado"), Sanitized.EconomicAIMaxPaybackMonths, 0);

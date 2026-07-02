@@ -615,6 +615,10 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	AddBudgetRow(TEXT("Infraestructura"), Budget.InfrastructureUpkeep, false, false, 1);
 	AddBudgetRow(TEXT("Salarios publicos"), Budget.PublicWages, false, false, 2);
 	AddBudgetRow(TEXT("Gasto social"), Budget.SocialSpending, false, false, 3);
+	if (Budget.DebtInterest > 0)
+	{
+		AddBudgetRow(TEXT("Intereses de deuda"), Budget.DebtInterest, false, false, 4);   // FE1.4
+	}
 	AddBudgetRow(TEXT("TOTAL GASTOS"), Budget.TotalSpending(), false, true, 0);
 
 	// Balance neto (== GetMonthlyBalance).
@@ -631,6 +635,45 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		18, Net >= 0 ? GovGood : GovBad, ETextJustify::Right));
 	NetCard->SetContent(NetHB);
 	AddColumnChild(CenterBox, NetCard, 12.f);
+
+	// FE1.4: deuda y linea de credito. Gastar por encima del tesoro endeuda (con interes mensual)
+	// hasta el limite de credito; el tesoro negativo ademas penaliza el orden publico cada mes.
+	{
+		const int64 Treasury = Tick->GetTreasury(Iso);
+		const int64 CreditLimit = Tick->GetCreditLimit(Iso);
+		if (Treasury < 0)
+		{
+			UBorder* DebtCard = MakeBorder(WidgetTree, GovCard, FMargin(12.f, 10.f));
+			UVerticalBox* DebtVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+			UHorizontalBox* DebtHB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = DebtHB->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("DEUDA"), 15, GovBad)))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			DebtHB->AddChildToHorizontalBox(MakeText(WidgetTree,
+				GovGroupThousands(-Treasury), 18, GovBad, ETextJustify::Right));
+			DebtVB->AddChildToVerticalBox(DebtHB);
+			if (UVerticalBoxSlot* S = DebtVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+				TEXT("Interes %.0f%%/mes (%s/mes)   ·   Credito restante: %s"),
+				Rules.DebtMonthlyInterestRate * 100.0,
+				*GovGroupThousands(Budget.DebtInterest),
+				*GovGroupThousands(FMath::Max<int64>(0, CreditLimit + Treasury))),
+				13, GovMuted, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			}
+			DebtCard->SetContent(DebtVB);
+			AddColumnChild(CenterBox, DebtCard, 8.f);
+		}
+		else
+		{
+			AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
+				TEXT("Sin deuda. Linea de credito disponible: %s (interes %.0f%%/mes si el tesoro cae en negativo)."),
+				*GovGroupThousands(CreditLimit), Rules.DebtMonthlyInterestRate * 100.0),
+				12, GovMuted, ETextJustify::Left, true), 8.f);
+		}
+	}
 
 	// FE1.2: palanca de impuestos. Mover la tasa cambia la recaudacion (Laffer) y el orden publico mensual.
 	{

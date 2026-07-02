@@ -121,10 +121,11 @@ bool UWLStrategicTickSubsystem::BuildBuilding(const FString& ProvinceId, const F
 		return false;
 	}
 
-	if (*Treasury < Building.Cost)
+	// FE1.4: se puede gastar en deficit (deuda con interes) hasta el limite de credito de la nacion.
+	if (*Treasury - Building.Cost < -GetCreditLimit(Nation))
 	{
-		OutMessage = FString::Printf(TEXT("Fondos insuficientes en %s: cuesta %lld, tesoro %lld"),
-			*Nation, Building.Cost, *Treasury);
+		OutMessage = FString::Printf(TEXT("Credito agotado en %s: cuesta %lld, tesoro %lld, limite de credito %lld"),
+			*Nation, Building.Cost, *Treasury, GetCreditLimit(Nation));
 		return false;
 	}
 

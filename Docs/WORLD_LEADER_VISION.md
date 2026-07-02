@@ -27,7 +27,7 @@
 ## 📍 Estado actual
 
 - **Fase activa:** FE — Economía (el usuario priorizó economía). *F1 Generales queda en pausa (próxima F1.2).*
-- **Próxima tarea:** **FE1.4** — Deuda y déficit
+- **Próxima tarea:** **FE1.5** — PIB y crecimiento
 - **Última actualización:** 2026-07-01
 
 ---
@@ -158,7 +158,7 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
   (curva tipo Laffer). *Hecho = mover el impuesto cambia ingreso y orden.*
 - [x] **FE1.3 — Presupuesto por categorías.** Gasto en militar / infraestructura / salarios / social + panel
   ECONOMÍA que los desglosa. *Hecho = se ve ingreso y gasto por categoría.*
-- [ ] **FE1.4 — Deuda y déficit.** Tesoro negativo → interés mensual + límite de crédito + penalización.
+- [x] **FE1.4 — Deuda y déficit.** Tesoro negativo → interés mensual + límite de crédito + penalización.
   *Hecho = gastar de más genera deuda con interés.*
 - [ ] **FE1.5 — PIB y crecimiento.** Métrica agregada de PIB + tasa de crecimiento mensual, en ECONOMÍA/RESUMEN.
   *Hecho = se ve el PIB y si sube o baja.*
@@ -203,6 +203,17 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-01 · FE1.4** — Deuda y déficit: el tesoro negativo cobra interés mensual (`DebtMonthlyInterestRate`
+  2%/mes) como línea nueva del presupuesto (`FWLNationBudget.DebtInterest` → entra en `GetMonthlyBalance`);
+  construir y reclutar ahora pueden gastar EN DÉFICIT (generan deuda) hasta el límite de crédito
+  (`GetCreditLimit` = `DebtCreditLimitIncomeMonths` (12) × ingreso mensual) — con el crédito agotado el gasto
+  se bloquea con mensaje. La penalización de orden público por bancarrota ya existía y sigue aplicando. La IA
+  económica conserva su reserva mínima (no se endeuda). UI: fila "Intereses de deuda" + tarjeta DEUDA (deuda,
+  interés, crédito restante) o línea de crédito disponible en ECONOMIA. Global: presupuesto/interés/límite por
+  nación (ISO). Test `Balance.DebtAndCreditLimit` (interés esperado, gasto en déficit endeuda, crédito agotado
+  bloquea). Archivos: `WLBalanceTypes.h`, `WLStrategicTickSubsystem.h/.cpp`,
+  `WLStrategicTickSubsystemBuildings.cpp`, `WLStrategicTickSubsystemRecruit.cpp`, `WLGovernmentWidget.cpp`,
+  `WLBalanceTests.cpp`.
 - **2026-07-01 · FE1.3** — Presupuesto por categorías: `FWLNationBudget` (ingresos: recursos/producción +
   impuestos; gastos: militar + infraestructura + salarios públicos + gasto social) vía `GetNationBudget`;
   `GetMonthlyBalance` ahora ES el neto del presupuesto (única fuente de verdad). Gastos nuevos per cápita

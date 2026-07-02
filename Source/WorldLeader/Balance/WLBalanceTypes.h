@@ -67,6 +67,14 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Budget", meta = (ClampMin = "0.0"))
 	double SocialSpendingPerCapita = 0.0001;
 
+	/** FE1.4: interes mensual sobre el tesoro negativo (0.02 = 2%/mes). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debt", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double DebtMonthlyInterestRate = 0.02;
+
+	/** FE1.4: limite de credito = este multiplo del ingreso mensual total de la nacion. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debt", meta = (ClampMin = "0.0"))
+	double DebtCreditLimitIncomeMonths = 12.0;
+
 	/** Orden publico inicial para provincias sin estado guardado. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Public Order", meta = (ClampMin = "0", ClampMax = "100"))
 	int32 InitialPublicOrder = 72;
@@ -154,6 +162,8 @@ struct FWLBalanceRules
 		Out.TaxPublicOrderPerPointPerMonth = FMath::Max(0.0, Out.TaxPublicOrderPerPointPerMonth);
 		Out.PublicWagesPerCapita = FMath::Max(0.0, Out.PublicWagesPerCapita);
 		Out.SocialSpendingPerCapita = FMath::Max(0.0, Out.SocialSpendingPerCapita);
+		Out.DebtMonthlyInterestRate = FMath::Clamp(Out.DebtMonthlyInterestRate, 0.0, 1.0);
+		Out.DebtCreditLimitIncomeMonths = FMath::Max(0.0, Out.DebtCreditLimitIncomeMonths);
 		Out.InitialPublicOrder = FMath::Clamp(Out.InitialPublicOrder, 0, 100);
 		Out.PublicOrderNeutral = FMath::Clamp(Out.PublicOrderNeutral, 1, 100);
 		Out.LowOrderIncomePenaltyAtZero = FMath::Clamp(Out.LowOrderIncomePenaltyAtZero, 0.0, 1.0);

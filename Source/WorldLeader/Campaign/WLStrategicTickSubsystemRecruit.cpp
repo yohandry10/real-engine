@@ -163,9 +163,12 @@ bool UWLStrategicTickSubsystem::QueueRecruit(const FString& BaseId, const FStrin
 		Treasury = &Treasuries.Add(Iso, 50000);
 		UE_LOG(LogWorldLeader, Log, TEXT("Tesoro por defecto sembrado para %s (fuerte sin nacion en datos)."), *Iso);
 	}
-	if (*Treasury < Option->Cost)
+	// FE1.4: se puede reclutar en deficit (deuda con interes) hasta el limite de credito de la nacion.
+	if (*Treasury - Option->Cost < -GetCreditLimit(Iso))
 	{
-		OutMessage = FString::Printf(TEXT("Fondos insuficientes para %s (%lld de %lld)."), *Option->Label, static_cast<long long>(*Treasury), static_cast<long long>(Option->Cost));
+		OutMessage = FString::Printf(TEXT("Credito agotado para %s (tesoro %lld, cuesta %lld, limite %lld)."),
+			*Option->Label, static_cast<long long>(*Treasury), static_cast<long long>(Option->Cost),
+			static_cast<long long>(GetCreditLimit(Iso)));
 		return false;
 	}
 

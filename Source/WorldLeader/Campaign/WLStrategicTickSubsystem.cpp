@@ -266,7 +266,20 @@ FWLNationBudget UWLStrategicTickSubsystem::GetNationBudget(const FString& Nation
 		FMath::RoundToDouble(static_cast<double>(NationPopulation) * Rules.PublicWagesPerCapita));
 	Budget.SocialSpending = static_cast<int64>(
 		FMath::RoundToDouble(static_cast<double>(NationPopulation) * Rules.SocialSpendingPerCapita));
+	// FE1.4: la deuda (tesoro negativo) cobra interes mensual como gasto del presupuesto.
+	if (const int64* Treasury = Treasuries.Find(NormalizedIso); Treasury && *Treasury < 0)
+	{
+		Budget.DebtInterest = static_cast<int64>(
+			FMath::RoundToDouble(static_cast<double>(-*Treasury) * Rules.DebtMonthlyInterestRate));
+	}
 	return Budget;
+}
+
+int64 UWLStrategicTickSubsystem::GetCreditLimit(const FString& NationIso) const
+{
+	const FWLBalanceRules Rules = GetBalanceRules();
+	return static_cast<int64>(FMath::RoundToDouble(
+		static_cast<double>(GetNationBudget(NationIso).TotalIncome()) * Rules.DebtCreditLimitIncomeMonths));
 }
 
 int32 UWLStrategicTickSubsystem::GetTaxRate(const FString& NationIso) const
