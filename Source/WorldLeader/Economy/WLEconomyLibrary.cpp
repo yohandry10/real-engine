@@ -18,10 +18,34 @@ int64 UWLEconomyLibrary::CalculateProvinceIncomeWithRules(const FWLProvinceData&
 		+ static_cast<int64>(Province.BaseMinerals) * Balance.MineralsPrice
 		+ static_cast<int64>(Province.BaseIndustry) * Balance.IndustryValue;
 
-	const int64 PopulationTax =
-		static_cast<int64>(static_cast<double>(Province.Population) * Balance.PopulationTaxPerCapita);
+	return ResourceIncome + CalculateProvincePopulationTax(Province, Balance);
+}
 
-	return ResourceIncome + PopulationTax;
+int64 UWLEconomyLibrary::CalculateProvincePopulationTax(const FWLProvinceData& Province, const FWLBalanceRules& Rules)
+{
+	const FWLBalanceRules Balance = Rules.Sanitized();
+	return static_cast<int64>(static_cast<double>(Province.Population) * Balance.PopulationTaxPerCapita);
+}
+
+double UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(int32 TaxRatePercent, const FWLBalanceRules& Rules)
+{
+	const FWLBalanceRules Balance = Rules.Sanitized();
+
+	// Recaudacion relativa tipo Laffer: R(r) = r * (1 - evasion * r), con r en 0..1. Crece con la
+	// tasa pero con rendimiento decreciente; pico en 1/(2*evasion) y despues cae.
+	const auto Revenue = [&Balance](double Rate01)
+	{
+		return Rate01 * (1.0 - Balance.TaxLafferEvasionAtFullRate * Rate01);
+	};
+
+	const double DefaultRevenue = Revenue(static_cast<double>(Balance.TaxRateDefaultPercent) / 100.0);
+	if (DefaultRevenue <= 0.0)
+	{
+		return 1.0;   // sin tasa base de referencia la palanca queda neutra
+	}
+
+	const int32 ClampedRate = FMath::Clamp(TaxRatePercent, Balance.TaxRateMinPercent, Balance.TaxRateMaxPercent);
+	return Revenue(static_cast<double>(ClampedRate) / 100.0) / DefaultRevenue;
 }
 
 int64 UWLEconomyLibrary::CalculateProvinceIncomeWithState(

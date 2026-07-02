@@ -61,6 +61,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static int64 CalculateBuildingIncomeWithRules(const FWLBuildingData& Building, const FWLBalanceRules& Rules);
 
+	/** Solo la parte de impuestos a la poblacion del ingreso provincial (a tasa default). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateProvincePopulationTax(const FWLProvinceData& Province, const FWLBalanceRules& Rules);
+
+	/**
+	 * FE1.2: multiplicador de recaudacion segun la tasa de impuestos (curva tipo Laffer).
+	 * Normalizado: a TaxRateDefaultPercent devuelve 1.0; subir la tasa rinde cada vez menos.
+	 */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static double CalculateTaxRateIncomeMultiplier(int32 TaxRatePercent, const FWLBalanceRules& Rules);
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static double CalculatePublicOrderIncomeMultiplier(int32 PublicOrder, const FWLBalanceRules& Rules);
 

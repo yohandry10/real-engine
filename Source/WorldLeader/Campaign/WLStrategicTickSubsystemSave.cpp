@@ -25,6 +25,10 @@ void UWLStrategicTickSubsystem::WriteSaveSnapshot(
 		FWLNationTreasurySave SavedTreasury;
 		SavedTreasury.NationIso = Pair.Key;
 		SavedTreasury.Treasury = Pair.Value;
+		if (const int32* TaxRate = TaxRates.Find(Pair.Key))
+		{
+			SavedTreasury.TaxRatePercent = *TaxRate;   // FE1.2: -1 se mantiene si nunca se ajusto
+		}
 		OutTreasuries.Add(SavedTreasury);
 	}
 	OutTreasuries.Sort([](const FWLNationTreasurySave& A, const FWLNationTreasurySave& B)
@@ -103,6 +107,7 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 	CurrentYear = SavedYear;
 	CurrentMonth = SavedMonth;
 	ProvinceBuildings.Reset();
+	TaxRates.Reset();
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
 
@@ -113,6 +118,10 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 		if (Registry->GetNation(SavedTreasury.NationIso, Nation))
 		{
 			Treasuries.FindOrAdd(Nation.Iso) = SavedTreasury.Treasury;
+			if (SavedTreasury.TaxRatePercent >= 0)
+			{
+				SetTaxRate(Nation.Iso, SavedTreasury.TaxRatePercent);   // FE1.2
+			}
 			++RestoredTreasuries;
 		}
 	}

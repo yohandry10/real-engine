@@ -80,6 +80,7 @@ void UWLStrategicTickSubsystem::ResetCampaignState()
 	ProvinceBuildings.Reset();
 	RecruitQueues.Reset();
 	GarrisonRecruited.Reset();
+	TaxRates.Reset();
 	LastEconomicAIReports.Reset();
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
@@ -199,6 +200,7 @@ void UWLStrategicTickSubsystem::ApplyMonthlyProvinceState()
 		{
 			NextOrder -= Rules.PublicOrderBankruptcyPenalty;
 		}
+		NextOrder -= GetTaxPublicOrderPressure(ControllerIso);   // FE1.2: impuestos altos drenan orden, bajos lo recuperan
 
 		State->PublicOrder = ClampPublicOrder(NextOrder);
 
@@ -237,6 +239,28 @@ int64 UWLStrategicTickSubsystem::GetMonthlyBalance(const FString& NationIso) con
 	}
 	Balance -= GetNationMilitaryUpkeep(NormalizedIso);   // FE1.1: los ejercitos cuestan cada mes
 	return Balance;
+}
+
+int32 UWLStrategicTickSubsystem::GetTaxRate(const FString& NationIso) const
+{
+	const FWLBalanceRules Rules = GetBalanceRules();
+	const int32* Found = TaxRates.Find(NormalizeIso(NationIso));
+	return FMath::Clamp(Found ? *Found : Rules.TaxRateDefaultPercent, Rules.TaxRateMinPercent, Rules.TaxRateMaxPercent);
+}
+
+int32 UWLStrategicTickSubsystem::SetTaxRate(const FString& NationIso, int32 RatePercent)
+{
+	const FWLBalanceRules Rules = GetBalanceRules();
+	const int32 Clamped = FMath::Clamp(RatePercent, Rules.TaxRateMinPercent, Rules.TaxRateMaxPercent);
+	TaxRates.Add(NormalizeIso(NationIso), Clamped);
+	return Clamped;
+}
+
+int32 UWLStrategicTickSubsystem::GetTaxPublicOrderPressure(const FString& NationIso) const
+{
+	const FWLBalanceRules Rules = GetBalanceRules();
+	const int32 Delta = GetTaxRate(NationIso) - Rules.TaxRateDefaultPercent;
+	return FMath::RoundToInt(static_cast<double>(Delta) * Rules.TaxPublicOrderPerPointPerMonth);
 }
 
 // FE1.1: nacion a la que se imputa la guarnicion de una base. "CO-FORCE-..." -> CO; "BO-CO-VE-GUAJIRA" -> CO
@@ -396,8 +420,16 @@ int64 UWLStrategicTickSubsystem::GetProvinceMonthlyIncome(const FString& Provinc
 	FWLProvinceData EffectiveProvince = Province;
 	EffectiveProvince.Population = State.Population;
 
+	// FE1.2: la parte de impuestos del ingreso escala con la tasa de la nacion controladora (Laffer).
+	const FString ControllerIso = State.ControllerIso.IsEmpty() ? Province.CountryIso : State.ControllerIso;
+	const double TaxMultiplier = UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(GetTaxRate(ControllerIso), Rules);
+	const int64 BasePopulationTax = UWLEconomyLibrary::CalculateProvincePopulationTax(EffectiveProvince, Rules);
+	const int64 TaxRateDelta = static_cast<int64>(
+		FMath::RoundToDouble(static_cast<double>(BasePopulationTax) * (TaxMultiplier - 1.0)));
+
 	const int64 GrossIncome =
 		UWLEconomyLibrary::CalculateProvinceIncomeWithRules(EffectiveProvince, Rules)
+		+ TaxRateDelta
 		+ GetProvinceBuildingIncome(Province.Id, Rules);
 
 	return UWLEconomyLibrary::ApplyPublicOrderIncomeModifier(GrossIncome, State.PublicOrder, Rules);

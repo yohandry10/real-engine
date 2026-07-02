@@ -39,6 +39,26 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Population", meta = (ClampMin = "0.0"))
 	double MonthlyPopulationGrowthRate = 0.001;
 
+	/** FE1.2: tasa de impuestos con la que arranca cada nacion (% 0..100). A esta tasa la recaudacion es la base (x1.0). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Taxes", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 TaxRateDefaultPercent = 30;
+
+	/** Limite inferior de la palanca de impuestos (%). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Taxes", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 TaxRateMinPercent = 10;
+
+	/** Limite superior de la palanca de impuestos (%). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Taxes", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 TaxRateMaxPercent = 60;
+
+	/** Curva Laffer: fraccion de la recaudacion que se evade/pierde a tasa 100%. 0 = lineal; 0.7 = pico en ~71%. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Taxes", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double TaxLafferEvasionAtFullRate = 0.7;
+
+	/** Orden publico que drena cada mes cada punto de impuesto sobre el default (por debajo, lo recupera). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Taxes", meta = (ClampMin = "0.0"))
+	double TaxPublicOrderPerPointPerMonth = 0.15;
+
 	/** Orden publico inicial para provincias sin estado guardado. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Public Order", meta = (ClampMin = "0", ClampMax = "100"))
 	int32 InitialPublicOrder = 72;
@@ -119,6 +139,11 @@ struct FWLBalanceRules
 		Out.IndustryValue = FMath::Max(0, Out.IndustryValue);
 		Out.PopulationTaxPerCapita = FMath::Max(0.0, Out.PopulationTaxPerCapita);
 		Out.MonthlyPopulationGrowthRate = FMath::Max(0.0, Out.MonthlyPopulationGrowthRate);
+		Out.TaxRateMinPercent = FMath::Clamp(Out.TaxRateMinPercent, 0, 100);
+		Out.TaxRateMaxPercent = FMath::Clamp(Out.TaxRateMaxPercent, Out.TaxRateMinPercent, 100);
+		Out.TaxRateDefaultPercent = FMath::Clamp(Out.TaxRateDefaultPercent, Out.TaxRateMinPercent, Out.TaxRateMaxPercent);
+		Out.TaxLafferEvasionAtFullRate = FMath::Clamp(Out.TaxLafferEvasionAtFullRate, 0.0, 1.0);
+		Out.TaxPublicOrderPerPointPerMonth = FMath::Max(0.0, Out.TaxPublicOrderPerPointPerMonth);
 		Out.InitialPublicOrder = FMath::Clamp(Out.InitialPublicOrder, 0, 100);
 		Out.PublicOrderNeutral = FMath::Clamp(Out.PublicOrderNeutral, 1, 100);
 		Out.LowOrderIncomePenaltyAtZero = FMath::Clamp(Out.LowOrderIncomePenaltyAtZero, 0.0, 1.0);

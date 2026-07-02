@@ -5,6 +5,7 @@
 #include "Campaign/WLCampaignPlayerController.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Economy/WLEconomyLibrary.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -553,6 +554,71 @@ void UWLGovernmentWidget::BuildOverviewTab()
 	Place(2, 1, MakeMetricCard(WidgetTree, TEXT("Mantenimiento / mes"), GovGroupThousands(Sum.MonthlyUpkeep), GovMuted));
 	AddColumnChild(CenterBox, Grid, 10.f);
 
+	// FE1.2: palanca de impuestos. Mover la tasa cambia la recaudacion (Laffer) y el orden publico mensual.
+	if (Tick)
+	{
+		const FWLBalanceRules Rules = Tick->GetBalanceRules();
+		const int32 TaxRate = Tick->GetTaxRate(Iso);
+		const double TaxMult = UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(TaxRate, Rules);
+		const int32 OrderPressure = Tick->GetTaxPublicOrderPressure(Iso);
+
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("IMPUESTOS"), 17, GovGold), 20.f);
+
+		UBorder* TaxCard = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
+		UHorizontalBox* TaxRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+		UVerticalBox* TaxInfo = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		TaxInfo->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("TASA NACIONAL"), 12, GovMuted));
+		if (UVerticalBoxSlot* S = TaxInfo->AddChildToVerticalBox(
+			MakeText(WidgetTree, FString::Printf(TEXT("%d%%"), TaxRate), 27, GovGold)))
+		{
+			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+		if (UVerticalBoxSlot* S = TaxInfo->AddChildToVerticalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("Recaudacion x%.2f   ·   Orden publico %+d/mes"), TaxMult, -OrderPressure),
+			13, OrderPressure > 0 ? GovBad : GovMuted)))
+		{
+			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+		if (UHorizontalBoxSlot* S = TaxRow->AddChildToHorizontalBox(TaxInfo))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+
+		auto AddTaxButton = [&](const TCHAR* Label, bool bUp)
+		{
+			UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+			Button->SetBackgroundColor(GovTabIdle);
+			if (bUp)
+			{
+				Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTaxUp);
+			}
+			else
+			{
+				Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTaxDown);
+			}
+			USizeBox* Box = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			Box->SetWidthOverride(52.f);
+			Box->SetHeightOverride(46.f);
+			Box->SetContent(MakeText(WidgetTree, Label, 20, GovText, ETextJustify::Center));
+			Button->SetContent(Box);
+			if (UHorizontalBoxSlot* S = TaxRow->AddChildToHorizontalBox(Button))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(6.f, 0.f, 0.f, 0.f));
+			}
+		};
+		AddTaxButton(TEXT("-"), false);
+		AddTaxButton(TEXT("+"), true);
+
+		TaxCard->SetContent(TaxRow);
+		AddColumnChild(CenterBox, TaxCard, 10.f);
+		AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
+			TEXT("Rango %d%%-%d%%. Subir impuestos recauda mas con rendimiento decreciente y drena orden publico cada mes."),
+			Rules.TaxRateMinPercent, Rules.TaxRateMaxPercent), 12, GovMuted, ETextJustify::Left, true), 6.f);
+	}
+
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("CONDICIONES DE VICTORIA"), 17, GovGold), 20.f);
 	UHorizontalBox* Tags = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	const TCHAR* Conditions[] = { TEXT("Dominacion"), TEXT("Economica"), TEXT("Tecnologica"), TEXT("Diplomatica"), TEXT("Militar") };
@@ -743,6 +809,21 @@ void UWLGovernmentWidget::OnCloseClicked()
 	{
 		PC->SetGovernmentWindowOpen(false);
 	}
+}
+
+void UWLGovernmentWidget::OnTaxDown() { AdjustTaxRate(-5); }
+void UWLGovernmentWidget::OnTaxUp()   { AdjustTaxRate(+5); }
+
+void UWLGovernmentWidget::AdjustTaxRate(int32 DeltaPercent)
+{
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	const FString Iso = PlayerIso();
+	if (!Tick || Iso.IsEmpty())
+	{
+		return;
+	}
+	Tick->SetTaxRate(Iso, Tick->GetTaxRate(Iso) + DeltaPercent);
+	RebuildCenter();   // refresca tasa, recaudacion y balance mensual en la misma pestana
 }
 
 UWLGovernmentWidget::FSummary UWLGovernmentWidget::BuildSummary() const

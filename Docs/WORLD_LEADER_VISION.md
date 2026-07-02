@@ -27,7 +27,7 @@
 ## 📍 Estado actual
 
 - **Fase activa:** FE — Economía (el usuario priorizó economía). *F1 Generales queda en pausa (próxima F1.2).*
-- **Próxima tarea:** **FE1.2** — Palanca de impuestos
+- **Próxima tarea:** **FE1.3** — Presupuesto por categorías
 - **Última actualización:** 2026-07-01
 
 ---
@@ -154,7 +154,7 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 - [x] **FE1.1 — Mantenimiento de ejércitos por turno.** Cada ejército/guarnición drena tesoro cada mes
   (coste por unidad). *Hecho = reclutar y mantener ejércitos baja el balance mensual.*
   ✅ Verificado runtime: CO 34.200 efectivos → 11.970/mes (balance 51.470→39.500); VE 28.800 → 10.080/mes.
-- [ ] **FE1.2 — Palanca de impuestos.** Tasa ajustable por nación: subir = +ingreso, −orden público
+- [x] **FE1.2 — Palanca de impuestos.** Tasa ajustable por nación: subir = +ingreso, −orden público
   (curva tipo Laffer). *Hecho = mover el impuesto cambia ingreso y orden.*
 - [ ] **FE1.3 — Presupuesto por categorías.** Gasto en militar / infraestructura / salarios / social + panel
   ECONOMÍA que los desglosa. *Hecho = se ve ingreso y gasto por categoría.*
@@ -203,6 +203,14 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-01 · FE1.2** — Palanca de impuestos por nación (10%–60%, default 30%). Recaudación con curva
+  Laffer normalizada (`CalculateTaxRateIncomeMultiplier`: default = ×1.0, rendimiento decreciente) aplicada a
+  la parte de impuesto poblacional del ingreso provincial; orden público drena/recupera cada mes según
+  `(tasa − default) × TaxPublicOrderPerPointPerMonth`. UI: tarjeta IMPUESTOS con botones −/+ (pasos de 5) en
+  RESUMEN de la ventana GOBIERNO. Tasa persistida en el save (`FWLNationTreasurySave.TaxRatePercent`, −1 =
+  default) y reseteada con la campaña. Test `WorldLeader.Balance.TaxLeverLaffer`. Archivos: `WLBalanceTypes.h`,
+  `WLEconomyLibrary.h/.cpp`, `WLStrategicTickSubsystem.h/.cpp`, `WLStrategicTickSubsystemSave.cpp`,
+  `WLLocalSaveGame.h`, `WLGovernmentWidget.h/.cpp`, `WLBalanceTests.cpp`.
 - **2026-07-01 · FE1.1** — Upkeep militar mensual = efectivos (fuerzas desplegadas de MilitaryForces.json +
   guarniciones reclutadas) × `MilitaryUpkeepPerStrength` (0.35). Restado en `GetMonthlyBalance` y sumado al
   "Mantenimiento/mes" del RESUMEN. Verificado en runtime: CO 34.200→11.970/mes (balance 51.470→39.500),

@@ -56,6 +56,36 @@ bool FWLBalanceRulesEconomyTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTaxLeverLafferTest,
+	"WorldLeader.Balance.TaxLeverLaffer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTaxLeverLafferTest::RunTest(const FString& Parameters)
+{
+	const FWLBalanceRules Rules = FWLBalanceRules::Default();
+
+	const double AtDefault = UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(Rules.TaxRateDefaultPercent, Rules);
+	TestEqual(TEXT("Tasa default recauda x1.0"), AtDefault, 1.0, 1e-9);
+
+	const double AtMax = UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(Rules.TaxRateMaxPercent, Rules);
+	const double AtMin = UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(Rules.TaxRateMinPercent, Rules);
+	TestTrue(TEXT("Subir impuestos recauda mas"), AtMax > 1.0);
+	TestTrue(TEXT("Bajar impuestos recauda menos"), AtMin < 1.0);
+
+	// Rendimiento decreciente (Laffer): doblar la tasa NO dobla la recaudacion.
+	const double RateRatio = static_cast<double>(Rules.TaxRateMaxPercent) / static_cast<double>(Rules.TaxRateDefaultPercent);
+	TestTrue(TEXT("Curva Laffer: rendimiento decreciente"), AtMax < RateRatio);
+
+	// Fuera de rango se clampa a los limites de la palanca.
+	TestEqual(TEXT("Tasa sobre el maximo clampeada"),
+		UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(100, Rules), AtMax, 1e-9);
+	TestEqual(TEXT("Tasa bajo el minimo clampeada"),
+		UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(0, Rules), AtMin, 1e-9);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLBalanceRulesSanitizeTest,
 	"WorldLeader.Balance.SanitizeRules",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

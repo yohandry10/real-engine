@@ -17,6 +17,10 @@ struct FWLNationTreasurySave
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	int64 Treasury = 0;
+
+	/** FE1.2: tasa de impuestos de la nacion (%). -1 = nunca ajustada (usar default de balance). */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	int32 TaxRatePercent = -1;
 };
 
 USTRUCT(BlueprintType)

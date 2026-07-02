@@ -77,6 +77,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetMonthlyBalance(const FString& NationIso) const;
 
+	/** FE1.2: tasa de impuestos de una nacion (%). Si nunca se toco, el default de balance. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int32 GetTaxRate(const FString& NationIso) const;
+
+	/** FE1.2: fija la tasa de impuestos (clampeada a los limites de balance). Devuelve la tasa efectiva. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Economy")
+	int32 SetTaxRate(const FString& NationIso, int32 RatePercent);
+
+	/** FE1.2: orden publico/mes que cuesta la tasa actual (negativo = la tasa baja recupera orden). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int32 GetTaxPublicOrderPressure(const FString& NationIso) const;
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetProvinceMonthlyIncome(const FString& ProvinceId) const;
 
@@ -174,6 +186,9 @@ private:
 
 	/** Tesoro nacional en runtime (ISO -> creditos). */
 	TMap<FString, int64> Treasuries;
+
+	/** FE1.2: tasa de impuestos por nacion (ISO -> %). Si falta, se usa TaxRateDefaultPercent. */
+	TMap<FString, int32> TaxRates;
 
 	/** Edificios construidos por provincia (provinceId -> lista de buildingId). */
 	TMap<FString, TArray<FString>> ProvinceBuildings;
