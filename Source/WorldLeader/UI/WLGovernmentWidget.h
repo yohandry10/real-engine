@@ -28,6 +28,8 @@ class UWLStrategicTickSubsystem;
 class UWLCampaignGameInstance;
 class UWLCharacterSubsystem;
 class UWLPoliticalSubsystem;
+class UWLMilitarySubsystem;
+class UWLBalanceSubsystem;
 class UWLGovernmentWidget;
 
 /**
@@ -150,6 +152,9 @@ private:
 	/** DIPLOMACIA: panel de gestion del pais seleccionado (tratados, guerra, FDI, intriga). */
 	void BuildDiplomacyDetailPanel(const FWLNationData& Other);
 
+	void BuildArmiesSection();      // ALTO MANDO: ejercitos, general asignado, reorganizar (ReorganizeArmy)
+	void BuildDifficultyPanel();    // RESUMEN: nivel de IA activo + selector (UWLBalanceSubsystem)
+
 	void SetActiveTab(EWLGovernmentTab Tab);
 	void RefreshTabButtonStyles();
 
@@ -174,6 +179,8 @@ private:
 	UWLStrategicTickSubsystem* GetTick() const;
 	UWLCharacterSubsystem* GetCharacters() const;
 	UWLPoliticalSubsystem* GetPolitical() const;
+	UWLMilitarySubsystem* GetMilitary() const;
+	UWLBalanceSubsystem* GetBalance() const;
 
 	/** Primer espia activo del jugador (las operaciones de intriga lo requieren). Vacio si no hay. */
 	FString FindPlayerSpyId() const;

@@ -5,11 +5,13 @@
 #include "Campaign/WLCampaignPlayerController.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Balance/WLBalanceSubsystem.h"
 #include "Characters/WLCharacterSubsystem.h"
 #include "Core/WLCharacterTypes.h"
 #include "Core/WLFinancialTypes.h"
 #include "Core/WLPoliticalTypes.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Military/WLMilitarySubsystem.h"
 #include "Politics/WLPoliticalSubsystem.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -495,6 +497,9 @@ void UWLGovernmentWidget::BuildOverviewTab()
 
 	// Gobierno P1/P2: pulso politico del gobierno (aprobacion, legitimidad, eleccion, coalicion...).
 	BuildGovernanceOverviewCards();
+
+	// Dificultad de la IA activa + selector (lee reglas del backend de balance).
+	BuildDifficultyPanel();
 
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("CONDICIONES DE VICTORIA"), 17, GovGold), 20.f);
 	UHorizontalBox* Tags = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
@@ -1176,6 +1181,9 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 	AddColumnChild(CenterBox, MakeText(WidgetTree,
 		TEXT("Recompensar sube lealtad (cuesta tesoro). Purgar elimina al general y asusta al resto (-lealtad). Lealtad baja + ambicion alta = golpe."),
 		12, GovMuted, ETextJustify::Left, true), 4.f);
+
+	// Militar: ejercitos con general asignado, composicion, reservas y reorganizar.
+	BuildArmiesSection();
 
 	// Gobierno P2: fichas politicas de todos los personajes (facciones, sucesion, escandalos).
 	BuildPoliticalProfilesSection();
@@ -2212,6 +2220,28 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 		FWLCharacter NewMinister;
 		bOk = Characters && Characters->HireMinister(Iso, static_cast<EWLMinisterOffice>(FCString::Atoi(*Arg1)), NewMinister, Message);
 	}
+	// --- Militar: reorganizar ejercito, asignar general; y dificultad de IA ---
+	else if (Verb == TEXT("reorg"))
+	{
+		UWLMilitarySubsystem* Military = GetMilitary();
+		bOk = Military && Military->ReorganizeArmy(Arg1, 0, Message);   // 0 = reincorpora todas las reservas
+	}
+	else if (Verb == TEXT("assigngen"))
+	{
+		// assigngen:<characterId>:<armyId>
+		bOk = Characters && Characters->AssignGeneralToArmy(Arg1, Arg2, Message);
+	}
+	else if (Verb == TEXT("difficulty"))
+	{
+		if (UWLBalanceSubsystem* Balance = GetBalance())
+		{
+			const EWLAIDifficulty Level = static_cast<EWLAIDifficulty>(FCString::Atoi(*Arg1));
+			Balance->SetAIDifficulty(Level);
+			bOk = true;
+			Message = FString::Printf(TEXT("Dificultad de la IA fijada en %s."),
+				Level == EWLAIDifficulty::Easy ? TEXT("Facil") : (Level == EWLAIDifficulty::Hard ? TEXT("Dificil") : TEXT("Medio")));
+		}
+	}
 	else
 	{
 		Message = FString::Printf(TEXT("Accion desconocida: %s"), *ActionId);
@@ -2326,6 +2356,18 @@ UWLPoliticalSubsystem* UWLGovernmentWidget::GetPolitical() const
 {
 	const UGameInstance* GI = GetGameInstance();
 	return GI ? GI->GetSubsystem<UWLPoliticalSubsystem>() : nullptr;
+}
+
+UWLMilitarySubsystem* UWLGovernmentWidget::GetMilitary() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	return GI ? GI->GetSubsystem<UWLMilitarySubsystem>() : nullptr;
+}
+
+UWLBalanceSubsystem* UWLGovernmentWidget::GetBalance() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	return GI ? GI->GetSubsystem<UWLBalanceSubsystem>() : nullptr;
 }
 
 FString UWLGovernmentWidget::FindPlayerSpyId() const

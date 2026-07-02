@@ -8,12 +8,16 @@
 // ninguna regla de simulacion vive aqui.
 
 #include "UI/WLGovernmentWidget.h"
+#include "Balance/WLBalanceSubsystem.h"
+#include "Balance/WLBalanceTypes.h"
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Characters/WLCharacterSubsystem.h"
 #include "Core/WLCharacterTypes.h"
+#include "Core/WLGameTypes.h"
 #include "Core/WLPoliticalTypes.h"
+#include "Military/WLMilitarySubsystem.h"
 #include "Politics/WLPoliticalSubsystem.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -2046,6 +2050,208 @@ void UWLGovernmentWidget::BuildAIPlansPanel()
 		AddColumnChild(CenterBox, Row, 4.f);
 		++Index;
 	}
+}
+
+// ALTO MANDO: ejercitos con general asignado, composicion, reservas y reorganizar (ReorganizeArmy).
+void UWLGovernmentWidget::BuildArmiesSection()
+{
+	const FString Iso = PlayerIso();
+	UWLMilitarySubsystem* Military = GetMilitary();
+	UWLCharacterSubsystem* Characters = GetCharacters();
+	if (!Military || !Characters || Iso.IsEmpty())
+	{
+		return;
+	}
+
+	TArray<FWLArmy> Armies = Military->GetArmies();
+	Armies.RemoveAll([&Iso](const FWLArmy& Army)
+	{
+		return !Army.OwnerIso.Equals(Iso, ESearchCase::IgnoreCase);
+	});
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		FString::Printf(TEXT("EJERCITOS  (%d)"), Armies.Num()), 15, GovGold), 18.f);
+	if (Armies.Num() == 0)
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("Sin ejercitos en campo. Recluta en un fuerte para desplegar una fuerza movil."),
+			12, GovMuted, ETextJustify::Left, true), 6.f);
+		return;
+	}
+
+	// Generales libres (activos, sin mando) para el flujo de asignacion.
+	TArray<FWLCharacter> FreeGenerals = Characters->GetGenerals(Iso);
+	FreeGenerals.RemoveAll([](const FWLCharacter& G)
+	{
+		return !G.bActive || !G.AssignedArmyId.IsEmpty();
+	});
+	FreeGenerals.Sort([](const FWLCharacter& A, const FWLCharacter& B) { return A.Skill > B.Skill; });
+
+	int32 Index = 0;
+	for (const FWLArmy& Army : Armies)
+	{
+		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 10.f));
+		UVerticalBox* AVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+
+		// Cabecera: id + ataque/defensa + provincia.
+		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("Ejercito %s"), *Army.Id), 14, GovText)))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Head->AddChildToHorizontalBox(MakeText(WidgetTree, FString::Printf(
+			TEXT("ATK %d · DEF %d"), Military->GetArmyAttack(Army.Id), Military->GetArmyDefense(Army.Id)),
+			12, GovGold, ETextJustify::Right));
+		AVB->AddChildToVerticalBox(Head);
+
+		// Composicion: efectivas + desorganizadas (RecoveringUnits) + provincia.
+		if (UVerticalBoxSlot* S = AVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+			TEXT("Unidades efectivas: %d   ·   Desorganizadas: %d   ·   Provincia: %s"),
+			Army.Units.Num(), Army.RecoveringUnits.Num(),
+			Army.ProvinceId.IsEmpty() ? TEXT("en transito") : *Army.ProvinceId),
+			12, Army.RecoveringUnits.Num() > 0 ? GovBad : GovMuted, ETextJustify::Left, true)))
+		{
+			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+
+		// General asignado (ficha real desde el subsystem de personajes).
+		FWLCharacter General;
+		const bool bHasGeneral = Characters->GetAssignedGeneralForArmy(Army.Id, General) && General.IsValid();
+		if (bHasGeneral)
+		{
+			const FLinearColor LoyaltyColor = General.Loyalty < 40 ? GovBad : (General.Loyalty < 60 ? GovGold : GovGood);
+			if (UVerticalBoxSlot* S = AVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+				TEXT("General: %s (%s) · Skill %d · Lealtad %d · Renombre %d%s"),
+				*General.Name, *RankToText(General.Rank), General.Skill, General.Loyalty, General.Renown,
+				General.Traits.Num() > 0 ? *FString::Printf(TEXT(" · %s"), *FString::Join(General.Traits, TEXT(", "))) : TEXT("")),
+				12, LoyaltyColor, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			}
+		}
+		else
+		{
+			if (UVerticalBoxSlot* S = AVB->AddChildToVerticalBox(MakeText(WidgetTree,
+				TEXT("General: sin mando asignado (penaliza el rendimiento en batalla)."), 12, GovGold, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			}
+		}
+
+		// Acciones: reorganizar (si hay reservas) + asignar/reasignar general.
+		UWrapBox* Actions = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
+		auto AddArmyAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
+		{
+			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Actions->AddChildToWrapBox(
+				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 0.f, 11))))
+			{
+				S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
+			}
+		};
+		if (Army.RecoveringUnits.Num() > 0)
+		{
+			AddArmyAction(FString::Printf(TEXT("reorg:%s"), *Army.Id),
+				FString::Printf(TEXT("REORGANIZAR (%d)"), Army.RecoveringUnits.Num()), GovGoldDim);
+		}
+		// Reasignacion: primeros generales libres por skill (evita listar decenas).
+		int32 Shown = 0;
+		for (const FWLCharacter& Candidate : FreeGenerals)
+		{
+			if (Shown >= 3)
+			{
+				break;
+			}
+			AddArmyAction(FString::Printf(TEXT("assigngen:%s:%s"), *Candidate.Id, *Army.Id),
+				FString::Printf(TEXT("%s: %s (sk %d)"), bHasGeneral ? TEXT("CAMBIAR A") : TEXT("ASIGNAR"),
+					*Candidate.Name, Candidate.Skill), GovTabIdle);
+			++Shown;
+		}
+		if (UVerticalBoxSlot* S = AVB->AddChildToVerticalBox(Actions))
+		{
+			S->SetPadding(FMargin(0.f, 7.f, 0.f, 0.f));
+		}
+
+		Card->SetContent(AVB);
+		AddColumnChild(CenterBox, Card, 5.f);
+		++Index;
+	}
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		TEXT("Reorganizar devuelve las unidades desorganizadas al frente. Un general con mas skill mejora ataque/defensa; lealtad baja + ambicion alta amenaza con golpe."),
+		12, GovMuted, ETextJustify::Left, true), 4.f);
+}
+
+// RESUMEN: nivel de dificultad de IA activo + selector (lee/escribe UWLBalanceSubsystem).
+void UWLGovernmentWidget::BuildDifficultyPanel()
+{
+	UWLBalanceSubsystem* Balance = GetBalance();
+	if (!Balance)
+	{
+		return;
+	}
+	const EWLAIDifficulty Active = Balance->GetAIDifficulty();
+
+	auto DifficultyLabel = [](EWLAIDifficulty D)
+	{
+		switch (D)
+		{
+		case EWLAIDifficulty::Easy: return TEXT("FACIL");
+		case EWLAIDifficulty::Hard: return TEXT("DIFICIL");
+		default:                    return TEXT("MEDIO");
+		}
+	};
+	auto DifficultyBlurb = [](EWLAIDifficulty D) -> FString
+	{
+		switch (D)
+		{
+		case EWLAIDifficulty::Easy:
+			return TEXT("La IA es pasiva: economia holgada, poca presion diplomatica, golpes e invasiones raros.");
+		case EWLAIDifficulty::Hard:
+			return TEXT("La IA es agresiva: mejor economia rival, mas guerra e intriga, golpes probables, reclutamiento acelerado.");
+		default:
+			return TEXT("Equilibrio de referencia: economia, diplomacia, guerra e intriga a ritmo estandar.");
+		}
+	};
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("DIFICULTAD DE LA IA"), 17, GovGold), 20.f);
+
+	UBorder* Card = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
+	UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Info->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("NIVEL ACTIVO"), 12, GovMuted));
+	if (UVerticalBoxSlot* S = Info->AddChildToVerticalBox(MakeText(WidgetTree, DifficultyLabel(Active), 24, GovGold)))
+	{
+		S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+	}
+	if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(Info))
+	{
+		S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		S->SetVerticalAlignment(VAlign_Center);
+	}
+	// Selector: 3 botones; el activo va resaltado.
+	const EWLAIDifficulty Levels[] = { EWLAIDifficulty::Easy, EWLAIDifficulty::Medium, EWLAIDifficulty::Hard };
+	for (const EWLAIDifficulty Level : Levels)
+	{
+		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
+			FString::Printf(TEXT("difficulty:%d"), static_cast<int32>(Level)),
+			DifficultyLabel(Level), Level == Active ? GovGoldDim : GovTabIdle, 84.f, 12)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(5.f, 0.f, 0.f, 0.f));
+		}
+	}
+	VB->AddChildToVerticalBox(Row);
+	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(WidgetTree, DifficultyBlurb(Active), 12, GovMuted, ETextJustify::Left, true)))
+	{
+		S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+	}
+	Card->SetContent(VB);
+	AddColumnChild(CenterBox, Card, 8.f);
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		TEXT("Cambia como juega la IA (economia, fisco, diplomacia, guerra, intriga, reclutamiento). El efecto entra en el proximo cierre de mes."),
+		12, GovMuted, ETextJustify::Left, true), 4.f);
 }
 
 // REGISTROS: telemetria de dilemas para el playtest de calibracion 24-36 meses.
