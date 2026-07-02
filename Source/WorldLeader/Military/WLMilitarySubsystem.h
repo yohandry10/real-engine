@@ -35,6 +35,8 @@ struct FWLBattlePreview
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") int32 DefenderPower = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString AttackerGeneral;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString DefenderGeneral;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") double AttackerSkillMultiplier = 1.0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") double DefenderSkillMultiplier = 1.0;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString TerrainLabel;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") double TerrainMultiplier = 1.0;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") double DefenderBuildingMultiplier = 1.0;

@@ -573,6 +573,8 @@ void UWLMilitarySubsystem::ComputeBattlePower(const FWLArmy& Attacker, const FWL
 			}
 		}
 	}
+	OutPreview.AttackerSkillMultiplier = AttackerSkillMult;
+	OutPreview.DefenderSkillMultiplier = DefenderSkillMult;
 
 	OutPreview.AttackerPower = FMath::RoundToInt(OutPreview.AttackerBaseAttack * AttackerSkillMult);
 	OutPreview.DefenderPower = FMath::RoundToInt(OutPreview.DefenderBaseDefense * TerrainMult * BuildingDefenseMult * DefenderSkillMult);
@@ -733,11 +735,9 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 		});
 
 	OutReport = FString::Printf(
-		TEXT("Batalla en %s: %s (atk %d, gen. %s) vs %s (def %d, terreno x%.2f, defensas x%.2f, gen. %s) -> %s. Quedan: %s=%d, %s=%d."),
-		*DefenderProvince, *AttackerId, AttackPower,
-		Preview.AttackerGeneral.IsEmpty() ? TEXT("sin mando") : *Preview.AttackerGeneral,
-		*DefenderId, DefensePower, Preview.TerrainMultiplier, Preview.DefenderBuildingMultiplier,
-		Preview.DefenderGeneral.IsEmpty() ? TEXT("sin mando") : *Preview.DefenderGeneral,
+		TEXT("Batalla en %s: %s (atk %d, general x%.2f) vs %s (def %d, terreno x%.2f, defensas x%.2f, general x%.2f) -> %s. Quedan: %s=%d, %s=%d."),
+		*DefenderProvince, *AttackerId, AttackPower, Preview.AttackerSkillMultiplier,
+		*DefenderId, DefensePower, Preview.TerrainMultiplier, Preview.DefenderBuildingMultiplier, Preview.DefenderSkillMultiplier,
 		*UWLMilitaryLibrary::BattleResultToString(Result),
 		*AttackerId, Attacker->Units.Num(), *DefenderId, Defender->Units.Num());
 
