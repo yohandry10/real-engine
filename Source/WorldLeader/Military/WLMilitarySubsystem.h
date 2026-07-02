@@ -11,6 +11,38 @@
 class UWLDataRegistry;
 
 /**
+ * Preview de combate: mismos poderes que AutoResolveBattle pero SIN aplicar bajas.
+ * La UI lo lee para mostrar el desglose antes de confirmar, asi las reglas de
+ * combate (terreno, edificios, skill del general) no se duplican en el widget.
+ */
+USTRUCT(BlueprintType)
+struct FWLBattlePreview
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") bool bValid = false;
+	/** Si bValid es false, por que no se puede atacar (sin guerra, sin adyacencia...). */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString Reason;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString AttackerArmyId;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString DefenderArmyId;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString DefenderIso;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") int32 AttackerUnits = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") int32 DefenderUnits = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") int32 AttackerBaseAttack = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") int32 DefenderBaseDefense = 0;
+	/** Poder efectivo tras todos los modificadores (lo que resuelve la batalla). */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") int32 AttackerPower = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") int32 DefenderPower = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString AttackerGeneral;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString DefenderGeneral;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString TerrainLabel;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") double TerrainMultiplier = 1.0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") double DefenderBuildingMultiplier = 1.0;
+	/** Lectura rapida de la ventaja: "Favorable" / "Parejo" / "Desfavorable". */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle") FString OddsLabel;
+};
+
+/**
  * Gestiona los ejercitos en el mapa estrategico (Phase 2): creacion,
  * movimiento por adyacencia y auto-resolucion de batallas con bajas y
  * ocupacion. El estado vive en runtime; el balance no se hardcodea
@@ -70,6 +102,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	EWLBattleResult AutoResolveBattle(const FString& AttackerId, const FString& DefenderId, FString& OutReport);
 
+	/** Desglose de poder previo al combate (sin aplicar nada). Para el flujo de combate de la UI. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Military")
+	bool PreviewBattle(const FString& AttackerId, const FString& DefenderId, FWLBattlePreview& OutPreview) const;
+
+	/** Ids de ejercitos enemigos que este ejercito puede atacar ahora (misma/adyacente provincia + en guerra). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Military")
+	TArray<FString> GetAttackableTargetIds(const FString& AttackerId) const;
+
+	/**
+	 * Resuelve una batalla por la via TACTICA: crea la batalla, la juega con IA en ambos bandos hasta
+	 * el final determinista y aplica el resultado a campania. Distinto de AutoResolveBattle (calculo
+	 * directo de poderes). La vista tactica 3D interactiva es una fase aparte del roadmap.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	EWLBattleResult ResolveTacticalBattleToEnd(const FString& AttackerId, const FString& DefenderId, FString& OutReport);
+
 	/** Inicia una batalla tactica oficial desde ejercitos de campania validados. */
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	bool StartTacticalBattle(const FString& AttackerId, const FString& DefenderId, FWLTacticalBattleState& OutBattle, FString& OutMessage);
@@ -100,6 +148,8 @@ private:
 	int32 SumUnitStat(const FWLArmy& Army, bool bAttack) const;
 	void ApplyCasualties(FWLArmy& Army, float LossFraction) const;
 	bool ValidateBattlePair(const FWLArmy& Attacker, const FWLArmy& Defender, FString& OutMessage) const;
+	/** Fuente unica del calculo de poderes de combate (terreno + edificios + skill del general). Llena OutPreview. */
+	void ComputeBattlePower(const FWLArmy& Attacker, const FWLArmy& Defender, FWLBattlePreview& OutPreview) const;
 	void ReconcileArmyFromTacticalBattle(FWLArmy& Army, const FWLTacticalBattleState& Battle, int32& OutDestroyedLosses, int32& OutRoutedUnits) const;
 	bool FindRetreatProvinceForArmy(const FWLArmy& Army, const FString& FromProvinceId, FString& OutRetreatProvinceId) const;
 	void AwardBattleRenown(const FWLArmy& Attacker, const FWLArmy& Defender, bool bAttackerWins);

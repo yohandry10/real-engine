@@ -512,6 +512,178 @@ int32 UWLMilitarySubsystem::GetArmyDefense(const FString& ArmyId) const
 	return Army ? SumUnitStat(*Army, false) : 0;
 }
 
+void UWLMilitarySubsystem::ComputeBattlePower(const FWLArmy& Attacker, const FWLArmy& Defender, FWLBattlePreview& OutPreview) const
+{
+	const UWLDataRegistry* Reg = GetRegistry();
+	OutPreview.AttackerArmyId = Attacker.Id;
+	OutPreview.DefenderArmyId = Defender.Id;
+	OutPreview.DefenderIso = Defender.OwnerIso;
+	OutPreview.AttackerUnits = Attacker.Units.Num();
+	OutPreview.DefenderUnits = Defender.Units.Num();
+	OutPreview.AttackerBaseAttack = SumUnitStat(Attacker, true);
+	OutPreview.DefenderBaseDefense = SumUnitStat(Defender, false);
+
+	// Bonus de terreno para el defensor.
+	float TerrainMult = 1.0f;
+	FWLProvinceData DefProvince;
+	if (Reg && Reg->GetProvince(Defender.ProvinceId, DefProvince))
+	{
+		TerrainMult = UWLMilitaryLibrary::TerrainDefenseMultiplier(DefProvince.Terrain);
+		switch (DefProvince.Terrain)
+		{
+		case EWLTerrainType::Mountain: OutPreview.TerrainLabel = TEXT("montana"); break;
+		case EWLTerrainType::Desert:   OutPreview.TerrainLabel = TEXT("desierto"); break;
+		case EWLTerrainType::Jungle:   OutPreview.TerrainLabel = TEXT("selva"); break;
+		case EWLTerrainType::Coastal:  OutPreview.TerrainLabel = TEXT("costa"); break;
+		case EWLTerrainType::Urban:    OutPreview.TerrainLabel = TEXT("urbana"); break;
+		case EWLTerrainType::Arctic:   OutPreview.TerrainLabel = TEXT("artica"); break;
+		case EWLTerrainType::Maritime: OutPreview.TerrainLabel = TEXT("maritima"); break;
+		default:                       OutPreview.TerrainLabel = TEXT("llano"); break;
+		}
+	}
+	float BuildingDefenseMult = 1.0f;
+	FWLBalanceRules Rules = FWLBalanceRules::Default();
+	if (const UWLStrategicTickSubsystem* Tick = GetStrategicTick())
+	{
+		Rules = Tick->GetBalanceRules();
+		const FWLProvinceBuildingEffects Effects = Tick->GetProvinceBuildingEffects(Defender.ProvinceId);
+		BuildingDefenseMult += static_cast<float>(FMath::Max(0, Effects.BonusDefense)) / 100.0f;
+	}
+	OutPreview.TerrainMultiplier = TerrainMult;
+	OutPreview.DefenderBuildingMultiplier = BuildingDefenseMult;
+
+	// El skill del general pesa en el combate segun balance: skill 50 = neutro.
+	float AttackerSkillMult = 1.0f;
+	float DefenderSkillMult = 1.0f;
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
+		{
+			FWLCharacter AttackerGeneral;
+			FWLCharacter DefenderGeneral;
+			if (Characters->GetAssignedGeneralForArmy(Attacker.Id, AttackerGeneral))
+			{
+				AttackerSkillMult = UWLMilitaryLibrary::GeneralSkillCombatMultiplier(AttackerGeneral.Skill, Rules);
+				OutPreview.AttackerGeneral = FString::Printf(TEXT("%s (skill %d)"), *AttackerGeneral.Name, AttackerGeneral.Skill);
+			}
+			if (Characters->GetAssignedGeneralForArmy(Defender.Id, DefenderGeneral))
+			{
+				DefenderSkillMult = UWLMilitaryLibrary::GeneralSkillCombatMultiplier(DefenderGeneral.Skill, Rules);
+				OutPreview.DefenderGeneral = FString::Printf(TEXT("%s (skill %d)"), *DefenderGeneral.Name, DefenderGeneral.Skill);
+			}
+		}
+	}
+
+	OutPreview.AttackerPower = FMath::RoundToInt(OutPreview.AttackerBaseAttack * AttackerSkillMult);
+	OutPreview.DefenderPower = FMath::RoundToInt(OutPreview.DefenderBaseDefense * TerrainMult * BuildingDefenseMult * DefenderSkillMult);
+
+	const double Ratio = OutPreview.DefenderPower > 0
+		? static_cast<double>(OutPreview.AttackerPower) / static_cast<double>(OutPreview.DefenderPower)
+		: 2.0;
+	OutPreview.OddsLabel = Ratio >= 1.25 ? TEXT("Favorable") : (Ratio <= 0.8 ? TEXT("Desfavorable") : TEXT("Parejo"));
+}
+
+bool UWLMilitarySubsystem::PreviewBattle(const FString& AttackerId, const FString& DefenderId, FWLBattlePreview& OutPreview) const
+{
+	OutPreview = FWLBattlePreview();
+	const FWLArmy* Attacker = FindArmy(AttackerId);
+	const FWLArmy* Defender = FindArmy(DefenderId);
+	if (!Attacker || !Defender)
+	{
+		OutPreview.Reason = TEXT("Ejercito atacante o defensor no encontrado.");
+		return false;
+	}
+	FString ValidateMessage;
+	OutPreview.bValid = ValidateBattlePair(*Attacker, *Defender, ValidateMessage);
+	OutPreview.Reason = ValidateMessage;
+	ComputeBattlePower(*Attacker, *Defender, OutPreview);
+	return OutPreview.bValid;
+}
+
+TArray<FString> UWLMilitarySubsystem::GetAttackableTargetIds(const FString& AttackerId) const
+{
+	TArray<FString> Targets;
+	const FWLArmy* Attacker = FindArmy(AttackerId);
+	if (!Attacker || Attacker->Units.Num() == 0)
+	{
+		return Targets;
+	}
+	for (const FWLArmy& Other : Armies)
+	{
+		if (Other.Id == Attacker->Id || Other.Units.Num() == 0)
+		{
+			continue;
+		}
+		FString ValidateMessage;
+		if (ValidateBattlePair(*Attacker, Other, ValidateMessage))
+		{
+			Targets.Add(Other.Id);
+		}
+	}
+	return Targets;
+}
+
+EWLBattleResult UWLMilitarySubsystem::ResolveTacticalBattleToEnd(const FString& AttackerId, const FString& DefenderId, FString& OutReport)
+{
+	FWLTacticalBattleState Battle;
+	FString Message;
+	if (!StartTacticalBattle(AttackerId, DefenderId, Battle, Message))
+	{
+		OutReport = Message;
+		return EWLBattleResult::Invalid;
+	}
+
+	UWLTacticalBattleSubsystem* Tactical = nullptr;
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		Tactical = GI->GetSubsystem<UWLTacticalBattleSubsystem>();
+	}
+	if (!Tactical)
+	{
+		OutReport = TEXT("Subsystem tactico no disponible.");
+		return EWLBattleResult::Invalid;
+	}
+
+	// IA en ambos bandos: sin vista 3D interactiva, la batalla se juega sola de forma determinista.
+	Tactical->SetTacticalAIControl(Battle.BattleId, Battle.AttackerIso, true, Message);
+	Tactical->SetTacticalAIControl(Battle.BattleId, Battle.DefenderIso, true, Message);
+
+	// Avanza en pasos fijos hasta que la batalla resuelve (tope de seguridad para no colgar).
+	TArray<FString> Events;
+	constexpr int32 MaxSteps = 600;   // ~10 min de batalla a 1s/paso
+	for (int32 Step = 0; Step < MaxSteps; ++Step)
+	{
+		TArray<FString> StepEvents;
+		Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, StepEvents);
+		Events.Append(StepEvents);
+		if (!Battle.bActive && Battle.Result != EWLTacticalBattleResult::Ongoing)
+		{
+			break;
+		}
+	}
+
+	FString ApplyMessage;
+	ApplyTacticalBattleResult(Battle.BattleId, ApplyMessage);
+
+	// Reporte: ultimos hitos + resumen de aplicacion.
+	FString EventTail;
+	const int32 TailStart = FMath::Max(0, Events.Num() - 4);
+	for (int32 i = TailStart; i < Events.Num(); ++i)
+	{
+		EventTail += (EventTail.IsEmpty() ? TEXT("") : TEXT(" · ")) + Events[i];
+	}
+	OutReport = FString::Printf(TEXT("Batalla tactica %s. %s%s"),
+		*Battle.BattleId, *ApplyMessage,
+		EventTail.IsEmpty() ? TEXT("") : *FString::Printf(TEXT("  [%s]"), *EventTail));
+
+	switch (Battle.Result)
+	{
+	case EWLTacticalBattleResult::AttackerVictory: return EWLBattleResult::AttackerVictory;
+	case EWLTacticalBattleResult::DefenderVictory: return EWLBattleResult::DefenderVictory;
+	default:                                       return EWLBattleResult::Stalemate;
+	}
+}
+
 EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerId, const FString& DefenderId, FString& OutReport)
 {
 	const UWLDataRegistry* Reg = GetRegistry();
@@ -527,48 +699,11 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 		return EWLBattleResult::Invalid;
 	}
 
-	// Bonus de terreno para el defensor.
-	float TerrainMult = 1.0f;
-	FWLProvinceData DefProvince;
-	if (Reg->GetProvince(Defender->ProvinceId, DefProvince))
-	{
-		TerrainMult = UWLMilitaryLibrary::TerrainDefenseMultiplier(DefProvince.Terrain);
-	}
-	float BuildingDefenseMult = 1.0f;
-	FWLBalanceRules Rules = FWLBalanceRules::Default();
-	if (const UWLStrategicTickSubsystem* Tick = GetStrategicTick())
-	{
-		Rules = Tick->GetBalanceRules();
-		const FWLProvinceBuildingEffects Effects = Tick->GetProvinceBuildingEffects(Defender->ProvinceId);
-		BuildingDefenseMult += static_cast<float>(FMath::Max(0, Effects.BonusDefense)) / 100.0f;
-	}
-
-	// El skill del general pesa en el combate segun balance: skill 50 = neutro.
-	FWLCharacter AttackerGeneral;
-	FWLCharacter DefenderGeneral;
-	bool bHasAttackerGeneral = false;
-	bool bHasDefenderGeneral = false;
-	float AttackerSkillMult = 1.0f;
-	float DefenderSkillMult = 1.0f;
-	if (const UGameInstance* GI = GetGameInstance())
-	{
-		if (const UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
-		{
-			bHasAttackerGeneral = Characters->GetAssignedGeneralForArmy(Attacker->Id, AttackerGeneral);
-			bHasDefenderGeneral = Characters->GetAssignedGeneralForArmy(Defender->Id, DefenderGeneral);
-			if (bHasAttackerGeneral)
-			{
-				AttackerSkillMult = UWLMilitaryLibrary::GeneralSkillCombatMultiplier(AttackerGeneral.Skill, Rules);
-			}
-			if (bHasDefenderGeneral)
-			{
-				DefenderSkillMult = UWLMilitaryLibrary::GeneralSkillCombatMultiplier(DefenderGeneral.Skill, Rules);
-			}
-		}
-	}
-
-	const int32 AttackPower = FMath::RoundToInt(SumUnitStat(*Attacker, true) * AttackerSkillMult);
-	const int32 DefensePower = FMath::RoundToInt(SumUnitStat(*Defender, false) * TerrainMult * BuildingDefenseMult * DefenderSkillMult);
+	// Poderes desde la fuente unica (terreno + edificios + skill del general).
+	FWLBattlePreview Preview;
+	ComputeBattlePower(*Attacker, *Defender, Preview);
+	const int32 AttackPower = Preview.AttackerPower;
+	const int32 DefensePower = Preview.DefenderPower;
 	const EWLBattleResult Result = UWLMilitaryLibrary::ResolveBattle(AttackPower, DefensePower);
 
 	float AttackerLoss = 0.f;
@@ -598,9 +733,11 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 		});
 
 	OutReport = FString::Printf(
-		TEXT("Batalla en %s: %s (atk %d, general x%.2f) vs %s (def %d, terreno x%.2f, defensas x%.2f, general x%.2f) -> %s. Quedan: %s=%d, %s=%d."),
-		*DefenderProvince, *AttackerId, AttackPower, AttackerSkillMult,
-		*DefenderId, DefensePower, TerrainMult, BuildingDefenseMult, DefenderSkillMult,
+		TEXT("Batalla en %s: %s (atk %d, gen. %s) vs %s (def %d, terreno x%.2f, defensas x%.2f, gen. %s) -> %s. Quedan: %s=%d, %s=%d."),
+		*DefenderProvince, *AttackerId, AttackPower,
+		Preview.AttackerGeneral.IsEmpty() ? TEXT("sin mando") : *Preview.AttackerGeneral,
+		*DefenderId, DefensePower, Preview.TerrainMultiplier, Preview.DefenderBuildingMultiplier,
+		Preview.DefenderGeneral.IsEmpty() ? TEXT("sin mando") : *Preview.DefenderGeneral,
 		*UWLMilitaryLibrary::BattleResultToString(Result),
 		*AttackerId, Attacker->Units.Num(), *DefenderId, Defender->Units.Num());
 
@@ -627,22 +764,8 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 
 	UE_LOG(LogWorldLeader, Log, TEXT("%s"), *OutReport);
 
-	if (UGameInstance* GI = GetGameInstance())
-	{
-		if (UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
-		{
-			if (bHasAttackerGeneral)
-			{
-				FString RenownMessage;
-				Characters->AddRenownToGeneral(AttackerGeneral.Id, bAttackerWins ? 8 : 4, RenownMessage);
-			}
-			if (bHasDefenderGeneral)
-			{
-				FString RenownMessage;
-				Characters->AddRenownToGeneral(DefenderGeneral.Id, bAttackerWins ? 4 : 8, RenownMessage);
-			}
-		}
-	}
+	// Renombre a los generales de ambos bandos (misma regla que la via tactica).
+	AwardBattleRenown(*Attacker, *Defender, bAttackerWins);
 
 	// Eliminar ejercitos aniquilados (esto invalida los punteros anteriores).
 	Armies.RemoveAll([](const FWLArmy& A) { return A.Units.Num() == 0 && A.RecoveringUnits.Num() == 0; });

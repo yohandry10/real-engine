@@ -1853,6 +1853,8 @@ void UWLGovernmentWidget::SetActiveTab(EWLGovernmentTab Tab)
 	LastActionMessage.Reset();   // el feedback de acciones es del tab donde ocurrio
 	PendingConfirmId.Reset();    // cambiar de tab cancela cualquier confirmacion pendiente
 	CompareOfficeContext = -1;   // y cierra el comparador de candidatos
+	BattleAttackerId.Reset();    // y cierra el preview de combate
+	BattleDefenderId.Reset();
 	bDraftAgendaLoaded = false;  // AGENDA vuelve a leer las prioridades reales del backend
 	RefreshTabButtonStyles();
 	RebuildCenter();
@@ -1940,6 +1942,24 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 		RebuildCenter();
 		return;
 	}
+	if (Verb == TEXT("battlepick") || Verb == TEXT("battlecancel"))
+	{
+		// battlepick:<attackerId>:<defenderId> abre el preview; battlecancel lo cierra.
+		if (Verb == TEXT("battlepick"))
+		{
+			BattleAttackerId = Arg1;
+			BattleDefenderId = Arg2;
+		}
+		else
+		{
+			BattleAttackerId.Reset();
+			BattleDefenderId.Reset();
+		}
+		PendingConfirmId.Reset();
+		LastActionMessage.Reset();
+		RebuildCenter();
+		return;
+	}
 	if (Verb == TEXT("agendatoggle"))
 	{
 		const EWLGovernmentPriority AgendaPriority = static_cast<EWLGovernmentPriority>(FCString::Atoi(*Arg1));
@@ -1974,7 +1994,8 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 			TEXT("dismiss"), TEXT("appointc"), TEXT("hire"),
 			TEXT("bond"), TEXT("imf"), TEXT("default"),
 			TEXT("agendaset"), TEXT("program"), TEXT("reform"), TEXT("promise"),
-			TEXT("negotiate"), TEXT("patronage") };
+			TEXT("negotiate"), TEXT("patronage"),
+			TEXT("autoresolve"), TEXT("tacticalresolve") };
 		for (const TCHAR* Confirmable : AlwaysConfirm)
 		{
 			if (Verb == Confirmable)
@@ -2240,6 +2261,20 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 			bOk = true;
 			Message = FString::Printf(TEXT("Dificultad de la IA fijada en %s."),
 				Level == EWLAIDifficulty::Easy ? TEXT("Facil") : (Level == EWLAIDifficulty::Hard ? TEXT("Dificil") : TEXT("Medio")));
+		}
+	}
+	else if (Verb == TEXT("autoresolve") || Verb == TEXT("tacticalresolve"))
+	{
+		// autoresolve/tacticalresolve:<attackerId>:<defenderId> — resuelve el combate del preview.
+		if (UWLMilitarySubsystem* Military = GetMilitary())
+		{
+			const EWLBattleResult Result = Verb == TEXT("autoresolve")
+				? Military->AutoResolveBattle(Arg1, Arg2, Message)
+				: Military->ResolveTacticalBattleToEnd(Arg1, Arg2, Message);
+			bOk = Result != EWLBattleResult::Invalid;
+			// El combate consumio el objetivo (destruido/retirado/ocupado): cierra el preview.
+			BattleAttackerId.Reset();
+			BattleDefenderId.Reset();
 		}
 	}
 	else

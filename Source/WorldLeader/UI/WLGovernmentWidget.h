@@ -153,6 +153,7 @@ private:
 	void BuildDiplomacyDetailPanel(const FWLNationData& Other);
 
 	void BuildArmiesSection();      // ALTO MANDO: ejercitos, general asignado, reorganizar (ReorganizeArmy)
+	void BuildBattlePreviewPanel(); // ALTO MANDO: desglose de poder + auto-resolve/tactica del combate elegido
 	void BuildDifficultyPanel();    // RESUMEN: nivel de IA activo + selector (UWLBalanceSubsystem)
 
 	void SetActiveTab(EWLGovernmentTab Tab);
@@ -221,6 +222,13 @@ private:
 
 	/** Orden del listado de perfiles politicos: 0 sucesion, 1 ambicion, 2 corrupcion, 3 lealtad. */
 	int32 ProfileSortMode = 0;
+
+	// --- Flujo de combate (ALTO MANDO): preview de batalla antes de resolver ---
+
+	/** Ejercito atacante con el preview de combate abierto (vacio = ninguno). */
+	FString BattleAttackerId;
+	/** Objetivo enemigo elegido para el preview (vacio = aun no elegido). */
+	FString BattleDefenderId;
 
 	// --- Estado de navegacion de DIPLOMACIA continental (38 naciones exigen filtros, no lista plana) ---
 

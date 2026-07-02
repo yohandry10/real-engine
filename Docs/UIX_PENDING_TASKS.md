@@ -23,11 +23,24 @@ Hecho y compilando (`Build.bat WorldLeaderEditor Win64 Development` OK):
   ordenamiento y panel de gestion por pais (tratados, guerra, ayuda, FDI, intriga). Sin lista plana.
 - **Eventos modal + feed**: `UWLEventModalWidget` (popup con opciones/coste/riesgo/impacto y confirmacion) que el
   PlayerController abre al cerrar el mes o con [E]; feed de noticias del mundo en el HUD (bottom-left).
+- **Militar/generales** (ALTO MANDO): seccion EJERCITOS con ATK/DEF, efectivas vs desorganizadas
+  (`RecoveringUnits`), ficha del general asignado, REORGANIZAR (`ReorganizeArmy`) y asignar/reasignar
+  general (`AssignGeneralToArmy`).
+- **Dificultad visible** (RESUMEN): nivel de IA activo + selector Facil/Medio/Dificil
+  (`UWLBalanceSubsystem::SetAIDifficulty`) con explicacion de impactos.
+- **Flujo de combate** (ALTO MANDO): boton ATACAR por objetivo enemigo al alcance
+  (`GetAttackableTargetIds`), preview de poder legible (`PreviewBattle`: composicion, generales,
+  terreno, defensas, pronostico) y eleccion AUTO-RESOLVER (`AutoResolveBattle`) vs BATALLA TACTICA
+  (`ResolveTacticalBattleToEnd`: juega la IA tactica determinista y aplica bajas/ocupacion), ambas con
+  confirmacion. Backend nuevo minimo: `FWLBattlePreview` + los 3 endpoints, con el calculo de poder
+  refactorizado a `ComputeBattlePower` (fuente unica compartida con auto-resolve).
 - Infra compartida: `WLGovernmentWidgetShared.h` (paleta + fabrica de widgets: MakeGaugeRow, MakeBar, MakeBadge,
   MakeAlert, MakeActionButton con estado de confirmacion). Widget partido en `WLGovernmentWidget.cpp` +
   `WLGovernmentWidgetGovernance.cpp`.
 
-Pendiente de validar en Standalone (build compila; falta playtest visual).
+Pendiente: **vista tactica 3D interactiva** (camara, seleccion y ordenes con mouse sobre el mapa de
+batalla) — el backend tactico existe y se juega solo AI-vs-AI desde `ResolveTacticalBattleToEnd`, pero la
+vista jugable es su propia fase. Y validar todo en Standalone (build compila; falta playtest visual).
 
 ## Principio De Implementacion
 

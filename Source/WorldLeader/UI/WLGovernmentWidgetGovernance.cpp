@@ -2173,13 +2173,148 @@ void UWLGovernmentWidget::BuildArmiesSection()
 			S->SetPadding(FMargin(0.f, 7.f, 0.f, 0.f));
 		}
 
+		// Flujo de combate: objetivos enemigos atacables ahora (en guerra + misma/adyacente provincia).
+		const TArray<FString> TargetIds = Military->GetAttackableTargetIds(Army.Id);
+		if (TargetIds.Num() > 0)
+		{
+			if (UVerticalBoxSlot* S = AVB->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("Objetivos al alcance:"), 11, GovBad)))
+			{
+				S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+			}
+			UWrapBox* AttackRow = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
+			for (const FString& TargetId : TargetIds)
+			{
+				FWLArmy Target;
+				const FString TargetLabel = Military->GetArmy(TargetId, Target)
+					? FString::Printf(TEXT("ATACAR %s (%s)"), *TargetId, *Target.OwnerIso)
+					: FString::Printf(TEXT("ATACAR %s"), *TargetId);
+				if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(AttackRow->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
+					FString::Printf(TEXT("battlepick:%s:%s"), *Army.Id, *TargetId), TargetLabel, GovDanger, 0.f, 11))))
+				{
+					S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
+				}
+			}
+			if (UVerticalBoxSlot* S = AVB->AddChildToVerticalBox(AttackRow))
+			{
+				S->SetPadding(FMargin(0.f, 5.f, 0.f, 0.f));
+			}
+		}
+
 		Card->SetContent(AVB);
 		AddColumnChild(CenterBox, Card, 5.f);
+
+		// Preview de combate abierto justo debajo del ejercito atacante elegido.
+		if (BattleAttackerId == Army.Id && !BattleDefenderId.IsEmpty())
+		{
+			BuildBattlePreviewPanel();
+		}
 		++Index;
 	}
 	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		TEXT("Reorganizar devuelve las unidades desorganizadas al frente. Un general con mas skill mejora ataque/defensa; lealtad baja + ambicion alta amenaza con golpe."),
+		TEXT("Reorganizar devuelve las unidades desorganizadas al frente. ATACAR abre el desglose de poder antes de resolver. Solo hay objetivos si declaraste la guerra y los ejercitos estan en la misma provincia o adyacentes."),
 		12, GovMuted, ETextJustify::Left, true), 4.f);
+}
+
+// ALTO MANDO: desglose de poder del combate elegido + eleccion auto-resolve vs tactica (con confirmacion).
+void UWLGovernmentWidget::BuildBattlePreviewPanel()
+{
+	UWLMilitarySubsystem* Military = GetMilitary();
+	if (!Military || BattleAttackerId.IsEmpty() || BattleDefenderId.IsEmpty())
+	{
+		return;
+	}
+	FWLBattlePreview Preview;
+	Military->PreviewBattle(BattleAttackerId, BattleDefenderId, Preview);
+
+	UBorder* Panel = MakeBorder(WidgetTree, GovPanelSoft, FMargin(12.f, 10.f));
+	UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+
+	UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+		FString::Printf(TEXT("BATALLA: %s  vs  %s"), *BattleAttackerId, *BattleDefenderId), 14, GovGold)))
+	{
+		S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		S->SetVerticalAlignment(VAlign_Center);
+	}
+	Head->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this, TEXT("battlecancel"), TEXT("CERRAR"), GovTabIdle, 80.f, 11));
+	VB->AddChildToVerticalBox(Head);
+
+	if (!Preview.bValid)
+	{
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeAlert(WidgetTree,
+			Preview.Reason.IsEmpty() ? TEXT("Este combate no es valido ahora mismo.") : Preview.Reason, GovBad)))
+		{
+			S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+		}
+		Panel->SetContent(VB);
+		AddColumnChild(CenterBox, Panel, 6.f);
+		return;
+	}
+
+	// Balanza de poder: ATACANTE vs DEFENSOR con barra proporcional.
+	const int32 Total = FMath::Max(1, Preview.AttackerPower + Preview.DefenderPower);
+	const float AtkFrac = static_cast<float>(Preview.AttackerPower) / static_cast<float>(Total);
+	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+		TEXT("Poder de ataque %d  ·  Poder de defensa %d  ·  Pronostico: %s"),
+		Preview.AttackerPower, Preview.DefenderPower, *Preview.OddsLabel),
+		13, Preview.OddsLabel == TEXT("Favorable") ? GovGood : (Preview.OddsLabel == TEXT("Desfavorable") ? GovBad : GovGold),
+		ETextJustify::Left, true)))
+	{
+		S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+	}
+	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeBar(WidgetTree, AtkFrac, GovGold, 12.f)))
+	{
+		S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+	}
+
+	// Desglose de modificadores.
+	AddColumnChild(VB, MakeStatRow(WidgetTree, TEXT("Composicion (unidades)"),
+		FString::Printf(TEXT("%d  vs  %d"), Preview.AttackerUnits, Preview.DefenderUnits), GovText, GovCard), 8.f);
+	AddColumnChild(VB, MakeStatRow(WidgetTree, TEXT("Poder base (atk / def)"),
+		FString::Printf(TEXT("%d  /  %d"), Preview.AttackerBaseAttack, Preview.DefenderBaseDefense), GovText, GovCardAlt), 4.f);
+	AddColumnChild(VB, MakeStatRow(WidgetTree, TEXT("General atacante"),
+		Preview.AttackerGeneral.IsEmpty() ? TEXT("sin mando") : Preview.AttackerGeneral,
+		Preview.AttackerGeneral.IsEmpty() ? GovBad : GovText, GovCard), 4.f);
+	AddColumnChild(VB, MakeStatRow(WidgetTree, TEXT("General defensor"),
+		Preview.DefenderGeneral.IsEmpty() ? TEXT("sin mando") : Preview.DefenderGeneral,
+		Preview.DefenderGeneral.IsEmpty() ? GovMuted : GovText, GovCardAlt), 4.f);
+	AddColumnChild(VB, MakeStatRow(WidgetTree, TEXT("Defensa por terreno"),
+		FString::Printf(TEXT("%s  x%.2f"), Preview.TerrainLabel.IsEmpty() ? TEXT("llano") : *Preview.TerrainLabel, Preview.TerrainMultiplier),
+		Preview.TerrainMultiplier > 1.0 ? GovBad : GovMuted, GovCard), 4.f);
+	if (Preview.DefenderBuildingMultiplier > 1.001)
+	{
+		AddColumnChild(VB, MakeStatRow(WidgetTree, TEXT("Defensa por edificios"),
+			FString::Printf(TEXT("x%.2f"), Preview.DefenderBuildingMultiplier), GovBad, GovCardAlt), 4.f);
+	}
+
+	// Eleccion de resolucion (ambas con confirmacion en dos clics).
+	UHorizontalBox* ResolveRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	if (UHorizontalBoxSlot* S = ResolveRow->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
+		FString::Printf(TEXT("autoresolve:%s:%s"), *BattleAttackerId, *BattleDefenderId),
+		TEXT("AUTO-RESOLVER"), GovGoldDim, 170.f, 12)))
+	{
+		S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		S->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UHorizontalBoxSlot* S = ResolveRow->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
+		FString::Printf(TEXT("tacticalresolve:%s:%s"), *BattleAttackerId, *BattleDefenderId),
+		TEXT("BATALLA TACTICA"), GovDanger, 170.f, 12)))
+	{
+		S->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(ResolveRow))
+	{
+		S->SetPadding(FMargin(0.f, 10.f, 0.f, 0.f));
+	}
+	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(WidgetTree,
+		TEXT("Auto-resolver calcula el resultado por poderes al instante. La batalla tactica la juega la IA tactica determinista y aplica bajas/ocupacion (la vista 3D interactiva es fase aparte). Ambas requieren guerra declarada."),
+		11, GovMuted, ETextJustify::Left, true)))
+	{
+		S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+	}
+
+	Panel->SetContent(VB);
+	AddColumnChild(CenterBox, Panel, 6.f);
 }
 
 // RESUMEN: nivel de dificultad de IA activo + selector (lee/escribe UWLBalanceSubsystem).
