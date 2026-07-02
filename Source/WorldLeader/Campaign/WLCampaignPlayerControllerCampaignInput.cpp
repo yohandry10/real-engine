@@ -314,6 +314,7 @@ bool AWLCampaignPlayerController::HandleCampaignInputKey(const FInputKeyEventArg
 
 	if (Params.Key == EKeys::LeftMouseButton)
 	{
+		// Con la ventana de Gobierno abierta (widget UMG modal) el input va al widget, no aqui.
 		if (TryHandleSelectionPanelClick())
 		{
 			return true;
@@ -348,6 +349,11 @@ bool AWLCampaignPlayerController::HandleCampaignInputKey(const FInputKeyEventArg
 	if (Params.Key == EKeys::G)
 	{
 		FocusCampaignAmerica();
+		return true;
+	}
+	if (Params.Key == EKeys::C)
+	{
+		ToggleGovernmentWindow();
 		return true;
 	}
 

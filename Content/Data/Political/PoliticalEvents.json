@@ -1,0 +1,50 @@
+[
+	{
+		"event_id": "internal_coup_tension",
+		"title": "Rumores de golpe",
+		"body": "Altos mandos desleales y oposicion organizada presionan al gobierno.",
+		"trigger": "coup_risk",
+		"min_coup_risk": 60,
+		"min_opposition_strength": 25,
+		"max_public_order": 100,
+		"options": [
+			{
+				"option_id": "negotiate",
+				"label": "Negociar con los mandos",
+				"political_capital_delta": -8,
+				"opposition_delta": -6,
+				"public_order_delta": 1
+			},
+			{
+				"option_id": "crackdown",
+				"label": "Ordenar una redada preventiva",
+				"opposition_delta": -12,
+				"public_order_delta": -3
+			}
+		]
+	},
+	{
+		"event_id": "street_protests",
+		"title": "Protestas nacionales",
+		"body": "La oposicion capitaliza el deterioro del orden publico.",
+		"trigger": "opposition",
+		"min_coup_risk": 0,
+		"min_opposition_strength": 35,
+		"max_public_order": 55,
+		"options": [
+			{
+				"option_id": "concede",
+				"label": "Conceder reformas limitadas",
+				"political_capital_delta": -6,
+				"opposition_delta": -10,
+				"public_order_delta": 2
+			},
+			{
+				"option_id": "ignore",
+				"label": "Ignorar las marchas",
+				"opposition_delta": 7,
+				"public_order_delta": -2
+			}
+		]
+	}
+]

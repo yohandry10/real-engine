@@ -515,12 +515,29 @@ TArray<FWLCampaignForceCompositionEntry> AWLCampaignPlayerController::GetSelecte
 	return Out;
 }
 
+bool AWLCampaignPlayerController::IsSelectedForeignFort() const
+{
+	if (!bSelectedForceIsRecruitmentBase)
+	{
+		return false;
+	}
+	const UWLCampaignGameInstance* GI = Cast<UWLCampaignGameInstance>(UGameplayStatics::GetGameInstance(this));
+	const FString PlayerIso = GI ? GI->GetSelectedNationIso() : FString();
+	return !PlayerIso.IsEmpty() && !SelectedForceCountryIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
+}
+
 TArray<FWLCampaignRecruitButton> AWLCampaignPlayerController::GetSelectedForceRecruitOptions() const
 {
 	TArray<FWLCampaignRecruitButton> Out;
 	// Solo los FUERTES (bases de reclutamiento) entrenan tropas. Un ejercito de campo seleccionado muestra
 	// sus tropas y se mueve, pero NO recluta (modelo Total War: recluta en el edificio).
 	if (!bSelectedForceIsRecruitmentBase)
+	{
+		return Out;
+	}
+	// Cada pais es INDEPENDIENTE: el jugador SOLO recluta en los fuertes de SU pais. Los de otros paises (VE,
+	// etc.) son suyos -> sin opciones para el jugador. Asi un ejercito de CO jamas sale del tesoro de VE.
+	if (IsSelectedForeignFort())
 	{
 		return Out;
 	}
@@ -564,6 +581,10 @@ FString AWLCampaignPlayerController::GetSelectedForceRecruitStatus() const
 	{
 		return FString();
 	}
+	if (IsSelectedForeignFort())
+	{
+		return FString::Printf(TEXT("Fuerte de %s (otro pais). Cada pais recluta en sus propios fuertes."), *SelectedForceCountryIso);
+	}
 	const TArray<FWLRecruitOrder> Queue = Tick->GetRecruitQueue(SelectedForceId);
 	if (Queue.Num() == 0)
 	{
@@ -579,6 +600,12 @@ bool AWLCampaignPlayerController::QueueRecruitForSelectedForce(const FString& Un
 	if (!Tick || SelectedForceId.IsEmpty())
 	{
 		OutMessage = TEXT("Selecciona una fuerza primero.");
+		return false;
+	}
+	// Independencia: solo reclutas en los fuertes de TU pais (su tesoro, su ejercito).
+	if (IsSelectedForeignFort())
+	{
+		OutMessage = FString::Printf(TEXT("Este fuerte es de %s. Solo reclutas en los fuertes de tu pais."), *SelectedForceCountryIso);
 		return false;
 	}
 	return Tick->QueueRecruit(SelectedForceId, SelectedForceCountryIso, UnitType, OutMessage);

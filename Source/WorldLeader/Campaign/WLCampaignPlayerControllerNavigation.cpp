@@ -235,6 +235,14 @@ void AWLCampaignPlayerController::BeginDragPan()
 	bDragPanning = true;
 	bHasLastDragMouse = false;
 	DragPanAnchorWorld = FVector::ZeroVector;
+
+	// Guarda donde se pulso, para distinguir CLIC (orden de marcha) de ARRASTRE (paneo) al soltar.
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (GetMousePosition(MouseX, MouseY))
+	{
+		DragStartMouse = FVector2D(MouseX, MouseY);
+	}
 }
 
 void AWLCampaignPlayerController::EndDragPan()
@@ -242,6 +250,16 @@ void AWLCampaignPlayerController::EndDragPan()
 	bDragPanning = false;
 	bHasLastDragMouse = false;
 	DragPanAnchorWorld = FVector::ZeroVector;
+
+	// Clic derecho SIN arrastre (el raton casi no se movio) = orden de marcha del ejercito seleccionado
+	// (RTS/Total War: izquierdo selecciona, derecho mueve). Con arrastre real, fue paneo de camara.
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (GetMousePosition(MouseX, MouseY)
+		&& FVector2D::Distance(FVector2D(MouseX, MouseY), DragStartMouse) < 8.f)
+	{
+		TryHandleArmyMoveClick();
+	}
 }
 
 void AWLCampaignPlayerController::UpdateMapCamera(float DeltaSeconds)

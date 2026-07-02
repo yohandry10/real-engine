@@ -7,6 +7,7 @@
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "UI/WLCampaignBuildingSlotData.h"
 #include "UI/WLCampaignSelectionPanelData.h"
+#include "UI/WLCampaignGovernmentLayout.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -80,6 +81,13 @@ void AWLCampaignHUD::DrawHUD()
 	DrawText(TEXT("Campana 3D"), bDiplomacy ? Text : Gold, CampaignX + 18.f, ButtonY + 9.f, SmallFont, 1.0f);
 	DrawText(TEXT("Diplomacia"), bDiplomacy ? Gold : Text, DiplomacyX + 25.f, ButtonY + 9.f, SmallFont, 1.0f);
 
+	// Boton GOBIERNO (abre el consejo presidencial, estilo panel de faccion de Total War).
+	const bool bGovernmentOpen = PC && PC->IsGovernmentWindowOpen();
+	const FBox2D GovBtn = WLGovernmentLayout::GovernmentButton(W);
+	DrawRect(bGovernmentOpen ? Active : Ink, GovBtn.Min.X, GovBtn.Min.Y, GovBtn.Max.X - GovBtn.Min.X, GovBtn.Max.Y - GovBtn.Min.Y);
+	DrawRect(Gold, GovBtn.Min.X, GovBtn.Min.Y, 3.f, GovBtn.Max.Y - GovBtn.Min.Y);
+	DrawText(TEXT("GOBIERNO"), bGovernmentOpen ? Gold : Text, GovBtn.Min.X + 24.f, GovBtn.Min.Y + 9.f, SmallFont, 1.0f);
+
 	if (PC && !bDiplomacy)
 	{
 		const float ControlY = 102.f;
@@ -108,6 +116,17 @@ void AWLCampaignHUD::DrawHUD()
 		DrawText(TEXT("America"), Gold, AmericaX + 17.f, ControlY + 8.f, SmallFont, 0.94f);
 		DrawText(FString::Printf(TEXT("Zoom: %s  %.0fk"), *PC->GetCampaignZoomLODLabel(), PC->GetCampaignCameraHeight() / 1000.f),
 			Muted, ZoomInX, ControlY + ControlH + 8.f, SmallFont, 0.82f);
+
+		// Boton grande "AVANZAR DIA" abajo-derecha (estilo "Finalizar turno" de Total War). El hit-test esta en
+		// WLCampaignPlayerControllerViews.cpp::TryHandleViewToggleClick con EL MISMO rect -> mantener en sync.
+		const float AdvW = 220.f;
+		const float AdvH = 50.f;
+		const float AdvX = W - AdvW - 26.f;
+		const float AdvY = Canvas->ClipY - AdvH - 28.f;
+		DrawRect(FLinearColor(0.62f, 0.48f, 0.16f, 0.97f), AdvX, AdvY, AdvW, AdvH);
+		DrawRect(FLinearColor(0.88f, 0.70f, 0.26f, 1.f), AdvX, AdvY, AdvW, 3.f);
+		DrawText(TEXT("AVANZAR DIA"), FLinearColor(0.06f, 0.06f, 0.05f, 1.f), AdvX + 22.f, AdvY + 9.f, Font, 1.0f);
+		DrawText(TEXT("[M] o clic aqui"), FLinearColor(0.14f, 0.11f, 0.05f, 1.f), AdvX + 22.f, AdvY + 32.f, SmallFont, 0.72f);
 	}
 
 	float X = 36.f;
@@ -123,13 +142,13 @@ void AWLCampaignHUD::DrawHUD()
 		Y += LineHeight * 1.25f;
 	}
 
-	DrawText(FString::Printf(TEXT("Fecha: %02d/%d"), Tick->GetCurrentMonth(), Tick->GetCurrentYear()),
+	DrawText(FString::Printf(TEXT("Fecha: %02d/%02d/%d"), Tick->GetCurrentDay(), Tick->GetCurrentMonth(), Tick->GetCurrentYear()),
 		FLinearColor(0.75f, 0.9f, 1.0f), X, Y, SmallFont);
 	Y += LineHeight;
 
 	if (SelectedNation.IsValid())
 	{
-		DrawText(FString::Printf(TEXT("Tesoro: %lld   Balance/mes: %+lld"),
+		DrawText(FString::Printf(TEXT("Tesoro: %lld   Balance/dia: %+lld"),
 			Tick->GetTreasury(SelectedNation.Iso), Tick->GetMonthlyBalance(SelectedNation.Iso)),
 			Text, X, Y, SmallFont);
 		Y += LineHeight;
@@ -229,6 +248,9 @@ void AWLCampaignHUD::DrawHUD()
 	}
 
 	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
-	DrawText(TEXT("[D] Alternar vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [G] America   [M] Mes   [F5] Guardar   [B] Construir"),
+	DrawText(TEXT("[D] Alternar vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [G] America   [C] Gobierno   [M] Avanzar dia   [F5] Guardar   [B] Construir"),
 		Muted, 36.f, H - 24.f, SmallFont, 0.88f);
+
+	// La ventana de Gobierno / Presidencia ya no se dibuja en Canvas: es un widget UMG modal
+	// (UWLGovernmentWidget) que el PlayerController crea/destruye. Aqui solo queda el boton GOBIERNO.
 }

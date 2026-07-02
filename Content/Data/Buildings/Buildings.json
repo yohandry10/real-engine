@@ -4,6 +4,9 @@
 		"name": "Pozo de petroleo",
 		"slot": "economic",
 		"cost": 5000,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.65,
+		"monthly_upkeep": 90,
 		"bonus_oil": 200
 	},
 	{
@@ -11,6 +14,9 @@
 		"name": "Planta de gas",
 		"slot": "economic",
 		"cost": 4000,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.62,
+		"monthly_upkeep": 75,
 		"bonus_gas": 150
 	},
 	{
@@ -18,6 +24,9 @@
 		"name": "Mina",
 		"slot": "economic",
 		"cost": 3500,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.6,
+		"monthly_upkeep": 70,
 		"bonus_minerals": 120
 	},
 	{
@@ -25,28 +34,121 @@
 		"name": "Granja industrial",
 		"slot": "economic",
 		"cost": 2000,
-		"bonus_food": 100
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.55,
+		"monthly_upkeep": 45,
+		"bonus_food": 100,
+		"bonus_public_order": 1
 	},
 	{
 		"id": "factory",
 		"name": "Fabrica basica",
 		"slot": "industrial",
 		"cost": 4500,
-		"bonus_industry": 60
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.7,
+		"monthly_upkeep": 120,
+		"bonus_industry": 60,
+		"bonus_recruitment_capacity": 1
 	},
 	{
 		"id": "mega_factory",
 		"name": "Megafabrica",
 		"slot": "industrial",
 		"cost": 9000,
-		"bonus_industry": 140
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.75,
+		"monthly_upkeep": 260,
+		"bonus_industry": 140,
+		"bonus_recruitment_capacity": 2
 	},
 	{
 		"id": "refinery",
 		"name": "Refineria",
 		"slot": "industrial",
 		"cost": 7000,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.68,
+		"monthly_upkeep": 190,
 		"bonus_oil": 80,
 		"bonus_industry": 50
+	},
+	{
+		"id": "army_base",
+		"name": "Base militar",
+		"slot": "military",
+		"cost": 6500,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.62,
+		"monthly_upkeep": 220,
+		"bonus_recruitment_capacity": 3,
+		"bonus_military_power": 8,
+		"bonus_defense": 5
+	},
+	{
+		"id": "naval_base",
+		"name": "Base naval",
+		"slot": "naval",
+		"cost": 8000,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.65,
+		"monthly_upkeep": 260,
+		"bonus_naval_capacity": 4,
+		"bonus_defense": 4
+	},
+	{
+		"id": "air_base",
+		"name": "Base aerea",
+		"slot": "air",
+		"cost": 7800,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.65,
+		"monthly_upkeep": 250,
+		"bonus_air_capacity": 4,
+		"bonus_defense": 3
+	},
+	{
+		"id": "research_campus",
+		"name": "Campus tecnologico",
+		"slot": "tech",
+		"cost": 7200,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.7,
+		"monthly_upkeep": 180,
+		"bonus_technology": 5,
+		"bonus_industry": 25
+	},
+	{
+		"id": "financial_center",
+		"name": "Centro financiero",
+		"slot": "financial",
+		"cost": 6800,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.66,
+		"monthly_upkeep": 110,
+		"bonus_financial_income": 450
+	},
+	{
+		"id": "highways",
+		"name": "Red de autopistas",
+		"slot": "infrastructure",
+		"cost": 6000,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.6,
+		"monthly_upkeep": 95,
+		"bonus_infrastructure": 8,
+		"bonus_industry": 18,
+		"bonus_public_order": 1
+	},
+	{
+		"id": "fortifications",
+		"name": "Fortificaciones",
+		"slot": "defensive",
+		"cost": 5200,
+		"max_level": 5,
+		"upgrade_cost_multiplier": 1.58,
+		"monthly_upkeep": 140,
+		"bonus_defense": 12,
+		"bonus_public_order": 1
 	}
 ]

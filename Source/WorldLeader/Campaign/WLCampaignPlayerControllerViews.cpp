@@ -10,6 +10,7 @@
 #include "Presentation/WLCampaign3DView.h"
 #include "UI/WLCampaignHUD.h"
 #include "UI/WLCampaignSelectionPanelData.h"
+#include "UI/WLGovernmentWidget.h"
 #include "UI/WLMainMenuWidget.h"
 #include "WorldLeader.h"
 #include "Camera/CameraActor.h"
@@ -145,6 +146,16 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 	MouseX -= OffsetX;
 	MouseY -= OffsetY;
 
+	// Boton "GOBIERNO" (barra superior, izquierda de "Campana 3D"): abre/cierra la ventana de presidencia.
+	{
+		const FBox2D GovButton = WLGovernmentLayout::GovernmentButton(ViewportX);
+		if (GovButton.IsInside(FVector2D(MouseX, MouseY)))
+		{
+			ToggleGovernmentWindow();
+			return true;
+		}
+	}
+
 	const float Y = 58.f;
 	const float Height = 38.f;
 	const float CampaignX = ViewportX - 386.f;
@@ -173,6 +184,20 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 	{
 		ShowDiplomacyMapView();
 		return true;
+	}
+
+	// Boton grande "Avanzar dia" abajo-derecha (estilo "Finalizar turno" de Total War). MISMO rect que el HUD.
+	if (ActivePresentationMode == EWLCampaignPresentationMode::Campaign3D)
+	{
+		const float AdvW = 220.f;
+		const float AdvH = 50.f;
+		const float AdvX = ViewportX - AdvW - 26.f;
+		const float AdvY = ViewportY - AdvH - 28.f;
+		if (MouseX >= AdvX && MouseX <= AdvX + AdvW && MouseY >= AdvY && MouseY <= AdvY + AdvH)
+		{
+			OnAdvanceMonth();
+			return true;
+		}
 	}
 
 	if (ActivePresentationMode == EWLCampaignPresentationMode::Campaign3D)
@@ -221,6 +246,50 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 		}
 	}
 	return false;
+}
+
+void AWLCampaignPlayerController::ToggleGovernmentWindow()
+{
+	SetGovernmentWindowOpen(!bGovernmentWindowOpen);
+}
+
+void AWLCampaignPlayerController::SetGovernmentWindowOpen(bool bOpen)
+{
+	if (bGovernmentWindowOpen == bOpen)
+	{
+		return;
+	}
+	bGovernmentWindowOpen = bOpen;
+
+	if (bOpen)
+	{
+		// La ventana es un widget UMG modal (mismo patron que el menu principal): se crea al abrir y
+		// captura el input (UIOnly) mientras esta arriba. El propio widget gestiona pestanas y cierre.
+		if (!GovernmentWidget)
+		{
+			GovernmentWidget = CreateWidget<UWLGovernmentWidget>(this, UWLGovernmentWidget::StaticClass());
+		}
+		if (GovernmentWidget)
+		{
+			GovernmentWidget->AddToViewport(120);
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(GovernmentWidget->TakeWidget());
+			SetInputMode(InputMode);
+			bShowMouseCursor = true;
+		}
+		SetLastActionMessage(TEXT("Gobierno: consejo presidencial abierto."), true);
+	}
+	else
+	{
+		if (GovernmentWidget)
+		{
+			GovernmentWidget->RemoveFromParent();
+			GovernmentWidget = nullptr;
+		}
+		// Restauramos el input de campania (el mapa vuelve a ser navegable).
+		EnterCampaignInputMode();
+		SetLastActionMessage(TEXT("Gobierno: consejo presidencial cerrado."), true);
+	}
 }
 
 bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
@@ -306,9 +375,9 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 		{
 			const TArray<FWLCampaignRecruitButton> Options = GetSelectedForceRecruitOptions();
 			const float RBtnW = (PanelW - 48.f) * 0.5f;
-			const float RBtnH = 30.f;
-			const float RBtnGap = 6.f;
-			const float RGridY = (ActionY + 40.f) + 18.f;   // = DisabledStartY(no-mov)+18 (sync con el .inl)
+			const float RBtnH = 60.f;                       // cards grandes (icono+nombre+coste+dias) -> sync con el .inl
+			const float RBtnGap = 8.f;
+			const float RGridY = (ActionY + 40.f) + 22.f;   // = DisabledStartY(no-mov)+22 (sync con el .inl)
 			const int32 MaxOpt = FMath::Min(Options.Num(), 6);
 			for (int32 i = 0; i < MaxOpt; ++i)
 			{
@@ -443,6 +512,67 @@ bool AWLCampaignPlayerController::TryHandleForceMovementDestinationClick()
 	}
 
 	SetLastActionMessage(TEXT("Destino invalido. Elige un nodo resaltado del teatro Colombia/Venezuela."), false);
+	return true;
+}
+
+bool AWLCampaignPlayerController::TryHandleArmyMoveClick()
+{
+	// Solo si hay un EJERCITO movil seleccionado (no un fuerte fijo) y no estamos en el modo de orden por
+	// botones. Clic en una ciudad => marcha directa hacia ella.
+	if (ActivePresentationMode != EWLCampaignPresentationMode::Campaign3D
+		|| ActiveSelectionKind != EWLCampaignSelectionKind::Force
+		|| SelectedForceId.IsEmpty()
+		|| !bSelectedForceMovable
+		|| IsForceMovementModeActive())
+	{
+		return false;
+	}
+	if (!Campaign3DView)
+	{
+		CachePresentationActors();
+	}
+	if (!Campaign3DView)
+	{
+		return false;
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY) || IsScreenPointOverCampaignHud(MouseX, MouseY))
+	{
+		return false;
+	}
+
+	// Punto EXACTO bajo el cursor (terreno/carretera) via raycast real, SIN el parallax del plano plano que
+	// usaba GetCampaignGroundPointFromScreen (con camara oblicua el ejercito iba a otra X,Y que la clicada).
+	FVector ClickWorld = FVector::ZeroVector;
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit) && Hit.bBlockingHit)
+	{
+		ClickWorld = Hit.Location;
+	}
+	else if (!GetCampaignGroundPointFromScreen(MouseX, MouseY, ClickWorld))
+	{
+		return false;
+	}
+
+	// Movimiento LIBRE por carretera: el ejercito recorre la VIA hasta el punto clicado y se DETIENE ahi, a
+	// mitad de camino si quieres. NO salta a ciudades; avanza su alcance por turno (varios turnos si lejos).
+	FWLCampaign3DForceView Updated;
+	if (!Campaign3DView->SetForceFreeMoveTarget(SelectedForceId, ClickWorld, Updated))
+	{
+		return false;
+	}
+
+	SelectedForceLocation = Updated.LocationName;
+	SelectedForceNearbyCity = Updated.NearbyCity;
+	SelectedForceProvinceId = Updated.ProvinceId;
+	SelectedForceProvinceName = Updated.ProvinceName;
+	SelectedForceMovementNodeId = Updated.MovementNodeId;
+	SelectedForceMovementStatus = Updated.MovementStatus;
+	SelectedForceOperationalState = Updated.OperationalState;
+	SelectedForcePosture = Updated.Posture;
+	SetLastActionMessage(TEXT("Ejercito en marcha por la carretera."), true);
 	return true;
 }
 

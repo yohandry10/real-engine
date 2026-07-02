@@ -106,7 +106,17 @@ int64 UWLEconomyLibrary::CalculateBuildingIncomeWithRules(const FWLBuildingData&
 	       + static_cast<int64>(Building.BonusGas)      * Balance.GasPrice
 	       + static_cast<int64>(Building.BonusFood)     * Balance.FoodPrice
 	       + static_cast<int64>(Building.BonusMinerals) * Balance.MineralsPrice
-	       + static_cast<int64>(Building.BonusIndustry) * Balance.IndustryValue;
+	       + static_cast<int64>(Building.BonusIndustry) * Balance.IndustryValue
+	       + Building.BonusFinancialIncome;
+}
+
+int64 UWLEconomyLibrary::CalculateBuildingIncomeForLevel(
+	const FWLBuildingData& Building,
+	const FWLBalanceRules& Rules,
+	int32 Level)
+{
+	const int32 EffectiveLevel = FMath::Clamp(Level, 1, FMath::Clamp(Building.MaxLevel, 1, 5));
+	return CalculateBuildingIncomeWithRules(Building, Rules) * EffectiveLevel;
 }
 
 double UWLEconomyLibrary::CalculatePublicOrderIncomeMultiplier(int32 PublicOrder, const FWLBalanceRules& Rules)

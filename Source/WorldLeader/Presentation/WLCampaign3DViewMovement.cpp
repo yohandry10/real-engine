@@ -392,6 +392,169 @@ void AWLCampaign3DView::BuildMovementNodesAndEdges()
 		SouthAmericaNodeCount,
 		SouthAmericaEdgeCount,
 		SouthAmericaComponentCount);
+
+	BuildRoadFollowPolylines();   // polilineas de via para que los ejercitos conduzcan por el trazado real
+}
+
+void AWLCampaign3DView::BuildRoadFollowPolylines()
+{
+	RoadFollowPolylines.Reset();
+	for (const FWLCampaignRouteSpec& Route : FWLCampaignRouteBuilder::GetAllRoadRoutes())
+	{
+		// SUAVIZADO + DENSIFICADO igual que la via visible -> el tanque sigue EXACTAMENTE el trazado dibujado
+		// (curva a curva), en vez de los puntos de control crudos (que lo hacian cortar/saltar/ir por lejos).
+		const TArray<FVector2D> Smoothed = FWLCampaignRouteBuilder::BuildSmoothedRouteLonLat(Route);
+		if (Smoothed.Num() < 2)
+		{
+			continue;
+		}
+		TArray<FVector> Poly;
+		Poly.Reserve(Smoothed.Num());
+		for (const FVector2D& P : Smoothed)
+		{
+			Poly.Add(ProjectLonLat(P.X, P.Y));   // XY exacta de la via (la Z la aterriza el tanque al moverse)
+		}
+		RoadFollowPolylines.Add(MoveTemp(Poly));
+	}
+	UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D road-follow polylines: %d vias."), RoadFollowPolylines.Num());
+}
+
+bool AWLCampaign3DView::ComputeRoadPath(const FVector& StartWorld, const FVector& EndWorld, TArray<FVector>& OutPoints) const
+{
+	OutPoints.Reset();
+	if (RoadFollowPolylines.Num() == 0)
+	{
+		return false;
+	}
+
+	// Punto mas cercano (segmento + parametro t) de un punto P a una polilinea PL.
+	auto NearestOnPoly = [](const TArray<FVector>& PL, const FVector& P, int32& OutSeg, float& OutT, FVector& OutProj) -> float
+	{
+		float BestSq = TNumericLimits<float>::Max();
+		OutSeg = 0; OutT = 0.f; OutProj = PL.Num() > 0 ? PL[0] : P;
+		for (int32 i = 0; i + 1 < PL.Num(); ++i)
+		{
+			const FVector2D A(PL[i].X, PL[i].Y);
+			const FVector2D B(PL[i + 1].X, PL[i + 1].Y);
+			const FVector2D AB = B - A;
+			const float L2 = AB.SizeSquared();
+			float t = (L2 > 1.f) ? FVector2D::DotProduct(FVector2D(P.X, P.Y) - A, AB) / L2 : 0.f;
+			t = FMath::Clamp(t, 0.f, 1.f);
+			const FVector2D Proj = A + AB * t;
+			const float DSq = FVector2D::DistSquared(FVector2D(P.X, P.Y), Proj);
+			if (DSq < BestSq)
+			{
+				BestSq = DSq;
+				OutSeg = i;
+				OutT = t;
+				OutProj = FVector(Proj.X, Proj.Y, 0.f);
+			}
+		}
+		return FMath::Sqrt(BestSq);
+	};
+
+	// Elige la via donde Start y End proyectan mas cerca (deben ir por la MISMA via para seguir su trazado).
+	int32 BestPoly = INDEX_NONE;
+	int32 BestSStart = 0, BestSEnd = 0;
+	FVector BestProjStart, BestProjEnd;
+	float BestScore = TNumericLimits<float>::Max();
+	for (int32 PolyIdx = 0; PolyIdx < RoadFollowPolylines.Num(); ++PolyIdx)
+	{
+		const TArray<FVector>& PL = RoadFollowPolylines[PolyIdx];
+		if (PL.Num() < 2)
+		{
+			continue;
+		}
+		int32 sS, sE; float tS, tE; FVector pS, pE;
+		const float dS = NearestOnPoly(PL, StartWorld, sS, tS, pS);
+		const float dE = NearestOnPoly(PL, EndWorld, sE, tE, pE);
+		const float Score = dS + dE;
+		if (Score < BestScore)
+		{
+			BestScore = Score;
+			BestPoly = PolyIdx;
+			BestSStart = sS; BestSEnd = sE;
+			BestProjStart = pS; BestProjEnd = pE;
+		}
+	}
+	if (BestPoly == INDEX_NONE)
+	{
+		return false;
+	}
+	// Ambos extremos deben estar razonablemente sobre la MISMA via; si no, el llamador usa recto.
+	const float HalfScore = BestScore * 0.5f;
+	if (HalfScore > 45000.f)
+	{
+		return false;
+	}
+
+	const TArray<FVector>& PL = RoadFollowPolylines[BestPoly];
+	OutPoints.Add(StartWorld);          // [0] = posicion actual del ejercito
+	OutPoints.Add(BestProjStart);       // entra a la via
+	if (BestSStart < BestSEnd)
+	{
+		for (int32 i = BestSStart + 1; i <= BestSEnd; ++i) { OutPoints.Add(PL[i]); }
+	}
+	else if (BestSStart > BestSEnd)
+	{
+		for (int32 i = BestSStart; i >= BestSEnd + 1; --i) { OutPoints.Add(PL[i]); }
+	}
+	OutPoints.Add(BestProjEnd);         // punto destino sobre la via
+	return OutPoints.Num() >= 2;
+}
+
+bool AWLCampaign3DView::NearestRoadPointWorld(const FVector& World, FVector& OutPoint) const
+{
+	float BestSq = TNumericLimits<float>::Max();
+	bool bFound = false;
+	for (const TArray<FVector>& PL : RoadFollowPolylines)
+	{
+		for (int32 i = 0; i + 1 < PL.Num(); ++i)
+		{
+			const FVector2D A(PL[i].X, PL[i].Y);
+			const FVector2D B(PL[i + 1].X, PL[i + 1].Y);
+			const FVector2D AB = B - A;
+			const float L2 = AB.SizeSquared();
+			float t = (L2 > 1.f) ? FVector2D::DotProduct(FVector2D(World.X, World.Y) - A, AB) / L2 : 0.f;
+			t = FMath::Clamp(t, 0.f, 1.f);
+			const FVector2D Proj = A + AB * t;
+			const float DSq = FVector2D::DistSquared(FVector2D(World.X, World.Y), Proj);
+			if (DSq < BestSq)
+			{
+				BestSq = DSq;
+				OutPoint = FVector(Proj.X, Proj.Y, 0.f);
+				bFound = true;
+			}
+		}
+	}
+	return bFound;
+}
+
+FVector AWLCampaign3DView::ClampTargetOffCities(const FVector& TargetWorld, const FVector& FromWorld) const
+{
+	// Si el objetivo cae dentro del "delantal" de una ciudad, lo empuja a su borde (hacia el ejercito) para que
+	// el tanque pare FUERA de la ciudad, no montado sobre sus edificios.
+	const float Apron = 6500.f;
+	for (const FWLCampaign3DCityView& City : CityViews)
+	{
+		const FVector C = ProjectLonLat(City.Lon, City.Lat);
+		const float D = FVector::Dist2D(TargetWorld, C);
+		if (D < Apron)
+		{
+			FVector2D Away(TargetWorld.X - C.X, TargetWorld.Y - C.Y);
+			if (Away.SizeSquared() < 1.f)   // objetivo casi en el centro -> aparta hacia el ejercito
+			{
+				Away = FVector2D(FromWorld.X - C.X, FromWorld.Y - C.Y);
+			}
+			if (Away.SizeSquared() < 1.f)
+			{
+				Away = FVector2D(1.f, 0.f);
+			}
+			Away.Normalize();
+			return FVector(C.X + Away.X * Apron, C.Y + Away.Y * Apron, TargetWorld.Z);
+		}
+	}
+	return TargetWorld;
 }
 
 void AWLCampaign3DView::AddMovementEdge(const FString& A, const FString& B)
@@ -448,24 +611,44 @@ void AWLCampaign3DView::GetValidMovementDestinations(
 	}
 
 	const FString OriginNodeId = Force.MovementNodeId.IsEmpty() ? FindNearestMovementNodeId(Force) : Force.MovementNodeId;
-	const TArray<FString>* Neighbors = MovementAdjacency.Find(OriginNodeId);
-	if (!Neighbors)
+	if (OriginNodeId.IsEmpty())
 	{
 		return;
 	}
 
-	for (const FString& NeighborId : *Neighbors)
+	// TODOS los nodos alcanzables por carretera (BFS), no solo los adyacentes: el jugador ordena CUALQUIER
+	// ciudad y el ejercito viaja por turnos segun su cargador. (Si es naval, solo puertos.)
+	TSet<FString> Visited;
+	Visited.Add(OriginNodeId);
+	TArray<FString> Queue;
+	Queue.Add(OriginNodeId);
+	while (!Queue.IsEmpty())
 	{
-		const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(NeighborId);
-		if (!Node)
+		const FString CurrentId = Queue.Pop(EAllowShrinking::No);
+		const TArray<FString>* Neighbors = MovementAdjacency.Find(CurrentId);
+		if (!Neighbors)
 		{
 			continue;
 		}
-		if (Force.bNaval && !Node->bPort)
+		for (const FString& NeighborId : *Neighbors)
 		{
-			continue;
+			if (Visited.Contains(NeighborId))
+			{
+				continue;
+			}
+			Visited.Add(NeighborId);
+			Queue.Add(NeighborId);
+			const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(NeighborId);
+			if (!Node)
+			{
+				continue;
+			}
+			if (Force.bNaval && !Node->bPort)
+			{
+				continue;
+			}
+			OutDestinations.Add(*Node);
 		}
-		OutDestinations.Add(*Node);
 	}
 }
 
@@ -691,7 +874,7 @@ void AWLCampaign3DView::StartForceMovementAnimation(
 	{
 		TotalDistance += FVector::Dist2D(Animation.Points[Index], Animation.Points[Index + 1]);
 	}
-	Animation.DurationSeconds = FMath::Clamp(TotalDistance / 56000.f, 0.75f, 2.8f);
+	Animation.DurationSeconds = ComputeDriveDurationSeconds(TotalDistance);   // velocidad relativa al zoom (no "salta")
 
 	for (int32 Index = ForceMovementAnimations.Num() - 1; Index >= 0; --Index)
 	{
@@ -701,6 +884,345 @@ void AWLCampaign3DView::StartForceMovementAnimation(
 		}
 	}
 	ForceMovementAnimations.Add(MoveTemp(Animation));
+}
+
+float AWLCampaign3DView::GetArmyMovementBudgetKm(const FWLCampaign3DForceView& Force) const
+{
+	// La velocidad la marca la unidad MAS LENTA: si lleva infanteria (a pie) o artilleria (remolcada) va
+	// lento; si es todo vehiculos/blindados, rapido. Asi un destino lejano tarda varios turnos [M].
+	bool bHasSlow = false;
+	for (const FWLForceUnitGroup& Unit : Force.Composition)
+	{
+		const FString L = Unit.Label.ToLower();
+		if (L.Contains(TEXT("infant")) || L.Contains(TEXT("artill")))
+		{
+			bHasSlow = true;
+			break;
+		}
+	}
+	return bHasSlow ? 100.f : 160.f;   // km por turno (tramo corto = avance NATURAL por turno; cruza el pais en varios [M])
+}
+
+float AWLCampaign3DView::ComputeDriveDurationSeconds(float DistanceWorld) const
+{
+	// Velocidad RELATIVA AL ZOOM: a mayor altura de camara hacen falta mas u/s para que el icono recorra los
+	// mismos pixeles, asi que la velocidad APARENTE en pantalla queda constante y lenta. Con velocidad fija en
+	// unidades de mundo, de cerca se veia "muy rapido" (cubria mucha pantalla en poco tiempo). Factor calibrado
+	// para que de cerca (~70-115k de altura) el tanque conduzca despacio.
+	const float CamH = ViewCamera ? ViewCamera->GetActorLocation().Z : DefaultCameraLocation.Z;
+	const float EffSpeed = FMath::Max(1500.f, CamH * 0.03f);   // u/s (sube con el zoom-out)
+	return FMath::Clamp(DistanceWorld / EffSpeed, 1.5f, 9.f);
+}
+
+bool AWLCampaign3DView::AdvanceForceAlongPath(int32 Index)
+{
+	if (!ForceViews.IsValidIndex(Index))
+	{
+		return false;
+	}
+	FWLCampaign3DForceView& Force = ForceViews[Index];
+	if (Force.MovePathNodeIds.Num() < 2)
+	{
+		return false;   // sin orden de marcha pendiente
+	}
+
+	float Budget = GetArmyMovementBudgetKm(Force);
+	const FVector StartLocation = Force.WorldLocation;
+
+	// Etapa recorrida ESTE turno (para animar): empieza en el nodo actual.
+	TArray<FWLCampaign3DMovementNodeView> Leg;
+	if (const FWLCampaign3DMovementNodeView* StartNode = FindMovementNodeById(Force.MovePathNodeIds[0]))
+	{
+		Leg.Add(*StartNode);
+	}
+
+	bool bFirst = true;
+	while (Force.MovePathNodeIds.Num() >= 2)
+	{
+		const FWLCampaign3DMovementNodeView* A = FindMovementNodeById(Force.MovePathNodeIds[0]);
+		const FWLCampaign3DMovementNodeView* B = FindMovementNodeById(Force.MovePathNodeIds[1]);
+		if (!A || !B)
+		{
+			Force.MovePathNodeIds.Reset();
+			break;
+		}
+		const float EdgeKm = FVector2D::Distance(FVector2D(A->Lon, A->Lat), FVector2D(B->Lon, B->Lat)) * 111.f;
+		// Siempre avanza al menos UN nodo por turno (bFirst); luego solo mientras quede cargador.
+		if (!bFirst && EdgeKm > Budget)
+		{
+			break;
+		}
+		Budget -= EdgeKm;
+		bFirst = false;
+		Force.MovePathNodeIds.RemoveAt(0);   // ya esta en B
+		Force.MovementNodeId = B->Id;
+		Force.Lon = B->Lon;
+		Force.Lat = B->Lat;
+		Force.LocationName = B->Name;
+		Force.NearbyCity = B->Name;
+		Force.ProvinceId = B->ProvinceId;
+		Force.ProvinceName = B->ProvinceName;
+		Leg.Add(*B);
+	}
+
+	if (Leg.Num() < 2)
+	{
+		return false;   // no se pudo avanzar
+	}
+
+	const FWLCampaign3DMovementNodeView& EndNode = Leg.Last();
+	Force.WorldLocation = GetForceMarkerLocationForNode(Force, EndNode);
+
+	const int32 NodesLeft = FMath::Max(0, Force.MovePathNodeIds.Num() - 1);
+	if (NodesLeft <= 0)
+	{
+		Force.MovePathNodeIds.Reset();
+		Force.MovementStatus = TEXT("en posicion");
+		Force.OperationalState = TEXT("desplegado");
+		Force.Posture = Force.bNaval ? TEXT("fondeado en puerto") : TEXT("desplegado");
+	}
+	else
+	{
+		Force.MovementStatus = FString::Printf(TEXT("en marcha (faltan %d)"), NodesLeft);
+		Force.OperationalState = TEXT("en marcha");
+		Force.Posture = TEXT("en marcha por carretera");
+	}
+
+	StartForceMovementAnimation(Index, Leg, StartLocation);
+	return true;
+}
+
+void AWLCampaign3DView::AdvanceArmyMovements()
+{
+	// Una vez por turno [M]: cada ejercito en marcha avanza el equivalente a su cargador.
+	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
+	{
+		FWLCampaign3DForceView& Force = ForceViews[Index];
+		if (!Force.bMovable)
+		{
+			continue;
+		}
+		// Nuevo turno: rellena el alcance de movimiento (lo que pueda recorrer este mes).
+		Force.MoveBudgetRemainingWorld = GetArmyMovementBudgetKm(Force) * DetailWorldUnitsPerKm;
+		if (Force.MovePathPoints.Num() >= 2)
+		{
+			AdvanceForcePolyline(Index);       // conduce SIGUIENDO el trazado de la carretera (clic derecho)
+		}
+		else if (Force.bHasMoveTarget)
+		{
+			AdvanceForceTowardTarget(Index);   // marcha recta (fallback si no hay via comun)
+		}
+		else if (Force.MovePathNodeIds.Num() >= 2)
+		{
+			AdvanceForceAlongPath(Index);      // ruta por nodos-ciudad (boton Mover)
+		}
+	}
+}
+
+bool AWLCampaign3DView::AdvanceForceTowardTarget(int32 Index)
+{
+	if (!ForceViews.IsValidIndex(Index))
+	{
+		return false;
+	}
+	FWLCampaign3DForceView& Force = ForceViews[Index];
+	if (!Force.bHasMoveTarget)
+	{
+		return false;
+	}
+
+	const FVector OldPos = Force.WorldLocation;
+	const float FullBudget = FMath::Max(1.f, GetArmyMovementBudgetKm(Force) * DetailWorldUnitsPerKm);
+	// Alcance que QUEDA este turno (-1 = aun no usado este turno -> lleno). Asi spamear clics no avanza mas
+	// de lo permitido por turno: cada paso descuenta del restante; al avanzar el mes se rellena.
+	float BudgetWorld = (Force.MoveBudgetRemainingWorld < 0.f) ? FullBudget : Force.MoveBudgetRemainingWorld;
+	if (BudgetWorld < 1.f)
+	{
+		return false;   // sin alcance restante este turno; continuara al avanzar el mes [M]
+	}
+	FVector ToTarget = Force.MoveTargetWorld - OldPos;
+	ToTarget.Z = 0.f;
+	const float Dist = ToTarget.Size();
+
+	FVector2D NewXY;
+	float Moved;
+	if (Dist <= BudgetWorld || Dist < 1.f)
+	{
+		// Llega EXACTO al punto clicado (a mitad de carretera) este turno.
+		NewXY = FVector2D(Force.MoveTargetWorld.X, Force.MoveTargetWorld.Y);
+		Moved = Dist;
+		Force.bHasMoveTarget = false;
+		Force.MovementStatus = TEXT("en posicion");
+		Force.OperationalState = TEXT("desplegado");
+		Force.Posture = Force.bNaval ? TEXT("fondeado") : TEXT("desplegado");
+	}
+	else
+	{
+		const FVector Dir = ToTarget / Dist;
+		const FVector Step = OldPos + Dir * BudgetWorld;
+		NewXY = FVector2D(Step.X, Step.Y);
+		Moved = BudgetWorld;
+		Force.MovementStatus = TEXT("en marcha por carretera");
+		Force.OperationalState = TEXT("en marcha");
+		Force.Posture = TEXT("en marcha por carretera");
+	}
+	Force.MoveBudgetRemainingWorld = FMath::Max(0.f, BudgetWorld - Moved);
+
+	const FVector NewPos = GroundedLandTokenLocationAtWorld(NewXY.X, NewXY.Y);
+	Force.WorldLocation = NewPos;
+	Force.MovementNodeId = FindNearestMovementNodeId(Force);   // nodo de referencia mas cercano
+
+	// Animacion: desliza el token de OldPos a NewPos por la carretera (reusa FForceMovementAnimation).
+	FForceMovementAnimation Anim;
+	Anim.ForceId = Force.Id;
+	Anim.ForceIndex = Index;
+	Anim.Points.Add(OldPos);
+	Anim.Points.Add(NewPos);
+	Anim.ElapsedSeconds = 0.f;
+	Anim.DurationSeconds = ComputeDriveDurationSeconds(FVector::Dist2D(OldPos, NewPos));   // velocidad relativa al zoom
+	UE_LOG(LogWorldLeader, Log, TEXT("[ArmyMove] RECTO dist=%.0f dur=%.1fs camH=%.0f"), FVector::Dist2D(OldPos, NewPos), Anim.DurationSeconds, ViewCamera ? ViewCamera->GetActorLocation().Z : DefaultCameraLocation.Z);
+	for (int32 i = ForceMovementAnimations.Num() - 1; i >= 0; --i)
+	{
+		if (ForceMovementAnimations[i].ForceId.Equals(Force.Id, ESearchCase::IgnoreCase))
+		{
+			ForceMovementAnimations.RemoveAtSwap(i);
+		}
+	}
+	ForceMovementAnimations.Add(MoveTemp(Anim));
+	return true;
+}
+
+bool AWLCampaign3DView::AdvanceForcePolyline(int32 Index)
+{
+	if (!ForceViews.IsValidIndex(Index))
+	{
+		return false;
+	}
+	FWLCampaign3DForceView& Force = ForceViews[Index];
+	if (Force.MovePathPoints.Num() < 2)
+	{
+		return false;
+	}
+
+	const float FullBudget = FMath::Max(1.f, GetArmyMovementBudgetKm(Force) * DetailWorldUnitsPerKm);
+	float Remaining = (Force.MoveBudgetRemainingWorld < 0.f) ? FullBudget : Force.MoveBudgetRemainingWorld;
+	if (Remaining < 1.f)
+	{
+		return false;   // sin alcance este turno; continuara al avanzar el mes
+	}
+
+	const FVector OldPos = Force.WorldLocation;
+	TArray<FVector> Traversed;
+	Traversed.Add(OldPos);
+
+	// MovePathPoints[0] = posicion actual; [1..] = trazado de la via hasta el destino. Avanza consumiendo
+	// segmentos por el cargador; al quedarse sin alcance se detiene a mitad de via (continua el proximo mes).
+	while (Force.MovePathPoints.Num() >= 2 && Remaining > 1.f)
+	{
+		const FVector A = Force.MovePathPoints[0];
+		const FVector B = Force.MovePathPoints[1];
+		const float Seg = FVector::Dist2D(A, B);
+		if (Seg <= Remaining + 1.f)
+		{
+			Remaining -= Seg;
+			Force.MovePathPoints.RemoveAt(0);
+			const FVector Bg = GroundedLandTokenLocationAtWorld(B.X, B.Y);
+			Force.MovePathPoints[0] = Bg;
+			Traversed.Add(Bg);
+		}
+		else
+		{
+			const float T = Remaining / FMath::Max(1.f, Seg);
+			const FVector P = FMath::Lerp(A, B, T);
+			const FVector Pg = GroundedLandTokenLocationAtWorld(P.X, P.Y);
+			Force.MovePathPoints[0] = Pg;
+			Traversed.Add(Pg);
+			Remaining = 0.f;
+		}
+	}
+
+	Force.WorldLocation = Traversed.Last();
+	Force.MoveBudgetRemainingWorld = FMath::Max(0.f, Remaining);
+	if (Force.MovePathPoints.Num() < 2)
+	{
+		Force.MovePathPoints.Reset();
+		Force.MovementStatus = TEXT("en posicion");
+		Force.OperationalState = TEXT("desplegado");
+		Force.Posture = Force.bNaval ? TEXT("fondeado") : TEXT("desplegado");
+	}
+	else
+	{
+		Force.MovementStatus = TEXT("en marcha por carretera");
+		Force.OperationalState = TEXT("en marcha");
+		Force.Posture = TEXT("en marcha por carretera");
+	}
+	Force.MovementNodeId = FindNearestMovementNodeId(Force);
+
+	if (Traversed.Num() >= 2)
+	{
+		FForceMovementAnimation Anim;
+		Anim.ForceId = Force.Id;
+		Anim.ForceIndex = Index;
+		Anim.Points = Traversed;
+		Anim.ElapsedSeconds = 0.f;
+		float TotalDist = 0.f;
+		for (int32 i = 0; i + 1 < Traversed.Num(); ++i)
+		{
+			TotalDist += FVector::Dist2D(Traversed[i], Traversed[i + 1]);
+		}
+		Anim.DurationSeconds = ComputeDriveDurationSeconds(TotalDist);   // velocidad relativa al zoom
+		UE_LOG(LogWorldLeader, Log, TEXT("[ArmyMove] CARRETERA dist=%.0f dur=%.1fs pts=%d camH=%.0f"), TotalDist, Anim.DurationSeconds, Traversed.Num(), ViewCamera ? ViewCamera->GetActorLocation().Z : DefaultCameraLocation.Z);
+		for (int32 i = ForceMovementAnimations.Num() - 1; i >= 0; --i)
+		{
+			if (ForceMovementAnimations[i].ForceId.Equals(Force.Id, ESearchCase::IgnoreCase))
+			{
+				ForceMovementAnimations.RemoveAtSwap(i);
+			}
+		}
+		ForceMovementAnimations.Add(MoveTemp(Anim));
+	}
+	return true;
+}
+
+bool AWLCampaign3DView::SetForceFreeMoveTarget(const FString& ForceId, const FVector& WorldClick, FWLCampaign3DForceView& OutForce)
+{
+	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
+	{
+		FWLCampaign3DForceView& Force = ForceViews[Index];
+		if (!Force.Id.Equals(ForceId, ESearchCase::IgnoreCase) || !Force.bMovable)
+		{
+			continue;
+		}
+		Force.MovePathNodeIds.Reset();   // anula ruta por nodos previa (boton Mover)
+		// Objetivo = punto clicado aterrizado, PERO apartado del interior de una ciudad (el ejercito para en el
+		// borde, no montado sobre los edificios).
+		FVector Target = GroundedLandTokenLocationAtWorld(WorldClick.X, WorldClick.Y);
+		Target = ClampTargetOffCities(Target, Force.WorldLocation);
+		Target = GroundedLandTokenLocationAtWorld(Target.X, Target.Y);
+		// Intenta SEGUIR EL TRAZADO de la carretera (curva a curva) hasta el objetivo. Si no hay una via comun
+		// cercana, cae a marcha recta. En ambos casos avanza ya su alcance este turno.
+		TArray<FVector> RoadPath;
+		if (ComputeRoadPath(Force.WorldLocation, Target, RoadPath) && RoadPath.Num() >= 2)
+		{
+			Force.MovePathPoints = MoveTemp(RoadPath);
+			Force.bHasMoveTarget = false;
+			AdvanceForcePolyline(Index);
+		}
+		else
+		{
+			Force.MovePathPoints.Reset();
+			Force.MoveTargetWorld = Target;
+			Force.bHasMoveTarget = true;
+			AdvanceForceTowardTarget(Index);
+		}
+		OutForce = Force;
+		if (SelectedForceHighlightId.Equals(Force.Id, ESearchCase::IgnoreCase))
+		{
+			SetSelectedForceHighlight(Force.Id);
+		}
+		return true;
+	}
+	return false;
 }
 
 void AWLCampaign3DView::UpdateForceMovementAnimations(float DeltaSeconds)
@@ -760,7 +1282,10 @@ void AWLCampaign3DView::UpdateForceMovementAnimations(float DeltaSeconds)
 			if (FlatDirection.SizeSquared() > 1.f)
 			{
 				const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(FlatDirection.Y, FlatDirection.X));
-				Marker->SetWorldRotation(FRotator(0.f, Yaw, 0.f));
+				// Gira SUAVE hacia la direccion de marcha (maniobra de vehiculo) en vez de encarar de golpe:
+				// el tanque "conduce" girando hacia donde va mientras avanza.
+				const FRotator SmoothRot = FMath::RInterpTo(Marker->GetComponentRotation(), FRotator(0.f, Yaw, 0.f), DeltaSeconds, 7.f);
+				Marker->SetWorldRotation(SmoothRot);
 			}
 		}
 		if (UPrimitiveComponent* Proxy = ForceSelectionMarkers.IsValidIndex(Animation.ForceIndex) ? ForceSelectionMarkers[Animation.ForceIndex] : nullptr)

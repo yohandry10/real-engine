@@ -279,7 +279,7 @@ void DrawCampaignSelectionPanel(
 		HUD->DrawText(TEXT("X"), Gold, PanelX + PanelW - 32.f, PanelY + 17.f, Font, 0.74f);
 
 		float Y = PanelY + 22.f;
-		HUD->DrawText(TEXT("FUERZA MILITAR PLACEHOLDER"), Gold, PanelX + 24.f, Y, SmallFont, 0.78f);
+		HUD->DrawText(TEXT("FUERZA MILITAR"), Gold, PanelX + 24.f, Y, SmallFont, 0.82f);
 		Y += 19.f;
 		HUD->DrawText(ShortenForPanel(PC->GetSelectedForceName(), 30), Text, PanelX + 24.f, Y, Font, 1.08f);
 		Y += 24.f;
@@ -364,23 +364,30 @@ void DrawCampaignSelectionPanel(
 			const TArray<FWLCampaignRecruitButton> Options = PC->GetSelectedForceRecruitOptions();
 			if (Options.Num() > 0)
 			{
+				// Carta GRANDE por unidad (icono + nombre + coste + dias), estilo Total War. El layout
+				// (RBtnW/RBtnH/RBtnGap/RGridY) DEBE coincidir con el hit-test de Views.cpp -> mantener en sync.
 				const float RBtnW = (PanelW - 48.f) * 0.5f;
-				const float RBtnH = 30.f;
-				const float RBtnGap = 6.f;
-				HUD->DrawText(TEXT("RECLUTAR"), Gold, PanelX + 18.f, DisabledStartY, SmallFont, 0.76f);
-				const float RGridY = DisabledStartY + 18.f;
+				const float RBtnH = 60.f;
+				const float RBtnGap = 8.f;
+				HUD->DrawText(TEXT("RECLUTAR UNIDADES"), Gold, PanelX + 18.f, DisabledStartY, SmallFont, 0.92f);
+				const float RGridY = DisabledStartY + 22.f;
 				const int32 MaxOpt = FMath::Min(Options.Num(), 6);
+				const FLinearColor RCardBg(0.07f, 0.12f, 0.10f, 0.98f);
 				for (int32 i = 0; i < MaxOpt; ++i)
 				{
 					const float bx = PanelX + 18.f + static_cast<float>(i % 2) * (RBtnW + RBtnGap);
 					const float by = RGridY + static_cast<float>(i / 2) * (RBtnH + RBtnGap);
-					HUD->DrawRect(FLinearColor(0.28f, 0.40f, 0.20f, 0.96f), bx, by, RBtnW, RBtnH);
-					HUD->DrawText(ShortenForPanel(Options[i].Label, 14), Text, bx + 10.f, by + 8.f, SmallFont, 0.74f);
-					HUD->DrawText(FString::Printf(TEXT("%lld"), static_cast<long long>(Options[i].Cost)), Gold, bx + RBtnW - 58.f, by + 8.f, SmallFont, 0.70f);
+					HUD->DrawRect(RCardBg, bx, by, RBtnW, RBtnH);
+					HUD->DrawRect(CampaignTroopCardColor(Options[i].Label), bx, by, 6.f, RBtnH);   // franja de categoria
+					DrawTroopIcon(HUD, CampaignTroopIconFor(Options[i].Label), bx + 14.f, by + 9.f, 42.f, 42.f);
+					HUD->DrawText(ShortenForPanel(Options[i].Label, 15), Text, bx + 64.f, by + 7.f, SmallFont, 0.98f);
+					HUD->DrawText(FString::Printf(TEXT("$%lld"), static_cast<long long>(Options[i].Cost)), Gold, bx + 64.f, by + 32.f, SmallFont, 0.9f);
+					HUD->DrawText(FString::Printf(TEXT("%d dia%s"), Options[i].Turns, Options[i].Turns == 1 ? TEXT("") : TEXT("s")),
+						Muted, bx + RBtnW - 66.f, by + 32.f, SmallFont, 0.82f);
 				}
 				const int32 RRows = (MaxOpt + 1) / 2;
-				const float AfterGridY = RGridY + static_cast<float>(RRows) * (RBtnH + RBtnGap) + 2.f;
-				HUD->DrawText(ShortenForPanel(PC->GetSelectedForceRecruitStatus(), 60), Muted, PanelX + 18.f, AfterGridY, SmallFont, 0.62f);
+				const float AfterGridY = RGridY + static_cast<float>(RRows) * (RBtnH + RBtnGap) + 4.f;
+				HUD->DrawText(ShortenForPanel(PC->GetSelectedForceRecruitStatus(), 56), Muted, PanelX + 18.f, AfterGridY, SmallFont, 0.74f);
 			}
 		}
 

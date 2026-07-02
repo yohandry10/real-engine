@@ -105,6 +105,19 @@ struct FWLCampaign3DForceView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ForceType;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString MarkerCategory;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString MovementNodeId;
+	// Ruta pendiente de marcha (ids de nodo; [0] = nodo actual, ultimo = destino). El ejercito avanza por
+	// ella turno a turno segun su "cargador" de movimiento. Vacia = sin orden de marcha.
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") TArray<FString> MovePathNodeIds;
+	// Movimiento LIBRE por carretera: el ejercito avanza hacia este punto del mundo (sobre la via, NO una
+	// ciudad), recorriendo su alcance por turno y deteniendose a mitad de carretera donde se hizo clic.
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bHasMoveTarget = false;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FVector MoveTargetWorld = FVector::ZeroVector;
+	// Ruta de marcha SIGUIENDO EL TRAZADO de la carretera (puntos de mundo; [0]=posicion actual). Si esta
+	// llena, el ejercito conduce por ella curva a curva. Si no, cae al destino recto (MoveTargetWorld).
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") TArray<FVector> MovePathPoints;
+	// Alcance (unidades de mundo) que le QUEDA por recorrer este turno. Se rellena al avanzar el mes y se
+	// descuenta en cada paso; asi spamear clics no permite cruzar mas de lo permitido por turno. -1 = lleno.
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") float MoveBudgetRemainingWorld = -1.f;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString MovementStatus;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString LocationName;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString ProvinceId;
@@ -205,6 +218,11 @@ public:
 	// Crea/actualiza el token de EJERCITO movible de cada fuerte cuya guarnicion ha reclutado tropas
 	// (modelo Total War: recluta en el edificio, despliega un ejercito aparte que avanza por carretera).
 	void SyncRecruitedArmyTokens();
+	// Avanza TODOS los ejercitos en marcha por su ruta segun su cargador de movimiento (1 vez por turno [M]).
+	void AdvanceArmyMovements();
+	// Orden de marcha LIBRE: el ejercito ForceId recorre la carretera hacia WorldClick (ajustado a la via mas
+	// cercana) y se detiene ahi, avanzando su alcance este turno. Devuelve la fuerza actualizada en OutForce.
+	bool SetForceFreeMoveTarget(const FString& ForceId, const FVector& WorldClick, FWLCampaign3DForceView& OutForce);
 
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") FVector2D TheaterCenterLonLat = FVector2D(-68.6f, 7.2f);
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|Campaign3D") float GeoScale = 9000.f;
@@ -235,6 +253,10 @@ private:
 	UPROPERTY() UProceduralMeshComponent* MovementRoutePreviewMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
 	UPROPERTY() UMaterialInterface* VertexColorMaterial = nullptr;
+	// Material UNLIT de vertex-color para los TOKENS de ejercito (tanques): el VertexColorMaterial del Engine
+	// es LIT, asi que el tanque (3D) se oscurecia segun la luz/sombra de su posicion. Unlit -> color de
+	// vertice constante (mismo tan desde cualquier angulo/zoom/posicion). Ver /Game/GenVehicle/M_VehicleUnlit.
+	UPROPERTY() UMaterialInterface* ForceTokenMaterial = nullptr;
 	// Material LIT/PBR del terreno (M1 del estándar visual): mezcla pasto/roca por pendiente, teñido por
 	// bioma (vertex color), normal maps, tileable por posición de mundo. /Game/GenTerrain/M_TerrainLit.
 	// Reemplaza el VertexColorMaterial unlit del terreno. Ver Docs/CAMPAIGN3D_VISUAL_STANDARD.md.
@@ -429,6 +451,38 @@ private:
 	FVector GroundedLandTokenLocation(float Lon, float Lat) const;
 	FVector GetForceSelectionProxyLocation(const FWLCampaign3DForceView& Force, const FVector& MarkerLocation) const;
 	FVector GetForceLabelLocation(const FWLCampaign3DForceView& Force, const FVector& MarkerLocation) const;
+	// "Cargador" de movimiento por turno (km): la velocidad la marca la unidad mas lenta (infanteria/
+	// artilleria a pie -> lento; vehiculos -> rapido). Asi un destino lejano tarda varios turnos.
+	float GetArmyMovementBudgetKm(const FWLCampaign3DForceView& Force) const;
+	// Duracion de la animacion de marcha para una distancia de mundo, RELATIVA AL ZOOM: la velocidad en
+	// PANTALLA queda constante y lenta (de cerca el tanque conduce despacio; de lejos tarda menos porque el
+	// trecho es pequeno en pantalla). Asi no se ve como salto a ningun zoom.
+	float ComputeDriveDurationSeconds(float DistanceWorld) const;
+	// Avanza un ejercito por su MovePathNodeIds el equivalente a UN turno (su cargador), animando la marcha
+	// por la carretera. Devuelve true si avanzo. Reutiliza StartForceMovementAnimation (la animacion).
+	bool AdvanceForceAlongPath(int32 Index);
+	// Movimiento LIBRE: avanza el ejercito en LINEA hacia MoveTargetWorld su alcance de este turno, lo
+	// aterriza y anima el deslizamiento. Devuelve true si avanzo. Se detiene exacto al llegar al punto.
+	bool AdvanceForceTowardTarget(int32 Index);
+	// Avanza el ejercito por su MovePathPoints (trazado de carretera) su alcance de este turno, girando suave
+	// en cada curva y aterrizando cada paso. Es como "conducir por la via". Devuelve true si avanzo.
+	bool AdvanceForcePolyline(int32 Index);
+	// Convierte las rutas visibles (FWLCampaignRouteBuilder::GetAllRoadRoutes) en polilineas de mundo para
+	// que los ejercitos NAVEGUEN por el trazado real. Se llama tras construir las carreteras.
+	void BuildRoadFollowPolylines();
+	// Ruta SOBRE el trazado de carretera de Start a End (misma via). OutPoints = [Start, sobre-la-via..., End].
+	// false si no hay una via comun cercana -> el llamador cae a movimiento recto.
+	bool ComputeRoadPath(const FVector& StartWorld, const FVector& EndWorld, TArray<FVector>& OutPoints) const;
+	// Punto mas cercano sobre CUALQUIER via navegable (RoadFollowPolylines) a un punto de mundo. false si no hay.
+	// Sirve para que el ejercito NAZCA sobre la carretera en frente del fuerte (y no entre por un punto lejano).
+	bool NearestRoadPointWorld(const FVector& World, FVector& OutPoint) const;
+	// Aparta un objetivo que caiga DENTRO de la huella de una ciudad hacia su borde: el ejercito no debe pararse
+	// ENCIMA de la ciudad (se monta sobre los edificios). Devuelve el objetivo ya corregido.
+	FVector ClampTargetOffCities(const FVector& TargetWorld, const FVector& FromWorld) const;
+	// Igual que GroundedLandTokenLocation pero a partir de un (X,Y) del mundo (para posiciones a mitad de via).
+	FVector GroundedLandTokenLocationAtWorld(float WorldX, float WorldY) const;
+	// Polilineas de mundo de cada via (para que los ejercitos sigan el trazado).
+	TArray<TArray<FVector>> RoadFollowPolylines;
 	void BuildMovementNodesAndEdges();
 	void BuildIntercityRoads();
 	void BuildVenezuelaRoadAssetLayer();

@@ -267,6 +267,23 @@ bool UWLDataRegistry::LoadBuildingsFromFile(const FString& FilePath)
 
 		double Cost = 0.0;
 		if (Obj->TryGetNumberField(TEXT("cost"), Cost)) B.Cost = static_cast<int64>(Cost);
+		double Upkeep = 0.0;
+		if (Obj->TryGetNumberField(TEXT("monthly_upkeep"), Upkeep)) B.MonthlyUpkeep = static_cast<int64>(Upkeep);
+		double FinancialIncome = 0.0;
+		if (Obj->TryGetNumberField(TEXT("bonus_financial_income"), FinancialIncome))
+		{
+			B.BonusFinancialIncome = static_cast<int64>(FinancialIncome);
+		}
+		int32 MaxLevel = 0;
+		if (Obj->TryGetNumberField(TEXT("max_level"), MaxLevel))
+		{
+			B.MaxLevel = MaxLevel;
+		}
+		double UpgradeMultiplier = 0.0;
+		if (Obj->TryGetNumberField(TEXT("upgrade_cost_multiplier"), UpgradeMultiplier))
+		{
+			B.UpgradeCostMultiplier = UpgradeMultiplier;
+		}
 
 		int32 Tmp = 0;
 		if (Obj->TryGetNumberField(TEXT("bonus_oil"), Tmp))      B.BonusOil = Tmp;
@@ -274,6 +291,14 @@ bool UWLDataRegistry::LoadBuildingsFromFile(const FString& FilePath)
 		if (Obj->TryGetNumberField(TEXT("bonus_food"), Tmp))     B.BonusFood = Tmp;
 		if (Obj->TryGetNumberField(TEXT("bonus_minerals"), Tmp)) B.BonusMinerals = Tmp;
 		if (Obj->TryGetNumberField(TEXT("bonus_industry"), Tmp)) B.BonusIndustry = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_infrastructure"), Tmp)) B.BonusInfrastructure = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_public_order"), Tmp)) B.BonusPublicOrder = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_recruitment_capacity"), Tmp)) B.BonusRecruitmentCapacity = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_military_power"), Tmp)) B.BonusMilitaryPower = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_defense"), Tmp)) B.BonusDefense = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_air_capacity"), Tmp)) B.BonusAirCapacity = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_naval_capacity"), Tmp)) B.BonusNavalCapacity = Tmp;
+		if (Obj->TryGetNumberField(TEXT("bonus_technology"), Tmp)) B.BonusTechnology = Tmp;
 
 		if (B.IsValid())
 		{
@@ -380,6 +405,18 @@ bool UWLDataRegistry::LoadGoodsFromFile(const FString& FilePath)
 
 		int32 Price = 0;
 		if (Obj->TryGetNumberField(TEXT("base_price"), Price)) G.BasePrice = Price;
+
+		Obj->TryGetStringField(TEXT("base_source"), G.BaseSource);
+		G.BaseSource = NormalizeDataId(G.BaseSource);
+
+		double BaseShare = 0.0;
+		if (Obj->TryGetNumberField(TEXT("base_share"), BaseShare)) G.BaseShare = FMath::Max(0.0, BaseShare);
+
+		double DemandPerMillion = 0.0;
+		if (Obj->TryGetNumberField(TEXT("demand_per_million"), DemandPerMillion))
+		{
+			G.DemandPerMillion = FMath::Max(0.0, DemandPerMillion);
+		}
 
 		double Share = 0.0;
 		if (Obj->TryGetNumberField(TEXT("industry_share"), Share)) G.IndustryShare = FMath::Max(0.0, Share);
@@ -570,10 +607,20 @@ bool UWLDataRegistry::ValidateLoadedData() const
 	for (const TPair<FString, FWLBuildingData>& Pair : Buildings)
 	{
 		const FWLBuildingData& Building = Pair.Value;
-		if (Building.Cost < 0 || Building.BonusOil < 0 || Building.BonusGas < 0
+		if (Building.Cost < 0 || Building.MaxLevel < 1 || Building.MaxLevel > 5
+			|| Building.UpgradeCostMultiplier < 1.0 || Building.MonthlyUpkeep < 0
+			|| Building.BonusOil < 0 || Building.BonusGas < 0
 			|| Building.BonusFood < 0 || Building.BonusMinerals < 0 || Building.BonusIndustry < 0)
 		{
-			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: edificio %s tiene coste/bonus negativo."), *Building.Id);
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: edificio %s tiene coste/nivel/bonus invalido."), *Building.Id);
+			bOk = false;
+		}
+		if (Building.BonusFinancialIncome < 0 || Building.BonusInfrastructure < 0
+			|| Building.BonusRecruitmentCapacity < 0 || Building.BonusMilitaryPower < 0
+			|| Building.BonusDefense < 0 || Building.BonusAirCapacity < 0
+			|| Building.BonusNavalCapacity < 0 || Building.BonusTechnology < 0)
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: edificio %s tiene efectos negativos invalidos."), *Building.Id);
 			bOk = false;
 		}
 	}
@@ -585,6 +632,16 @@ bool UWLDataRegistry::ValidateLoadedData() const
 		if (Good.BasePrice < 0)
 		{
 			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: bien %s tiene precio negativo."), *Good.Id);
+			bOk = false;
+		}
+		if (Good.BaseShare < 0.0 || Good.DemandPerMillion < 0.0 || Good.IndustryShare < 0.0)
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: bien %s tiene valores economicos negativos."), *Good.Id);
+			bOk = false;
+		}
+		if (Good.Category == EWLGoodCategory::Raw && Good.BaseShare > 0.0 && Good.BaseSource.IsEmpty())
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: bien crudo %s declara base_share sin base_source."), *Good.Id);
 			bOk = false;
 		}
 		for (const FString& InputId : Good.Inputs)

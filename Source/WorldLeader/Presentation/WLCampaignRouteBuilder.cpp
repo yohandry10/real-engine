@@ -250,6 +250,9 @@ namespace
 	// -2350, asi que la ruta costera flotaba sobre el mar). Ambos los fija el view antes de construir.
 	TArray<FVector> GRoadClipCircles;             // X=lon, Y=lat, Z=radio en grados
 	TFunction<bool(float, float)> GRoadLandTest;  // true = (lon,lat) esta en tierra
+	// Todas las rutas (Lon/Lat) usadas para dibujar las vias visibles. El view las lee para que los
+	// ejercitos NAVEGUEN por el trazado real de la carretera (no en linea recta).
+	TArray<FWLCampaignRouteSpec> GAllRoadRoutes;
 
 	// Un punto se EXCLUYE (no se dibuja la via ahi) si cae dentro de una ciudad o sobre el mar.
 	bool RoutePointExcluded(const FVector2D& P)
@@ -1299,6 +1302,8 @@ void FWLCampaignRouteBuilder::BuildDefaultTheaterRoutes(
 		}
 	};
 
+	GAllRoadRoutes = Routes;   // reset + rutas del teatro (para navegacion de ejercitos por la via real)
+
 	for (const FWLCampaignRouteSpec& Route : Routes)
 	{
 		AddRoute(Buffer, Route, ProjectLonLat);
@@ -1319,10 +1324,23 @@ void FWLCampaignRouteBuilder::AppendRoutes(
 		return;
 	}
 
+	GAllRoadRoutes.Append(Routes);   // acumula la red auto para la navegacion de ejercitos por la via
+
 	FRouteMeshBuffer Buffer;
 	for (const FWLCampaignRouteSpec& Route : Routes)
 	{
 		AddRoute(Buffer, Route, ProjectLonLat);
 	}
 	CommitRoutes(RoadMesh, RoadMaterial, Buffer);
+}
+
+const TArray<FWLCampaignRouteSpec>& FWLCampaignRouteBuilder::GetAllRoadRoutes()
+{
+	return GAllRoadRoutes;
+}
+
+TArray<FVector2D> FWLCampaignRouteBuilder::BuildSmoothedRouteLonLat(const FWLCampaignRouteSpec& Spec)
+{
+	// IDENTICO a lo que hace AddRoute para la cinta visible -> el ejercito conduce por el mismo trazado.
+	return DensifyLonLat(SmoothPoints(Spec.Points, Spec.Smoothness), 0.06f);
 }

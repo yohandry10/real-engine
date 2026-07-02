@@ -191,7 +191,12 @@ bool AWLCampaign3DView::IsForceSelectableByProximity(int32 Index) const
 	const FWLCampaign3DForceView& Force = ForceViews[Index];
 	if (Force.bIsRecruitmentBase)
 	{
-		return false;
+		// El FUERTE (base de reclutamiento) es un EDIFICIO sin token: SIEMPRE seleccionable por proximidad
+		// (empieza VACIO, y hay que poder clicarlo para abrir el panel y reclutar). Antes devolvia false, asi
+		// que clicar el fuerte caia al terreno y agarraba la ciudad cercana (18500u) o nada. Esta proximidad
+		// (2800u, cubre el edificio) corre ANTES que la de ciudad y el fuerte esta a >=14km de toda ciudad,
+		// asi que no roba clics de ciudad.
+		return true;
 	}
 	if (!ForceHasTroopsForToken(Index))
 	{
@@ -385,20 +390,16 @@ bool AWLCampaign3DView::UpdateForceMovementLocation(
 			continue;
 		}
 
-		const FVector StartLocation = Force.WorldLocation;
-		Force.MovementNodeId = DestinationNode->Id;
-		Force.MovementStatus = TEXT("reubicado");
-		Force.LocationName = DestinationNode->Name;
-		Force.ProvinceId = DestinationNode->ProvinceId;
-		Force.ProvinceName = DestinationNode->ProvinceName;
-		Force.NearbyCity = DestinationNode->Name;
-		Force.OperationalState = TEXT("reubicado en destino");
-		Force.Posture = Force.bNaval ? TEXT("patrulla en nuevo puerto") : TEXT("presencia en nuevo nodo");
-		Force.WorldLocation = GetForceMarkerLocationForNode(Force, *DestinationNode);
-		Force.Lon = DestinationNode->Lon;
-		Force.Lat = DestinationNode->Lat;
-
-		StartForceMovementAnimation(Index, RouteNodes, StartLocation);
+		// Guarda la RUTA COMPLETA como orden de marcha y avanza SOLO la primera etapa este turno (el "cargador"
+		// limita cuanto recorre). Los turnos [M] siguientes continuan via AdvanceArmyMovements: un destino
+		// lejano tarda varios turnos, con animacion por la carretera. Ya NO se teletransporta al destino.
+		Force.bHasMoveTarget = false;   // el boton Mover (ruta por nodos) anula un movimiento libre en curso
+		Force.MovePathNodeIds.Reset();
+		for (const FWLCampaign3DMovementNodeView& Node : RouteNodes)
+		{
+			Force.MovePathNodeIds.Add(Node.Id);
+		}
+		AdvanceForceAlongPath(Index);
 
 		OutForce = Force;
 		if (SelectedForceHighlightId.Equals(Force.Id, ESearchCase::IgnoreCase))

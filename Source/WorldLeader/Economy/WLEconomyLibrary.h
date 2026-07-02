@@ -61,6 +61,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static int64 CalculateBuildingIncomeWithRules(const FWLBuildingData& Building, const FWLBalanceRules& Rules);
 
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	static int64 CalculateBuildingIncomeForLevel(
+		const FWLBuildingData& Building,
+		const FWLBalanceRules& Rules,
+		int32 Level);
+
 	/** Solo la parte de impuestos a la poblacion del ingreso provincial (a tasa default). */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	static int64 CalculateProvincePopulationTax(const FWLProvinceData& Province, const FWLBalanceRules& Rules);

@@ -10,6 +10,7 @@
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Military/WLMilitarySubsystem.h"
+#include "Politics/WLPoliticalSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLConstructionCanonicalIdsTest,
@@ -80,12 +81,17 @@ bool FWLGoodsCatalogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Petroleo existe"), Registry->GetGood(TEXT("oil"), Oil));
 	TestEqual(TEXT("Petroleo es crudo"), Oil.Category, EWLGoodCategory::Raw);
 	TestTrue(TEXT("Petroleo sin insumos"), Oil.Inputs.IsEmpty());
+	TestEqual(TEXT("Petroleo sale de base_oil"), Oil.BaseSource, FString(TEXT("oil")));
+	TestEqual(TEXT("Petroleo usa toda la base"), Oil.BaseShare, 1.0);
+	TestTrue(TEXT("Petroleo declara demanda"), Oil.DemandPerMillion > 0.0);
 
 	FWLGoodData Steel;
 	TestTrue(TEXT("Acero existe"), Registry->GetGood(TEXT("STEEL"), Steel));   // id no canonico
 	TestEqual(TEXT("Acero es manufacturado"), Steel.Category, EWLGoodCategory::Manufactured);
 	TestTrue(TEXT("Acero usa minerales"), Steel.Inputs.Contains(TEXT("minerals")));
 	TestTrue(TEXT("Acero usa carbon"), Steel.Inputs.Contains(TEXT("coal")));
+	TestTrue(TEXT("Acero declara cuota industrial"), Steel.IndustryShare > 0.0);
+	TestTrue(TEXT("Acero declara demanda"), Steel.DemandPerMillion > 0.0);
 
 	for (const FWLGoodData& Good : Registry->GetAllGoods())
 	{
@@ -138,17 +144,22 @@ bool FWLMilitarySubsystemGuardsTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Ejercito CO valido"), ArmyCo.IsEmpty());
 
 	FString Message;
+	if (UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>())
+	{
+		TestTrue(TEXT("CO y VE en guerra para auto-resolve"),
+			Politics->DeclareWar(TEXT("VE"), TEXT("CO"), Message));
+	}
 	TestFalse(TEXT("No mover a provincia inexistente"),
 		Military->MoveArmy(ArmyVe, TEXT("VE-XX"), Message));
 	TestEqual(TEXT("No combatir sin adyacencia"),
 		static_cast<int32>(Military->AutoResolveBattle(ArmyVe, ArmyCo, Message)),
 		static_cast<int32>(EWLBattleResult::Invalid));
 
-	const FString ArmyCoGua = Military->CreateArmy(TEXT("CO"), TEXT("CO-GUA"), TEXT("infantry"), 1, TEXT(""));
-	TestFalse(TEXT("Ejercito CO-GUA valido"), ArmyCoGua.IsEmpty());
+	const FString ArmyCoCes = Military->CreateArmy(TEXT("CO"), TEXT("CO-CES"), TEXT("infantry"), 1, TEXT(""));
+	TestFalse(TEXT("Ejercito CO-CES valido"), ArmyCoCes.IsEmpty());
 
 	TestEqual(TEXT("Victoria decisiva adyacente"),
-		static_cast<int32>(Military->AutoResolveBattle(ArmyVe, ArmyCoGua, Message)),
+		static_cast<int32>(Military->AutoResolveBattle(ArmyVe, ArmyCoCes, Message)),
 		static_cast<int32>(EWLBattleResult::AttackerDecisiveVictory));
 
 	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
@@ -156,7 +167,7 @@ bool FWLMilitarySubsystemGuardsTest::RunTest(const FString& Parameters)
 	if (Tick)
 	{
 		TestEqual(TEXT("Ocupacion cambia controlador"),
-			Tick->GetProvinceControllerIso(TEXT("CO-GUA")), FString(TEXT("VE")));
+			Tick->GetProvinceControllerIso(TEXT("CO-CES")), FString(TEXT("VE")));
 	}
 
 	GameInstance->Shutdown();

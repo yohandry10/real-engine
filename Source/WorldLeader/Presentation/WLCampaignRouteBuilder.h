@@ -51,4 +51,13 @@ public:
 	// el mar (la via va a Z+990 y el mar a -2350). El view pasa un test (lon,lat)->bool. Test vacio
 	// (TFunction nula) = desactivado.
 	static void SetRoadLandMask(TFunction<bool(float Lon, float Lat)> LandTest);
+
+	// Todas las rutas (Lon/Lat) de las vias visibles, acumuladas al construirlas. El view las convierte en
+	// polilineas de mundo para que los ejercitos NAVEGUEN por el trazado real de la carretera.
+	static const TArray<FWLCampaignRouteSpec>& GetAllRoadRoutes();
+
+	// Waypoints (Lon/Lat) SUAVIZADOS (Catmull-Rom) + DENSIFICADOS de una ruta, EXACTAMENTE como la via visible
+	// que dibuja AddRoute. El view los usa para que los ejercitos conduzcan por el trazado que se VE (no por los
+	// puntos de control crudos y escasos, que hacian que el tanque cortara/saltara y entrara por un punto lejano).
+	static TArray<FVector2D> BuildSmoothedRouteLonLat(const FWLCampaignRouteSpec& Spec);
 };

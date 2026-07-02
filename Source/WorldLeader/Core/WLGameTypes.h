@@ -131,12 +131,24 @@ struct FWLBuildingData
 	UPROPERTY(BlueprintReadOnly, Category = "Building") FString Name;
 	UPROPERTY(BlueprintReadOnly, Category = "Building") EWLBuildingSlot Slot = EWLBuildingSlot::Economic;
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int64 Cost = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 MaxLevel = 5;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") double UpgradeCostMultiplier = 1.65;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int64 MonthlyUpkeep = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusOil = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusGas = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusFood = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusMinerals = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusIndustry = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int64 BonusFinancialIncome = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusInfrastructure = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusPublicOrder = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusRecruitmentCapacity = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusMilitaryPower = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusDefense = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusAirCapacity = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusNavalCapacity = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusTechnology = 0;
 
 	bool IsValid() const { return !Id.IsEmpty(); }
 };
@@ -163,12 +175,36 @@ struct FWLGoodData
 	UPROPERTY(BlueprintReadOnly, Category = "Good") FString Name;
 	UPROPERTY(BlueprintReadOnly, Category = "Good") EWLGoodCategory Category = EWLGoodCategory::Raw;
 	UPROPERTY(BlueprintReadOnly, Category = "Good") int32 BasePrice = 0;
+	/** FE2.3: base provincial que alimenta este crudo: oil, gas, food o minerals. */
+	UPROPERTY(BlueprintReadOnly, Category = "Good") FString BaseSource;
+	/** FE2.3: fraccion de esa base provincial que sale como este crudo. */
+	UPROPERTY(BlueprintReadOnly, Category = "Good") double BaseShare = 0.0;
+	/** FE3.1: demanda nacional mensual por cada millon de habitantes. */
+	UPROPERTY(BlueprintReadOnly, Category = "Good") double DemandPerMillion = 0.0;
 	/** IDs de bienes necesarios para producirlo (vacio en crudos). */
 	UPROPERTY(BlueprintReadOnly, Category = "Good") TArray<FString> Inputs;
 	/** FE2.2: fraccion de la produccion industrial que sale como este bien (solo manufacturados). */
 	UPROPERTY(BlueprintReadOnly, Category = "Good") double IndustryShare = 0.0;
 
 	bool IsValid() const { return !Id.IsEmpty(); }
+};
+
+/** FE3.4: shock temporal de mercado que multiplica el precio de un bien o de todo el mercado. */
+USTRUCT(BlueprintType)
+struct FWLMarketShockState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Market") FString ShockId;
+	/** GoodId en minusculas, o "*" para afectar todos los bienes. */
+	UPROPERTY(BlueprintReadOnly, Category = "Market") FString GoodId;
+	UPROPERTY(BlueprintReadOnly, Category = "Market") FString Title;
+	UPROPERTY(BlueprintReadOnly, Category = "Market") FString SourceEventId;
+	UPROPERTY(BlueprintReadOnly, Category = "Market") double PriceMultiplier = 1.0;
+	UPROPERTY(BlueprintReadOnly, Category = "Market") int32 RemainingMonths = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Market") int32 TotalMonths = 0;
+
+	bool IsValid() const { return !ShockId.IsEmpty() && !GoodId.IsEmpty() && PriceMultiplier > 0.0 && RemainingMonths > 0; }
 };
 
 /** Tipo de unidad militar (ver roadmap "Tipos de fuerzas"). */

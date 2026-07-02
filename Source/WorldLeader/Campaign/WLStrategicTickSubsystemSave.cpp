@@ -14,7 +14,10 @@ void UWLStrategicTickSubsystem::WriteSaveSnapshot(
 	int32& OutMonth,
 	TArray<FWLNationTreasurySave>& OutTreasuries,
 	TArray<FWLProvinceBuildingsSave>& OutProvinceBuildings,
-	TArray<FWLProvinceRuntimeState>& OutProvinceStates) const
+	TArray<FWLProvinceRuntimeState>& OutProvinceStates,
+	TArray<FWLMarketShockState>* OutMarketShocks,
+	TArray<FWLFinancialInstrumentState>* OutFinancialInstruments,
+	TArray<FWLForeignSupportState>* OutForeignSupportStates) const
 {
 	OutYear = CurrentYear;
 	OutMonth = CurrentMonth;
@@ -28,6 +31,10 @@ void UWLStrategicTickSubsystem::WriteSaveSnapshot(
 		if (const int32* TaxRate = TaxRates.Find(Pair.Key))
 		{
 			SavedTreasury.TaxRatePercent = *TaxRate;   // FE1.2: -1 se mantiene si nunca se ajusto
+		}
+		if (const int32* TariffRate = TariffRates.Find(Pair.Key))
+		{
+			SavedTreasury.TariffRatePercent = *TariffRate;   // FE4.3
 		}
 		OutTreasuries.Add(SavedTreasury);
 	}
@@ -46,8 +53,28 @@ void UWLStrategicTickSubsystem::WriteSaveSnapshot(
 
 		FWLProvinceBuildingsSave SavedBuildings;
 		SavedBuildings.ProvinceId = Pair.Key;
-		SavedBuildings.BuildingIds = Pair.Value;
-		SavedBuildings.BuildingIds.Sort();
+		TArray<TPair<FString, int32>> Entries;
+		for (const FString& BuildingId : Pair.Value)
+		{
+			int32 Level = 1;
+			if (const TMap<FString, int32>* Levels = ProvinceBuildingLevels.Find(Pair.Key))
+			{
+				if (const int32* SavedLevel = Levels->Find(BuildingId))
+				{
+					Level = FMath::Max(1, *SavedLevel);
+				}
+			}
+			Entries.Add(TPair<FString, int32>(BuildingId, Level));
+		}
+		Entries.Sort([](const TPair<FString, int32>& A, const TPair<FString, int32>& B)
+		{
+			return A.Key < B.Key;
+		});
+		for (const TPair<FString, int32>& Entry : Entries)
+		{
+			SavedBuildings.BuildingIds.Add(Entry.Key);
+			SavedBuildings.BuildingLevels.Add(Entry.Value);
+		}
 		OutProvinceBuildings.Add(SavedBuildings);
 	}
 	OutProvinceBuildings.Sort([](const FWLProvinceBuildingsSave& A, const FWLProvinceBuildingsSave& B)
@@ -80,6 +107,54 @@ void UWLStrategicTickSubsystem::WriteSaveSnapshot(
 	{
 		return A.ProvinceId < B.ProvinceId;
 	});
+
+	if (OutMarketShocks)
+	{
+		OutMarketShocks->Reset();
+		for (const FWLMarketShockState& Shock : ActiveMarketShocks)
+		{
+			if (Shock.IsValid())
+			{
+				OutMarketShocks->Add(Shock);
+			}
+		}
+		OutMarketShocks->Sort([](const FWLMarketShockState& A, const FWLMarketShockState& B)
+		{
+			return A.ShockId < B.ShockId;
+		});
+	}
+
+	if (OutFinancialInstruments)
+	{
+		OutFinancialInstruments->Reset();
+		for (const FWLFinancialInstrumentState& Instrument : FinancialInstruments)
+		{
+			if (Instrument.PrincipalRemaining > 0 || Instrument.bDefaulted)
+			{
+				OutFinancialInstruments->Add(Instrument);
+			}
+		}
+		OutFinancialInstruments->Sort([](const FWLFinancialInstrumentState& A, const FWLFinancialInstrumentState& B)
+		{
+			return A.InstrumentId < B.InstrumentId;
+		});
+	}
+
+	if (OutForeignSupportStates)
+	{
+		OutForeignSupportStates->Reset();
+		for (const FWLForeignSupportState& Support : ForeignSupportStates)
+		{
+			if (!Support.bCompleted || Support.Type == EWLForeignSupportType::ForeignDirectInvestment)
+			{
+				OutForeignSupportStates->Add(Support);
+			}
+		}
+		OutForeignSupportStates->Sort([](const FWLForeignSupportState& A, const FWLForeignSupportState& B)
+		{
+			return A.SupportId < B.SupportId;
+		});
+	}
 }
 
 bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
@@ -88,6 +163,50 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 	const TArray<FWLNationTreasurySave>& SavedTreasuries,
 	const TArray<FWLProvinceBuildingsSave>& SavedProvinceBuildings,
 	const TArray<FWLProvinceRuntimeState>& SavedProvinceStates,
+	FString& OutMessage)
+{
+	return RestoreSaveSnapshot(
+		SavedYear,
+		SavedMonth,
+		SavedTreasuries,
+		SavedProvinceBuildings,
+		SavedProvinceStates,
+		TArray<FWLMarketShockState>(),
+		TArray<FWLFinancialInstrumentState>(),
+		TArray<FWLForeignSupportState>(),
+		OutMessage);
+}
+
+bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
+	int32 SavedYear,
+	int32 SavedMonth,
+	const TArray<FWLNationTreasurySave>& SavedTreasuries,
+	const TArray<FWLProvinceBuildingsSave>& SavedProvinceBuildings,
+	const TArray<FWLProvinceRuntimeState>& SavedProvinceStates,
+	const TArray<FWLMarketShockState>& SavedMarketShocks,
+	FString& OutMessage)
+{
+	return RestoreSaveSnapshot(
+		SavedYear,
+		SavedMonth,
+		SavedTreasuries,
+		SavedProvinceBuildings,
+		SavedProvinceStates,
+		SavedMarketShocks,
+		TArray<FWLFinancialInstrumentState>(),
+		TArray<FWLForeignSupportState>(),
+		OutMessage);
+}
+
+bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
+	int32 SavedYear,
+	int32 SavedMonth,
+	const TArray<FWLNationTreasurySave>& SavedTreasuries,
+	const TArray<FWLProvinceBuildingsSave>& SavedProvinceBuildings,
+	const TArray<FWLProvinceRuntimeState>& SavedProvinceStates,
+	const TArray<FWLMarketShockState>& SavedMarketShocks,
+	const TArray<FWLFinancialInstrumentState>& SavedFinancialInstruments,
+	const TArray<FWLForeignSupportState>& SavedForeignSupportStates,
 	FString& OutMessage)
 {
 	const FWLBalanceRules Rules = GetBalanceRules();
@@ -107,7 +226,15 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 	CurrentYear = SavedYear;
 	CurrentMonth = SavedMonth;
 	ProvinceBuildings.Reset();
+	ProvinceBuildingLevels.Reset();
+	ActiveMarketShocks.Reset();
+	NextMarketShockNumber = 1;
+	FinancialInstruments.Reset();
+	ForeignSupportStates.Reset();
+	NextFinancialInstrumentNumber = 1;
+	NextForeignSupportNumber = 1;
 	TaxRates.Reset();
+	TariffRates.Reset();
 	PreviousGDP.Reset();   // FE1.5: el crecimiento se vuelve a medir tras cargar
 	GDPGrowth.Reset();
 	InitTreasuriesFromData();
@@ -124,6 +251,10 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 			{
 				SetTaxRate(Nation.Iso, SavedTreasury.TaxRatePercent);   // FE1.2
 			}
+			if (SavedTreasury.TariffRatePercent >= 0)
+			{
+				SetTariffRate(Nation.Iso, SavedTreasury.TariffRatePercent);   // FE4.3
+			}
 			++RestoredTreasuries;
 		}
 	}
@@ -138,21 +269,39 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 		}
 
 		TArray<FString> ValidBuildings;
-		for (const FString& BuildingId : SavedProvinceEntry.BuildingIds)
+		TMap<FString, int32> ValidLevels;
+		TSet<EWLBuildingSlot> OccupiedSlots;
+		for (const FString& ExistingId : ValidBuildings)
 		{
+			FWLBuildingData ExistingBuilding;
+			if (Registry->GetBuilding(ExistingId, ExistingBuilding))
+			{
+				OccupiedSlots.Add(ExistingBuilding.Slot);
+			}
+		}
+		for (int32 Index = 0; Index < SavedProvinceEntry.BuildingIds.Num(); ++Index)
+		{
+			const FString& BuildingId = SavedProvinceEntry.BuildingIds[Index];
 			FWLBuildingData Building;
 			if (Registry->GetBuilding(BuildingId, Building)
 				&& ProvinceSupportsBuilding(Province, Building)
-				&& !ValidBuildings.Contains(Building.Id))
+				&& !ValidBuildings.Contains(Building.Id)
+				&& !OccupiedSlots.Contains(Building.Slot))
 			{
 				ValidBuildings.Add(Building.Id);
+				const int32 RawLevel = SavedProvinceEntry.BuildingLevels.IsValidIndex(Index)
+					? SavedProvinceEntry.BuildingLevels[Index]
+					: 1;
+				ValidLevels.Add(Building.Id, FMath::Clamp(RawLevel, 1, FMath::Clamp(Building.MaxLevel, 1, 5)));
+				OccupiedSlots.Add(Building.Slot);
 				++RestoredBuildings;
 			}
 		}
 		if (!ValidBuildings.IsEmpty())
 		{
 			ValidBuildings.Sort();
-			ProvinceBuildings.Add(Province.Id, MoveTemp(ValidBuildings));
+			ProvinceBuildings.Add(Province.Id, ValidBuildings);
+			ProvinceBuildingLevels.Add(Province.Id, MoveTemp(ValidLevels));
 		}
 	}
 
@@ -178,8 +327,133 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 		}
 	}
 
+	int32 RestoredMarketShocks = 0;
+	for (const FWLMarketShockState& SavedShock : SavedMarketShocks)
+	{
+		if (!SavedShock.IsValid())
+		{
+			continue;
+		}
+
+		FWLMarketShockState Shock = SavedShock;
+		Shock.GoodId = Shock.GoodId.TrimStartAndEnd().ToLower();
+		if (Shock.GoodId == TEXT("all"))
+		{
+			Shock.GoodId = TEXT("*");
+		}
+		FWLGoodData Good;
+		if (Shock.GoodId != TEXT("*") && !Registry->GetGood(Shock.GoodId, Good))
+		{
+			continue;
+		}
+		if (Shock.GoodId != TEXT("*"))
+		{
+			Shock.GoodId = Good.Id;
+		}
+		Shock.PriceMultiplier = FMath::Clamp(
+			Shock.PriceMultiplier,
+			Rules.MinMarketShockPriceMultiplier,
+			Rules.MaxMarketShockPriceMultiplier);
+		Shock.TotalMonths = FMath::Clamp(
+			Shock.TotalMonths > 0 ? Shock.TotalMonths : Shock.RemainingMonths,
+			1,
+			Rules.MaxMarketShockDurationMonths);
+		Shock.RemainingMonths = FMath::Clamp(Shock.RemainingMonths, 1, Shock.TotalMonths);
+		if (Shock.Title.TrimStartAndEnd().IsEmpty())
+		{
+			Shock.Title = FString::Printf(TEXT("Shock de mercado: %s"), *Shock.GoodId);
+		}
+		ActiveMarketShocks.Add(Shock);
+		if (Shock.ShockId.StartsWith(TEXT("MS-")))
+		{
+			NextMarketShockNumber = FMath::Max(NextMarketShockNumber, FCString::Atoi(*Shock.ShockId.Mid(3)) + 1);
+		}
+		++RestoredMarketShocks;
+	}
+
+	int32 RestoredFinancialInstruments = 0;
+	for (FWLFinancialInstrumentState Instrument : SavedFinancialInstruments)
+	{
+		FWLNationData Nation;
+		if (!Registry->GetNation(Instrument.NationIso, Nation))
+		{
+			continue;
+		}
+		Instrument.NationIso = Nation.Iso;
+		Instrument.CreditorIso = Instrument.CreditorIso.TrimStartAndEnd().ToUpper();
+		Instrument.OriginalPrincipal = FMath::Max<int64>(0, Instrument.OriginalPrincipal);
+		Instrument.PrincipalRemaining = FMath::Max<int64>(0, Instrument.PrincipalRemaining);
+		Instrument.MonthlyPayment = FMath::Max<int64>(0, Instrument.MonthlyPayment);
+		Instrument.MonthlyInterestRate = FMath::Clamp(Instrument.MonthlyInterestRate, 0.0, 1.0);
+		Instrument.TotalMonths = FMath::Clamp(
+			Instrument.TotalMonths > 0 ? Instrument.TotalMonths : Instrument.RemainingMonths,
+			1,
+			Rules.FinancialInstrumentMaxMonths);
+		Instrument.RemainingMonths = FMath::Clamp(Instrument.RemainingMonths, 0, Instrument.TotalMonths);
+		if (Instrument.InstrumentId.TrimStartAndEnd().IsEmpty())
+		{
+			Instrument.InstrumentId = FString::Printf(TEXT("FIN-%04d"), NextFinancialInstrumentNumber++);
+		}
+		if (Instrument.InstrumentId.Contains(TEXT("-")))
+		{
+			const int32 DashIndex = Instrument.InstrumentId.Find(TEXT("-"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+			if (DashIndex != INDEX_NONE)
+			{
+				NextFinancialInstrumentNumber = FMath::Max(
+					NextFinancialInstrumentNumber,
+					FCString::Atoi(*Instrument.InstrumentId.Mid(DashIndex + 1)) + 1);
+			}
+		}
+		if (Instrument.PrincipalRemaining > 0 || Instrument.bDefaulted)
+		{
+			FinancialInstruments.Add(Instrument);
+			++RestoredFinancialInstruments;
+		}
+	}
+
+	int32 RestoredForeignSupport = 0;
+	for (FWLForeignSupportState Support : SavedForeignSupportStates)
+	{
+		FWLNationData Recipient;
+		FWLNationData Sponsor;
+		if (!Registry->GetNation(Support.RecipientIso, Recipient) || !Registry->GetNation(Support.SponsorIso, Sponsor))
+		{
+			continue;
+		}
+		Support.RecipientIso = Recipient.Iso;
+		Support.SponsorIso = Sponsor.Iso;
+		Support.TotalAmount = FMath::Max<int64>(0, Support.TotalAmount);
+		Support.MonthlyAmount = FMath::Max<int64>(0, Support.MonthlyAmount);
+		Support.AmountDelivered = FMath::Max<int64>(0, Support.AmountDelivered);
+		Support.TotalMonths = FMath::Clamp(
+			Support.TotalMonths > 0 ? Support.TotalMonths : Support.RemainingMonths,
+			1,
+			Rules.ForeignSupportMaxMonths);
+		Support.RemainingMonths = FMath::Clamp(Support.RemainingMonths, 0, Support.TotalMonths);
+		if (Support.SupportId.TrimStartAndEnd().IsEmpty())
+		{
+			Support.SupportId = FString::Printf(TEXT("SUP-%04d"), NextForeignSupportNumber++);
+		}
+		if (Support.SupportId.Contains(TEXT("-")))
+		{
+			const int32 DashIndex = Support.SupportId.Find(TEXT("-"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+			if (DashIndex != INDEX_NONE)
+			{
+				NextForeignSupportNumber = FMath::Max(
+					NextForeignSupportNumber,
+					FCString::Atoi(*Support.SupportId.Mid(DashIndex + 1)) + 1);
+			}
+		}
+		if (!Support.bCompleted || Support.Type == EWLForeignSupportType::ForeignDirectInvestment)
+		{
+			ForeignSupportStates.Add(Support);
+			++RestoredForeignSupport;
+		}
+	}
+
 	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
-	OutMessage = FString::Printf(TEXT("Save restaurado: %02d/%d, %d tesoros, %d edificios, %d estados de provincia."),
-		CurrentMonth, CurrentYear, RestoredTreasuries, RestoredBuildings, RestoredProvinceStates);
+	OutMessage = FString::Printf(TEXT("Save restaurado: %02d/%d, %d tesoros, %d edificios, %d estados de provincia, %d shocks de mercado, %d instrumentos financieros, %d apoyos exteriores."),
+		CurrentMonth, CurrentYear, RestoredTreasuries, RestoredBuildings, RestoredProvinceStates, RestoredMarketShocks,
+		RestoredFinancialInstruments, RestoredForeignSupport);
 	return true;
 }

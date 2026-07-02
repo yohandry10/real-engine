@@ -3,43 +3,62 @@
 		"id": "oil",
 		"name": "Petroleo",
 		"category": "raw",
-		"base_price": 4
+		"base_price": 4,
+		"base_source": "oil",
+		"base_share": 1.0,
+		"demand_per_million": 4
 	},
 	{
 		"id": "gas",
 		"name": "Gas natural",
 		"category": "raw",
-		"base_price": 3
+		"base_price": 3,
+		"base_source": "gas",
+		"base_share": 1.0,
+		"demand_per_million": 3
 	},
 	{
 		"id": "coal",
 		"name": "Carbon",
 		"category": "raw",
-		"base_price": 2
+		"base_price": 2,
+		"base_source": "minerals",
+		"base_share": 0.3,
+		"demand_per_million": 1
 	},
 	{
 		"id": "minerals",
 		"name": "Minerales",
 		"category": "raw",
-		"base_price": 2
+		"base_price": 2,
+		"base_source": "minerals",
+		"base_share": 0.7,
+		"demand_per_million": 3
 	},
 	{
 		"id": "food",
 		"name": "Alimentos",
 		"category": "raw",
-		"base_price": 1
+		"base_price": 1,
+		"base_source": "food",
+		"base_share": 0.95,
+		"demand_per_million": 120
 	},
 	{
 		"id": "coffee",
 		"name": "Cafe",
 		"category": "raw",
-		"base_price": 2
+		"base_price": 2,
+		"base_source": "food",
+		"base_share": 0.05,
+		"demand_per_million": 4
 	},
 	{
 		"id": "fuel",
 		"name": "Combustible",
 		"category": "manufactured",
 		"base_price": 6,
+		"demand_per_million": 16,
 		"inputs": ["oil"],
 		"industry_share": 0.25
 	},
@@ -48,6 +67,7 @@
 		"name": "Acero",
 		"category": "manufactured",
 		"base_price": 5,
+		"demand_per_million": 6,
 		"inputs": ["minerals", "coal"],
 		"industry_share": 0.35
 	},
@@ -56,6 +76,7 @@
 		"name": "Bienes de consumo",
 		"category": "manufactured",
 		"base_price": 7,
+		"demand_per_million": 28,
 		"inputs": ["steel"],
 		"industry_share": 0.3
 	},
@@ -64,6 +85,7 @@
 		"name": "Armamento",
 		"category": "manufactured",
 		"base_price": 9,
+		"demand_per_million": 1,
 		"inputs": ["steel"],
 		"industry_share": 0.1
 	}

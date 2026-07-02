@@ -69,16 +69,22 @@ int32 UWLStrategicTickSubsystem::RunEconomicAIInternal(const FString& PlayerNati
 				break;
 			}
 
+			const bool bUpgrade = GetProvinceBuildingLevel(ProvinceId, BuildingId) > 0;
 			FString BuildMessage;
-			if (!BuildBuilding(ProvinceId, BuildingId, BuildMessage))
+			const bool bApplied = bUpgrade
+				? UpgradeBuilding(ProvinceId, BuildingId, BuildMessage)
+				: BuildBuilding(ProvinceId, BuildingId, BuildMessage);
+			if (!bApplied)
 			{
-				OutReports.Add(FString::Printf(TEXT("%s no pudo construir %s en %s: %s"),
-					*Nation.Iso, *BuildingId, *ProvinceId, *BuildMessage));
+				OutReports.Add(FString::Printf(TEXT("%s no pudo %s %s en %s: %s"),
+					*Nation.Iso, bUpgrade ? TEXT("mejorar") : TEXT("construir"),
+					*BuildingId, *ProvinceId, *BuildMessage));
 				break;
 			}
 
-			OutReports.Add(FString::Printf(TEXT("%s construye %s en %s (+%lld/mes, retorno %lld meses, coste %lld)."),
-				*Nation.Iso, *BuildingId, *ProvinceId, MonthlyGain, PaybackMonths, Cost));
+			OutReports.Add(FString::Printf(TEXT("%s %s %s en %s (+%lld/mes, retorno %lld meses, coste %lld)."),
+				*Nation.Iso, bUpgrade ? TEXT("mejora") : TEXT("construye"),
+				*BuildingId, *ProvinceId, MonthlyGain, PaybackMonths, Cost));
 			++BuiltForNation;
 			++TotalBuilt;
 		}
@@ -151,26 +157,58 @@ bool UWLStrategicTickSubsystem::FindBestEconomicAIBuildCandidate(
 		}
 
 		const TArray<FString> Built = GetProvinceBuildings(Province.Id);
+		TSet<EWLBuildingSlot> OccupiedSlots;
+		for (const FString& BuiltId : Built)
+		{
+			FWLBuildingData BuiltBuilding;
+			if (Registry->GetBuilding(BuiltId, BuiltBuilding))
+			{
+				OccupiedSlots.Add(BuiltBuilding.Slot);
+			}
+		}
 		for (const FWLBuildingData& Building : Buildings)
 		{
-			if (Building.Cost < 0
-				|| Built.Contains(Building.Id)
-				|| Treasury - Building.Cost < Rules.EconomicAIMinTreasuryReserve
-				|| !ProvinceSupportsBuilding(Province, Building))
+			if (Building.Cost < 0 || !ProvinceSupportsBuilding(Province, Building))
 			{
 				continue;
 			}
 
-			const int64 GrossGain = UWLEconomyLibrary::CalculateBuildingIncomeWithRules(Building, Rules);
+			const int32 CurrentLevel = GetProvinceBuildingLevel(Province.Id, Building.Id);
+			const bool bUpgrade = CurrentLevel > 0;
+			if (!bUpgrade && OccupiedSlots.Contains(Building.Slot))
+			{
+				continue;
+			}
+			if (bUpgrade && CurrentLevel >= FMath::Clamp(Building.MaxLevel, 1, 5))
+			{
+				continue;
+			}
+
+			const int64 Cost = bUpgrade
+				? GetProvinceBuildingUpgradeCost(Province.Id, Building.Id)
+				: Building.Cost;
+			if (Cost <= 0 || Treasury - Cost < Rules.EconomicAIMinTreasuryReserve)
+			{
+				continue;
+			}
+
+			const int64 CurrentIncome = bUpgrade
+				? UWLEconomyLibrary::CalculateBuildingIncomeForLevel(Building, Rules, CurrentLevel)
+				: 0;
+			const int64 NextIncome = UWLEconomyLibrary::CalculateBuildingIncomeForLevel(
+				Building,
+				Rules,
+				bUpgrade ? CurrentLevel + 1 : 1);
+			const int64 GrossGain = FMath::Max<int64>(0, NextIncome - CurrentIncome);
 			const int64 MonthlyGain = UWLEconomyLibrary::ApplyPublicOrderIncomeModifier(GrossGain, State.PublicOrder, Rules);
 			if (MonthlyGain <= 0)
 			{
 				continue;
 			}
 
-			const int64 PaybackMonths = Building.Cost <= 0
+			const int64 PaybackMonths = Cost <= 0
 				? 0
-				: (Building.Cost + MonthlyGain - 1) / MonthlyGain;
+				: (Cost + MonthlyGain - 1) / MonthlyGain;
 			if (Rules.EconomicAIMaxPaybackMonths > 0 && PaybackMonths > Rules.EconomicAIMaxPaybackMonths)
 			{
 				continue;
@@ -185,9 +223,9 @@ bool UWLStrategicTickSubsystem::FindBestEconomicAIBuildCandidate(
 				|| (PaybackMonths == BestPaybackMonths && MonthlyGain == BestMonthlyGain && Fit == BestFit
 					&& Province.StrategicValue > BestStrategicValue)
 				|| (PaybackMonths == BestPaybackMonths && MonthlyGain == BestMonthlyGain && Fit == BestFit
-					&& Province.StrategicValue == BestStrategicValue && Building.Cost < BestCost)
+					&& Province.StrategicValue == BestStrategicValue && Cost < BestCost)
 				|| (PaybackMonths == BestPaybackMonths && MonthlyGain == BestMonthlyGain && Fit == BestFit
-					&& Province.StrategicValue == BestStrategicValue && Building.Cost == BestCost
+					&& Province.StrategicValue == BestStrategicValue && Cost == BestCost
 					&& (Province.Id < BestProvinceId
 						|| (Province.Id == BestProvinceId && Building.Id < BestBuildingId)));
 
@@ -198,7 +236,7 @@ bool UWLStrategicTickSubsystem::FindBestEconomicAIBuildCandidate(
 				BestMonthlyGain = MonthlyGain;
 				BestFit = Fit;
 				BestStrategicValue = Province.StrategicValue;
-				BestCost = Building.Cost;
+				BestCost = Cost;
 				BestProvinceId = Province.Id;
 				BestBuildingId = Building.Id;
 			}

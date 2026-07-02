@@ -7,6 +7,7 @@
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Economy/WLEconomyLibrary.h"
 #include "Map/WLWorldMap.h"
+#include "Politics/WLPoliticalSubsystem.h"
 #include "Presentation/WLCampaign3DView.h"
 #include "UI/WLCampaignHUD.h"
 #include "UI/WLCampaignSelectionPanelData.h"
@@ -111,6 +112,12 @@ UWLStrategicTickSubsystem* AWLCampaignPlayerController::GetTick() const
 	return GI ? GI->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr;
 }
 
+UWLPoliticalSubsystem* AWLCampaignPlayerController::GetPolitics() const
+{
+	const UGameInstance* GI = UGameplayStatics::GetGameInstance(this);
+	return GI ? GI->GetSubsystem<UWLPoliticalSubsystem>() : nullptr;
+}
+
 UWLDataRegistry* AWLCampaignPlayerController::GetRegistry() const
 {
 	const UGameInstance* GI = UGameplayStatics::GetGameInstance(this);
@@ -139,16 +146,25 @@ void AWLCampaignPlayerController::OnAdvanceMonth()
 
 	if (UWLStrategicTickSubsystem* Tick = GetTick())
 	{
-		Tick->AdvanceMonth();
-		const int32 AIBuildCount = Tick->GetLastEconomicAIBuildCount();
-		SetLastActionMessage(FString::Printf(TEXT("Mes avanzado a %02d/%d. IA economica: %d construcciones."),
-			Tick->GetCurrentMonth(), Tick->GetCurrentYear(), AIBuildCount), true);
+		const int32 PreviousMonth = Tick->GetCurrentMonth();
+		const int32 PreviousYear = Tick->GetCurrentYear();
+		Tick->AdvanceDay();   // avanza UN DIA (economia/reclutamiento cada dia; IA al cerrar mes)
+		if ((Tick->GetCurrentMonth() != PreviousMonth || Tick->GetCurrentYear() != PreviousYear))
+		{
+			if (UWLPoliticalSubsystem* Politics = GetPolitics())
+			{
+				Politics->ProcessPoliticalMonth();
+			}
+		}
+		SetLastActionMessage(FString::Printf(TEXT("Dia avanzado: %02d/%02d/%d."),
+			Tick->GetCurrentDay(), Tick->GetCurrentMonth(), Tick->GetCurrentYear()), true);
 
 		// Tras avanzar el mes: (1) materializa/actualiza el ejercito movible de cada fuerte que termino de
 		// reclutar, y (2) re-evalua el LOD a la altura de camara actual para que el token de ejercito (tanque)
 		// aparezca de inmediato. Sin esto, el ejercito no se mostraria hasta el siguiente zoom/pan.
 		if (Campaign3DView)
 		{
+			Campaign3DView->AdvanceArmyMovements();   // ejercitos en marcha avanzan su cargador por la carretera
 			Campaign3DView->SyncRecruitedArmyTokens();
 			Campaign3DView->ApplyZoomLOD(GetCampaignCameraHeight());
 		}
@@ -266,16 +282,8 @@ void AWLCampaignPlayerController::OnSelectCountry()
 			return true;
 		}
 
-		FWLCampaignTerritoryRegionView TerritoryView;
-		if (Campaign3DView->TryGetTerritoryAtWorldLocation(WorldLocation, TerritoryView) && !TerritoryView.bIsCountry)
-		{
-			SelectCampaignTerritory(TerritoryView);
-			ClearSelectedCountry();
-			SetLastActionMessage(FString::Printf(TEXT("Territorio seleccionado en Campaign 3D: %s."), *SelectedTerritoryName), true);
-			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected territory by %s: %s (%s)"), SourceLabel, *SelectedTerritoryName, *SelectedTerritoryId);
-			return true;
-		}
-
+		// NADA de territorio/provincia: clicar terreno vacio no selecciona la provincia (antes salia el
+		// "circulo que nombra la provincia"). Solo fuerza o ciudad; la provincia se ve en el panel de ciudad.
 		return false;
 	};
 
@@ -349,47 +357,9 @@ void AWLCampaignPlayerController::OnSelectCountry()
 			return;
 		}
 
-		FWLCampaignTerritoryRegionView TerritoryView;
-		if (Campaign3DView && Campaign3DView->TryGetTerritoryForComponent(Hit.GetComponent(), TerritoryView) && !TerritoryView.bIsCountry)
-		{
-			SelectCampaignTerritory(TerritoryView);
-			ClearSelectedCountry();
-			SetLastActionMessage(FString::Printf(TEXT("Territorio seleccionado en Campaign 3D: %s."), *SelectedTerritoryName), true);
-			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected territory: %s (%s)"), *SelectedTerritoryName, *SelectedTerritoryId);
-			return;
-		}
-		if (Campaign3DView && Campaign3DView->TryGetTerritoryAtWorldLocation(Hit.Location, TerritoryView) && !TerritoryView.bIsCountry)
-		{
-			SelectCampaignTerritory(TerritoryView);
-			ClearSelectedCountry();
-			SetLastActionMessage(FString::Printf(TEXT("Territorio seleccionado en Campaign 3D: %s."), *SelectedTerritoryName), true);
-			UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected territory by location: %s (%s)"), *SelectedTerritoryName, *SelectedTerritoryId);
-			return;
-		}
-
-		FWLCampaign3DProvinceView ProvinceView;
-		if (Campaign3DView && Campaign3DView->TryGetProvinceForComponent(Hit.GetComponent(), ProvinceView))
-		{
-			if (SelectProvince(ProvinceView.Id))
-			{
-				ClearSelectedCity();
-				ClearSelectedForce();
-				ActiveSelectionKind = EWLCampaignSelectionKind::Province;
-				SelectedPanelObjectId = SelectedProvinceId;
-				SelectedTerritoryId = SelectedProvinceId;
-				SelectedTerritoryName = SelectedProvinceName;
-				SelectedTerritoryCountryIso = SelectedProvinceCountryIso;
-				SelectedTerritoryType = TEXT("province");
-				if (Campaign3DView)
-				{
-					Campaign3DView->SetSelectedProvinceHighlight(SelectedProvinceId);
-				}
-				ClearSelectedCountry();
-				SetLastActionMessage(FString::Printf(TEXT("Provincia seleccionada en Campaign 3D: %s."), *SelectedProvinceName), true);
-				UE_LOG(LogWorldLeader, Log, TEXT("Campaign3D selected province: %s (%s)"), *SelectedProvinceName, *SelectedProvinceId);
-			}
-			return;
-		}
+		// Clic = solo FUERZA o CIUDAD. NO se selecciona territorio/provincia (eso dibujaba el "circulo que
+		// nombra la provincia" en cualquier zoom). La info de la provincia se muestra DENTRO del panel de la
+		// ciudad (campo Territorio). Fallback: intenta fuerza/ciudad en el plano del cursor.
 		if (TrySelectCampaign3DAtCursorPlane(TEXT("cursor plane fallback")))
 		{
 			return;

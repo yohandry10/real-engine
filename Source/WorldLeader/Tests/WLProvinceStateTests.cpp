@@ -130,8 +130,19 @@ bool FWLProvinceControllerEconomyTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	const int64 VeBefore = Tick->GetMonthlyBalance(TEXT("VE"));
-	const int64 CoBefore = Tick->GetMonthlyBalance(TEXT("CO"));
+	auto ProvincialFiscalCore = [](const FWLNationBudget& Budget) -> int64
+	{
+		return Budget.ResourceIncome
+			+ Budget.TaxIncome
+			- Budget.InfrastructureUpkeep
+			- Budget.PublicWages
+			- Budget.SocialSpending;
+	};
+
+	const FWLNationBudget VeBudgetBefore = Tick->GetNationBudget(TEXT("VE"));
+	const FWLNationBudget CoBudgetBefore = Tick->GetNationBudget(TEXT("CO"));
+	const int64 VeBefore = ProvincialFiscalCore(VeBudgetBefore);
+	const int64 CoBefore = ProvincialFiscalCore(CoBudgetBefore);
 	const int64 ZuliaBalance = Tick->GetProvinceMonthlyBalance(TEXT("VE-ZU"));
 
 	FString Message;
@@ -142,9 +153,9 @@ bool FWLProvinceControllerEconomyTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("La ocupacion penaliza temporalmente el balance provincial"),
 		ZuliaBalanceAfterOccupation < ZuliaBalance);
 
-	// FE1.3: al transferir una provincia tambien se transfiere su gasto per capita (salarios publicos +
-	// gasto social), asi que el delta nacional = balance provincial - ese gasto poblacional (+-2 de redondeo
-	// porque salarios/social se redondean a nivel nacion).
+	// FE1.3/FE4: al transferir una provincia tambien se transfiere su gasto per capita
+	// (salarios publicos + gasto social). El Net() nacional total puede moverse ademas por
+	// comercio exterior, asi que aqui validamos solo el nucleo provincial/fiscal.
 	const FWLBalanceRules Rules = Tick->GetBalanceRules();
 	FWLProvinceRuntimeState ZuliaState;
 	TestTrue(TEXT("Estado runtime de Zulia"), Tick->GetProvinceState(TEXT("VE-ZU"), ZuliaState));
@@ -154,9 +165,9 @@ bool FWLProvinceControllerEconomyTest::RunTest(const FString& Parameters)
 	const int64 VeExpected = VeBefore - ZuliaBalance + ZuliaPopSpending;
 	const int64 CoExpected = CoBefore + ZuliaBalanceAfterOccupation - ZuliaPopSpending;
 	TestTrue(TEXT("VE pierde el balance de Zulia (neto de su gasto per capita)"),
-		FMath::Abs(Tick->GetMonthlyBalance(TEXT("VE")) - VeExpected) <= 2);
+		FMath::Abs(ProvincialFiscalCore(Tick->GetNationBudget(TEXT("VE"))) - VeExpected) <= 2);
 	TestTrue(TEXT("CO gana el balance de Zulia (neto de su gasto per capita)"),
-		FMath::Abs(Tick->GetMonthlyBalance(TEXT("CO")) - CoExpected) <= 2);
+		FMath::Abs(ProvincialFiscalCore(Tick->GetNationBudget(TEXT("CO"))) - CoExpected) <= 2);
 	TestEqual(TEXT("Controlador canonico"), Tick->GetProvinceControllerIso(TEXT("ve-zu")), FString(TEXT("CO")));
 
 	GameInstance->Shutdown();

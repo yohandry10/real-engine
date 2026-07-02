@@ -91,6 +91,182 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sectors", meta = (ClampMin = "0.0"))
 	double SectorOutputPerBasePoint = 1.0;
 
+	/** FE2.4: empleos de servicios disponibles por habitante; el resto de la fuerza laboral queda desempleada. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sectors", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double ServiceEmploymentPerCapita = 0.22;
+
+	/** FE2.4: cuanto castiga el desempleo alto a la productividad agregada (0.25 = -25% con 100% desempleo). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sectors", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double UnemploymentProductivityPenalty = 0.25;
+
+	/** FE3.2: sensibilidad del precio cuando la demanda supera a la oferta. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Market", meta = (ClampMin = "0.0"))
+	double PriceShortageSensitivity = 0.45;
+
+	/** FE3.2: sensibilidad del precio cuando hay excedente de oferta. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Market", meta = (ClampMin = "0.0"))
+	double PriceSurplusSensitivity = 0.20;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Market", meta = (ClampMin = "0.0"))
+	double MinMarketPriceMultiplier = 0.45;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Market", meta = (ClampMin = "0.0"))
+	double MaxMarketPriceMultiplier = 2.75;
+
+	/** FE3.4: clamp inferior para shocks temporales de precio (0.5 = -50%). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Market", meta = (ClampMin = "0.0"))
+	double MinMarketShockPriceMultiplier = 0.25;
+
+	/** FE3.4: clamp superior para shocks temporales de precio (2.0 = +100%). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Market", meta = (ClampMin = "0.0"))
+	double MaxMarketShockPriceMultiplier = 4.0;
+
+	/** FE3.4: duracion maxima de un shock de mercado persistido. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Market", meta = (ClampMin = "1"))
+	int32 MaxMarketShockDurationMonths = 36;
+
+	/** FE4.1: fraccion de deficit/superavit que puede cubrir o colocar el mercado regional. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double RegionalTradeAccess = 0.65;
+
+	/** FE4.1: cobertura abstracta del mercado global cuando la region no alcanza. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double GlobalTradeAccess = 0.20;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
+	double ImportPriceMarkup = 0.12;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double ExportPriceDiscount = 0.08;
+
+	/** FE4.2: bonus de volumen regional cuando hay acuerdo comercial bilateral. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
+	double TradeAgreementAccessBonus = 0.35;
+
+	/** FE4.3: arancel inicial nacional (%). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 TariffRateDefaultPercent = 0;
+
+	/** FE4.3: limite superior de aranceles nacionales (%). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 TariffRateMaxPercent = 50;
+
+	/** FE4.3: cada punto de arancel reduce el volumen importable en esta fraccion. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double TariffImportPenaltyPerPoint = 0.005;
+
+	/** FE4.3: penalizacion diplomatica por punto de arancel subido via UWLPoliticalSubsystem. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
+	double TariffRelationPenaltyPerPoint = 0.4;
+
+	/** FE4.4: multiplicador de ruta cuando hay embargo/sancion. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
+	double EmbargoTradeRouteAccessMultiplier = 0.0;
+
+	/** FE4.5: multiplicador de ruta cuando los paises estan en guerra. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
+	double WarTradeRouteAccessMultiplier = 0.0;
+
+	/** FE4.5: multiplicador de ruta cuando hay tension diplomatica sin guerra. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
+	double TensionTradeRouteAccessMultiplier = 0.75;
+
+	/** FE5.2: convierte presion de precios agregada en inflacion mensual mostrable. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Macro", meta = (ClampMin = "0.0"))
+	double InflationPressureToMonthlyRate = 0.08;
+
+	/** FE5.1: tasa mensual base para bonos soberanos. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double BondBaseMonthlyInterestRate = 0.012;
+
+	/** FE5.1: tasa mensual base para prestamos bilaterales entre paises. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double BilateralLoanMonthlyInterestRate = 0.006;
+
+	/** FE5.1: tasa mensual base para programa tipo FMI. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double IMFMonthlyInterestRate = 0.004;
+
+	/** FE5.1: plazo maximo de instrumentos de deuda. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "1"))
+	int32 FinancialInstrumentMaxMonths = 120;
+
+	/** FE5.1: servicio de deuda maximo como fraccion del ingreso mensual para emitir deuda nueva. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double MaxDebtServiceIncomeRatio = 0.45;
+
+	/** FE5.1: riesgo/default cuando el servicio de deuda supera esta fraccion del ingreso mensual. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double DefaultDebtServiceIncomeRatio = 0.75;
+
+	/** FE5.1: penalizacion de orden publico al entrar en default. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 DefaultPublicOrderPenalty = 8;
+
+	/** FE5.3: opinion minima para ayuda exterior directa. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "-100", ClampMax = "100"))
+	int32 ForeignAidMinOpinion = 20;
+
+	/** FE5.3: opinion minima para inversion extranjera directa. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "-100", ClampMax = "100"))
+	int32 ForeignInvestmentMinOpinion = 10;
+
+	/** FE5.3: duracion maxima de ayuda exterior/FDI. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "1"))
+	int32 ForeignSupportMaxMonths = 36;
+
+	/** FE5.3: ayuda mensual maxima como fraccion del ingreso mensual del receptor. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double ForeignAidMonthlyCapIncomeRatio = 0.25;
+
+	/** FE5.3: FDI mensual maxima como fraccion del ingreso mensual del receptor. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Finance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double ForeignInvestmentMonthlyCapIncomeRatio = 0.35;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Macro", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double MaxMonthlyInflationRate = 0.25;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Macro", meta = (ClampMin = "-1.0", ClampMax = "0.0"))
+	double MinMonthlyInflationRate = -0.05;
+
+	/** FE5.4: peso del desempleo en el indicador de ciclo expansion/recesion. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Macro", meta = (ClampMin = "0.0"))
+	double CycleUnemploymentWeight = 0.35;
+
+	/** FE5.4: peso de la inflacion en el indicador de ciclo expansion/recesion. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Macro", meta = (ClampMin = "0.0"))
+	double CycleInflationWeight = 0.50;
+
+	/** FE5.4: peso del balance comercial sobre PIB en el ciclo. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Macro", meta = (ClampMin = "0.0"))
+	double CycleTradeBalanceWeight = 0.20;
+
+	/** FE6.1: eficiencia fiscal por punto de skill del ministro de Economia sobre/bajo 50. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Governance", meta = (ClampMin = "0.0"))
+	double EconomyMinisterTaxEfficiencyPerSkill = 0.004;
+
+	/** FE6.2: fuga de recaudacion por punto de corrupcion sistemica. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Governance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double CorruptionTaxLeakPerPoint = 0.003;
+
+	/** FE6.2: fraccion del presupuesto total que se pierde por punto de corrupcion. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Governance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double CorruptionBudgetSkimPerPoint = 0.0015;
+
+	/** FE6.3: productividad por punto de tecnologia sobre/bajo 50. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Governance", meta = (ClampMin = "0.0"))
+	double TechnologyProductivityPerPoint = 0.004;
+
+	/** FE6.2: penalizacion de productividad por punto de corrupcion. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Governance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double CorruptionProductivityPenaltyPerPoint = 0.002;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Governance", meta = (ClampMin = "0.0"))
+	double MinGovernanceProductivityMultiplier = 0.65;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Governance", meta = (ClampMin = "0.0"))
+	double MaxGovernanceProductivityMultiplier = 1.35;
+
 	/** Orden publico inicial para provincias sin estado guardado. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Public Order", meta = (ClampMin = "0", ClampMax = "100"))
 	int32 InitialPublicOrder = 72;
@@ -184,6 +360,52 @@ struct FWLBalanceRules
 		Out.LaborParticipationRate = FMath::Clamp(Out.LaborParticipationRate, 0.0, 1.0);
 		Out.WorkersPerBasePoint = FMath::Max(0, Out.WorkersPerBasePoint);
 		Out.SectorOutputPerBasePoint = FMath::Max(0.0, Out.SectorOutputPerBasePoint);
+		Out.ServiceEmploymentPerCapita = FMath::Clamp(Out.ServiceEmploymentPerCapita, 0.0, 1.0);
+		Out.UnemploymentProductivityPenalty = FMath::Clamp(Out.UnemploymentProductivityPenalty, 0.0, 1.0);
+		Out.PriceShortageSensitivity = FMath::Max(0.0, Out.PriceShortageSensitivity);
+		Out.PriceSurplusSensitivity = FMath::Max(0.0, Out.PriceSurplusSensitivity);
+		Out.MinMarketPriceMultiplier = FMath::Max(0.0, Out.MinMarketPriceMultiplier);
+		Out.MaxMarketPriceMultiplier = FMath::Max(Out.MinMarketPriceMultiplier, Out.MaxMarketPriceMultiplier);
+		Out.MinMarketShockPriceMultiplier = FMath::Max(0.0, Out.MinMarketShockPriceMultiplier);
+		Out.MaxMarketShockPriceMultiplier = FMath::Max(Out.MinMarketShockPriceMultiplier, Out.MaxMarketShockPriceMultiplier);
+		Out.MaxMarketShockDurationMonths = FMath::Max(1, Out.MaxMarketShockDurationMonths);
+		Out.RegionalTradeAccess = FMath::Clamp(Out.RegionalTradeAccess, 0.0, 1.0);
+		Out.GlobalTradeAccess = FMath::Clamp(Out.GlobalTradeAccess, 0.0, 1.0);
+		Out.ImportPriceMarkup = FMath::Max(0.0, Out.ImportPriceMarkup);
+		Out.ExportPriceDiscount = FMath::Clamp(Out.ExportPriceDiscount, 0.0, 1.0);
+		Out.TradeAgreementAccessBonus = FMath::Max(0.0, Out.TradeAgreementAccessBonus);
+		Out.TariffRateMaxPercent = FMath::Clamp(Out.TariffRateMaxPercent, 0, 100);
+		Out.TariffRateDefaultPercent = FMath::Clamp(Out.TariffRateDefaultPercent, 0, Out.TariffRateMaxPercent);
+		Out.TariffImportPenaltyPerPoint = FMath::Clamp(Out.TariffImportPenaltyPerPoint, 0.0, 1.0);
+		Out.TariffRelationPenaltyPerPoint = FMath::Max(0.0, Out.TariffRelationPenaltyPerPoint);
+		Out.EmbargoTradeRouteAccessMultiplier = FMath::Max(0.0, Out.EmbargoTradeRouteAccessMultiplier);
+		Out.WarTradeRouteAccessMultiplier = FMath::Max(0.0, Out.WarTradeRouteAccessMultiplier);
+		Out.TensionTradeRouteAccessMultiplier = FMath::Max(0.0, Out.TensionTradeRouteAccessMultiplier);
+		Out.InflationPressureToMonthlyRate = FMath::Max(0.0, Out.InflationPressureToMonthlyRate);
+		Out.BondBaseMonthlyInterestRate = FMath::Clamp(Out.BondBaseMonthlyInterestRate, 0.0, 1.0);
+		Out.BilateralLoanMonthlyInterestRate = FMath::Clamp(Out.BilateralLoanMonthlyInterestRate, 0.0, 1.0);
+		Out.IMFMonthlyInterestRate = FMath::Clamp(Out.IMFMonthlyInterestRate, 0.0, 1.0);
+		Out.FinancialInstrumentMaxMonths = FMath::Max(1, Out.FinancialInstrumentMaxMonths);
+		Out.MaxDebtServiceIncomeRatio = FMath::Clamp(Out.MaxDebtServiceIncomeRatio, 0.0, 1.0);
+		Out.DefaultDebtServiceIncomeRatio = FMath::Clamp(Out.DefaultDebtServiceIncomeRatio, 0.0, 1.0);
+		Out.DefaultPublicOrderPenalty = FMath::Clamp(Out.DefaultPublicOrderPenalty, 0, 100);
+		Out.ForeignAidMinOpinion = FMath::Clamp(Out.ForeignAidMinOpinion, -100, 100);
+		Out.ForeignInvestmentMinOpinion = FMath::Clamp(Out.ForeignInvestmentMinOpinion, -100, 100);
+		Out.ForeignSupportMaxMonths = FMath::Max(1, Out.ForeignSupportMaxMonths);
+		Out.ForeignAidMonthlyCapIncomeRatio = FMath::Clamp(Out.ForeignAidMonthlyCapIncomeRatio, 0.0, 1.0);
+		Out.ForeignInvestmentMonthlyCapIncomeRatio = FMath::Clamp(Out.ForeignInvestmentMonthlyCapIncomeRatio, 0.0, 1.0);
+		Out.MaxMonthlyInflationRate = FMath::Clamp(Out.MaxMonthlyInflationRate, 0.0, 1.0);
+		Out.MinMonthlyInflationRate = FMath::Clamp(Out.MinMonthlyInflationRate, -1.0, 0.0);
+		Out.CycleUnemploymentWeight = FMath::Max(0.0, Out.CycleUnemploymentWeight);
+		Out.CycleInflationWeight = FMath::Max(0.0, Out.CycleInflationWeight);
+		Out.CycleTradeBalanceWeight = FMath::Max(0.0, Out.CycleTradeBalanceWeight);
+		Out.EconomyMinisterTaxEfficiencyPerSkill = FMath::Max(0.0, Out.EconomyMinisterTaxEfficiencyPerSkill);
+		Out.CorruptionTaxLeakPerPoint = FMath::Clamp(Out.CorruptionTaxLeakPerPoint, 0.0, 1.0);
+		Out.CorruptionBudgetSkimPerPoint = FMath::Clamp(Out.CorruptionBudgetSkimPerPoint, 0.0, 1.0);
+		Out.TechnologyProductivityPerPoint = FMath::Max(0.0, Out.TechnologyProductivityPerPoint);
+		Out.CorruptionProductivityPenaltyPerPoint = FMath::Clamp(Out.CorruptionProductivityPenaltyPerPoint, 0.0, 1.0);
+		Out.MinGovernanceProductivityMultiplier = FMath::Max(0.0, Out.MinGovernanceProductivityMultiplier);
+		Out.MaxGovernanceProductivityMultiplier = FMath::Max(Out.MinGovernanceProductivityMultiplier, Out.MaxGovernanceProductivityMultiplier);
 		Out.InitialPublicOrder = FMath::Clamp(Out.InitialPublicOrder, 0, 100);
 		Out.PublicOrderNeutral = FMath::Clamp(Out.PublicOrderNeutral, 1, 100);
 		Out.LowOrderIncomePenaltyAtZero = FMath::Clamp(Out.LowOrderIncomePenaltyAtZero, 0.0, 1.0);

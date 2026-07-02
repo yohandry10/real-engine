@@ -5,14 +5,17 @@
 #include "CoreMinimal.h"
 #include "Core/WLGameTypes.h"
 #include "UI/WLCampaignBuildingSlotData.h"
+#include "UI/WLCampaignGovernmentLayout.h"
 #include "GameFramework/PlayerController.h"
 #include "WLCampaignPlayerController.generated.h"
 
 class UWLStrategicTickSubsystem;
 class UWLDataRegistry;
+class UWLPoliticalSubsystem;
 class AWLWorldMap;
 class AWLCampaign3DView;
 class UWLMainMenuWidget;
+class UWLGovernmentWidget;
 struct FWLCampaign3DCityView;
 struct FWLCampaign3DForceView;
 
@@ -131,6 +134,9 @@ public:
 	TArray<FWLCampaignRecruitButton> GetSelectedForceRecruitOptions() const;  // unidades reclutables (por categoria)
 	FString GetSelectedForceRecruitStatus() const;
 	bool QueueRecruitForSelectedForce(const FString& UnitType, FString& OutMessage);
+	// Independencia de paises: true si la fuerza seleccionada es un fuerte de OTRO pais (no el del jugador).
+	// El jugador SOLO recluta en los fuertes de su pais; los demas son de cada pais (su tesoro, su ejercito).
+	bool IsSelectedForeignFort() const;
 	bool CanSelectedForceMove() const { return bSelectedForceMovable; }
 	bool IsForceMovementModeActive() const { return ForceMovementOrderMode != EWLCampaignForceMovementOrderMode::None; }
 	bool HasForceMovementDestination() const { return ForceMovementOrderMode == EWLCampaignForceMovementOrderMode::DestinationSelected; }
@@ -152,6 +158,11 @@ public:
 	bool IsDiplomacyViewActive() const { return ActivePresentationMode == EWLCampaignPresentationMode::Diplomacy; }
 	FString GetCampaignZoomLODLabel() const;
 	float GetCampaignCameraHeight() const;
+
+	// --- Ventana de Gobierno / Presidencia (widget UMG, equivalente al panel de faccion de Total War) ---
+	bool IsGovernmentWindowOpen() const { return bGovernmentWindowOpen; }
+	void ToggleGovernmentWindow();
+	void SetGovernmentWindowOpen(bool bOpen);
 
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|CampaignView")
 	void ShowCampaign3DView();
@@ -202,6 +213,9 @@ private:
 	bool TryHandleViewToggleClick();
 	bool TryHandleSelectionPanelClick();
 	bool TryHandleForceMovementDestinationClick();
+	// Con un EJERCITO (fuerza movil) seleccionado, clic directo en una ciudad = orden de marcha hacia ella
+	// (sin botones intermedios). Estilo Total War: seleccionas el ejercito y le marcas el destino.
+	bool TryHandleArmyMoveClick();
 	bool HasCampaignInput() const;
 	void EnterCampaignInputMode();
 	void ClearSelectedCountry();
@@ -226,6 +240,7 @@ private:
 	void SetLastActionMessage(const FString& Message, bool bSucceeded);
 
 	UWLStrategicTickSubsystem* GetTick() const;
+	UWLPoliticalSubsystem* GetPolitics() const;
 	UWLDataRegistry* GetRegistry() const;
 
 	UPROPERTY(EditAnywhere, Category = "WorldLeader|UI")
@@ -262,6 +277,9 @@ private:
 	bool bHasLastDragMouse = false;
 	FVector2D LastDragMouse = FVector2D::ZeroVector;
 	FVector DragPanAnchorWorld = FVector::ZeroVector;
+	// Posicion del raton al pulsar el boton derecho: si al soltar casi no se movio, fue un CLIC (orden de
+	// marcha del ejercito), no un arrastre de camara. Estilo RTS: izquierdo selecciona, derecho mueve.
+	FVector2D DragStartMouse = FVector2D::ZeroVector;
 
 	bool bHasSelectedCountry = false;
 	FString SelectedCountryName;
@@ -326,4 +344,11 @@ private:
 
 	FString LastActionMessage;
 	bool bLastActionSucceeded = true;
+
+	// Ventana de Gobierno (widget UMG modal). Solo estado de UI (no se serializa); la pestana
+	// activa la gestiona el propio widget.
+	bool bGovernmentWindowOpen = false;
+
+	UPROPERTY()
+	UWLGovernmentWidget* GovernmentWidget = nullptr;
 };

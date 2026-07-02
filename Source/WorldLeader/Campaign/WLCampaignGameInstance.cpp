@@ -3,7 +3,9 @@
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Characters/WLCharacterSubsystem.h"
 #include "Military/WLMilitarySubsystem.h"
+#include "Politics/WLPoliticalSubsystem.h"
 #include "Save/WLLocalSaveGame.h"
 #include "WorldLeader.h"
 #include "Kismet/GameplayStatics.h"
@@ -12,7 +14,7 @@ namespace
 {
 	const FString WLLocalCampaignSlot = TEXT("WorldLeader_LocalCampaign");
 	constexpr int32 WLLocalCampaignUserIndex = 0;
-	constexpr int32 WLLocalCampaignSaveVersion = 3;
+	constexpr int32 WLLocalCampaignSaveVersion = 9;
 }
 
 UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
@@ -23,6 +25,16 @@ UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
 UWLStrategicTickSubsystem* UWLCampaignGameInstance::GetTick() const
 {
 	return GetSubsystem<UWLStrategicTickSubsystem>();
+}
+
+UWLCharacterSubsystem* UWLCampaignGameInstance::GetCharacters() const
+{
+	return GetSubsystem<UWLCharacterSubsystem>();
+}
+
+UWLPoliticalSubsystem* UWLCampaignGameInstance::GetPolitics() const
+{
+	return GetSubsystem<UWLPoliticalSubsystem>();
 }
 
 bool UWLCampaignGameInstance::StartNewCampaign(const FString& NationIso)
@@ -43,6 +55,14 @@ bool UWLCampaignGameInstance::StartNewCampaign(const FString& NationIso)
 	if (UWLMilitarySubsystem* Military = GetMilitary())
 	{
 		Military->ResetMilitaryState();
+	}
+	if (UWLCharacterSubsystem* Characters = GetCharacters())
+	{
+		Characters->ResetCharacterState();
+	}
+	if (UWLPoliticalSubsystem* Politics = GetPolitics())
+	{
+		Politics->ResetPoliticalState();
 	}
 	UE_LOG(LogWorldLeader, Log, TEXT("Campania iniciada con %s (%s)."), *Nation.Name, *Nation.Iso);
 	// Instantanea economica al iniciar (incluye el upkeep militar de FE1.1) para diagnostico/verificacion.
@@ -66,6 +86,14 @@ void UWLCampaignGameInstance::ResetCampaignFlow()
 	if (UWLMilitarySubsystem* Military = GetMilitary())
 	{
 		Military->ResetMilitaryState();
+	}
+	if (UWLCharacterSubsystem* Characters = GetCharacters())
+	{
+		Characters->ResetCharacterState();
+	}
+	if (UWLPoliticalSubsystem* Politics = GetPolitics())
+	{
+		Politics->ResetPoliticalState();
 	}
 }
 
@@ -112,10 +140,26 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 		Save->CurrentMonth,
 		Save->NationTreasuries,
 		Save->ProvinceBuildings,
-		Save->ProvinceStates);
+		Save->ProvinceStates,
+		&Save->ActiveMarketShocks,
+		&Save->FinancialInstruments,
+		&Save->ForeignSupportStates);
 	if (const UWLMilitarySubsystem* Military = GetMilitary())
 	{
 		Military->WriteSaveSnapshot(Save->Armies, Save->NextArmyNumber);
+	}
+	if (const UWLCharacterSubsystem* Characters = GetCharacters())
+	{
+		Characters->WriteSaveSnapshot(Save->Characters, Save->PoliticalCapital);
+	}
+	if (const UWLPoliticalSubsystem* Politics = GetPolitics())
+	{
+		Politics->WriteSaveSnapshot(
+			Save->InternalPowerStates,
+			Save->DiplomaticRelations,
+			Save->IntelligenceNetworks,
+			Save->PoliticalEvents,
+			Save->CampaignOutcome);
 	}
 
 	const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, WLLocalCampaignSlot, WLLocalCampaignUserIndex);
@@ -162,6 +206,9 @@ bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 		Save->NationTreasuries,
 		Save->ProvinceBuildings,
 		Save->ProvinceStates,
+		Save->ActiveMarketShocks,
+		Save->FinancialInstruments,
+		Save->ForeignSupportStates,
 		RestoreMessage))
 	{
 		OutMessage = RestoreMessage;
@@ -178,10 +225,36 @@ bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 		}
 	}
 
+	FString CharacterMessage;
+	if (UWLCharacterSubsystem* Characters = GetCharacters())
+	{
+		if (!Characters->RestoreSaveSnapshot(Save->Characters, Save->PoliticalCapital, CharacterMessage))
+		{
+			OutMessage = CharacterMessage;
+			return false;
+		}
+	}
+
+	FString PoliticsMessage;
+	if (UWLPoliticalSubsystem* Politics = GetPolitics())
+	{
+		if (!Politics->RestoreSaveSnapshot(
+			Save->InternalPowerStates,
+			Save->DiplomaticRelations,
+			Save->IntelligenceNetworks,
+			Save->PoliticalEvents,
+			Save->CampaignOutcome,
+			PoliticsMessage))
+		{
+			OutMessage = PoliticsMessage;
+			return false;
+		}
+	}
+
 	SelectedNationIso = Nation.Iso;
 	bHasActiveCampaign = true;
-	OutMessage = FString::Printf(TEXT("Campania cargada: %s (%s). %s %s"),
-		*Nation.Name, *Nation.Iso, *RestoreMessage, *MilitaryMessage);
+	OutMessage = FString::Printf(TEXT("Campania cargada: %s (%s). %s %s %s %s"),
+		*Nation.Name, *Nation.Iso, *RestoreMessage, *MilitaryMessage, *CharacterMessage, *PoliticsMessage);
 	return true;
 }
 
@@ -220,6 +293,10 @@ void UWLCampaignGameInstance::WLAdvanceMonth()
 	if (UWLStrategicTickSubsystem* Tick = GetTick())
 	{
 		Tick->AdvanceMonth();
+		if (UWLPoliticalSubsystem* Politics = GetPolitics())
+		{
+			Politics->ProcessPoliticalMonth();
+		}
 		WLPrintState();
 	}
 }

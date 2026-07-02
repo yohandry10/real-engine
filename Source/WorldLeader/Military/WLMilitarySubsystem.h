@@ -31,6 +31,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	bool GetArmy(const FString& ArmyId, FWLArmy& OutArmy) const;
 
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	bool SetArmyGeneral(const FString& ArmyId, const FString& GeneralName, FString& OutMessage);
+
 	/** Mueve un ejercito a una provincia adyacente. */
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	bool MoveArmy(const FString& ArmyId, const FString& ToProvinceId, FString& OutMessage);

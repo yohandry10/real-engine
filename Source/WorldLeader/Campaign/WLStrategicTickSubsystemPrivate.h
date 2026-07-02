@@ -30,6 +30,15 @@ namespace WLStrategicTickPrivate
 
 	inline bool ProvinceSupportsBuilding(const FWLProvinceData& Province, const FWLBuildingData& Building)
 	{
+		if (Building.Slot == EWLBuildingSlot::Naval && !Province.bHasPort)
+		{
+			return false;
+		}
+		if (Building.Slot == EWLBuildingSlot::Air && !Province.bHasAirbase)
+		{
+			return false;
+		}
+
 		bool bRequiresResourceFit = false;
 		bool bHasFit = false;
 

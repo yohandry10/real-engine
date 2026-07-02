@@ -9,6 +9,8 @@
 
 class UWLDataRegistry;
 class UWLStrategicTickSubsystem;
+class UWLCharacterSubsystem;
+class UWLPoliticalSubsystem;
 
 /**
  * GameInstance de la campania. Punto de entrada del estado global del cliente
@@ -96,5 +98,7 @@ private:
 
 	UWLDataRegistry* GetRegistry() const;
 	UWLStrategicTickSubsystem* GetTick() const;
+	UWLCharacterSubsystem* GetCharacters() const;
+	UWLPoliticalSubsystem* GetPolitics() const;
 	class UWLMilitarySubsystem* GetMilitary() const;
 };

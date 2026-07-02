@@ -23,6 +23,18 @@ struct FWLNationBudget
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
 	int64 TaxIncome = 0;          // impuesto poblacional con la tasa vigente (tras orden publico)
 
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ExportIncome = 0;       // FE4.1: ventas de excedentes al mercado regional/global
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 TariffIncome = 0;       // FE4.3: aranceles cobrados sobre importaciones
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ForeignAidIncome = 0;   // FE5.3: ayuda exterior que entra al tesoro
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ForeignInvestmentInflow = 0;   // FE5.3: FDI activo; no entra directo al tesoro
+
 	// Gastos
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
 	int64 MilitaryUpkeep = 0;
@@ -40,8 +52,17 @@ struct FWLNationBudget
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
 	int64 DebtInterest = 0;
 
-	int64 TotalIncome() const { return ResourceIncome + TaxIncome; }
-	int64 TotalSpending() const { return MilitaryUpkeep + InfrastructureUpkeep + PublicWages + SocialSpending + DebtInterest; }
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 DebtService = 0;        // FE5.1: pagos mensuales de bonos/prestamos/FMI
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ImportCost = 0;         // FE4.1: compras de deficit de bienes criticos
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 CorruptionLoss = 0;     // FE6.2: filtracion del presupuesto por corrupcion sistemica
+
+	int64 TotalIncome() const { return ResourceIncome + TaxIncome + ExportIncome + TariffIncome + ForeignAidIncome; }
+	int64 TotalSpending() const { return MilitaryUpkeep + InfrastructureUpkeep + PublicWages + SocialSpending + DebtInterest + DebtService + ImportCost + CorruptionLoss; }
 	int64 Net() const { return TotalIncome() - TotalSpending(); }
 };
 
@@ -74,11 +95,211 @@ struct FWLSectorEmployment
 	int64 Manufacturing = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
-	int64 Services = 0;         // resto de la fuerza laboral (MVP; desempleo llega en FE2.4)
+	int64 Services = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Unemployed = 0;
 
 	/** 0..1: cuanta de la mano de obra que piden extraccion+manufactura queda cubierta. */
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
 	double LaborCoverage = 1.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double UnemploymentRate = 0.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double Productivity = 1.0;
+};
+
+/** FE3-FE4: balance nacional de un bien tras produccion, demanda, precio y comercio. */
+USTRUCT(BlueprintType)
+struct FWLGoodMarketBalance
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	FString GoodId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Production = 0;       // produccion bruta real; puede usarse como insumo
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 UsedAsInput = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 DomesticSupply = 0;   // produccion final disponible antes de comercio
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Demand = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Imports = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Exports = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Supply = 0;           // oferta interna despues de importar y exportar
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Deficit = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Surplus = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double UnitPrice = 0.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double PriceMultiplier = 1.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double MarketShockMultiplier = 1.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ProductionValue = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ImportCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ImportTariffIncome = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ExportRevenue = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int32 TariffRatePercent = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double TariffImportVolumeMultiplier = 1.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double RegionalTradeRouteMultiplier = 1.0;
+};
+
+/** FE2.4: empleo nacional agregado para mostrar desempleo y productividad. */
+USTRUCT(BlueprintType)
+struct FWLNationLaborStats
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Workforce = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Employed = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 Unemployed = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double UnemploymentRate = 0.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double Productivity = 1.0;
+};
+
+/** FE6: gobernanza economica derivada del gabinete y la tecnologia provincial. */
+USTRUCT(BlueprintType)
+struct FWLEconomicGovernanceStats
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	FString EconomyMinisterId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	FString EconomyMinisterName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int32 EconomyMinisterSkill = 50;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int32 SystemicCorruption = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int32 TechnologyLevel = 50;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int32 InvestmentClimate = 50;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double TaxCollectionMultiplier = 1.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double ProductivityMultiplier = 1.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	double CorruptionSkimRate = 0.0;
+};
+
+/** Backend de edificios provinciales: efectos agregados de todos los slots construidos. */
+USTRUCT(BlueprintType)
+struct FWLProvinceBuildingEffects
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 TotalLevels = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int64 MonthlyIncome = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int64 MonthlyUpkeep = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusOil = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusGas = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusFood = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusMinerals = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusIndustry = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int64 BonusFinancialIncome = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusInfrastructure = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusPublicOrder = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusRecruitmentCapacity = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusMilitaryPower = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusDefense = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusAirCapacity = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusNavalCapacity = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Construction")
+	int32 BonusTechnology = 0;
+};
+
+struct FWLProductionLedger
+{
+	TMap<FString, int64> Produced;
+	TMap<FString, int64> UsedAsInput;
+	TMap<FString, int64> FinalSupply;
 };
 
 // --- Reclutamiento de tropas por turnos (estilo Total War) ---
@@ -144,6 +365,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetTreasury(const FString& NationIso) const;
 
+	/** Ajuste directo de tesoro para decisiones politicas/eventos. Delta positivo suma, negativo gasta. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Economy")
+	bool AdjustTreasury(const FString& NationIso, int64 Delta, FString& OutMessage);
+
 	/** Balance mensual neto de una nacion segun sus provincias actuales. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetMonthlyBalance(const FString& NationIso) const;
@@ -155,6 +380,42 @@ public:
 	/** FE1.4: limite de credito de una nacion (hasta cuanto puede endeudarse gastando). */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetCreditLimit(const FString& NationIso) const;
+
+	/** FE5.1: perfil financiero soberano calculado desde deuda, servicio, ingresos y gobernanza. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Finance")
+	FWLFinancialProfile GetFinancialProfile(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Finance")
+	TArray<FWLFinancialInstrumentState> GetFinancialInstrumentsForNation(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Finance")
+	bool IssueBond(const FString& NationIso, int64 Principal, int32 TermMonths, FString& OutMessage);
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Finance")
+	bool RegisterBilateralLoan(const FString& CreditorIso, const FString& RecipientIso, int64 Principal, int32 TermMonths, FString& OutMessage);
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Finance")
+	bool RequestIMFProgram(const FString& NationIso, int64 Principal, int32 TermMonths, FString& OutMessage);
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Finance")
+	bool MarkDebtDefault(const FString& NationIso, FString& OutMessage);
+
+	/** FE5.3: ayuda exterior e inversion extranjera directa activas. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Finance")
+	TArray<FWLForeignSupportState> GetForeignSupportForNation(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Finance")
+	bool GrantForeignAid(const FString& SponsorIso, const FString& RecipientIso, int64 MonthlyAmount, int32 DurationMonths, FString& OutMessage);
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Finance")
+	bool StartForeignInvestment(
+		const FString& SponsorIso,
+		const FString& RecipientIso,
+		const FString& ProvinceId,
+		const FString& BuildingId,
+		int64 MonthlyAmount,
+		int32 DurationMonths,
+		FString& OutMessage);
 
 	/** FE1.5: PIB mensual = produccion a precios de mercado + actividad de la poblacion, por orden publico. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
@@ -175,6 +436,67 @@ public:
 	/** FE2.2: empleo por sector de una provincia (el trabajo limita la produccion). */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	FWLSectorEmployment GetProvinceEmployment(const FString& ProvinceId) const;
+
+	/** FE2.4: empleo/desempleo/productividad de una nacion. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	FWLNationLaborStats GetNationLaborStats(const FString& NationIso) const;
+
+	/** FE3-FE4: balance por bien con demanda, precios dinamicos, importaciones y exportaciones. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	TArray<FWLGoodMarketBalance> GetNationGoodMarketBalance(const FString& NationIso) const;
+
+	/** FE3.4: shocks temporales activos que multiplican precios de bienes o de todo el mercado. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	TArray<FWLMarketShockState> GetActiveMarketShocks() const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	double GetMarketShockMultiplier(const FString& GoodId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Economy")
+	bool ApplyMarketShock(
+		const FString& GoodId,
+		double PriceMultiplier,
+		int32 DurationMonths,
+		const FString& Title,
+		const FString& SourceEventId,
+		FString& OutMessage);
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Economy")
+	bool ClearMarketShock(const FString& ShockId, FString& OutMessage);
+
+	/** FE4.2-FE4.5: rutas comerciales efectivas desde tratados, embargos, aranceles y guerra. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	TArray<FWLTradeRouteState> GetTradeRoutesForNation(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	FWLTradeRouteState GetTradeRouteBetween(const FString& NationA, const FString& NationB) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int32 GetTariffRate(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Economy")
+	int32 SetTariffRate(const FString& NationIso, int32 RatePercent);
+
+	/** FE5.2: inflacion mensual estimada desde presion de precios del mercado. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	double GetNationInflationRate(const FString& NationIso) const;
+
+	/** FE5.4: indicador sintetico de ciclo; positivo expansion, negativo recesion. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	double GetNationEconomicCycleScore(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	FString GetNationEconomicCycleLabel(const FString& NationIso) const;
+
+	/** FE6: ministro de economia, corrupcion sistemica y tecnologia que modifican la economia. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	FWLEconomicGovernanceStats GetEconomicGovernanceStats(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int32 GetNationSystemicCorruption(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int32 GetNationTechnologyLevel(const FString& NationIso) const;
 
 	/** FE1.2: tasa de impuestos de una nacion (%). Si nunca se toco, el default de balance. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
@@ -206,6 +528,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Province")
 	bool SetProvinceController(const FString& ProvinceId, const FString& NewControllerIso, FString& OutMessage);
 
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Province")
+	bool AdjustProvincePublicOrder(const FString& ProvinceId, int32 Delta, FString& OutMessage);
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Province")
+	int32 AdjustNationPublicOrder(const FString& NationIso, int32 Delta);
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Balance")
 	FWLBalanceRules GetBalanceRules() const;
 
@@ -221,9 +549,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Construction")
 	bool BuildBuilding(const FString& ProvinceId, const FString& BuildingId, FString& OutMessage);
 
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Construction")
+	bool UpgradeBuilding(const FString& ProvinceId, const FString& BuildingId, FString& OutMessage);
+
 	/** IDs de edificios construidos en una provincia. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Construction")
 	TArray<FString> GetProvinceBuildings(const FString& ProvinceId) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Construction")
+	int32 GetProvinceBuildingLevel(const FString& ProvinceId, const FString& BuildingId) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Construction")
+	int64 GetProvinceBuildingUpgradeCost(const FString& ProvinceId, const FString& BuildingId) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Construction")
+	FWLProvinceBuildingEffects GetProvinceBuildingEffects(const FString& ProvinceId) const;
 
 	// --- Reclutamiento (Fase 2: cola + avance por turno) ---
 	/** Catalogo de unidades reclutables (coste/turnos/lote). */
@@ -265,7 +605,10 @@ public:
 		int32& OutMonth,
 		TArray<FWLNationTreasurySave>& OutTreasuries,
 		TArray<FWLProvinceBuildingsSave>& OutProvinceBuildings,
-		TArray<FWLProvinceRuntimeState>& OutProvinceStates) const;
+		TArray<FWLProvinceRuntimeState>& OutProvinceStates,
+		TArray<FWLMarketShockState>* OutMarketShocks = nullptr,
+		TArray<FWLFinancialInstrumentState>* OutFinancialInstruments = nullptr,
+		TArray<FWLForeignSupportState>* OutForeignSupportStates = nullptr) const;
 
 	bool RestoreSaveSnapshot(
 		int32 SavedYear,
@@ -273,6 +616,26 @@ public:
 		const TArray<FWLNationTreasurySave>& SavedTreasuries,
 		const TArray<FWLProvinceBuildingsSave>& SavedProvinceBuildings,
 		const TArray<FWLProvinceRuntimeState>& SavedProvinceStates,
+		FString& OutMessage);
+
+	bool RestoreSaveSnapshot(
+		int32 SavedYear,
+		int32 SavedMonth,
+		const TArray<FWLNationTreasurySave>& SavedTreasuries,
+		const TArray<FWLProvinceBuildingsSave>& SavedProvinceBuildings,
+		const TArray<FWLProvinceRuntimeState>& SavedProvinceStates,
+		const TArray<FWLMarketShockState>& SavedMarketShocks,
+		FString& OutMessage);
+
+	bool RestoreSaveSnapshot(
+		int32 SavedYear,
+		int32 SavedMonth,
+		const TArray<FWLNationTreasurySave>& SavedTreasuries,
+		const TArray<FWLProvinceBuildingsSave>& SavedProvinceBuildings,
+		const TArray<FWLProvinceRuntimeState>& SavedProvinceStates,
+		const TArray<FWLMarketShockState>& SavedMarketShocks,
+		const TArray<FWLFinancialInstrumentState>& SavedFinancialInstruments,
+		const TArray<FWLForeignSupportState>& SavedForeignSupportStates,
 		FString& OutMessage);
 
 	UPROPERTY(BlueprintAssignable, Category = "WorldLeader|Campaign")
@@ -289,13 +652,35 @@ private:
 	/** FE1.2: tasa de impuestos por nacion (ISO -> %). Si falta, se usa TaxRateDefaultPercent. */
 	TMap<FString, int32> TaxRates;
 
+	/** FE4.3: tasa de aranceles por nacion (ISO -> %). Si falta, se usa TariffRateDefaultPercent. */
+	TMap<FString, int32> TariffRates;
+
+	/** FE5.1/FE5.3: instrumentos financieros y apoyo exterior persistentes. */
+	TArray<FWLFinancialInstrumentState> FinancialInstruments;
+	TArray<FWLForeignSupportState> ForeignSupportStates;
+	int32 NextFinancialInstrumentNumber = 1;
+	int32 NextForeignSupportNumber = 1;
+
 	/** FE1.5: PIB del tick anterior y crecimiento medido, por nacion (para la tasa de crecimiento). */
 	TMap<FString, int64> PreviousGDP;
 	TMap<FString, double> GDPGrowth;
 	void UpdateGDPHistory();
 
+	/** FE3.4: shocks temporales de precios de mercado. */
+	TArray<FWLMarketShockState> ActiveMarketShocks;
+	int32 NextMarketShockNumber = 1;
+	void AdvanceMarketShocks();
+	void AdvanceFinancialMonth();
+	int64 GetNationDebtService(const FString& NationIso) const;
+	int64 GetNationOutstandingDebt(const FString& NationIso) const;
+	double GetInterestRateForInstrument(const FString& NationIso, EWLFinancialInstrumentType Type) const;
+	bool CanAddDebtInstrument(const FString& NationIso, int64 Principal, int32 TermMonths, double MonthlyInterestRate, FString& OutMessage) const;
+	FWLFinancialInstrumentState AddDebtInstrument(const FString& NationIso, const FString& CreditorIso, EWLFinancialInstrumentType Type, int64 Principal, int32 TermMonths, double MonthlyInterestRate, const FString& Title);
+	bool CompleteForeignInvestment(FWLForeignSupportState& Support, FString& OutMessage);
+
 	/** Edificios construidos por provincia (provinceId -> lista de buildingId). */
 	TMap<FString, TArray<FString>> ProvinceBuildings;
+	TMap<FString, TMap<FString, int32>> ProvinceBuildingLevels;
 
 	/** Estado mutable por provincia: poblacion actual y orden publico. */
 	TMap<FString, FWLProvinceRuntimeState> ProvinceStates;
@@ -333,6 +718,14 @@ private:
 
 	/** FE1.3: ingreso provincial con desglose exacto de la parte de impuestos (OutTaxIncome <= retorno). */
 	int64 GetProvinceMonthlyIncomeSplit(const FString& ProvinceId, int64& OutTaxIncome) const;
+
+	FWLProductionLedger BuildProvinceProductionLedger(const FString& ProvinceId) const;
+	FWLProductionLedger BuildNationProductionLedger(const FString& NationIso) const;
+	TMap<FString, int64> BuildNationDemandMap(const FString& NationIso) const;
+	int64 GetNationPopulation(const FString& NationIso) const;
+	int64 GetNationMarketProductionValue(const FString& NationIso) const;
+	int64 GetNationTradeBalance(const FString& NationIso) const;
+	double GetTariffImportVolumeMultiplier(const FString& NationIso) const;
 
 	void EnsureRecruitCatalog() const;
 	const FWLRecruitOption* FindRecruitOption(const FString& UnitType) const;

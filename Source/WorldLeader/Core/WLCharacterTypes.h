@@ -22,6 +22,18 @@ enum class EWLCharacterRole : uint8
 	Spy           UMETA(DisplayName = "Espia")           // agente (Intriga)
 };
 
+/** Cargo del gabinete presidencial. F1.2 usa esto para nombrar/remover ministros. */
+UENUM(BlueprintType)
+enum class EWLMinisterOffice : uint8
+{
+	None         UMETA(DisplayName = "Sin cargo"),
+	Economy      UMETA(DisplayName = "Economia"),
+	Defense      UMETA(DisplayName = "Defensa"),
+	Interior     UMETA(DisplayName = "Interior"),
+	Foreign      UMETA(DisplayName = "Exterior"),
+	Intelligence UMETA(DisplayName = "Inteligencia")
+};
+
 /** Rango militar de un general. El ascenso (F1.7) sube por esta escala. */
 UENUM(BlueprintType)
 enum class EWLMilitaryRank : uint8
@@ -61,6 +73,12 @@ struct FWLCharacter
 	/** Renombre acumulado (experiencia): sube con turnos/combate y desbloquea ascensos/rasgos (F1.8). */
 	UPROPERTY(BlueprintReadOnly, Category = "Character") int32 Renown = 0;
 
+	/** Cargo para el que encaja mejor si es ministro. */
+	UPROPERTY(BlueprintReadOnly, Category = "Character") EWLMinisterOffice PreferredOffice = EWLMinisterOffice::None;
+
+	/** Cargo actualmente ocupado en el gabinete. None = disponible o no es ministro. */
+	UPROPERTY(BlueprintReadOnly, Category = "Character") EWLMinisterOffice AssignedOffice = EWLMinisterOffice::None;
+
 	/** IDs de rasgos (cargados del pool en F1.3): "audaz", "corrupto", "estratega"... */
 	UPROPERTY(BlueprintReadOnly, Category = "Character") TArray<FString> Traits;
 
@@ -71,4 +89,16 @@ struct FWLCharacter
 	UPROPERTY(BlueprintReadOnly, Category = "Character") bool bActive = true;
 
 	bool IsValid() const { return !Id.IsEmpty(); }
+};
+
+USTRUCT(BlueprintType)
+struct FWLPoliticalCapitalSave
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	int32 PoliticalCapital = 0;
 };

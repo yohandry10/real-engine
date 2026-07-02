@@ -645,9 +645,11 @@ void AWLCampaign3DView::SetComponentSetActive(bool bActive)
 		UStaticMeshComponent* Marker = ForceMarkerComponents[Index];
 		if (Marker)
 		{
-			// Token visible por detalle Y solo si la fuerza tiene tropas (fuerte vacio -> sin tanque).
-			Marker->SetVisibility(bCloseDetailVisible && ForceHasTroopsForToken(Index), true);
-			Marker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			// Token visible por detalle Y solo si la fuerza tiene tropas (fuerte vacio -> sin tanque). La
+			// colision de seleccion sigue a la visibilidad: si ves el tanque, lo puedes clicar.
+			const bool bShow = bCloseDetailVisible && ForceHasTroopsForToken(Index);
+			Marker->SetVisibility(bShow, true);
+			Marker->SetCollisionEnabled(bShow ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 		}
 	}
 	for (UPrimitiveComponent* Marker : ForceSelectionMarkers)

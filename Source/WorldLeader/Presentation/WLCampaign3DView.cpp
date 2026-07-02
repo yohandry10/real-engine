@@ -120,6 +120,14 @@ AWLCampaign3DView::AWLCampaign3DView()
 		VertexColorMaterial = VertexMatFinder.Object;
 	}
 
+	// Material UNLIT de vertex-color para los tokens de ejercito (el del Engine es LIT -> el tanque se
+	// oscurecia con la luz). Si no esta importado, cae al VertexColorMaterial (lit) sin romper.
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ForceTokenMatFinder(TEXT("/Game/GenVehicle/M_VehicleUnlit.M_VehicleUnlit"));
+	if (ForceTokenMatFinder.Succeeded())
+	{
+		ForceTokenMaterial = ForceTokenMatFinder.Object;
+	}
+
 	// Material LIT/PBR del terreno (M1). Si aun no esta importado, queda null y el terreno cae al
 	// VertexColorMaterial unlit (no rompe).
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TerrainLitFinder(TEXT("/Game/GenTerrain/M_TerrainLit.M_TerrainLit"));

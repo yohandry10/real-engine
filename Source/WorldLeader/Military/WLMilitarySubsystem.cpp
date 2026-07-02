@@ -4,6 +4,8 @@
 #include "Military/WLMilitaryLibrary.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Characters/WLCharacterSubsystem.h"
+#include "Politics/WLPoliticalSubsystem.h"
 #include "WorldLeader.h"
 #include "Engine/GameInstance.h"
 
@@ -141,6 +143,18 @@ FString UWLMilitarySubsystem::CreateArmy(const FString& OwnerIso, const FString&
 	}
 
 	Armies.Add(Army);
+	if (General.IsEmpty())
+	{
+		if (UGameInstance* GI = GetGameInstance())
+		{
+			if (UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
+			{
+				FWLCharacter GeneratedGeneral;
+				FString AssignMessage;
+				Characters->CreateAndAssignGeneralToArmy(Owner.Iso, Army.Id, GeneratedGeneral, AssignMessage);
+			}
+		}
+	}
 	UE_LOG(LogWorldLeader, Log, TEXT("Ejercito %s creado: %s x%d en %s (%s)"),
 		*Army.Id, *Unit.Name, Count, *Province.Name, *Army.OwnerIso);
 	return Army.Id;
@@ -154,6 +168,19 @@ bool UWLMilitarySubsystem::GetArmy(const FString& ArmyId, FWLArmy& OutArmy) cons
 		return true;
 	}
 	return false;
+}
+
+bool UWLMilitarySubsystem::SetArmyGeneral(const FString& ArmyId, const FString& GeneralName, FString& OutMessage)
+{
+	FWLArmy* Army = FindArmy(ArmyId);
+	if (!Army)
+	{
+		OutMessage = FString::Printf(TEXT("Ejercito desconocido: %s"), *ArmyId);
+		return false;
+	}
+	Army->General = GeneralName.TrimStartAndEnd().IsEmpty() ? TEXT("Comandante") : GeneralName.TrimStartAndEnd();
+	OutMessage = FString::Printf(TEXT("%s ahora esta bajo %s."), *Army->Id, *Army->General);
+	return true;
 }
 
 bool UWLMilitarySubsystem::MoveArmy(const FString& ArmyId, const FString& ToProvinceId, FString& OutMessage)
@@ -232,6 +259,20 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 			*Attacker->Id, *Defender->Id, *Attacker->OwnerIso);
 		return EWLBattleResult::Invalid;
 	}
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
+		{
+			FWLDiplomaticRelationState Relation;
+			if (Politics->GetRelation(Attacker->OwnerIso, Defender->OwnerIso, Relation)
+				&& Relation.Status != EWLDiplomaticStatus::War)
+			{
+				OutReport = FString::Printf(TEXT("%s y %s no estan en guerra."),
+					*Attacker->OwnerIso, *Defender->OwnerIso);
+				return EWLBattleResult::Invalid;
+			}
+		}
+	}
 
 	FWLProvinceData AttackerProvince;
 	if (!Reg->GetProvince(Attacker->ProvinceId, AttackerProvince))
@@ -253,9 +294,15 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 	{
 		TerrainMult = UWLMilitaryLibrary::TerrainDefenseMultiplier(DefProvince.Terrain);
 	}
+	float BuildingDefenseMult = 1.0f;
+	if (const UWLStrategicTickSubsystem* Tick = GetStrategicTick())
+	{
+		const FWLProvinceBuildingEffects Effects = Tick->GetProvinceBuildingEffects(Defender->ProvinceId);
+		BuildingDefenseMult += static_cast<float>(FMath::Max(0, Effects.BonusDefense)) / 100.0f;
+	}
 
 	const int32 AttackPower = SumUnitStat(*Attacker, true);
-	const int32 DefensePower = FMath::RoundToInt(SumUnitStat(*Defender, false) * TerrainMult);
+	const int32 DefensePower = FMath::RoundToInt(SumUnitStat(*Defender, false) * TerrainMult * BuildingDefenseMult);
 	const EWLBattleResult Result = UWLMilitaryLibrary::ResolveBattle(AttackPower, DefensePower);
 
 	float AttackerLoss = 0.f;
@@ -285,8 +332,8 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 		});
 
 	OutReport = FString::Printf(
-		TEXT("Batalla en %s: %s (atk %d) vs %s (def %d, terreno x%.2f) -> %s. Quedan: %s=%d, %s=%d."),
-		*DefenderProvince, *AttackerId, AttackPower, *DefenderId, DefensePower, TerrainMult,
+		TEXT("Batalla en %s: %s (atk %d) vs %s (def %d, terreno x%.2f, defensas x%.2f) -> %s. Quedan: %s=%d, %s=%d."),
+		*DefenderProvince, *AttackerId, AttackPower, *DefenderId, DefensePower, TerrainMult, BuildingDefenseMult,
 		*UWLMilitaryLibrary::BattleResultToString(Result),
 		*AttackerId, Attacker->Units.Num(), *DefenderId, Defender->Units.Num());
 
@@ -312,6 +359,25 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 	}
 
 	UE_LOG(LogWorldLeader, Log, TEXT("%s"), *OutReport);
+
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
+		{
+			FWLCharacter AttackingGeneral;
+			if (Characters->GetAssignedGeneralForArmy(Attacker->Id, AttackingGeneral))
+			{
+				FString RenownMessage;
+				Characters->AddRenownToGeneral(AttackingGeneral.Id, bAttackerWins ? 8 : 4, RenownMessage);
+			}
+			FWLCharacter DefendingGeneral;
+			if (Characters->GetAssignedGeneralForArmy(Defender->Id, DefendingGeneral))
+			{
+				FString RenownMessage;
+				Characters->AddRenownToGeneral(DefendingGeneral.Id, bAttackerWins ? 4 : 8, RenownMessage);
+			}
+		}
+	}
 
 	// Eliminar ejercitos aniquilados (esto invalida los punteros anteriores).
 	Armies.RemoveAll([](const FWLArmy& A) { return A.Units.Num() == 0; });

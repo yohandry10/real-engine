@@ -1984,3 +1984,60 @@ De ahí se desprenden las reglas duras del mapa:
 **Implicación técnica (pendiente):** convertir esta red en el **grafo de pathfinding** de
 ejércitos (nodos=ciudades, aristas=corredores con costo), para que "elegí destino → la
 tropa recorre las carreteras reales y cruza por la frontera real" sea la jugada base.
+
+---
+
+## ANEXO — CAMPAIGN3D: GAMEPLAY DE PRESIDENTE + UX PENDIENTE
+
+> **Estado actual del prototipo Campaign3D (teatro Colombia–Venezuela):** ya hay mapa 3D,
+> ciudades, carreteras, **fuertes de reclutamiento**, **ejércitos que se mueven siguiendo el
+> trazado de la carretera** por turnos, **tick mensual [M]**, tesoro por país y
+> **reclutamiento por país (cada país en sus fuertes, tesoro/ejército independientes)**.
+> Lo que FALTA es la **capa de gobierno** ("¿qué puedo hacer como presidente?") y **pulir la
+> UX**. La visión macro ya está descrita arriba en «SISTEMAS POLÍTICOS Y DIPLOMÁTICOS»,
+> «ECONOMÍA», «Edificios por slot» y la Phase 5; esta sección la baja a **tareas concretas**.
+
+### A. UX / pulido inmediato (lo que se ve feo o confuso HOY)
+- [x] **Cards de reclutamiento legibles y amigables.** (1ª pasada) Cards grandes de 60px con icono + nombre + coste + días + franja de categoría; fuentes mayores. Queda afinar tamaños de fuente si hace falta.
+- [x] **Avance de turno claro.** Botón grande «AVANZAR DIA» abajo-derecha (estilo "Finalizar turno") + tecla [M]; el tiempo ahora avanza en DÍAS (fecha DD/MM/AAAA, "Balance/día").
+- [~] **Leyenda de controles / onboarding.** Leyenda inferior actualizada ("[M] Avanzar dia"); falta el panel/tooltips de onboarding completo.
+- [ ] **Feedback claro de cada acción.** Mensajes de reclutar / mover / fondos insuficientes / "fuerte de otro país" bien visibles.
+- [ ] **HUD con estándar visual AAA** (tipografías, colores, paneles) — ver `Docs/CAMPAIGN3D_VISUAL_STANDARD.md`.
+
+### B. Gameplay de presidente (la capa que falta)
+Qué puede HACER el jugador gobernando su país, sobre el tick mensual + economía ya existentes:
+- [~] **Economía activa:** backend FE1-FE6 listo para UI en campaña local: impuestos, presupuesto, deuda, bonos/préstamos/FMI, rating/default, ayuda exterior, FDI, PIB, sectores, cadenas, demanda, precios, shocks de mercado, comercio regional/global, acuerdos comerciales, aranceles, embargos/sanciones, rutas cortables por guerra, inflación, ciclo económico y gobernanza económica por ministro/corrupción/tecnología. Falta backend online/PvP si se entra a Phase 4 y falta UIX completa.
+- [~] **Ministerios / gabinete:** backend F1 listo para UI: roster, gabinete, capital político, nombrar/remover ministros, autogeneral al crear ejército, crear/asignar generales, ascender/retirar, renombre y save/load. Falta la UIX completa para que el jugador lo use desde el HUD.
+- [~] **Edificios provinciales:** backend listo para UI: catálogo JSON con slots económico/industrial/militar/naval/aéreo/tecnológico/financiero/infra/defensa, niveles 1–5, coste de mejora, mantenimiento, efectos económicos/militares/orden público, save/load v9, IA económica que construye o mejora, y bonus defensivo en auto-resolve. Falta UIX completa de slots, niveles y botón de mejorar.
+- [~] **Relaciones internacionales:** backend F3 listo para UI: matriz de opinión, paz/tensión/guerra, declarar guerra, tratados y bloqueo de combate si no hay guerra.
+- [~] **Alianzas y bloques:** backend F3 listo para UI: tratados `TradeAgreement`, `NonAggression`, `Alliance`, `Embargo`; falta representación visual/acciones completas de bloque.
+- [~] **Espionaje y sabotaje:** backend F4 listo para UI: redes de inteligencia, sabotaje económico/militar, financiar golpe, propaganda y contraespionaje.
+- [~] **Orden público y sublevaciones:** backend F2/F5 listo para UI: orden público alimenta oposición, eventos y riesgo de golpe; falta pantalla/feedback de revuelta.
+- [~] **Golpes de Estado (sufrirlos y darlos):** backend F2/F4 listo para UI: riesgo, intento de golpe, financiación externa y derrota por golpe exitoso.
+- [~] **Generales rebeldes:** backend base listo: lealtad/ambición alimentan golpe; falta la rama visual/narrativa de deserción con ejército.
+- [~] **Intrigas / eventos políticos:** backend F5 listo para UI: eventos JSON, cola, resolver opción, efectos persistentes.
+- [~] **Ascensiones / progresión:** backend F1 listo para UI: ascenso, retiro, renombre mensual y por batalla; falta pantalla y ceremonias/feedback.
+
+### C. Frontend / UIX pendiente para gobierno
+- [ ] **Panel Gabinete real:** cards por ministerio con ministro actual, skill, lealtad, ambición, popularidad, rasgos y coste de acción.
+- [ ] **Acciones de gabinete:** flujo de nombrar/remover ministro con selector de candidatos, confirmación, preview de capital político y feedback visible.
+- [ ] **Panel Personajes:** lista filtrable por rol (ministros, generales, oposición, espías, líderes) y país.
+- [ ] **Stats presidenciales:** mostrar capital político, estabilidad, corrupción y riesgo de golpe con tooltips y colores de riesgo.
+- [ ] **Panel Gobernanza económica:** mostrar ministro de Economía, skill/rasgos, tecnología, eficiencia fiscal, pérdida por corrupción y productividad.
+- [ ] **Panel finanzas avanzadas / ayuda / FDI:** mostrar rating, deuda, crédito disponible, servicio mensual, riesgo/default, FMI, ayudas activas, FDI y acciones de emitir deuda, pedir préstamo/FMI, conceder ayuda e invertir.
+- [ ] **Panel shocks de mercado:** mostrar shocks activos, bien afectado, duración restante, multiplicador e impacto en inflación/comercio.
+- [ ] **Panel comercio exterior:** rutas por país desde `GetTradeRoutesForNation`, acuerdos/embargos, arancel nacional, imports/exports, `TariffIncome` y preview de impacto diplomático.
+- [ ] **Generales en UI militar:** mostrar general asignado en ejército/selección y permitir asignarlo desde una lista válida.
+- [ ] **Panel Diplomacia:** lista de relaciones desde `UWLPoliticalSubsystem::GetRelationsForNation`, acciones `DeclareWar`/`SignTreaty`/`BreakTreaty`.
+- [ ] **Panel Intriga:** redes desde `GetIntelligenceNetwork`, acciones `BuildSpyNetwork`/`RunSpyOperation`, riesgo de exposición y resultado.
+- [ ] **Eventos políticos:** cola desde `GetQueuedEvents`, modal con opciones y `ResolveEvent`.
+- [ ] **Registro político:** log de decisiones y eventos de gobierno para que las consecuencias sean legibles.
+- [ ] **Edificios provinciales UIX:** mostrar slots reales, edificio actual, nivel 1–5, coste de mejora, mantenimiento, efectos y acciones construir/mejorar desde HUD.
+
+### Orden sugerido de implementación
+1. **A (UX)** — barato y desbloquea poder jugar/testear con gusto (cards + botón de turno + leyenda).
+2. **Economía activa + edificios + orden público** — el bucle de gobierno base.
+3. **Diplomacia + alianzas + ministerios** — el mundo vivo.
+4. **Espionaje + golpes de Estado + generales rebeldes + intrigas** — la capa de traición Total-War.
+
+**Código actual relevante:** `WLStrategicTickSubsystem*` (tick, tesoro, orden público, reclutamiento, economía, shocks de mercado FE3.4, comercio avanzado FE4.2-FE4.5, finanzas avanzadas FE5.1/FE5.3, gobernanza económica FE6, edificios provinciales con niveles/efectos), `WLFinancialTypes.h` (instrumentos de deuda, perfil financiero, ayuda/FDI), `WLCharacterSubsystem*` (personajes/gabinete/capital político/generales), `WLPoliticalSubsystem*` (poder interno, golpes, diplomacia, tratados/acuerdos/embargos, aranceles, intriga, eventos/outcome y disparo de shocks desde opciones F5), `WLCampaign3DView*` (mapa/ciudades/ejércitos/carreteras), `WLCampaignHUD*` + `WLCampaignHUDPanels.inl` (paneles/cards), `WLCampaignPlayerController*` (input/selección/reclutar). Datos en `Content/Data/` (Nations, Provinces, Units, Buildings, Goods, Characters, Political, Campaign3D/RecruitableUnits.json).
