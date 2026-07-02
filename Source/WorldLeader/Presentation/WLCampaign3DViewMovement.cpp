@@ -4,6 +4,8 @@
 
 #include "WorldLeader.h"
 #include "Campaign/WLDataRegistry.h"
+#include "Engine/GameInstance.h"
+#include "Military/WLMilitarySubsystem.h"
 #include "Presentation/WLCampaignOverviewBuilder.h"
 #include "Presentation/WLCampaignRegionGeometry.h"
 #include "Presentation/WLCampaignRouteBuilder.h"
@@ -1017,6 +1019,25 @@ void AWLCampaign3DView::AdvanceArmyMovements()
 			AdvanceForceAlongPath(Index);      // ruta por nodos-ciudad (boton Mover)
 		}
 	}
+
+	// Enlace mapa -> backend: la provincia del FWLArmy real sigue al token (la capa visual es la
+	// autoridad de posicion). Asi batallas/ocupacion operan donde el jugador VE su ejercito.
+	if (UWLMilitarySubsystem* Military = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLMilitarySubsystem>() : nullptr)
+	{
+		for (const FWLCampaign3DForceView& Force : ForceViews)
+		{
+			if (!Force.Id.StartsWith(TEXT("ARMY-")) || Force.ProvinceId.IsEmpty())
+			{
+				continue;
+			}
+			const FString BackendArmyId = Military->FindArmyIdByBase(Force.Id.Mid(5));
+			if (!BackendArmyId.IsEmpty())
+			{
+				FString SyncMessage;
+				Military->SetArmyProvince(BackendArmyId, Force.ProvinceId, SyncMessage);
+			}
+		}
+	}
 }
 
 bool AWLCampaign3DView::AdvanceForceTowardTarget(int32 Index)
@@ -1071,6 +1092,11 @@ bool AWLCampaign3DView::AdvanceForceTowardTarget(int32 Index)
 	const FVector NewPos = GroundedLandTokenLocationAtWorld(NewXY.X, NewXY.Y);
 	Force.WorldLocation = NewPos;
 	Force.MovementNodeId = FindNearestMovementNodeId(Force);   // nodo de referencia mas cercano
+	if (const FWLCampaign3DMovementNodeView* NearNode = FindMovementNodeById(Force.MovementNodeId))
+	{
+		Force.ProvinceId = NearNode->ProvinceId;   // el backend militar sigue esta provincia
+		Force.ProvinceName = NearNode->ProvinceName;
+	}
 
 	// Animacion: desliza el token de OldPos a NewPos por la carretera (reusa FForceMovementAnimation).
 	FForceMovementAnimation Anim;
@@ -1157,6 +1183,11 @@ bool AWLCampaign3DView::AdvanceForcePolyline(int32 Index)
 		Force.Posture = TEXT("en marcha por carretera");
 	}
 	Force.MovementNodeId = FindNearestMovementNodeId(Force);
+	if (const FWLCampaign3DMovementNodeView* NearNode = FindMovementNodeById(Force.MovementNodeId))
+	{
+		Force.ProvinceId = NearNode->ProvinceId;   // el backend militar sigue esta provincia
+		Force.ProvinceName = NearNode->ProvinceName;
+	}
 
 	if (Traversed.Num() >= 2)
 	{

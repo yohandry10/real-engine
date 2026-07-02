@@ -5,6 +5,9 @@
 #include "WorldLeader.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Characters/WLCharacterSubsystem.h"
+#include "Core/WLCharacterTypes.h"
+#include "Military/WLMilitarySubsystem.h"
 #include "Presentation/WLCampaignOverviewBuilder.h"
 #include "Presentation/WLCampaignRegionGeometry.h"
 #include "Presentation/WLCampaignRouteBuilder.h"
@@ -548,6 +551,9 @@ void AWLCampaign3DView::SyncRecruitedArmyTokens()
 		Forts.Add({ F.Id, F.Name, F.CountryIso, F.WorldLocation, F.Lon, F.Lat });
 	}
 
+	UWLMilitarySubsystem* Military = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLMilitarySubsystem>() : nullptr;
+	UWLCharacterSubsystem* Characters = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLCharacterSubsystem>() : nullptr;
+
 	for (const FFortInfo& Fort : Forts)
 	{
 		const TArray<FWLGarrisonGroup> Garrison = Tick->GetGarrisonRecruited(Fort.Id);
@@ -557,6 +563,7 @@ void AWLCampaign3DView::SyncRecruitedArmyTokens()
 		}
 
 		TArray<FWLForceUnitGroup> Comp;
+		TArray<TPair<FString, int32>> GarrisonUnits;
 		for (const FWLGarrisonGroup& G : Garrison)
 		{
 			FWLForceUnitGroup U;
@@ -564,17 +571,23 @@ void AWLCampaign3DView::SyncRecruitedArmyTokens()
 			U.Label = G.Label;
 			U.Count = G.Count;
 			Comp.Add(U);
+			GarrisonUnits.Add(TPair<FString, int32>(G.UnitType, G.Count));
 		}
 
 		const FString ArmyId = TEXT("ARMY-") + Fort.Id;
 
-		// Si el ejercito ya existe, solo sincroniza su composicion (puede haberse movido: no tocar posicion).
+		// Si el ejercito ya existe, solo sincroniza su composicion (puede haberse movido: no tocar posicion)
+		// y refresca el ejercito REAL del backend con la nueva tropa.
 		bool bExists = false;
 		for (FWLCampaign3DForceView& F : ForceViews)
 		{
 			if (F.Id.Equals(ArmyId, ESearchCase::IgnoreCase))
 			{
 				F.Composition = Comp;
+				if (Military)
+				{
+					Military->SyncArmyFromGarrison(Fort.Id, Fort.Iso, F.ProvinceId, GarrisonUnits);
+				}
 				bExists = true;
 				break;
 			}
@@ -660,6 +673,22 @@ void AWLCampaign3DView::SyncRecruitedArmyTokens()
 			Total += U.Count;
 		}
 		Army.EstimatedStrength = Total;
+
+		// Enlace con el backend militar: crea el FWLArmy REAL (con general nombrado, F1.4) y el token
+		// pasa a llamarse por su general. Sin esto, lo que se ve en el mapa no existia para el juego.
+		if (Military)
+		{
+			const FString BackendArmyId = Military->SyncArmyFromGarrison(Fort.Id, Fort.Iso, Army.ProvinceId, GarrisonUnits);
+			FWLCharacter General;
+			if (Characters && !BackendArmyId.IsEmpty()
+				&& Characters->GetAssignedGeneralForArmy(BackendArmyId, General))
+			{
+				Army.ForceType = Army.Name;   // "Ejercito de <region>" pasa a subtitulo
+				Army.Name = General.Name;     // el token se llama por su general
+				Army.StrategicRole = FString::Printf(TEXT("Al mando: %s (skill %d, renombre %d)"),
+					*General.Name, General.Skill, General.Renown);
+			}
+		}
 
 		AddMilitaryForceMarker(Army, true);
 	}

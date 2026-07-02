@@ -28,11 +28,11 @@
 
 - **Fase activa:** UIX. La ventana GOBIERNO ya opera TODO el backend (6 tabs: RESUMEN · ECONOMIA ·
   ALTO MANDO · POLITICA · DIPLOMACIA · REGISTROS). Quedan 2 piezas de UIX fuera de esa ventana:
-- **Próxima tarea (UIX, Fase 4 de la auditoría):** (a) panel de **slots de edificios** en el HUD de
-  provincia, (b) **general en el panel del ejército** + hook token 3D (`SyncRecruitedArmyTokens` →
-  `CreateAndAssignGeneralToArmy`), (c) popup modal de eventos, (d) acción FDI con selector de
-  provincia/edificio.
-- **Última actualización:** 2026-07-02 (auditoría de gameplay fases 1-3 completas; suite 34/34)
+- **Próxima tarea (UIX/pulido):** (a) panel de **slots de edificios** en el HUD de provincia,
+  (b) popup modal de eventos + feed de noticias del mes en REGISTROS, (c) acción FDI con selector,
+  (d) **playtest de calibración** (partida de 24-36 meses registrando curvas de deuda/golpe/precios).
+- **Última actualización:** 2026-07-02 (mapa↔backend militar conectado, IA estratégica jugando,
+  victorias Hegemonía/Régimen + fin de partida real; suite 35/35)
 
 ---
 
@@ -337,6 +337,21 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-02 · Mapa↔ejércitos reales + IA estratégica + victorias/fin de partida** — **(1)** Los tokens
+  de ejército del mapa ya SON ejércitos reales: `FWLArmy.SourceBaseId` liga token↔backend;
+  `SyncArmyFromGarrison` crea/actualiza el `FWLArmy` (tipos de reclutamiento mapeados a Units.json:
+  mbt/ifv/apc→tank, heli/aircraft/ship→drone) con **general nombrado automático (F1.4)**; el token del mapa
+  se llama por su general y muestra su skill/renombre (F1.5); al moverse, la provincia del ejército real
+  sigue al token (`SetArmyProvince`; la capa visual es la autoridad de posición). **(2)** IA estratégica
+  mensual (`RunStrategicAIForNation`): sube impuestos en déficit, ajusta aranceles al balance comercial,
+  firma comercio/no-agresión/alianza según opinión, declara la guerra con opinión ≤−60 y superioridad
+  militar, pide la paz si pierde, espía a su peor relación (red → financiar golpe/propaganda alternos) y
+  recluta si va por detrás (HQ sintético `ISO-AI-HQ`). **(3)** Victorias **Hegemonía** (≥65% del PIB
+  continental, `HegemonyGDPShare`) y **Régimen** (sobrevivir 120 meses, `RegimeVictoryMonths`) + fin de
+  partida REAL: banner central en el HUD y el avance de tiempo se bloquea. Test `Politics.MakePeaceEndsWar`.
+  Suite 35/35. Archivos: `WLGameTypes.h`, `WLMilitarySubsystem.h/.cpp`, `WLCampaign3DViewForces.cpp`,
+  `WLCampaign3DViewMovement.cpp`, `WLPoliticalSubsystem.h/.cpp`, `WLBalanceTypes.h`,
+  `WLCampaignPlayerController.cpp`, `WLCampaignHUD.cpp`, `WLPoliticalTests.cpp`.
 - **2026-07-02 · Fase 3 auditoría: gabinete con efectos reales + espionaje escalado** — Los 5 ministros ya
   importan (factor = (skill−50)/50, −1..+1; vacante = neutro; un inepto PERJUDICA): **Defensa** ±15% upkeep
   militar (`DefenseMinisterUpkeepEffect`), **Interior** ±2 orden público/mes por provincia, **Exterior** ±2

@@ -472,6 +472,7 @@ void UWLPoliticalSubsystem::ProcessPoliticalMonth()
 		if (!PlayerIso.IsEmpty() && Nation.Iso != PlayerIso)
 		{
 			AutoResolveEventsForAI(Nation.Iso);   // la IA no deja eventos pudriendose en cola
+			RunStrategicAIForNation(Nation.Iso);  // la "computadora" juega: fisco, diplomacia, intriga, reclutamiento
 		}
 		FWLInternalPowerState& State = EnsureInternalPower(Nation.Iso);
 		if (!CampaignOutcome.bGameOver && State.CoupRisk >= CoupAttemptRiskThreshold)
@@ -542,6 +543,138 @@ void UWLPoliticalSubsystem::AutoResolveEventsForAI(const FString& NationIso)
 		}
 		FString Message;
 		ResolveEvent(Event.InstanceId, Best->OptionId, Message);
+	}
+}
+
+void UWLPoliticalSubsystem::RunStrategicAIForNation(const FString& NationIso)
+{
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	const UWLDataRegistry* Registry = GetRegistry();
+	const UWLCharacterSubsystem* Characters = GetCharacters();
+	if (!Tick || !Registry)
+	{
+		return;
+	}
+
+	const FString Iso = NormalizeIso(NationIso);
+	const FWLBalanceRules Rules = Tick->GetBalanceRules();
+	const FWLNationBudget Budget = Tick->GetNationBudget(Iso);
+	const int64 Treasury = Tick->GetTreasury(Iso);
+	const int64 OwnStrength = Tick->GetNationMilitaryStrength(Iso);
+	const int32 Month = Tick->GetCurrentMonth();
+
+	// 1) Fisco: en deficit o deuda sube impuestos; con bonanza los relaja hacia el default.
+	const int32 Tax = Tick->GetTaxRate(Iso);
+	if ((Treasury < 0 || Budget.Net() < 0) && Tax < Rules.TaxRateMaxPercent)
+	{
+		Tick->SetTaxRate(Iso, Tax + 5);
+		UE_LOG(LogWorldLeader, Log, TEXT("IA %s: sube impuestos a %d%%."), *Iso, Tick->GetTaxRate(Iso));
+	}
+	else if (Treasury > Budget.TotalIncome() * 6 && Tax > Rules.TaxRateDefaultPercent)
+	{
+		Tick->SetTaxRate(Iso, Tax - 5);
+	}
+
+	// 2) Arancel: deficit comercial -> protege; superavit claro -> abre.
+	const int32 Tariff = Tick->GetTariffRate(Iso);
+	FString TariffMessage;
+	if (Budget.ImportCost > Budget.ExportIncome && Tariff < 20)
+	{
+		SetNationTariffRate(Iso, Tariff + 5, TariffMessage);
+	}
+	else if (Budget.ExportIncome > Budget.ImportCost * 2 && Tariff > 0)
+	{
+		SetNationTariffRate(Iso, Tariff - 5, TariffMessage);
+	}
+
+	// 3) Diplomacia por pais: tratados si la opinion acompana, paz si pierde la guerra, guerra solo
+	//    con opinion hundida y clara superioridad militar.
+	FString WorstIso;
+	int32 WorstOpinion = 0;
+	for (const FWLNationData& Other : Registry->GetAllNations())
+	{
+		if (Other.Iso == Iso)
+		{
+			continue;
+		}
+		FWLDiplomaticRelationState Relation;
+		GetRelation(Iso, Other.Iso, Relation);
+		const int64 OtherStrength = Tick->GetNationMilitaryStrength(Other.Iso);
+		FString Message;
+
+		if (Relation.Status == EWLDiplomaticStatus::War)
+		{
+			if (OwnStrength * 2 < OtherStrength)
+			{
+				MakePeace(Iso, Other.Iso, Message);
+				UE_LOG(LogWorldLeader, Log, TEXT("IA %s: pide la paz con %s."), *Iso, *Other.Iso);
+			}
+			continue;
+		}
+
+		if (Relation.Opinion >= 20 && !Relation.Treaties.Contains(EWLTreatyType::TradeAgreement))
+		{
+			SignTreaty(Iso, Other.Iso, EWLTreatyType::TradeAgreement, Message);
+		}
+		if (Relation.Opinion >= 25 && !Relation.Treaties.Contains(EWLTreatyType::NonAggression))
+		{
+			SignTreaty(Iso, Other.Iso, EWLTreatyType::NonAggression, Message);
+		}
+		if (Relation.Opinion >= 60 && !Relation.Treaties.Contains(EWLTreatyType::Alliance))
+		{
+			SignTreaty(Iso, Other.Iso, EWLTreatyType::Alliance, Message);
+		}
+		if (Relation.Opinion <= -60 && OwnStrength > OtherStrength + OtherStrength / 3)
+		{
+			DeclareWar(Iso, Other.Iso, Message);
+			UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: declara la guerra a %s."), *Iso, *Other.Iso);
+		}
+
+		if (WorstIso.IsEmpty() || Relation.Opinion < WorstOpinion)
+		{
+			WorstIso = Other.Iso;
+			WorstOpinion = Relation.Opinion;
+		}
+	}
+
+	// 4) Intriga contra su peor relacion: primero red, luego alterna financiar golpe / propaganda.
+	if (!WorstIso.IsEmpty() && WorstOpinion < -20 && Characters)
+	{
+		FString SpyId;
+		for (const FWLCharacter& Spy : Characters->GetCharactersByRole(Iso, EWLCharacterRole::Spy))
+		{
+			if (Spy.bActive)
+			{
+				SpyId = Spy.Id;
+				break;
+			}
+		}
+		if (!SpyId.IsEmpty())
+		{
+			FString Message;
+			const FWLIntelligenceNetworkState Network = GetIntelligenceNetwork(Iso, WorstIso);
+			if (Network.NetworkStrength < 30)
+			{
+				BuildSpyNetwork(Iso, WorstIso, SpyId, Message);
+			}
+			else if (Network.Exposure < 55)
+			{
+				RunSpyOperation(Iso, WorstIso, SpyId,
+					Month % 2 == 0 ? EWLSpyOperationType::FundCoup : EWLSpyOperationType::Propaganda, Message);
+				UE_LOG(LogWorldLeader, Log, TEXT("IA %s vs %s: %s"), *Iso, *WorstIso, *Message);
+			}
+		}
+	}
+
+	// 5) Reclutamiento: con caja y por detras militarmente de su peor relacion, encola tropa en su HQ.
+	if (!WorstIso.IsEmpty() && Treasury > 40000
+		&& OwnStrength < Tick->GetNationMilitaryStrength(WorstIso))
+	{
+		FString Message;
+		if (Tick->QueueRecruit(Iso + TEXT("-AI-HQ"), Iso, TEXT("infantry"), Message))
+		{
+			UE_LOG(LogWorldLeader, Log, TEXT("IA %s: recluta infanteria (%s)."), *Iso, *Message);
+		}
 	}
 }
 
@@ -1270,6 +1403,52 @@ void UWLPoliticalSubsystem::CheckCampaignOutcome()
 			CampaignOutcome.Reason = FString::Printf(TEXT("%s controla todas las provincias."), *Pair.Key);
 			return;
 		}
+	}
+
+	// F5.3: victorias no militares. Meses de campana derivados de la fecha (sin estado nuevo que guardar).
+	const FWLBalanceRules Rules = Tick->GetBalanceRules();
+	const int32 MonthsElapsed =
+		(Tick->GetCurrentYear() - Rules.StartYear) * Rules.MonthsPerYear
+		+ (Tick->GetCurrentMonth() - Rules.StartMonth);
+
+	// Hegemonia: concentrar la cuota configurada del PIB total (cualquier nacion puede lograrla).
+	if (MonthsElapsed >= Rules.HegemonyMinMonths)
+	{
+		int64 TotalGDP = 0;
+		TMap<FString, int64> GDPByNation;
+		for (const FWLNationData& Nation : Registry->GetAllNations())
+		{
+			const int64 GDP = Tick->GetNationGDP(Nation.Iso);
+			GDPByNation.Add(Nation.Iso, GDP);
+			TotalGDP += GDP;
+		}
+		if (TotalGDP > 0)
+		{
+			for (const TPair<FString, int64>& Pair : GDPByNation)
+			{
+				const double Share = static_cast<double>(Pair.Value) / static_cast<double>(TotalGDP);
+				if (Share >= Rules.HegemonyGDPShare)
+				{
+					CampaignOutcome.bGameOver = true;
+					CampaignOutcome.OutcomeType = TEXT("Hegemony");
+					CampaignOutcome.WinningNationIso = Pair.Key;
+					CampaignOutcome.Reason = FString::Printf(
+						TEXT("%s concentra el %.0f%% del PIB continental."), *Pair.Key, Share * 100.0);
+					return;
+				}
+			}
+		}
+	}
+
+	// Regimen/Legado: el jugador sobrevive en el poder los meses configurados.
+	const FString PlayerIso = GetPlayerNationIso();
+	if (!PlayerIso.IsEmpty() && MonthsElapsed >= Rules.RegimeVictoryMonths)
+	{
+		CampaignOutcome.bGameOver = true;
+		CampaignOutcome.OutcomeType = TEXT("Regime");
+		CampaignOutcome.WinningNationIso = PlayerIso;
+		CampaignOutcome.Reason = FString::Printf(
+			TEXT("Te mantuviste en el poder %d meses: tu legado esta asegurado."), MonthsElapsed);
 	}
 }
 

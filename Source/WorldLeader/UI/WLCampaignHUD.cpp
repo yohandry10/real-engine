@@ -5,6 +5,7 @@
 #include "Campaign/WLCampaignPlayerController.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Politics/WLPoliticalSubsystem.h"
 #include "UI/WLCampaignBuildingSlotData.h"
 #include "UI/WLCampaignSelectionPanelData.h"
 #include "UI/WLCampaignGovernmentLayout.h"
@@ -253,6 +254,35 @@ void AWLCampaignHUD::DrawHUD()
 	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
 	DrawText(TEXT("[D] Alternar vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [G] America   [C] Gobierno   [M] Avanzar dia   [F5] Guardar   [B] Construir"),
 		Muted, 36.f, H - 24.f, SmallFont, 0.88f);
+
+	// F5.3/F5.4: fin de partida REAL — banner central por encima de todo; el avance de tiempo ya esta
+	// bloqueado en el PlayerController. El detalle completo vive en GOBIERNO > RESUMEN.
+	if (const UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
+	{
+		if (const UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
+		{
+			const FWLCampaignOutcomeState Outcome = Politics->GetCampaignOutcome();
+			if (Outcome.bGameOver)
+			{
+				const bool bPlayerWon = Outcome.WinningNationIso.Equals(
+					CampaignGI->GetSelectedNationIso(), ESearchCase::IgnoreCase);
+				const float BannerH = 118.f;
+				const float BannerY = H * 0.5f - BannerH * 0.5f;
+				DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.62f), 0.f, 0.f, W, H);
+				DrawRect(bPlayerWon ? FLinearColor(0.16f, 0.13f, 0.04f, 0.97f) : FLinearColor(0.14f, 0.05f, 0.04f, 0.97f),
+					0.f, BannerY, W, BannerH);
+				DrawRect(Gold, 0.f, BannerY, W, 3.f);
+				DrawRect(Gold, 0.f, BannerY + BannerH - 3.f, W, 3.f);
+				DrawText(bPlayerWon ? TEXT("VICTORIA") : TEXT("FIN DE LA PARTIDA"),
+					bPlayerWon ? Gold : FLinearColor(0.95f, 0.55f, 0.45f, 1.f),
+					W * 0.5f - 90.f, BannerY + 22.f, Font, 1.6f);
+				DrawText(FString::Printf(TEXT("%s — %s"), *Outcome.OutcomeType, *Outcome.Reason),
+					Text, W * 0.5f - 320.f, BannerY + 62.f, SmallFont, 1.05f);
+				DrawText(TEXT("El tiempo ya no avanza. Abre GOBIERNO [C] para el resumen final."),
+					Muted, W * 0.5f - 320.f, BannerY + 86.f, SmallFont, 0.95f);
+			}
+		}
+	}
 
 	// La ventana de Gobierno / Presidencia ya no se dibuja en Canvas: es un widget UMG modal
 	// (UWLGovernmentWidget) que el PlayerController crea/destruye. Aqui solo queda el boton GOBIERNO.

@@ -176,4 +176,41 @@ bool FWLPoliticalIntrigueEventsSaveTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLMakePeaceTest,
+	"WorldLeader.Politics.MakePeaceEndsWar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLMakePeaceTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	if (!Politics)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString Message;
+	TestFalse(TEXT("Sin guerra no hay paz que firmar"), Politics->MakePeace(TEXT("CO"), TEXT("VE"), Message));
+	TestTrue(TEXT("Declarar guerra"), Politics->DeclareWar(TEXT("CO"), TEXT("VE"), Message));
+	TestTrue(TEXT("Negociar la paz"), Politics->MakePeace(TEXT("CO"), TEXT("VE"), Message));
+
+	FWLDiplomaticRelationState Relation;
+	TestTrue(TEXT("Relacion existe"), Politics->GetRelation(TEXT("CO"), TEXT("VE"), Relation));
+	TestTrue(TEXT("La guerra termino (queda tension)"), Relation.Status == EWLDiplomaticStatus::Tension);
+	TestTrue(TEXT("Opinion posguerra en -30"), Relation.Opinion >= -30);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

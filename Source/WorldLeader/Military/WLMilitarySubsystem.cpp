@@ -160,6 +160,122 @@ FString UWLMilitarySubsystem::CreateArmy(const FString& OwnerIso, const FString&
 	return Army.Id;
 }
 
+FString UWLMilitarySubsystem::FindArmyIdByBase(const FString& BaseId) const
+{
+	const FString Normalized = BaseId.TrimStartAndEnd().ToUpper();
+	for (const FWLArmy& Army : Armies)
+	{
+		if (Army.SourceBaseId.Equals(Normalized, ESearchCase::IgnoreCase))
+		{
+			return Army.Id;
+		}
+	}
+	return FString();
+}
+
+// Tipos del catalogo de reclutamiento (RecruitableUnits.json) -> unidades con stats (Units.json).
+static FString MapRecruitTypeToUnitId(const FString& RecruitType)
+{
+	const FString T = RecruitType.TrimStartAndEnd().ToLower();
+	if (T == TEXT("mbt") || T == TEXT("ifv") || T == TEXT("apc"))       return TEXT("tank");
+	if (T == TEXT("artillery"))                                          return TEXT("artillery");
+	if (T == TEXT("heli") || T == TEXT("aircraft") || T == TEXT("ship")) return TEXT("drone");
+	return TEXT("infantry");
+}
+
+FString UWLMilitarySubsystem::SyncArmyFromGarrison(
+	const FString& BaseId,
+	const FString& OwnerIso,
+	const FString& ProvinceId,
+	const TArray<TPair<FString, int32>>& GarrisonUnits)
+{
+	const UWLDataRegistry* Reg = GetRegistry();
+	if (!Reg || BaseId.TrimStartAndEnd().IsEmpty())
+	{
+		return FString();
+	}
+
+	// Composicion real: cada lote reclutado se traduce a unidades con stats.
+	TArray<FString> Units;
+	for (const TPair<FString, int32>& Group : GarrisonUnits)
+	{
+		const FString UnitId = MapRecruitTypeToUnitId(Group.Key);
+		FWLUnitData Unit;
+		if (!Reg->GetUnit(UnitId, Unit))
+		{
+			continue;
+		}
+		for (int32 i = 0; i < FMath::Max(0, Group.Value); ++i)
+		{
+			Units.Add(Unit.Id);
+		}
+	}
+	if (Units.IsEmpty())
+	{
+		return FString();
+	}
+
+	const FString NormalizedBase = BaseId.TrimStartAndEnd().ToUpper();
+	if (FWLArmy* Existing = FindArmy(FindArmyIdByBase(NormalizedBase)))
+	{
+		Existing->Units = MoveTemp(Units);   // la guarnicion crecio: el ejercito real refleja la nueva tropa
+		return Existing->Id;
+	}
+
+	FWLNationData Owner;
+	if (!Reg->GetNation(OwnerIso, Owner))
+	{
+		return FString();
+	}
+	FWLProvinceData Province;
+	if (!Reg->GetProvince(ProvinceId, Province))
+	{
+		// Sin provincia valida (nodo de carretera sin mapear): usa la capital como asiento fiscal/legal.
+		if (!Reg->GetProvince(Owner.CapitalProvinceId, Province))
+		{
+			return FString();
+		}
+	}
+
+	FWLArmy Army;
+	Army.Id = FString::Printf(TEXT("A%d"), NextArmyNumber++);
+	Army.OwnerIso = Owner.Iso;
+	Army.ProvinceId = Province.Id;
+	Army.General = TEXT("Comandante");
+	Army.SourceBaseId = NormalizedBase;
+	Army.Units = MoveTemp(Units);
+	Armies.Add(Army);
+
+	// F1.4: el ejercito recien desplegado recibe su general nombrado.
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
+		{
+			FWLCharacter GeneratedGeneral;
+			FString AssignMessage;
+			Characters->CreateAndAssignGeneralToArmy(Owner.Iso, Army.Id, GeneratedGeneral, AssignMessage);
+		}
+	}
+	UE_LOG(LogWorldLeader, Log, TEXT("Ejercito %s desplegado desde %s (%d unidades)."),
+		*Army.Id, *NormalizedBase, Army.Units.Num());
+	return Army.Id;
+}
+
+bool UWLMilitarySubsystem::SetArmyProvince(const FString& ArmyId, const FString& ProvinceId, FString& OutMessage)
+{
+	const UWLDataRegistry* Reg = GetRegistry();
+	FWLArmy* Army = FindArmy(ArmyId);
+	FWLProvinceData Province;
+	if (!Reg || !Army || !Reg->GetProvince(ProvinceId, Province))
+	{
+		OutMessage = TEXT("Ejercito o provincia invalidos para sincronizar posicion.");
+		return false;
+	}
+	Army->ProvinceId = Province.Id;
+	OutMessage = FString::Printf(TEXT("%s ahora opera en %s."), *Army->Id, *Province.Id);
+	return true;
+}
+
 bool UWLMilitarySubsystem::GetArmy(const FString& ArmyId, FWLArmy& OutArmy) const
 {
 	if (const FWLArmy* Army = FindArmy(ArmyId))

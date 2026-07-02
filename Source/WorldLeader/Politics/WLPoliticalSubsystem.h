@@ -164,6 +164,11 @@ private:
 	FString GetPlayerNationIso() const;
 	/** La IA resuelve sus propios eventos pendientes (elige la opcion que mas baja su oposicion). */
 	void AutoResolveEventsForAI(const FString& NationIso);
+	/**
+	 * IA estrategica mensual de una nacion no-jugador: ajusta impuestos/aranceles, firma o rompe
+	 * relaciones segun opinion y fuerza, espia al rival y recluta si va por detras. Determinista.
+	 */
+	void RunStrategicAIForNation(const FString& NationIso);
 	/** Fase 3: skill extra que aporta el ministro de Inteligencia a los espias de una nacion. */
 	int32 GetIntelligenceMinisterSkillBonus(const FString& OwnerIso) const;
 	bool ValidateSpy(const FString& OwnerIso, const FString& SpyCharacterId, int32& OutSkill, FString& OutMessage) const;

@@ -178,6 +178,20 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Cabinet", meta = (ClampMin = "0.0"))
 	double IntelligenceMinisterSpyBonus = 20.0;
 
+	// --- Condiciones de victoria (F5.3) ---
+
+	/** Hegemonia: cuota del PIB total que hay que concentrar para ganar. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Victory", meta = (ClampMin = "0.5", ClampMax = "1.0"))
+	double HegemonyGDPShare = 0.65;
+
+	/** Hegemonia: meses minimos de campana antes de poder ganar por economia. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Victory", meta = (ClampMin = "0"))
+	int32 HegemonyMinMonths = 12;
+
+	/** Regimen/Legado: meses que hay que sobrevivir en el poder para ganar. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Victory", meta = (ClampMin = "1"))
+	int32 RegimeVictoryMonths = 120;
+
 	/** FE4.4: multiplicador de ruta cuando hay embargo/sancion. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
 	double EmbargoTradeRouteAccessMultiplier = 0.0;
@@ -398,6 +412,9 @@ struct FWLBalanceRules
 		Out.TariffImportPenaltyPerPoint = FMath::Clamp(Out.TariffImportPenaltyPerPoint, 0.0, 1.0);
 		Out.TariffRelationPenaltyPerPoint = FMath::Max(0.0, Out.TariffRelationPenaltyPerPoint);
 		Out.DefenseMinisterUpkeepEffect = FMath::Clamp(Out.DefenseMinisterUpkeepEffect, 0.0, 0.9);
+		Out.HegemonyGDPShare = FMath::Clamp(Out.HegemonyGDPShare, 0.5, 1.0);
+		Out.HegemonyMinMonths = FMath::Max(0, Out.HegemonyMinMonths);
+		Out.RegimeVictoryMonths = FMath::Max(1, Out.RegimeVictoryMonths);
 		Out.InteriorMinisterOrderPerMonth = FMath::Max(0.0, Out.InteriorMinisterOrderPerMonth);
 		Out.ForeignMinisterOpinionPerMonth = FMath::Max(0.0, Out.ForeignMinisterOpinionPerMonth);
 		Out.IntelligenceMinisterSpyBonus = FMath::Max(0.0, Out.IntelligenceMinisterSpyBonus);

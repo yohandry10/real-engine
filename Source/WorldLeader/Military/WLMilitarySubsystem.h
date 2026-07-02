@@ -38,6 +38,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	bool MoveArmy(const FString& ArmyId, const FString& ToProvinceId, FString& OutMessage);
 
+	// --- Enlace mapa <-> backend (los tokens 3D son la autoridad de posicion) ---
+
+	/** Id del ejercito real producido por una base de reclutamiento. Vacio si aun no existe. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Military")
+	FString FindArmyIdByBase(const FString& BaseId) const;
+
+	/**
+	 * Crea (o re-sincroniza la composicion de) el ejercito REAL de una base de reclutamiento a partir de su
+	 * guarnicion visual. Los tipos del catalogo de reclutamiento se mapean a unidades de Units.json.
+	 * Al crear, asigna general automaticamente (F1.4). Devuelve el Id del ejercito.
+	 */
+	FString SyncArmyFromGarrison(
+		const FString& BaseId,
+		const FString& OwnerIso,
+		const FString& ProvinceId,
+		const TArray<TPair<FString, int32>>& GarrisonUnits);
+
+	/** Sincroniza la provincia del ejercito con el mapa SIN chequear adyacencia (posicion visual manda). */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	bool SetArmyProvince(const FString& ArmyId, const FString& ProvinceId, FString& OutMessage);
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Military")
 	int32 GetArmyAttack(const FString& ArmyId) const;
 

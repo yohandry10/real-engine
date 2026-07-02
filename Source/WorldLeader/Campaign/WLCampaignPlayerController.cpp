@@ -144,6 +144,18 @@ void AWLCampaignPlayerController::OnAdvanceMonth()
 		return;
 	}
 
+	// F5.3/F5.4: con la campana terminada el tiempo no avanza mas (fin de partida REAL).
+	if (UWLPoliticalSubsystem* Politics = GetPolitics())
+	{
+		const FWLCampaignOutcomeState Outcome = Politics->GetCampaignOutcome();
+		if (Outcome.bGameOver)
+		{
+			SetLastActionMessage(FString::Printf(TEXT("La partida ha terminado: %s Abre GOBIERNO [C] para el resumen."),
+				*Outcome.Reason), false);
+			return;
+		}
+	}
+
 	if (UWLStrategicTickSubsystem* Tick = GetTick())
 	{
 		const int32 PreviousMonth = Tick->GetCurrentMonth();

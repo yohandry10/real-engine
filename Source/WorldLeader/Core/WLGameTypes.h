@@ -251,6 +251,9 @@ struct FWLArmy
 	/** IDs de tipos de unidad que componen el ejercito. */
 	UPROPERTY(BlueprintReadOnly, Category = "Army") TArray<FString> Units;
 
+	/** Base de reclutamiento que lo produjo (enlace token del mapa <-> ejercito real). Vacio = creado a mano. */
+	UPROPERTY(BlueprintReadOnly, Category = "Army") FString SourceBaseId;
+
 	bool IsValid() const { return !Id.IsEmpty(); }
 };
 
