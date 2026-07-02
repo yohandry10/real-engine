@@ -1411,13 +1411,38 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 		Stats.PoliticalCapital, Stats.Stability, Stats.Corruption, Stats.CoupRisk),
 		13, Stats.CoupRisk >= 50 ? GovBad : GovMuted, ETextJustify::Left, true), 4.f);
 
-	// Gabinete: cada cargo con su ministro o vacante + nombrar/destituir.
+	// Gabinete: cada cargo con su ministro o vacante + nombrar/destituir + su efecto REAL en el juego.
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GABINETE"), 15, GovGold), 14.f);
+	const UWLStrategicTickSubsystem* Tick = GetTick();
+	const FWLBalanceRules Rules = Tick ? Tick->GetBalanceRules() : FWLBalanceRules::Default();
+	auto MinisterEffectText = [&](EWLMinisterOffice Office, double Factor) -> FString
+	{
+		if (Factor == 0.0)
+		{
+			return TEXT("Sin efecto (cargo vacante)");
+		}
+		switch (Office)
+		{
+		case EWLMinisterOffice::Economy:
+			return TEXT("Eficiencia fiscal y productividad (ver ECONOMIA)");
+		case EWLMinisterOffice::Defense:
+			return FString::Printf(TEXT("Upkeep militar %+.0f%%"), -Factor * Rules.DefenseMinisterUpkeepEffect * 100.0);
+		case EWLMinisterOffice::Interior:
+			return FString::Printf(TEXT("Orden publico %+.1f/mes por provincia"), Factor * Rules.InteriorMinisterOrderPerMonth);
+		case EWLMinisterOffice::Foreign:
+			return FString::Printf(TEXT("Opinion %+.1f/mes con cada pais"), Factor * Rules.ForeignMinisterOpinionPerMonth);
+		case EWLMinisterOffice::Intelligence:
+			return FString::Printf(TEXT("Skill de espias %+.0f"), Factor * Rules.IntelligenceMinisterSpyBonus);
+		default:
+			return FString();
+		}
+	};
 	const TArray<FWLCabinetSeat> Cabinet = Characters->GetCabinet(Iso);
 	int32 Index = 0;
 	for (const FWLCabinetSeat& Seat : Cabinet)
 	{
 		const bool bFilled = Seat.Minister.IsValid();
+		const double Factor = Characters->GetMinisterEffectFactor(Iso, Seat.Office);
 		UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -1428,6 +1453,8 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 				? FString::Printf(TEXT("%s — skill %d · lealtad %d"), *Seat.Minister.Name, Seat.Minister.Skill, Seat.Minister.Loyalty)
 				: TEXT("Cargo vacante"),
 			12, bFilled ? GovMuted : GovGold, ETextJustify::Left, true));
+		Info->AddChildToVerticalBox(MakeText(WidgetTree, MinisterEffectText(Seat.Office, Factor), 11,
+			Factor < 0.0 ? GovBad : (Factor > 0.0 ? GovGood : GovMuted), ETextJustify::Left, true));
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Info))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));

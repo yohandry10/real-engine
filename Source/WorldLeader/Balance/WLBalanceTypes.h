@@ -159,6 +159,25 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
 	double TariffRelationPenaltyPerPoint = 0.4;
 
+	// --- Gabinete (Fase 3 auditoria): cada ministro tiene efecto real, escalado por su skill.
+	// Factor = (skill-50)/50 (-1..+1); cargo vacante = 0 (neutro). Un ministro inepto PERJUDICA.
+
+	/** Defensa: reduccion (o recargo) del upkeep militar a factor +1 (skill 100). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Cabinet", meta = (ClampMin = "0.0", ClampMax = "0.9"))
+	double DefenseMinisterUpkeepEffect = 0.15;
+
+	/** Interior: puntos de orden publico al mes por provincia a factor +1. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Cabinet", meta = (ClampMin = "0.0"))
+	double InteriorMinisterOrderPerMonth = 2.0;
+
+	/** Exterior: deriva mensual de opinion con cada pais a factor +1. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Cabinet", meta = (ClampMin = "0.0"))
+	double ForeignMinisterOpinionPerMonth = 2.0;
+
+	/** Inteligencia: puntos de skill efectivo que suma a los espias a factor +1. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Cabinet", meta = (ClampMin = "0.0"))
+	double IntelligenceMinisterSpyBonus = 20.0;
+
 	/** FE4.4: multiplicador de ruta cuando hay embargo/sancion. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trade", meta = (ClampMin = "0.0"))
 	double EmbargoTradeRouteAccessMultiplier = 0.0;
@@ -378,6 +397,10 @@ struct FWLBalanceRules
 		Out.TariffRateDefaultPercent = FMath::Clamp(Out.TariffRateDefaultPercent, 0, Out.TariffRateMaxPercent);
 		Out.TariffImportPenaltyPerPoint = FMath::Clamp(Out.TariffImportPenaltyPerPoint, 0.0, 1.0);
 		Out.TariffRelationPenaltyPerPoint = FMath::Max(0.0, Out.TariffRelationPenaltyPerPoint);
+		Out.DefenseMinisterUpkeepEffect = FMath::Clamp(Out.DefenseMinisterUpkeepEffect, 0.0, 0.9);
+		Out.InteriorMinisterOrderPerMonth = FMath::Max(0.0, Out.InteriorMinisterOrderPerMonth);
+		Out.ForeignMinisterOpinionPerMonth = FMath::Max(0.0, Out.ForeignMinisterOpinionPerMonth);
+		Out.IntelligenceMinisterSpyBonus = FMath::Max(0.0, Out.IntelligenceMinisterSpyBonus);
 		Out.EmbargoTradeRouteAccessMultiplier = FMath::Max(0.0, Out.EmbargoTradeRouteAccessMultiplier);
 		Out.WarTradeRouteAccessMultiplier = FMath::Max(0.0, Out.WarTradeRouteAccessMultiplier);
 		Out.TensionTradeRouteAccessMultiplier = FMath::Max(0.0, Out.TensionTradeRouteAccessMultiplier);

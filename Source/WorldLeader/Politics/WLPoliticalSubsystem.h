@@ -164,6 +164,8 @@ private:
 	FString GetPlayerNationIso() const;
 	/** La IA resuelve sus propios eventos pendientes (elige la opcion que mas baja su oposicion). */
 	void AutoResolveEventsForAI(const FString& NationIso);
+	/** Fase 3: skill extra que aporta el ministro de Inteligencia a los espias de una nacion. */
+	int32 GetIntelligenceMinisterSkillBonus(const FString& OwnerIso) const;
 	bool ValidateSpy(const FString& OwnerIso, const FString& SpyCharacterId, int32& OutSkill, FString& OutMessage) const;
 	int32 GetAveragePublicOrder(const FString& NationIso) const;
 	int32 GetLeaderAgendaPressure(const FString& NationIso) const;

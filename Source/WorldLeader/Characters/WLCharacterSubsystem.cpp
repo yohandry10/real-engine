@@ -405,6 +405,16 @@ bool UWLCharacterSubsystem::GetCabinetMinister(
 	return false;
 }
 
+double UWLCharacterSubsystem::GetMinisterEffectFactor(const FString& NationIso, EWLMinisterOffice Office) const
+{
+	FWLCharacter Minister;
+	if (!GetCabinetMinister(NationIso, Office, Minister))
+	{
+		return 0.0;   // cargo vacante = sin efecto
+	}
+	return FMath::Clamp(static_cast<double>(Minister.Skill - 50) / 50.0, -1.0, 1.0);
+}
+
 int32 UWLCharacterSubsystem::GetPoliticalCapital(const FString& NationIso) const
 {
 	if (const int32* Found = PoliticalCapitalByNation.Find(NormalizeIso(NationIso)))

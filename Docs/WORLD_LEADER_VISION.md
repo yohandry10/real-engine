@@ -28,14 +28,11 @@
 
 - **Fase activa:** UIX. La ventana GOBIERNO ya opera TODO el backend (6 tabs: RESUMEN · ECONOMIA ·
   ALTO MANDO · POLITICA · DIPLOMACIA · REGISTROS). Quedan 2 piezas de UIX fuera de esa ventana:
-- **Próxima tarea (Fase 3 de la auditoría de gameplay):** dar efecto real a los 4 ministros decorativos —
-  Defensa (− upkeep militar por skill), Interior (+ deriva de orden público), Exterior (+ opinión mensual
-  con vecinos), Inteligencia (+ fuerza de red / − exposición) — y escalar los efectos de espionaje por
-  `SuccessScore` (hoy el "éxito/resultado limitado" es solo texto).
-- **Después (UIX):** (a) panel de **slots de edificios** en el HUD de provincia, (b) **general en el panel
-  del ejército** + hook token 3D (`SyncRecruitedArmyTokens` → `CreateAndAssignGeneralToArmy`),
-  (c) popup modal de eventos, (d) acción FDI con selector de provincia/edificio.
-- **Última actualización:** 2026-07-02 (auditoría de gameplay: fases 1-2 corregidas; suite 33/33)
+- **Próxima tarea (UIX, Fase 4 de la auditoría):** (a) panel de **slots de edificios** en el HUD de
+  provincia, (b) **general en el panel del ejército** + hook token 3D (`SyncRecruitedArmyTokens` →
+  `CreateAndAssignGeneralToArmy`), (c) popup modal de eventos, (d) acción FDI con selector de
+  provincia/edificio.
+- **Última actualización:** 2026-07-02 (auditoría de gameplay fases 1-3 completas; suite 34/34)
 
 ---
 
@@ -340,6 +337,16 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-02 · Fase 3 auditoría: gabinete con efectos reales + espionaje escalado** — Los 5 ministros ya
+  importan (factor = (skill−50)/50, −1..+1; vacante = neutro; un inepto PERJUDICA): **Defensa** ±15% upkeep
+  militar (`DefenseMinisterUpkeepEffect`), **Interior** ±2 orden público/mes por provincia, **Exterior** ±2
+  opinión/mes con cada país, **Inteligencia** ±20 skill efectivo de espías; Economía ya existía (FE6). Los
+  efectos de espionaje ahora ESCALAN con `SuccessScore` (0.35x–1.25x; antes "éxito/limitado" era texto). Las
+  tarjetas del GABINETE en ALTO MANDO muestran el efecto real de cada cartera (verde/rojo). Parámetros en
+  `FWLBalanceRules` (categoría Cabinet). Test `Government.MinisterEffects` (destituir a Defensa sube el
+  upkeep). Suite 34/34. Archivos: `WLBalanceTypes.h`, `WLCharacterSubsystem.h/.cpp`,
+  `WLStrategicTickSubsystem.cpp`, `WLPoliticalSubsystem.h/.cpp`, `WLGovernmentWidget.cpp`,
+  `WLCharacterTests.cpp`.
 - **2026-07-02 · Auditoría de gameplay (fases 1-2 + parte de 3-4)** — Revisión UI→backend→efecto de cada
   mecánica. Corregido: **(1) escala temporal** — AVANZAR DÍA aplicaba un MES entero de economía y finanzas por
   día (30x; un bono de 24 meses se amortizaba en 24 días); ahora el día aplica 1/30 del balance al tesoro

@@ -487,6 +487,37 @@ void UWLPoliticalSubsystem::ProcessPoliticalMonth()
 		Pair.Value.Exposure = ClampPercent(Pair.Value.Exposure - 4);
 	}
 
+	// Fase 3 auditoria: un buen ministro de Exterior mejora la opinion con cada pais mes a mes
+	// (uno inepto la erosiona). Ambos lados de la relacion aplican su deriva.
+	if (Characters)
+	{
+		const UWLStrategicTickSubsystem* Tick = GetTick();
+		const FWLBalanceRules Rules = Tick ? Tick->GetBalanceRules() : FWLBalanceRules::Default();
+		for (const FWLNationData& Nation : Registry->GetAllNations())
+		{
+			const int32 OpinionDrift = FMath::RoundToInt(
+				Characters->GetMinisterEffectFactor(Nation.Iso, EWLMinisterOffice::Foreign)
+				* Rules.ForeignMinisterOpinionPerMonth);
+			if (OpinionDrift == 0)
+			{
+				continue;
+			}
+			for (TPair<FString, FWLDiplomaticRelationState>& Pair : RelationsByPair)
+			{
+				FWLDiplomaticRelationState& Relation = Pair.Value;
+				if (Relation.NationA != Nation.Iso && Relation.NationB != Nation.Iso)
+				{
+					continue;
+				}
+				Relation.Opinion = FMath::Clamp(Relation.Opinion + OpinionDrift, -100, 100);
+				if (Relation.Status != EWLDiplomaticStatus::War)
+				{
+					Relation.Status = Relation.Opinion < -35 ? EWLDiplomaticStatus::Tension : EWLDiplomaticStatus::Peace;
+				}
+			}
+		}
+	}
+
 	CheckCampaignOutcome();
 }
 
@@ -970,6 +1001,7 @@ bool UWLPoliticalSubsystem::BuildSpyNetwork(
 	{
 		return false;
 	}
+	SpySkill += GetIntelligenceMinisterSkillBonus(Owner);   // Fase 3: el ministro de Inteligencia potencia a los espias
 	FWLIntelligenceNetworkState& Network = EnsureNetwork(Owner, Target);
 	const int32 Previous = Network.NetworkStrength;
 	Network.NetworkStrength = ClampPercent(Network.NetworkStrength + 10 + SpySkill / 8);
@@ -999,6 +1031,7 @@ bool UWLPoliticalSubsystem::RunSpyOperation(
 	{
 		return false;
 	}
+	SpySkill += GetIntelligenceMinisterSkillBonus(Owner);   // Fase 3: el ministro de Inteligencia potencia a los espias
 	FWLIntelligenceNetworkState& Network = EnsureNetwork(Owner, Target);
 	if (Network.NetworkStrength < 15 && Operation != EWLSpyOperationType::CounterIntelligence)
 	{
@@ -1008,38 +1041,44 @@ bool UWLPoliticalSubsystem::RunSpyOperation(
 
 	FWLInternalPowerState& TargetPower = EnsureInternalPower(Target);
 	const int32 SuccessScore = SpySkill + Network.NetworkStrength - Network.Exposure / 2;
+	// Fase 3 auditoria: el exito ESCALA los efectos (antes "exito/limitado" era solo texto).
+	const double Scale = FMath::Clamp(static_cast<double>(SuccessScore) / 90.0, 0.35, 1.25);
+	const auto Scaled = [Scale](int32 Base)
+	{
+		return FMath::Max(1, FMath::RoundToInt(static_cast<double>(Base) * Scale));
+	};
 	UWLStrategicTickSubsystem* Tick = GetTick();
 	FString Effect;
 	switch (Operation)
 	{
 	case EWLSpyOperationType::SabotageEconomy:
-		if (Tick) { Tick->AdjustNationPublicOrder(Target, -3); }
-		TargetPower.OppositionStrength = ClampPercent(TargetPower.OppositionStrength + 6);
+		if (Tick) { Tick->AdjustNationPublicOrder(Target, -Scaled(3)); }
+		TargetPower.OppositionStrength = ClampPercent(TargetPower.OppositionStrength + Scaled(6));
 		Network.NetworkStrength = ClampPercent(Network.NetworkStrength - 8);
-		Effect = TEXT("orden publico rival -3, oposicion +6");
+		Effect = FString::Printf(TEXT("orden publico rival -%d, oposicion +%d"), Scaled(3), Scaled(6));
 		break;
 	case EWLSpyOperationType::SabotageArmy:
-		TargetPower.CoupRisk = ClampPercent(TargetPower.CoupRisk + 6);
+		TargetPower.CoupRisk = ClampPercent(TargetPower.CoupRisk + Scaled(6));
 		Network.NetworkStrength = ClampPercent(Network.NetworkStrength - 6);
-		Effect = TEXT("riesgo militar rival +6");
+		Effect = FString::Printf(TEXT("riesgo militar rival +%d"), Scaled(6));
 		break;
 	case EWLSpyOperationType::FundCoup:
-		TargetPower.ExternalCoupFunding = ClampPercent(TargetPower.ExternalCoupFunding + 15);
+		TargetPower.ExternalCoupFunding = ClampPercent(TargetPower.ExternalCoupFunding + Scaled(15));
 		Network.NetworkStrength = ClampPercent(Network.NetworkStrength - 10);
-		Effect = TEXT("financiacion externa de golpe +15");
+		Effect = FString::Printf(TEXT("financiacion externa de golpe +%d"), Scaled(15));
 		break;
 	case EWLSpyOperationType::Propaganda:
-		if (Tick) { Tick->AdjustNationPublicOrder(Target, -2); }
-		TargetPower.OppositionStrength = ClampPercent(TargetPower.OppositionStrength + 8);
-		TargetPower.OppositionPopularity = ClampPercent(TargetPower.OppositionPopularity + 5);
+		if (Tick) { Tick->AdjustNationPublicOrder(Target, -Scaled(2)); }
+		TargetPower.OppositionStrength = ClampPercent(TargetPower.OppositionStrength + Scaled(8));
+		TargetPower.OppositionPopularity = ClampPercent(TargetPower.OppositionPopularity + Scaled(5));
 		Network.NetworkStrength = ClampPercent(Network.NetworkStrength - 5);
-		Effect = TEXT("oposicion rival +8, popularidad opositora +5");
+		Effect = FString::Printf(TEXT("oposicion rival +%d, popularidad opositora +%d"), Scaled(8), Scaled(5));
 		break;
 	case EWLSpyOperationType::CounterIntelligence:
 	{
 		FWLIntelligenceNetworkState& Reverse = EnsureNetwork(Target, Owner);
-		Reverse.NetworkStrength = ClampPercent(Reverse.NetworkStrength - (12 + SpySkill / 10));
-		Reverse.Exposure = ClampPercent(Reverse.Exposure + 8);
+		Reverse.NetworkStrength = ClampPercent(Reverse.NetworkStrength - Scaled(12 + SpySkill / 10));
+		Reverse.Exposure = ClampPercent(Reverse.Exposure + Scaled(8));
 		Effect = TEXT("red enemiga reducida");
 		break;
 	}
@@ -1059,6 +1098,19 @@ bool UWLPoliticalSubsystem::RunSpyOperation(
 		*OperationToString(Operation), SuccessScore >= 45 ? TEXT("exito") : TEXT("resultado limitado"), *Effect);
 	OutMessage = Network.LastOperationReport;
 	return true;
+}
+
+int32 UWLPoliticalSubsystem::GetIntelligenceMinisterSkillBonus(const FString& OwnerIso) const
+{
+	const UWLCharacterSubsystem* Characters = GetCharacters();
+	const UWLStrategicTickSubsystem* Tick = GetTick();
+	if (!Characters || !Tick)
+	{
+		return 0;
+	}
+	return FMath::RoundToInt(
+		Characters->GetMinisterEffectFactor(NormalizeIso(OwnerIso), EWLMinisterOffice::Intelligence)
+		* Tick->GetBalanceRules().IntelligenceMinisterSpyBonus);
 }
 
 bool UWLPoliticalSubsystem::HasQueuedUnresolvedEvent(const FString& NationIso, const FString& EventId) const

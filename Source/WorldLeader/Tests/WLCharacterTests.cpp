@@ -6,9 +6,52 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Campaign/WLStrategicTickSubsystem.h"
 #include "Characters/WLCharacterSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Military/WLMilitarySubsystem.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLMinisterEffectsTest,
+	"WorldLeader.Government.MinisterEffects",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLMinisterEffectsTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLCharacterSubsystem* Characters = GameInstance->GetSubsystem<UWLCharacterSubsystem>();
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Character subsystem"), Characters);
+	TestNotNull(TEXT("Tick subsystem"), Tick);
+	if (!Characters || !Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	// El ministro de Defensa seeded de CO es competente (skill > 50) -> abarata el upkeep militar.
+	const double DefenseFactor = Characters->GetMinisterEffectFactor(TEXT("CO"), EWLMinisterOffice::Defense);
+	TestTrue(TEXT("Ministro de Defensa competente"), DefenseFactor > 0.0);
+
+	const int64 UpkeepWithMinister = Tick->GetNationMilitaryUpkeep(TEXT("CO"));
+	FString Message;
+	TestTrue(TEXT("Destituir ministro de Defensa"),
+		Characters->DismissMinister(TEXT("CO"), EWLMinisterOffice::Defense, Message));
+	TestEqual(TEXT("Cargo vacante = factor neutro"),
+		Characters->GetMinisterEffectFactor(TEXT("CO"), EWLMinisterOffice::Defense), 0.0);
+	TestTrue(TEXT("Sin ministro de Defensa el upkeep militar SUBE"),
+		Tick->GetNationMilitaryUpkeep(TEXT("CO")) > UpkeepWithMinister);
+
+	GameInstance->Shutdown();
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLCharacterRosterAndCabinetTest,

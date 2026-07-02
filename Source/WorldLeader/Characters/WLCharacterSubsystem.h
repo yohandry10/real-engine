@@ -97,6 +97,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
 	bool GetCabinetMinister(const FString& NationIso, EWLMinisterOffice Office, FWLCharacter& OutMinister) const;
 
+	/**
+	 * Fase 3 auditoria: factor de efecto del ministro en el cargo, (skill-50)/50 en -1..+1.
+	 * Cargo vacante = 0 (neutro). Un ministro con skill < 50 tiene factor NEGATIVO (perjudica).
+	 */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	double GetMinisterEffectFactor(const FString& NationIso, EWLMinisterOffice Office) const;
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
 	FWLGovernmentStats GetGovernmentStats(const FString& NationIso) const;
 

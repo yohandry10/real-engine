@@ -386,6 +386,16 @@ void UWLStrategicTickSubsystem::ApplyMonthlyProvinceState()
 			NextOrder -= Rules.PublicOrderBankruptcyPenalty;
 		}
 		NextOrder -= GetTaxPublicOrderPressure(ControllerIso);   // FE1.2: impuestos altos drenan orden, bajos lo recuperan
+		// Fase 3 auditoria: el ministro del Interior mueve el orden publico cada mes (+ si es competente).
+		if (const UGameInstance* GI = GetGameInstance())
+		{
+			if (const UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
+			{
+				NextOrder += FMath::RoundToInt(
+					Characters->GetMinisterEffectFactor(ControllerIso, EWLMinisterOffice::Interior)
+					* Rules.InteriorMinisterOrderPerMonth);
+			}
+		}
 		NextOrder += GetProvinceBuildingEffects(Province.Id).BonusPublicOrder;
 
 		State->PublicOrder = ClampPublicOrder(NextOrder);
@@ -2110,7 +2120,17 @@ int64 UWLStrategicTickSubsystem::GetNationMilitaryStrength(const FString& Nation
 int64 UWLStrategicTickSubsystem::GetNationMilitaryUpkeep(const FString& NationIso) const
 {
 	const FWLBalanceRules Rules = GetBalanceRules();
-	return static_cast<int64>(static_cast<double>(GetNationMilitaryStrength(NationIso)) * Rules.MilitaryUpkeepPerStrength);
+	double Upkeep = static_cast<double>(GetNationMilitaryStrength(NationIso)) * Rules.MilitaryUpkeepPerStrength;
+	// Fase 3 auditoria: un buen ministro de Defensa abarata el mantenimiento; uno inepto lo encarece.
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
+		{
+			const double Factor = Characters->GetMinisterEffectFactor(NormalizeIso(NationIso), EWLMinisterOffice::Defense);
+			Upkeep *= FMath::Max(0.0, 1.0 - Factor * Rules.DefenseMinisterUpkeepEffect);
+		}
+	}
+	return static_cast<int64>(FMath::RoundToDouble(Upkeep));
 }
 
 bool UWLStrategicTickSubsystem::GetProvinceState(const FString& ProvinceId, FWLProvinceRuntimeState& OutState) const
