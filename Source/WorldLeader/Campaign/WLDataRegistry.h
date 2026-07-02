@@ -56,6 +56,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Data")
 	int32 GetBuildingCount() const { return Buildings.Num(); }
 
+	/** FE2.1: catalogo de bienes economicos (Goods.json). */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Data")
+	bool GetGood(const FString& Id, FWLGoodData& OutGood) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Data")
+	TArray<FWLGoodData> GetAllGoods() const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Data")
+	int32 GetGoodCount() const { return Goods.Num(); }
+
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Data")
 	bool GetUnit(const FString& Id, FWLUnitData& OutUnit) const;
 
@@ -78,10 +88,14 @@ private:
 	UPROPERTY()
 	TMap<FString, FWLUnitData> Units;
 
+	UPROPERTY()
+	TMap<FString, FWLGoodData> Goods;
+
 	bool LoadProvincesFromFile(const FString& FilePath);
 	bool LoadNationsFromFile(const FString& FilePath);
 	bool LoadBuildingsFromFile(const FString& FilePath);
 	bool LoadUnitsFromFile(const FString& FilePath);
+	bool LoadGoodsFromFile(const FString& FilePath);
 	bool ValidateLoadedData() const;
 
 	static EWLTerrainType TerrainFromString(const FString& In);

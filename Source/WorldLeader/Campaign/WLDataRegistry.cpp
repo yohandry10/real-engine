@@ -20,18 +20,20 @@ bool UWLDataRegistry::LoadGameData()
 	Nations.Reset();
 	Buildings.Reset();
 	Units.Reset();
+	Goods.Reset();
 
 	const FString DataDir = FPaths::ProjectContentDir() / TEXT("Data");
 	const bool bProvinces = LoadProvincesFromFile(DataDir / TEXT("Provinces") / TEXT("Provinces.json"));
 	const bool bNations   = LoadNationsFromFile(DataDir / TEXT("Nations") / TEXT("Nations.json"));
 	const bool bBuildings = LoadBuildingsFromFile(DataDir / TEXT("Buildings") / TEXT("Buildings.json"));
 	const bool bUnits     = LoadUnitsFromFile(DataDir / TEXT("Units") / TEXT("Units.json"));
+	const bool bGoods     = LoadGoodsFromFile(DataDir / TEXT("Goods") / TEXT("Goods.json"));
 	const bool bValid     = ValidateLoadedData();
 
-	UE_LOG(LogWorldLeader, Log, TEXT("WLDataRegistry: %d provincias, %d naciones, %d edificios, %d unidades cargados."),
-		Provinces.Num(), Nations.Num(), Buildings.Num(), Units.Num());
+	UE_LOG(LogWorldLeader, Log, TEXT("WLDataRegistry: %d provincias, %d naciones, %d edificios, %d unidades, %d bienes cargados."),
+		Provinces.Num(), Nations.Num(), Buildings.Num(), Units.Num(), Goods.Num());
 
-	return bProvinces && bNations && bBuildings && bUnits && bValid;
+	return bProvinces && bNations && bBuildings && bUnits && bGoods && bValid;
 }
 
 FString UWLDataRegistry::NormalizeIso(const FString& In)
@@ -199,6 +201,7 @@ bool UWLDataRegistry::LoadNationsFromFile(const FString& FilePath)
 		Obj->TryGetStringField(TEXT("capital_province"), N.CapitalProvinceId);
 		N.CapitalProvinceId = NormalizeProvinceId(N.CapitalProvinceId);
 		Obj->TryGetStringField(TEXT("government"), N.GovernmentType);
+		Obj->TryGetStringField(TEXT("leader"), N.Leader);
 
 		double Treasury = 0.0;
 		if (Obj->TryGetNumberField(TEXT("starting_treasury"), Treasury))
@@ -338,6 +341,89 @@ bool UWLDataRegistry::LoadUnitsFromFile(const FString& FilePath)
 	}
 
 	return Units.Num() > 0;
+}
+
+// FE2.1: catalogo de bienes (crudos y manufacturados con sus insumos).
+bool UWLDataRegistry::LoadGoodsFromFile(const FString& FilePath)
+{
+	FString Raw;
+	if (!FFileHelper::LoadFileToString(Raw, *FilePath))
+	{
+		UE_LOG(LogWorldLeader, Warning, TEXT("WLDataRegistry: no se pudo leer %s"), *FilePath);
+		return false;
+	}
+
+	TArray<TSharedPtr<FJsonValue>> Array;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+	if (!FJsonSerializer::Deserialize(Reader, Array))
+	{
+		UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: JSON de bienes invalido en %s"), *FilePath);
+		return false;
+	}
+
+	for (const TSharedPtr<FJsonValue>& Value : Array)
+	{
+		const TSharedPtr<FJsonObject>* ObjPtr = nullptr;
+		if (!Value.IsValid() || !Value->TryGetObject(ObjPtr) || !ObjPtr) continue;
+		const TSharedPtr<FJsonObject>& Obj = *ObjPtr;
+
+		FWLGoodData G;
+		Obj->TryGetStringField(TEXT("id"), G.Id);
+		G.Id = NormalizeDataId(G.Id);
+		Obj->TryGetStringField(TEXT("name"), G.Name);
+
+		FString CategoryStr;
+		Obj->TryGetStringField(TEXT("category"), CategoryStr);
+		G.Category = CategoryStr.ToLower() == TEXT("manufactured")
+			? EWLGoodCategory::Manufactured
+			: EWLGoodCategory::Raw;
+
+		int32 Price = 0;
+		if (Obj->TryGetNumberField(TEXT("base_price"), Price)) G.BasePrice = Price;
+
+		const TArray<TSharedPtr<FJsonValue>>* Inputs = nullptr;
+		if (Obj->TryGetArrayField(TEXT("inputs"), Inputs) && Inputs)
+		{
+			for (const TSharedPtr<FJsonValue>& Input : *Inputs)
+			{
+				FString InputId;
+				if (Input.IsValid() && Input->TryGetString(InputId))
+				{
+					G.Inputs.Add(NormalizeDataId(InputId));
+				}
+			}
+		}
+
+		if (G.IsValid())
+		{
+			if (Goods.Contains(G.Id))
+			{
+				UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: bien duplicado ignorado: %s"), *G.Id);
+				continue;
+			}
+			Goods.Add(G.Id, MoveTemp(G));
+		}
+	}
+
+	return Goods.Num() > 0;
+}
+
+bool UWLDataRegistry::GetGood(const FString& Id, FWLGoodData& OutGood) const
+{
+	if (const FWLGoodData* Found = Goods.Find(NormalizeDataId(Id)))
+	{
+		OutGood = *Found;
+		return true;
+	}
+	return false;
+}
+
+TArray<FWLGoodData> UWLDataRegistry::GetAllGoods() const
+{
+	TArray<FWLGoodData> Out;
+	Goods.GenerateValueArray(Out);
+	Out.Sort([](const FWLGoodData& A, const FWLGoodData& B) { return A.Id < B.Id; });
+	return Out;
 }
 
 bool UWLDataRegistry::GetProvince(const FString& Id, FWLProvinceData& OutProvince) const
@@ -486,6 +572,26 @@ bool UWLDataRegistry::ValidateLoadedData() const
 		{
 			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: edificio %s tiene coste/bonus negativo."), *Building.Id);
 			bOk = false;
+		}
+	}
+
+	// FE2.1: los insumos de cada bien manufacturado deben existir en el catalogo.
+	for (const TPair<FString, FWLGoodData>& Pair : Goods)
+	{
+		const FWLGoodData& Good = Pair.Value;
+		if (Good.BasePrice < 0)
+		{
+			UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: bien %s tiene precio negativo."), *Good.Id);
+			bOk = false;
+		}
+		for (const FString& InputId : Good.Inputs)
+		{
+			if (!Goods.Contains(InputId))
+			{
+				UE_LOG(LogWorldLeader, Error, TEXT("WLDataRegistry: bien %s referencia insumo inexistente %s."),
+					*Good.Id, *InputId);
+				bOk = false;
+			}
 		}
 	}
 

@@ -164,7 +164,7 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
   *Hecho = se ve el PIB y si sube o baja.*
 
 ### FE2 — Bienes, sectores y cadenas de producción  *(el corazón realista)*
-- [ ] **FE2.1 — Catálogo de bienes (JSON).** Crudos (petróleo, gas, carbón, minerales, alimentos, café) y
+- [x] **FE2.1 — Catálogo de bienes (JSON).** Crudos (petróleo, gas, carbón, minerales, alimentos, café) y
   manufacturados (combustible, acero, bienes de consumo, armamento).
 - [ ] **FE2.2 — Sectores por provincia.** Extracción / manufactura / servicios producen bienes usando trabajo.
 - [ ] **FE2.3 — Cadenas de producción.** petróleo→refinería→combustible; hierro+carbón→acero→armas/maquinaria.
@@ -203,6 +203,12 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-01 · FE2.1** — Catálogo de bienes: `Content/Data/Goods/Goods.json` (6 crudos: oil/gas/coal/
+  minerals/food/coffee · 4 manufacturados: fuel/steel/consumer_goods/weapons, con `inputs` ya declarados para
+  FE2.3) + `FWLGoodData`/`EWLGoodCategory` en WLGameTypes + loader/getters en `WLDataRegistry`
+  (`GetGood`/`GetAllGoods`/`GetGoodCount`) con validación de insumos existentes. Test `Data.GoodsCatalog`.
+  Incluye el campo `Leader` de FWLNationData que faltó en el commit del layout de gobierno. Archivos:
+  `Goods.json`, `WLGameTypes.h`, `WLDataRegistry.h/.cpp`, `WLCampaignGuardTests.cpp`.
 - **2026-07-01 · FE1.5** — PIB y crecimiento: `GetNationGDP` = Σ provincias [(producción a precios de mercado
   sin la parte fiscal + edificios) + población × `GDPPerCapitaActivity` (0.002)] × modificador de orden público;
   `GetNationGDPGrowth` mide la variación entre ticks económicos (`UpdateGDPHistory` en AdvanceMonth/AdvanceDay;

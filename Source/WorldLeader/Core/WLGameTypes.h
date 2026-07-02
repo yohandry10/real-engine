@@ -94,6 +94,8 @@ struct FWLNationData
 	UPROPERTY(BlueprintReadOnly, Category = "Nation") FString CapitalProvinceId;
 	UPROPERTY(BlueprintReadOnly, Category = "Nation") int64 StartingTreasury = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Nation") FString GovernmentType;
+	/** Jefe de Estado (presidente). Opcional en datos; la UI usa un titulo por defecto si viene vacio. */
+	UPROPERTY(BlueprintReadOnly, Category = "Nation") FString Leader;
 	UPROPERTY(BlueprintReadOnly, Category = "Nation") FLinearColor MapColor = FLinearColor::Gray;
 
 	bool IsValid() const { return !Iso.IsEmpty(); }
@@ -135,6 +137,34 @@ struct FWLBuildingData
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusFood = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusMinerals = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Building") int32 BonusIndustry = 0;
+
+	bool IsValid() const { return !Id.IsEmpty(); }
+};
+
+/** FE2.1: categoria de un bien economico. */
+UENUM(BlueprintType)
+enum class EWLGoodCategory : uint8
+{
+	Raw          UMETA(DisplayName = "Crudo"),
+	Manufactured UMETA(DisplayName = "Manufacturado")
+};
+
+/**
+ * FE2.1: definicion estatica de un bien economico. Se carga desde
+ * Content/Data/Goods/Goods.json. Los manufacturados declaran sus insumos
+ * (Inputs) para las cadenas de produccion (FE2.3).
+ */
+USTRUCT(BlueprintType)
+struct FWLGoodData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Good") FString Id;
+	UPROPERTY(BlueprintReadOnly, Category = "Good") FString Name;
+	UPROPERTY(BlueprintReadOnly, Category = "Good") EWLGoodCategory Category = EWLGoodCategory::Raw;
+	UPROPERTY(BlueprintReadOnly, Category = "Good") int32 BasePrice = 0;
+	/** IDs de bienes necesarios para producirlo (vacio en crudos). */
+	UPROPERTY(BlueprintReadOnly, Category = "Good") TArray<FString> Inputs;
 
 	bool IsValid() const { return !Id.IsEmpty(); }
 };

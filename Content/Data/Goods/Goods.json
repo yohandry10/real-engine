@@ -1,0 +1,66 @@
+[
+	{
+		"id": "oil",
+		"name": "Petroleo",
+		"category": "raw",
+		"base_price": 4
+	},
+	{
+		"id": "gas",
+		"name": "Gas natural",
+		"category": "raw",
+		"base_price": 3
+	},
+	{
+		"id": "coal",
+		"name": "Carbon",
+		"category": "raw",
+		"base_price": 2
+	},
+	{
+		"id": "minerals",
+		"name": "Minerales",
+		"category": "raw",
+		"base_price": 2
+	},
+	{
+		"id": "food",
+		"name": "Alimentos",
+		"category": "raw",
+		"base_price": 1
+	},
+	{
+		"id": "coffee",
+		"name": "Cafe",
+		"category": "raw",
+		"base_price": 2
+	},
+	{
+		"id": "fuel",
+		"name": "Combustible",
+		"category": "manufactured",
+		"base_price": 6,
+		"inputs": ["oil"]
+	},
+	{
+		"id": "steel",
+		"name": "Acero",
+		"category": "manufactured",
+		"base_price": 5,
+		"inputs": ["minerals", "coal"]
+	},
+	{
+		"id": "consumer_goods",
+		"name": "Bienes de consumo",
+		"category": "manufactured",
+		"base_price": 7,
+		"inputs": ["steel"]
+	},
+	{
+		"id": "weapons",
+		"name": "Armamento",
+		"category": "manufactured",
+		"base_price": 9,
+		"inputs": ["steel"]
+	}
+]

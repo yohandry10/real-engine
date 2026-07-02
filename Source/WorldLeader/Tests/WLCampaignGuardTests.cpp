@@ -6,6 +6,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Military/WLMilitarySubsystem.h"
@@ -44,6 +45,57 @@ bool FWLConstructionCanonicalIdsTest::RunTest(const FString& Parameters)
 	if (Built.Num() == 1)
 	{
 		TestEqual(TEXT("ID canonico guardado"), Built[0], FString(TEXT("oil_well")));
+	}
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLGoodsCatalogTest,
+	"WorldLeader.Data.GoodsCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLGoodsCatalogTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLDataRegistry* Registry = GameInstance->GetSubsystem<UWLDataRegistry>();
+	TestNotNull(TEXT("Data registry"), Registry);
+	if (!Registry)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	TestTrue(TEXT("Catalogo de bienes cargado"), Registry->GetGoodCount() >= 10);
+
+	FWLGoodData Oil;
+	TestTrue(TEXT("Petroleo existe"), Registry->GetGood(TEXT("oil"), Oil));
+	TestEqual(TEXT("Petroleo es crudo"), Oil.Category, EWLGoodCategory::Raw);
+	TestTrue(TEXT("Petroleo sin insumos"), Oil.Inputs.IsEmpty());
+
+	FWLGoodData Steel;
+	TestTrue(TEXT("Acero existe"), Registry->GetGood(TEXT("STEEL"), Steel));   // id no canonico
+	TestEqual(TEXT("Acero es manufacturado"), Steel.Category, EWLGoodCategory::Manufactured);
+	TestTrue(TEXT("Acero usa minerales"), Steel.Inputs.Contains(TEXT("minerals")));
+	TestTrue(TEXT("Acero usa carbon"), Steel.Inputs.Contains(TEXT("coal")));
+
+	for (const FWLGoodData& Good : Registry->GetAllGoods())
+	{
+		TestTrue(FString::Printf(TEXT("Bien valido: %s"), *Good.Id), Good.IsValid() && Good.BasePrice > 0);
+		for (const FString& InputId : Good.Inputs)
+		{
+			FWLGoodData Input;
+			TestTrue(FString::Printf(TEXT("Insumo existe: %s -> %s"), *Good.Id, *InputId),
+				Registry->GetGood(InputId, Input));
+		}
 	}
 
 	GameInstance->Shutdown();
