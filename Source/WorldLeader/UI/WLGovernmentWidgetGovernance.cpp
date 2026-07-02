@@ -2017,30 +2017,83 @@ void UWLGovernmentWidget::BuildAIPlansPanel()
 		return;
 	}
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("IA POLITICA DE AMERICA"), 17, GovGold), 18.f);
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		TEXT("Que persigue cada gobierno IA y por que. La UI solo muestra el plan; no lo decide."),
-		12, GovMuted, ETextJustify::Left, true), 4.f);
-
-	TArray<FWLNationData> Nations = Registry->GetAllNations();
-	Nations.Sort([](const FWLNationData& A, const FWLNationData& B) { return A.Name < B.Name; });
-	int32 Index = 0;
-	for (const FWLNationData& Nation : Nations)
+	// Recolecta planes; separa los "notables" (la IA hace algo distinto a arrancar estabilizando)
+	// del ruido inicial donde todos empiezan igual. Asi el panel informa en vez de escupir 37 filas iguales.
+	struct FAIPlanRow { FString Name; FWLPoliticalAIPlanState Plan; };
+	TArray<FAIPlanRow> Notable;
+	int32 ObjectiveHistogram[6] = { 0, 0, 0, 0, 0, 0 };   // indexado por (int32)EWLGovernmentAIObjective
+	for (const FWLNationData& Nation : Registry->GetAllNations())
 	{
 		if (Nation.Iso.Equals(Iso, ESearchCase::IgnoreCase))
 		{
 			continue;
 		}
 		const FWLPoliticalAIPlanState Plan = Political->GetGovernmentAIPlan(Nation.Iso);
+		const int32 ObjIndex = static_cast<int32>(Plan.Objective);
+		if (ObjIndex >= 0 && ObjIndex < 6)
+		{
+			++ObjectiveHistogram[ObjIndex];
+		}
+		const bool bNotable = Plan.Objective != EWLGovernmentAIObjective::Stabilize
+			|| Plan.MonthsOnPlan > 0
+			|| !Plan.TargetIso.IsEmpty()
+			|| !Plan.CurrentProgramId.IsEmpty();
+		if (bNotable)
+		{
+			Notable.Add({ Nation.Name, Plan });
+		}
+	}
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PANORAMA CONTINENTAL"), 17, GovGold), 18.f);
+
+	// Resumen del continente: cuantos gobiernos persiguen cada objetivo (solo cubos con datos).
+	{
+		const EWLGovernmentAIObjective Order[] = {
+			EWLGovernmentAIObjective::Stabilize, EWLGovernmentAIObjective::Expand,
+			EWLGovernmentAIObjective::Militarize, EWLGovernmentAIObjective::Borrow,
+			EWLGovernmentAIObjective::Align, EWLGovernmentAIObjective::Industrialize };
+		FString Summary;
+		for (const EWLGovernmentAIObjective Obj : Order)
+		{
+			const int32 Count = ObjectiveHistogram[static_cast<int32>(Obj)];
+			if (Count > 0)
+			{
+				Summary += (Summary.IsEmpty() ? TEXT("") : TEXT("   ·   ")) + FString::Printf(TEXT("%d %s"), Count, *AIObjectiveToText(Obj).ToLower());
+			}
+		}
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			Summary.IsEmpty() ? TEXT("Sin gobiernos IA activos.") : FString::Printf(TEXT("Postura del continente: %s"), *Summary),
+			12, GovMuted, ETextJustify::Left, true), 4.f);
+	}
+
+	if (Notable.Num() == 0)
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("Ningun gobierno IA ha movido ficha todavia: todos arrancan estabilizando. Avanza los meses y veras aqui a quien se militariza, se endeuda, se alinea a un bloque o prepara una guerra — con su motivo."),
+			12, GovMuted, ETextJustify::Left, true), 6.f);
+		return;
+	}
+
+	// Los planes mas asentados primero (mas meses = movimiento sostenido, mas relevante).
+	Notable.Sort([](const FAIPlanRow& A, const FAIPlanRow& B) { return A.Plan.MonthsOnPlan > B.Plan.MonthsOnPlan; });
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		FString::Printf(TEXT("MOVIMIENTOS NOTABLES  (%d)"), Notable.Num()), 13, GovMuted), 8.f);
+	int32 Index = 0;
+	for (const FAIPlanRow& Entry : Notable)
+	{
+		const FWLPoliticalAIPlanState& Plan = Entry.Plan;
 		UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Nation.Name, 13, GovText)))
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Entry.Name, 13, GovText)))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			S->SetVerticalAlignment(VAlign_Center);
 		}
-		Head->AddChildToHorizontalBox(MakeBadge(WidgetTree, AIObjectiveToText(Plan.Objective).ToUpper(), GovHeaderStrip, GovGold));
+		const bool bAggressive = Plan.Objective == EWLGovernmentAIObjective::Militarize
+			|| Plan.Objective == EWLGovernmentAIObjective::Expand;
+		Head->AddChildToHorizontalBox(MakeBadge(WidgetTree, AIObjectiveToText(Plan.Objective).ToUpper(),
+			bAggressive ? GovDanger : GovHeaderStrip, bAggressive ? GovText : GovGold));
 		VB->AddChildToVerticalBox(Head);
 		FString Detail = FString::Printf(TEXT("%d meses en plan"), Plan.MonthsOnPlan);
 		if (!Plan.TargetIso.IsEmpty())
@@ -2317,7 +2370,7 @@ void UWLGovernmentWidget::BuildBattlePreviewPanel()
 		S->SetPadding(FMargin(0.f, 10.f, 0.f, 0.f));
 	}
 	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(WidgetTree,
-		TEXT("Auto-resolver calcula el resultado por poderes al instante. Batalla tactica abre el campo de batalla 3D donde comandas tu bando (la IA lleva al rival) y aplica bajas/ocupacion al volver. Ambas requieren guerra declarada."),
+		TEXT("Auto-resolver calcula el resultado por poderes al instante. Batalla tactica abre el campo de batalla 3D donde comandas tu bando y el enemigo responde solo, y aplica bajas/ocupacion al volver. Ambas requieren guerra declarada."),
 		11, GovMuted, ETextJustify::Left, true)))
 	{
 		S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
@@ -2359,7 +2412,7 @@ void UWLGovernmentWidget::BuildDifficultyPanel()
 		}
 	};
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("DIFICULTAD DE LA IA"), 17, GovGold), 20.f);
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("DIFICULTAD"), 17, GovGold), 20.f);
 
 	UBorder* Card = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
 	UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -2395,7 +2448,7 @@ void UWLGovernmentWidget::BuildDifficultyPanel()
 	Card->SetContent(VB);
 	AddColumnChild(CenterBox, Card, 8.f);
 	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		TEXT("Cambia como juega la IA (economia, fisco, diplomacia, guerra, intriga, reclutamiento). El efecto entra en el proximo cierre de mes."),
+		TEXT("Cambia como juegan los gobiernos rivales (economia, fisco, diplomacia, guerra, intriga, reclutamiento). El efecto entra en el proximo cierre de mes."),
 		12, GovMuted, ETextJustify::Left, true), 4.f);
 }
 
