@@ -119,6 +119,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
 	bool DismissMinister(const FString& NationIso, EWLMinisterOffice Office, FString& OutMessage);
 
+	/** Coste en capital politico de nombrar / destituir un ministro (para que la UI muestre el coste). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	int32 GetMinisterAppointmentCost() const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	int32 GetMinisterDismissalCost() const;
+
 	/** Backend de contratacion: crea un candidato civil para una cartera, sin nombrarlo todavia. */
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
 	bool CreateMinister(const FString& NationIso, EWLMinisterOffice PreferredOffice, FWLCharacter& OutMinister, FString& OutMessage);

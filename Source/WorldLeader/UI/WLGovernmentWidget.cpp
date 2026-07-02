@@ -1060,9 +1060,17 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 			FString::Printf(TEXT("Ministerio de %s"), *UWLCharacterSubsystem::MinisterOfficeToString(Seat.Office)), 14, GovText));
 		Info->AddChildToVerticalBox(MakeText(WidgetTree,
 			bFilled
-				? FString::Printf(TEXT("%s — skill %d · lealtad %d"), *Seat.Minister.Name, Seat.Minister.Skill, Seat.Minister.Loyalty)
+				? FString::Printf(TEXT("%s — skill %d · lealtad %d · ambicion %d · popularidad %d"),
+					*Seat.Minister.Name, Seat.Minister.Skill, Seat.Minister.Loyalty,
+					Seat.Minister.Ambition, Seat.Minister.Popularity)
 				: TEXT("Cargo vacante"),
 			12, bFilled ? GovMuted : GovGold, ETextJustify::Left, true));
+		if (bFilled && Seat.Minister.Traits.Num() > 0)
+		{
+			Info->AddChildToVerticalBox(MakeText(WidgetTree,
+				FString::Printf(TEXT("Rasgos: %s"), *FString::Join(Seat.Minister.Traits, TEXT(" · "))),
+				11, GovGoldDim, ETextJustify::Left, true));
+		}
 		Info->AddChildToVerticalBox(MakeText(WidgetTree, MinisterEffectText(Seat.Office, Factor), 11,
 			Factor < 0.0 ? GovBad : (Factor > 0.0 ? GovGood : GovMuted), ETextJustify::Left, true));
 		// Gobierno P2: ficha politica del ministro (corrupcion personal, escandalo, sucesion).

@@ -753,6 +753,16 @@ void UWLCharacterSubsystem::UnassignOffice(const FString& NationIso, EWLMinister
 	}
 }
 
+int32 UWLCharacterSubsystem::GetMinisterAppointmentCost() const
+{
+	return AppointMinisterPoliticalCost;
+}
+
+int32 UWLCharacterSubsystem::GetMinisterDismissalCost() const
+{
+	return DismissMinisterPoliticalCost;
+}
+
 bool UWLCharacterSubsystem::AppointMinister(
 	const FString& NationIso,
 	EWLMinisterOffice Office,

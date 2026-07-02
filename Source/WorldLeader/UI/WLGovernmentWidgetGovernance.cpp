@@ -1760,6 +1760,16 @@ void UWLGovernmentWidget::BuildMinisterComparator(EWLMinisterOffice Office)
 	Head->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this, TEXT("closecompare"), TEXT("CERRAR"), GovTabIdle, 80.f, 11));
 	VB->AddChildToVerticalBox(Head);
 
+	// Coste politico de nombrar (leido del backend, no hardcodeado en la UI).
+	const int32 AppointCost = Characters->GetMinisterAppointmentCost();
+	const FWLGovernmentStats Stats = Characters->GetGovernmentStats(Iso);
+	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+		TEXT("Nombrar cuesta %d de capital politico (tienes %d)."), AppointCost, Stats.PoliticalCapital),
+		11, Stats.PoliticalCapital < AppointCost ? GovBad : GovMuted, ETextJustify::Left, true)))
+	{
+		S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+	}
+
 	FWLCharacter Current;
 	if (Characters->GetCabinetMinister(Iso, Office, Current) && Current.IsValid())
 	{
