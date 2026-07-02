@@ -27,7 +27,7 @@
 ## 📍 Estado actual
 
 - **Fase activa:** FE — Economía (el usuario priorizó economía). *F1 Generales queda en pausa (próxima F1.2).*
-- **Próxima tarea:** **FE1.3** — Presupuesto por categorías
+- **Próxima tarea:** **FE1.4** — Deuda y déficit
 - **Última actualización:** 2026-07-01
 
 ---
@@ -156,7 +156,7 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
   ✅ Verificado runtime: CO 34.200 efectivos → 11.970/mes (balance 51.470→39.500); VE 28.800 → 10.080/mes.
 - [x] **FE1.2 — Palanca de impuestos.** Tasa ajustable por nación: subir = +ingreso, −orden público
   (curva tipo Laffer). *Hecho = mover el impuesto cambia ingreso y orden.*
-- [ ] **FE1.3 — Presupuesto por categorías.** Gasto en militar / infraestructura / salarios / social + panel
+- [x] **FE1.3 — Presupuesto por categorías.** Gasto en militar / infraestructura / salarios / social + panel
   ECONOMÍA que los desglosa. *Hecho = se ve ingreso y gasto por categoría.*
 - [ ] **FE1.4 — Deuda y déficit.** Tesoro negativo → interés mensual + límite de crédito + penalización.
   *Hecho = gastar de más genera deuda con interés.*
@@ -203,6 +203,16 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-01 · FE1.3** — Presupuesto por categorías: `FWLNationBudget` (ingresos: recursos/producción +
+  impuestos; gastos: militar + infraestructura + salarios públicos + gasto social) vía `GetNationBudget`;
+  `GetMonthlyBalance` ahora ES el neto del presupuesto (única fuente de verdad). Gastos nuevos per cápita
+  (`PublicWagesPerCapita` 0.0002, `SocialSpendingPerCapita` 0.0001). Tab **ECONOMIA** nuevo en GOBIERNO con el
+  desglose + balance neto; la palanca de impuestos (FE1.2) se movió de RESUMEN a ECONOMIA. Tests: suite completa
+  16/17 (`Balance.NationBudgetBreakdown` nuevo verifica neto == balance con subsistema real;
+  `ControllerDrivesEconomy` actualizado al modelo con gasto per cápita). El fallo restante
+  (`Military.SubsystemGuards`) es preexistente: referencia la provincia CO-GUA que ya no existe en
+  Provinces.json. Archivos: `WLBalanceTypes.h`, `WLStrategicTickSubsystem.h/.cpp`, `WLGovernmentWidget.h/.cpp`,
+  `WLBalanceTests.cpp`, `WLProvinceStateTests.cpp`.
 - **2026-07-01 · FE1.2** — Palanca de impuestos por nación (10%–60%, default 30%). Recaudación con curva
   Laffer normalizada (`CalculateTaxRateIncomeMultiplier`: default = ×1.0, rendimiento decreciente) aplicada a
   la parte de impuesto poblacional del ingreso provincial; orden público drena/recupera cada mes según

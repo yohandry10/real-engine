@@ -59,6 +59,14 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Taxes", meta = (ClampMin = "0.0"))
 	double TaxPublicOrderPerPointPerMonth = 0.15;
 
+	/** FE1.3: salarios publicos (burocracia/servicios): creditos por habitante / mes. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Budget", meta = (ClampMin = "0.0"))
+	double PublicWagesPerCapita = 0.0002;
+
+	/** FE1.3: gasto social (salud/educacion/subsidios): creditos por habitante / mes. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Budget", meta = (ClampMin = "0.0"))
+	double SocialSpendingPerCapita = 0.0001;
+
 	/** Orden publico inicial para provincias sin estado guardado. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Public Order", meta = (ClampMin = "0", ClampMax = "100"))
 	int32 InitialPublicOrder = 72;
@@ -144,6 +152,8 @@ struct FWLBalanceRules
 		Out.TaxRateDefaultPercent = FMath::Clamp(Out.TaxRateDefaultPercent, Out.TaxRateMinPercent, Out.TaxRateMaxPercent);
 		Out.TaxLafferEvasionAtFullRate = FMath::Clamp(Out.TaxLafferEvasionAtFullRate, 0.0, 1.0);
 		Out.TaxPublicOrderPerPointPerMonth = FMath::Max(0.0, Out.TaxPublicOrderPerPointPerMonth);
+		Out.PublicWagesPerCapita = FMath::Max(0.0, Out.PublicWagesPerCapita);
+		Out.SocialSpendingPerCapita = FMath::Max(0.0, Out.SocialSpendingPerCapita);
 		Out.InitialPublicOrder = FMath::Clamp(Out.InitialPublicOrder, 0, 100);
 		Out.PublicOrderNeutral = FMath::Clamp(Out.PublicOrderNeutral, 1, 100);
 		Out.LowOrderIncomePenaltyAtZero = FMath::Clamp(Out.LowOrderIncomePenaltyAtZero, 0.0, 1.0);

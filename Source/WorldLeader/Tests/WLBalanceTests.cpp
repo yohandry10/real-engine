@@ -7,8 +7,10 @@
 
 #include "Misc/AutomationTest.h"
 #include "Balance/WLBalanceTypes.h"
+#include "Campaign/WLStrategicTickSubsystem.h"
 #include "Core/WLGameTypes.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Engine/GameInstance.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLBalanceRulesEconomyTest,
@@ -86,6 +88,43 @@ bool FWLTaxLeverLafferTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLNationBudgetBreakdownTest,
+	"WorldLeader.Balance.NationBudgetBreakdown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLNationBudgetBreakdownTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	if (!Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	const FWLNationBudget Budget = Tick->GetNationBudget(TEXT("VE"));
+	TestTrue(TEXT("Ingreso por recursos/produccion"), Budget.ResourceIncome > 0);
+	TestTrue(TEXT("Ingreso por impuestos"), Budget.TaxIncome > 0);
+	TestTrue(TEXT("Gasto militar (fuerzas desplegadas)"), Budget.MilitaryUpkeep > 0);
+	TestTrue(TEXT("Gasto en infraestructura"), Budget.InfrastructureUpkeep > 0);
+	TestTrue(TEXT("Salarios publicos"), Budget.PublicWages > 0);
+	TestTrue(TEXT("Gasto social"), Budget.SocialSpending > 0);
+	TestEqual(TEXT("El neto del presupuesto ES el balance mensual"),
+		Budget.Net(), Tick->GetMonthlyBalance(TEXT("VE")));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLBalanceRulesSanitizeTest,
 	"WorldLeader.Balance.SanitizeRules",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -105,6 +144,8 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	Rules.PublicOrderBankruptcyPenalty = -4;
 	Rules.OccupationPublicOrderPenalty = 250;
 	Rules.InfrastructureUpkeepFactor = -2;
+	Rules.PublicWagesPerCapita = -1.0;
+	Rules.SocialSpendingPerCapita = -2.0;
 	Rules.EconomicAIMinTreasuryReserve = -5000;
 	Rules.EconomicAIMaxBuildsPerNationPerMonth = -2;
 	Rules.EconomicAIMaxPaybackMonths = -12;
@@ -126,6 +167,8 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Penalizacion bancarrota saneada"), Sanitized.PublicOrderBankruptcyPenalty, 0);
 	TestEqual(TEXT("Penalizacion ocupacion clamp"), Sanitized.OccupationPublicOrderPenalty, 100);
 	TestEqual(TEXT("Upkeep negativo saneado"), Sanitized.InfrastructureUpkeepFactor, 0);
+	TestEqual(TEXT("Salarios negativos saneados"), Sanitized.PublicWagesPerCapita, 0.0);
+	TestEqual(TEXT("Gasto social negativo saneado"), Sanitized.SocialSpendingPerCapita, 0.0);
 	TestEqual(TEXT("Reserva IA saneada"), Sanitized.EconomicAIMinTreasuryReserve, static_cast<int64>(0));
 	TestEqual(TEXT("Construcciones IA saneadas"), Sanitized.EconomicAIMaxBuildsPerNationPerMonth, 0);
 	TestEqual(TEXT("Retorno IA saneado"), Sanitized.EconomicAIMaxPaybackMonths, 0);

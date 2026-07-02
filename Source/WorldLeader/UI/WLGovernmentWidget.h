@@ -29,6 +29,7 @@ UENUM()
 enum class EWLGovernmentTab : uint8
 {
 	Overview,  // RESUMEN  -> metricas de la nacion
+	Economy,   // ECONOMIA -> presupuesto por categorias + palanca de impuestos (FE1.3)
 	Politics,  // POLITICA -> orden publico (real) + sistemas del roadmap (fase futura)
 	Nation,    // NACION   -> provincias controladas (datos reales)
 	Records    // REGISTROS-> eventos recientes / IA economica
@@ -65,6 +66,7 @@ private:
 	void RebuildCenter();
 
 	void BuildOverviewTab();
+	void BuildEconomyTab();   // FE1.3
 	void BuildPoliticsTab();
 	void BuildNationTab();
 	void BuildRecordsTab();
@@ -73,6 +75,7 @@ private:
 	void RefreshTabButtonStyles();
 
 	UFUNCTION() void OnTabOverview();
+	UFUNCTION() void OnTabEconomy();   // FE1.3
 	UFUNCTION() void OnTabPolitics();
 	UFUNCTION() void OnTabNation();
 	UFUNCTION() void OnTabRecords();

@@ -320,7 +320,7 @@ void UWLGovernmentWidget::BuildTabs(UVerticalBox* Root)
 
 	// AddDynamic estampa el NOMBRE de la funcion en tiempo de compilacion, asi que el handler NO puede
 	// venir de una variable (puntero a miembro): cada pestana se enlaza explicitamente por indice.
-	const TCHAR* Labels[] = { TEXT("RESUMEN"), TEXT("POLITICA"), TEXT("NACION"), TEXT("REGISTROS") };
+	const TCHAR* Labels[] = { TEXT("RESUMEN"), TEXT("ECONOMIA"), TEXT("POLITICA"), TEXT("NACION"), TEXT("REGISTROS") };
 
 	TabButtons.Reset();
 	for (int32 i = 0; i < UE_ARRAY_COUNT(Labels); ++i)
@@ -330,9 +330,10 @@ void UWLGovernmentWidget::BuildTabs(UVerticalBox* Root)
 		switch (i)
 		{
 		case 0: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabOverview); break;
-		case 1: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabPolitics); break;
-		case 2: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabNation);   break;
-		case 3: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabRecords);  break;
+		case 1: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabEconomy);  break;
+		case 2: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabPolitics); break;
+		case 3: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabNation);   break;
+		case 4: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabRecords);  break;
 		default: break;
 		}
 
@@ -520,6 +521,7 @@ void UWLGovernmentWidget::RebuildCenter()
 	switch (ActiveTab)
 	{
 	case EWLGovernmentTab::Overview: BuildOverviewTab(); break;
+	case EWLGovernmentTab::Economy:  BuildEconomyTab();  break;
 	case EWLGovernmentTab::Politics: BuildPoliticsTab(); break;
 	case EWLGovernmentTab::Nation:   BuildNationTab();   break;
 	case EWLGovernmentTab::Records:  BuildRecordsTab();  break;
@@ -554,10 +556,84 @@ void UWLGovernmentWidget::BuildOverviewTab()
 	Place(2, 1, MakeMetricCard(WidgetTree, TEXT("Mantenimiento / mes"), GovGroupThousands(Sum.MonthlyUpkeep), GovMuted));
 	AddColumnChild(CenterBox, Grid, 10.f);
 
-	// FE1.2: palanca de impuestos. Mover la tasa cambia la recaudacion (Laffer) y el orden publico mensual.
-	if (Tick)
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("CONDICIONES DE VICTORIA"), 17, GovGold), 20.f);
+	UHorizontalBox* Tags = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	const TCHAR* Conditions[] = { TEXT("Dominacion"), TEXT("Economica"), TEXT("Tecnologica"), TEXT("Diplomatica"), TEXT("Militar") };
+	for (const TCHAR* C : Conditions)
 	{
-		const FWLBalanceRules Rules = Tick->GetBalanceRules();
+		if (UHorizontalBoxSlot* S = Tags->AddChildToHorizontalBox(MakeTag(WidgetTree, C)))
+		{
+			S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+		}
+	}
+	AddColumnChild(CenterBox, Tags, 8.f);
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Seguimiento de objetivos: fase futura del roadmap."), 13, GovMuted), 8.f);
+}
+
+// FE1.3: panel ECONOMIA — presupuesto mensual desglosado por categorias + palanca de impuestos (FE1.2).
+void UWLGovernmentWidget::BuildEconomyTab()
+{
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	const FString Iso = PlayerIso();
+	if (!Tick || Iso.IsEmpty())
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin datos economicos."), 14, GovMuted), 10.f);
+		return;
+	}
+
+	const FWLBalanceRules Rules = Tick->GetBalanceRules();
+	const FWLNationBudget Budget = Tick->GetNationBudget(Iso);
+
+	// Fila de presupuesto: etiqueta (fill) + importe con signo a la derecha.
+	auto AddBudgetRow = [&](const FString& Label, int64 Amount, bool bIsIncome, bool bTotal, int32 Index)
+	{
+		const FLinearColor RowColor = bTotal ? GovCardAlt : ((Index % 2 == 0) ? GovCard : GovCardAlt);
+		UBorder* Row = MakeBorder(WidgetTree, RowColor, FMargin(12.f, bTotal ? 10.f : 8.f));
+		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(
+			MakeText(WidgetTree, Label, bTotal ? 15 : 14, bTotal ? GovGold : GovText)))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		HB->AddChildToHorizontalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("%s%s"), bIsIncome ? TEXT("+") : TEXT("-"), *GovGroupThousands(Amount)),
+			bTotal ? 15 : 14, bIsIncome ? GovGood : GovBad, ETextJustify::Right));
+		Row->SetContent(HB);
+		AddColumnChild(CenterBox, Row, bTotal ? 8.f : 4.f);
+	};
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PRESUPUESTO MENSUAL"), 17, GovGold), 6.f);
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("INGRESOS"), 13, GovMuted), 12.f);
+	AddBudgetRow(TEXT("Recursos y produccion"), Budget.ResourceIncome, true, false, 0);
+	AddBudgetRow(TEXT("Impuestos"), Budget.TaxIncome, true, false, 1);
+	AddBudgetRow(TEXT("TOTAL INGRESOS"), Budget.TotalIncome(), true, true, 0);
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GASTOS"), 13, GovMuted), 14.f);
+	AddBudgetRow(TEXT("Militar"), Budget.MilitaryUpkeep, false, false, 0);
+	AddBudgetRow(TEXT("Infraestructura"), Budget.InfrastructureUpkeep, false, false, 1);
+	AddBudgetRow(TEXT("Salarios publicos"), Budget.PublicWages, false, false, 2);
+	AddBudgetRow(TEXT("Gasto social"), Budget.SocialSpending, false, false, 3);
+	AddBudgetRow(TEXT("TOTAL GASTOS"), Budget.TotalSpending(), false, true, 0);
+
+	// Balance neto (== GetMonthlyBalance).
+	const int64 Net = Budget.Net();
+	UBorder* NetCard = MakeBorder(WidgetTree, GovHeaderStrip, FMargin(12.f, 11.f));
+	UHorizontalBox* NetHB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	if (UHorizontalBoxSlot* S = NetHB->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("BALANCE MENSUAL"), 15, GovText)))
+	{
+		S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		S->SetVerticalAlignment(VAlign_Center);
+	}
+	NetHB->AddChildToHorizontalBox(MakeText(WidgetTree,
+		FString::Printf(TEXT("%s%s"), Net >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Net)),
+		18, Net >= 0 ? GovGood : GovBad, ETextJustify::Right));
+	NetCard->SetContent(NetHB);
+	AddColumnChild(CenterBox, NetCard, 12.f);
+
+	// FE1.2: palanca de impuestos. Mover la tasa cambia la recaudacion (Laffer) y el orden publico mensual.
+	{
 		const int32 TaxRate = Tick->GetTaxRate(Iso);
 		const double TaxMult = UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(TaxRate, Rules);
 		const int32 OrderPressure = Tick->GetTaxPublicOrderPressure(Iso);
@@ -618,19 +694,6 @@ void UWLGovernmentWidget::BuildOverviewTab()
 			TEXT("Rango %d%%-%d%%. Subir impuestos recauda mas con rendimiento decreciente y drena orden publico cada mes."),
 			Rules.TaxRateMinPercent, Rules.TaxRateMaxPercent), 12, GovMuted, ETextJustify::Left, true), 6.f);
 	}
-
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("CONDICIONES DE VICTORIA"), 17, GovGold), 20.f);
-	UHorizontalBox* Tags = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	const TCHAR* Conditions[] = { TEXT("Dominacion"), TEXT("Economica"), TEXT("Tecnologica"), TEXT("Diplomatica"), TEXT("Militar") };
-	for (const TCHAR* C : Conditions)
-	{
-		if (UHorizontalBoxSlot* S = Tags->AddChildToHorizontalBox(MakeTag(WidgetTree, C)))
-		{
-			S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
-		}
-	}
-	AddColumnChild(CenterBox, Tags, 8.f);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Seguimiento de objetivos: fase futura del roadmap."), 13, GovMuted), 8.f);
 }
 
 void UWLGovernmentWidget::BuildPoliticsTab()
@@ -799,6 +862,7 @@ void UWLGovernmentWidget::RefreshTabButtonStyles()
 }
 
 void UWLGovernmentWidget::OnTabOverview() { SetActiveTab(EWLGovernmentTab::Overview); }
+void UWLGovernmentWidget::OnTabEconomy()  { SetActiveTab(EWLGovernmentTab::Economy); }
 void UWLGovernmentWidget::OnTabPolitics() { SetActiveTab(EWLGovernmentTab::Politics); }
 void UWLGovernmentWidget::OnTabNation()   { SetActiveTab(EWLGovernmentTab::Nation); }
 void UWLGovernmentWidget::OnTabRecords()  { SetActiveTab(EWLGovernmentTab::Records); }
@@ -850,11 +914,12 @@ UWLGovernmentWidget::FSummary UWLGovernmentWidget::BuildSummary() const
 		const bool bHasState = Tick->GetProvinceState(P.Id, State);
 		S.Population += bHasState ? State.Population : P.Population;
 		OrderSum += bHasState ? State.PublicOrder : InitOrder;
-		S.MonthlyIncome += Tick->GetProvinceMonthlyIncome(P.Id);
-		S.MonthlyUpkeep += Tick->GetProvinceMonthlyUpkeep(P.Id);
 		S.Controlled.Add(P);
 	}
-	S.MonthlyUpkeep += Tick->GetNationMilitaryUpkeep(Iso);   // FE1.1: mantenimiento militar en el total de gasto
+	// FE1.3: ingreso y gasto desde el presupuesto por categorias (incluye militar, salarios y social).
+	const FWLNationBudget Budget = Tick->GetNationBudget(Iso);
+	S.MonthlyIncome = Budget.TotalIncome();
+	S.MonthlyUpkeep = Budget.TotalSpending();
 	S.AveragePublicOrder = S.ProvinceCount > 0 ? static_cast<int32>(OrderSum / S.ProvinceCount) : 0;
 	S.Controlled.Sort([](const FWLProvinceData& A, const FWLProvinceData& B) { return A.Population > B.Population; });
 	return S;

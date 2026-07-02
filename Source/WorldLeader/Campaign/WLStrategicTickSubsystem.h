@@ -10,6 +10,37 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWLOnMonthAdvanced, int32, Year, int32, Month);
 
+/** FE1.3: presupuesto mensual de una nacion desglosado por categorias (todo en creditos/mes). */
+USTRUCT(BlueprintType)
+struct FWLNationBudget
+{
+	GENERATED_BODY()
+
+	// Ingresos
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ResourceIncome = 0;     // recursos, industria y edificios (tras orden publico)
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 TaxIncome = 0;          // impuesto poblacional con la tasa vigente (tras orden publico)
+
+	// Gastos
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 MilitaryUpkeep = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 InfrastructureUpkeep = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 PublicWages = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 SocialSpending = 0;
+
+	int64 TotalIncome() const { return ResourceIncome + TaxIncome; }
+	int64 TotalSpending() const { return MilitaryUpkeep + InfrastructureUpkeep + PublicWages + SocialSpending; }
+	int64 Net() const { return TotalIncome() - TotalSpending(); }
+};
+
 // --- Reclutamiento de tropas por turnos (estilo Total War) ---
 struct FWLRecruitOption   // una entrada del catalogo (RecruitableUnits.json)
 {
@@ -76,6 +107,10 @@ public:
 	/** Balance mensual neto de una nacion segun sus provincias actuales. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetMonthlyBalance(const FString& NationIso) const;
+
+	/** FE1.3: presupuesto mensual desglosado por categorias. GetMonthlyBalance == su neto. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	FWLNationBudget GetNationBudget(const FString& NationIso) const;
 
 	/** FE1.2: tasa de impuestos de una nacion (%). Si nunca se toco, el default de balance. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
@@ -226,6 +261,9 @@ private:
 
 	/** Ingreso mensual extra de los edificios construidos en una provincia. */
 	int64 GetProvinceBuildingIncome(const FString& ProvinceId, const FWLBalanceRules& Rules) const;
+
+	/** FE1.3: ingreso provincial con desglose exacto de la parte de impuestos (OutTaxIncome <= retorno). */
+	int64 GetProvinceMonthlyIncomeSplit(const FString& ProvinceId, int64& OutTaxIncome) const;
 
 	void EnsureRecruitCatalog() const;
 	const FWLRecruitOption* FindRecruitOption(const FString& UnitType) const;

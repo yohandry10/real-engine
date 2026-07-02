@@ -225,20 +225,48 @@ void UWLStrategicTickSubsystem::ApplyMonthlyProvinceState()
 
 int64 UWLStrategicTickSubsystem::GetMonthlyBalance(const FString& NationIso) const
 {
-	const UWLDataRegistry* Registry = GetDataRegistry();
-	if (!Registry) return 0;
+	// FE1.3: el presupuesto por categorias es la unica fuente de verdad del balance mensual.
+	return GetNationBudget(NationIso).Net();
+}
 
+FWLNationBudget UWLStrategicTickSubsystem::GetNationBudget(const FString& NationIso) const
+{
+	FWLNationBudget Budget;
+	const UWLDataRegistry* Registry = GetDataRegistry();
+	if (!Registry)
+	{
+		return Budget;
+	}
+
+	const FWLBalanceRules Rules = GetBalanceRules();
 	const FString NormalizedIso = NormalizeIso(NationIso);
-	int64 Balance = 0;
+	int64 NationPopulation = 0;
 	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
 	{
-		if (GetProvinceControllerIso(Province.Id) == NormalizedIso)
+		if (GetProvinceControllerIso(Province.Id) != NormalizedIso)
 		{
-			Balance += GetProvinceMonthlyBalance(Province.Id);
+			continue;
 		}
+
+		int64 TaxIncome = 0;
+		const int64 ProvinceIncome = GetProvinceMonthlyIncomeSplit(Province.Id, TaxIncome);
+		Budget.TaxIncome += TaxIncome;
+		Budget.ResourceIncome += ProvinceIncome - TaxIncome;
+		Budget.InfrastructureUpkeep += GetProvinceMonthlyUpkeep(Province.Id);
+
+		FWLProvinceRuntimeState State;
+		NationPopulation += GetProvinceState(Province.Id, State)
+			? FMath::Max<int64>(0, State.Population)
+			: FMath::Max<int64>(0, Province.Population);
 	}
-	Balance -= GetNationMilitaryUpkeep(NormalizedIso);   // FE1.1: los ejercitos cuestan cada mes
-	return Balance;
+
+	Budget.MilitaryUpkeep = GetNationMilitaryUpkeep(NormalizedIso);   // FE1.1
+	// FE1.3: salarios publicos y gasto social escalan con la poblacion administrada.
+	Budget.PublicWages = static_cast<int64>(
+		FMath::RoundToDouble(static_cast<double>(NationPopulation) * Rules.PublicWagesPerCapita));
+	Budget.SocialSpending = static_cast<int64>(
+		FMath::RoundToDouble(static_cast<double>(NationPopulation) * Rules.SocialSpendingPerCapita));
+	return Budget;
 }
 
 int32 UWLStrategicTickSubsystem::GetTaxRate(const FString& NationIso) const
@@ -396,6 +424,13 @@ bool UWLStrategicTickSubsystem::SetProvinceController(
 
 int64 UWLStrategicTickSubsystem::GetProvinceMonthlyIncome(const FString& ProvinceId) const
 {
+	int64 UnusedTaxIncome = 0;
+	return GetProvinceMonthlyIncomeSplit(ProvinceId, UnusedTaxIncome);
+}
+
+int64 UWLStrategicTickSubsystem::GetProvinceMonthlyIncomeSplit(const FString& ProvinceId, int64& OutTaxIncome) const
+{
+	OutTaxIncome = 0;
 	const UWLDataRegistry* Registry = GetDataRegistry();
 	if (!Registry)
 	{
@@ -424,15 +459,26 @@ int64 UWLStrategicTickSubsystem::GetProvinceMonthlyIncome(const FString& Provinc
 	const FString ControllerIso = State.ControllerIso.IsEmpty() ? Province.CountryIso : State.ControllerIso;
 	const double TaxMultiplier = UWLEconomyLibrary::CalculateTaxRateIncomeMultiplier(GetTaxRate(ControllerIso), Rules);
 	const int64 BasePopulationTax = UWLEconomyLibrary::CalculateProvincePopulationTax(EffectiveProvince, Rules);
-	const int64 TaxRateDelta = static_cast<int64>(
-		FMath::RoundToDouble(static_cast<double>(BasePopulationTax) * (TaxMultiplier - 1.0)));
+	const int64 GrossTax = static_cast<int64>(
+		FMath::RoundToDouble(static_cast<double>(BasePopulationTax) * TaxMultiplier));
 
 	const int64 GrossIncome =
 		UWLEconomyLibrary::CalculateProvinceIncomeWithRules(EffectiveProvince, Rules)
-		+ TaxRateDelta
+		- BasePopulationTax
+		+ GrossTax
 		+ GetProvinceBuildingIncome(Province.Id, Rules);
 
-	return UWLEconomyLibrary::ApplyPublicOrderIncomeModifier(GrossIncome, State.PublicOrder, Rules);
+	const int64 NetIncome = UWLEconomyLibrary::ApplyPublicOrderIncomeModifier(GrossIncome, State.PublicOrder, Rules);
+
+	// FE1.3: desglose exacto — la parte de impuestos escala con el mismo modificador de orden publico
+	// y el resto (recursos/produccion) absorbe el redondeo para que las partes sumen el total.
+	if (GrossIncome > 0 && GrossTax > 0)
+	{
+		OutTaxIncome = FMath::Clamp<int64>(static_cast<int64>(FMath::RoundToDouble(
+			static_cast<double>(NetIncome) * static_cast<double>(GrossTax) / static_cast<double>(GrossIncome))),
+			0, NetIncome);
+	}
+	return NetIncome;
 }
 
 int64 UWLStrategicTickSubsystem::GetProvinceMonthlyUpkeep(const FString& ProvinceId) const
