@@ -125,6 +125,46 @@ bool FWLNationBudgetBreakdownTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLGDPAndGrowthTest,
+	"WorldLeader.Balance.GDPAndGrowth",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLGDPAndGrowthTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	if (!Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	const int64 GDP = Tick->GetNationGDP(TEXT("VE"));
+	TestTrue(TEXT("PIB positivo"), GDP > 0);
+	TestTrue(TEXT("El PIB supera el ingreso fiscal (actividad total > recaudacion)"),
+		GDP > Tick->GetNationBudget(TEXT("VE")).TotalIncome());
+	TestEqual(TEXT("Sin ticks aun no hay tasa de crecimiento"), Tick->GetNationGDPGrowth(TEXT("VE")), 0.0);
+
+	// Dos ticks: el primero fija la base, el segundo mide crecimiento (la poblacion crece con orden estable).
+	Tick->AdvanceMonth();
+	Tick->AdvanceMonth();
+	const double Growth = Tick->GetNationGDPGrowth(TEXT("VE"));
+	TestTrue(TEXT("Crecimiento medido tras dos ticks"), Growth != 0.0);
+	TestTrue(TEXT("Crecimiento en rango razonable (+-10%)"), FMath::Abs(Growth) < 0.10);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLDebtAndCreditLimitTest,
 	"WorldLeader.Balance.DebtAndCreditLimit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -214,6 +254,7 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	Rules.SocialSpendingPerCapita = -2.0;
 	Rules.DebtMonthlyInterestRate = 5.0;
 	Rules.DebtCreditLimitIncomeMonths = -3.0;
+	Rules.GDPPerCapitaActivity = -0.5;
 	Rules.EconomicAIMinTreasuryReserve = -5000;
 	Rules.EconomicAIMaxBuildsPerNationPerMonth = -2;
 	Rules.EconomicAIMaxPaybackMonths = -12;
@@ -239,6 +280,7 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Gasto social negativo saneado"), Sanitized.SocialSpendingPerCapita, 0.0);
 	TestEqual(TEXT("Interes de deuda clamp"), Sanitized.DebtMonthlyInterestRate, 1.0);
 	TestEqual(TEXT("Limite de credito negativo saneado"), Sanitized.DebtCreditLimitIncomeMonths, 0.0);
+	TestEqual(TEXT("Actividad PIB negativa saneada"), Sanitized.GDPPerCapitaActivity, 0.0);
 	TestEqual(TEXT("Reserva IA saneada"), Sanitized.EconomicAIMinTreasuryReserve, static_cast<int64>(0));
 	TestEqual(TEXT("Construcciones IA saneadas"), Sanitized.EconomicAIMaxBuildsPerNationPerMonth, 0);
 	TestEqual(TEXT("Retorno IA saneado"), Sanitized.EconomicAIMaxPaybackMonths, 0);

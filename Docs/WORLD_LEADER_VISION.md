@@ -27,7 +27,7 @@
 ## 📍 Estado actual
 
 - **Fase activa:** FE — Economía (el usuario priorizó economía). *F1 Generales queda en pausa (próxima F1.2).*
-- **Próxima tarea:** **FE1.5** — PIB y crecimiento
+- **Próxima tarea:** **FE2.3** — Cadenas de producción
 - **Última actualización:** 2026-07-01
 
 ---
@@ -160,7 +160,7 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
   ECONOMÍA que los desglosa. *Hecho = se ve ingreso y gasto por categoría.*
 - [x] **FE1.4 — Deuda y déficit.** Tesoro negativo → interés mensual + límite de crédito + penalización.
   *Hecho = gastar de más genera deuda con interés.*
-- [ ] **FE1.5 — PIB y crecimiento.** Métrica agregada de PIB + tasa de crecimiento mensual, en ECONOMÍA/RESUMEN.
+- [x] **FE1.5 — PIB y crecimiento.** Métrica agregada de PIB + tasa de crecimiento mensual, en ECONOMÍA/RESUMEN.
   *Hecho = se ve el PIB y si sube o baja.*
 
 ### FE2 — Bienes, sectores y cadenas de producción  *(el corazón realista)*
@@ -203,6 +203,13 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-01 · FE1.5** — PIB y crecimiento: `GetNationGDP` = Σ provincias [(producción a precios de mercado
+  sin la parte fiscal + edificios) + población × `GDPPerCapitaActivity` (0.002)] × modificador de orden público;
+  `GetNationGDPGrowth` mide la variación entre ticks económicos (`UpdateGDPHistory` en AdvanceMonth/AdvanceDay;
+  base en el 1er tick, tasa desde el 2º; se resetea al cargar save). UI: tarjetas "PIB / mes" y "Crecimiento"
+  (verde/rojo) en RESUMEN + línea PIB·crecimiento sobre el presupuesto en ECONOMIA. Global por nación (ISO).
+  Test `Balance.GDPAndGrowth`. **FE1 completa.** Archivos: `WLBalanceTypes.h`, `WLStrategicTickSubsystem.h/.cpp`,
+  `WLStrategicTickSubsystemSave.cpp`, `WLGovernmentWidget.cpp`, `WLBalanceTests.cpp`.
 - **2026-07-01 · FE1.4** — Deuda y déficit: el tesoro negativo cobra interés mensual (`DebtMonthlyInterestRate`
   2%/mes) como línea nueva del presupuesto (`FWLNationBudget.DebtInterest` → entra en `GetMonthlyBalance`);
   construir y reclutar ahora pueden gastar EN DÉFICIT (generan deuda) hasta el límite de crédito

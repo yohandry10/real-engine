@@ -108,6 +108,8 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 	CurrentMonth = SavedMonth;
 	ProvinceBuildings.Reset();
 	TaxRates.Reset();
+	PreviousGDP.Reset();   // FE1.5: el crecimiento se vuelve a medir tras cargar
+	GDPGrowth.Reset();
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
 

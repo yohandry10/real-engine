@@ -554,6 +554,15 @@ void UWLGovernmentWidget::BuildOverviewTab()
 	Place(1, 1, MakeMetricCard(WidgetTree, TEXT("Poblacion"), GovGroupThousands(Sum.Population), GovText));
 	Place(2, 0, MakeMetricCard(WidgetTree, TEXT("Ingreso / mes"), GovGroupThousands(Sum.MonthlyIncome), GovGood));
 	Place(2, 1, MakeMetricCard(WidgetTree, TEXT("Mantenimiento / mes"), GovGroupThousands(Sum.MonthlyUpkeep), GovMuted));
+	// FE1.5: PIB y su crecimiento entre ticks economicos.
+	if (Tick)
+	{
+		const double Growth = Tick->GetNationGDPGrowth(Iso);
+		Place(3, 0, MakeMetricCard(WidgetTree, TEXT("PIB / mes"), GovGroupThousands(Tick->GetNationGDP(Iso)), GovText));
+		Place(3, 1, MakeMetricCard(WidgetTree, TEXT("Crecimiento"),
+			FString::Printf(TEXT("%+.2f%%"), Growth * 100.0),
+			Growth > 0.0 ? GovGood : (Growth < 0.0 ? GovBad : GovMuted)));
+	}
 	AddColumnChild(CenterBox, Grid, 10.f);
 
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("CONDICIONES DE VICTORIA"), 17, GovGold), 20.f);
@@ -603,7 +612,16 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		AddColumnChild(CenterBox, Row, bTotal ? 8.f : 4.f);
 	};
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PRESUPUESTO MENSUAL"), 17, GovGold), 6.f);
+	// FE1.5: PIB y crecimiento arriba del presupuesto.
+	{
+		const double Growth = Tick->GetNationGDPGrowth(Iso);
+		AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
+			TEXT("PIB: %s / mes   ·   Crecimiento: %+.2f%%"),
+			*GovGroupThousands(Tick->GetNationGDP(Iso)), Growth * 100.0),
+			14, Growth < 0.0 ? GovBad : GovText), 6.f);
+	}
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PRESUPUESTO MENSUAL"), 17, GovGold), 12.f);
 
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("INGRESOS"), 13, GovMuted), 12.f);
 	AddBudgetRow(TEXT("Recursos y produccion"), Budget.ResourceIncome, true, false, 0);

@@ -75,6 +75,10 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debt", meta = (ClampMin = "0.0"))
 	double DebtCreditLimitIncomeMonths = 12.0;
 
+	/** FE1.5: actividad economica de la poblacion para el PIB: creditos por habitante / mes. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GDP", meta = (ClampMin = "0.0"))
+	double GDPPerCapitaActivity = 0.002;
+
 	/** Orden publico inicial para provincias sin estado guardado. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Public Order", meta = (ClampMin = "0", ClampMax = "100"))
 	int32 InitialPublicOrder = 72;
@@ -164,6 +168,7 @@ struct FWLBalanceRules
 		Out.SocialSpendingPerCapita = FMath::Max(0.0, Out.SocialSpendingPerCapita);
 		Out.DebtMonthlyInterestRate = FMath::Clamp(Out.DebtMonthlyInterestRate, 0.0, 1.0);
 		Out.DebtCreditLimitIncomeMonths = FMath::Max(0.0, Out.DebtCreditLimitIncomeMonths);
+		Out.GDPPerCapitaActivity = FMath::Max(0.0, Out.GDPPerCapitaActivity);
 		Out.InitialPublicOrder = FMath::Clamp(Out.InitialPublicOrder, 0, 100);
 		Out.PublicOrderNeutral = FMath::Clamp(Out.PublicOrderNeutral, 1, 100);
 		Out.LowOrderIncomePenaltyAtZero = FMath::Clamp(Out.LowOrderIncomePenaltyAtZero, 0.0, 1.0);

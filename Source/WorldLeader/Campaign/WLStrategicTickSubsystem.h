@@ -120,6 +120,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetCreditLimit(const FString& NationIso) const;
 
+	/** FE1.5: PIB mensual = produccion a precios de mercado + actividad de la poblacion, por orden publico. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	int64 GetNationGDP(const FString& NationIso) const;
+
+	/** FE1.5: crecimiento del PIB entre los dos ultimos ticks economicos (0.01 = +1%). 0 hasta el segundo tick. */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
+	double GetNationGDPGrowth(const FString& NationIso) const;
+
 	/** FE1.2: tasa de impuestos de una nacion (%). Si nunca se toco, el default de balance. */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int32 GetTaxRate(const FString& NationIso) const;
@@ -232,6 +240,11 @@ private:
 
 	/** FE1.2: tasa de impuestos por nacion (ISO -> %). Si falta, se usa TaxRateDefaultPercent. */
 	TMap<FString, int32> TaxRates;
+
+	/** FE1.5: PIB del tick anterior y crecimiento medido, por nacion (para la tasa de crecimiento). */
+	TMap<FString, int64> PreviousGDP;
+	TMap<FString, double> GDPGrowth;
+	void UpdateGDPHistory();
 
 	/** Edificios construidos por provincia (provinceId -> lista de buildingId). */
 	TMap<FString, TArray<FString>> ProvinceBuildings;

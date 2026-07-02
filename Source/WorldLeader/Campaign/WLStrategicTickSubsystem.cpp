@@ -81,6 +81,8 @@ void UWLStrategicTickSubsystem::ResetCampaignState()
 	RecruitQueues.Reset();
 	GarrisonRecruited.Reset();
 	TaxRates.Reset();
+	PreviousGDP.Reset();
+	GDPGrowth.Reset();
 	LastEconomicAIReports.Reset();
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
@@ -99,6 +101,7 @@ void UWLStrategicTickSubsystem::AdvanceMonth()
 	ApplyMonthlyEconomy();
 	ApplyMonthlyProvinceState();
 	AdvanceRecruitment();
+	UpdateGDPHistory();   // FE1.5: mide el PIB tras aplicar el mes
 
 	LastEconomicAIReports.Reset();
 	const FString PlayerNationIso = GetActivePlayerNationIsoForAI();
@@ -125,6 +128,7 @@ void UWLStrategicTickSubsystem::AdvanceDay()
 	ApplyMonthlyEconomy();
 	ApplyMonthlyProvinceState();
 	AdvanceRecruitment();
+	UpdateGDPHistory();   // FE1.5: crecimiento medido entre ticks economicos
 
 	bool bMonthRolled = false;
 	if (++CurrentDay > 30)
@@ -280,6 +284,69 @@ int64 UWLStrategicTickSubsystem::GetCreditLimit(const FString& NationIso) const
 	const FWLBalanceRules Rules = GetBalanceRules();
 	return static_cast<int64>(FMath::RoundToDouble(
 		static_cast<double>(GetNationBudget(NationIso).TotalIncome()) * Rules.DebtCreditLimitIncomeMonths));
+}
+
+int64 UWLStrategicTickSubsystem::GetNationGDP(const FString& NationIso) const
+{
+	const UWLDataRegistry* Registry = GetDataRegistry();
+	if (!Registry)
+	{
+		return 0;
+	}
+
+	const FWLBalanceRules Rules = GetBalanceRules();
+	const FString NormalizedIso = NormalizeIso(NationIso);
+	int64 GDP = 0;
+	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
+	{
+		if (GetProvinceControllerIso(Province.Id) != NormalizedIso)
+		{
+			continue;
+		}
+
+		FWLProvinceRuntimeState State;
+		if (!GetProvinceState(Province.Id, State))
+		{
+			State.Population = FMath::Max<int64>(0, Province.Population);
+			State.PublicOrder = Rules.InitialPublicOrder;
+		}
+
+		FWLProvinceData EffectiveProvince = Province;
+		EffectiveProvince.Population = State.Population;
+
+		// Produccion a precios de mercado (recursos/industria/edificios, sin la parte fiscal)...
+		const int64 Production =
+			UWLEconomyLibrary::CalculateProvinceIncomeWithRules(EffectiveProvince, Rules)
+			- UWLEconomyLibrary::CalculateProvincePopulationTax(EffectiveProvince, Rules)
+			+ GetProvinceBuildingIncome(Province.Id, Rules);
+		// ...mas la actividad economica de la poblacion (consumo/servicios), todo modulado por orden publico.
+		const int64 PopulationActivity = static_cast<int64>(
+			FMath::RoundToDouble(static_cast<double>(State.Population) * Rules.GDPPerCapitaActivity));
+
+		GDP += UWLEconomyLibrary::ApplyPublicOrderIncomeModifier(
+			Production + PopulationActivity, State.PublicOrder, Rules);
+	}
+	return GDP;
+}
+
+double UWLStrategicTickSubsystem::GetNationGDPGrowth(const FString& NationIso) const
+{
+	const double* Found = GDPGrowth.Find(NormalizeIso(NationIso));
+	return Found ? *Found : 0.0;
+}
+
+void UWLStrategicTickSubsystem::UpdateGDPHistory()
+{
+	for (const TPair<FString, int64>& Pair : Treasuries)
+	{
+		const int64 CurrentGDP = GetNationGDP(Pair.Key);
+		if (const int64* Previous = PreviousGDP.Find(Pair.Key); Previous && *Previous > 0)
+		{
+			GDPGrowth.Add(Pair.Key,
+				static_cast<double>(CurrentGDP - *Previous) / static_cast<double>(*Previous));
+		}
+		PreviousGDP.Add(Pair.Key, CurrentGDP);
+	}
 }
 
 int32 UWLStrategicTickSubsystem::GetTaxRate(const FString& NationIso) const
