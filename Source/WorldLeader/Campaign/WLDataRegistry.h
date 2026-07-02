@@ -93,6 +93,7 @@ private:
 
 	bool LoadProvincesFromFile(const FString& FilePath);
 	bool LoadNationsFromFile(const FString& FilePath);
+	bool LoadAmericaDiplomacyNationsFromDirectory(const FString& DirectoryPath);
 	bool LoadBuildingsFromFile(const FString& FilePath);
 	bool LoadUnitsFromFile(const FString& FilePath);
 	bool LoadGoodsFromFile(const FString& FilePath);

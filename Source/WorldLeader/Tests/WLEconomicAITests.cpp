@@ -5,6 +5,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Balance/WLBalanceSubsystem.h"
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
@@ -25,6 +26,47 @@ namespace
 			if (Tick->GetProvinceControllerIso(Province.Id) == NationIso)
 			{
 				Count += Tick->GetProvinceBuildings(Province.Id).Num();
+			}
+		}
+		return Count;
+	}
+
+	int32 CountNationsExcept(const UWLDataRegistry* Registry, const FString& ExcludedNationIso)
+	{
+		if (!Registry)
+		{
+			return 0;
+		}
+
+		const FString ExcludedIso = ExcludedNationIso.TrimStartAndEnd().ToUpper();
+		int32 Count = 0;
+		for (const FWLNationData& Nation : Registry->GetAllNations())
+		{
+			if (Nation.Iso != ExcludedIso)
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+
+	int32 CountNationsWithBuildingsExcept(
+		const UWLDataRegistry* Registry,
+		const UWLStrategicTickSubsystem* Tick,
+		const FString& ExcludedNationIso)
+	{
+		if (!Registry || !Tick)
+		{
+			return 0;
+		}
+
+		const FString ExcludedIso = ExcludedNationIso.TrimStartAndEnd().ToUpper();
+		int32 Count = 0;
+		for (const FWLNationData& Nation : Registry->GetAllNations())
+		{
+			if (Nation.Iso != ExcludedIso && CountBuildingsForControlledNation(Registry, Tick, Nation.Iso) > 0)
+			{
+				++Count;
 			}
 		}
 		return Count;
@@ -57,17 +99,21 @@ bool FWLEconomicAIBuildsForNonPlayerTest::RunTest(const FString& Parameters)
 	}
 
 	const int64 ColombiaTreasuryBefore = Tick->GetTreasury(TEXT("CO"));
+	const int32 ExpectedAINations = CountNationsExcept(Registry, TEXT("VE"));
 	TArray<FString> Reports;
 	const int32 Built = Tick->RunEconomicAI(TEXT("VE"), Reports);
 
-	TestEqual(TEXT("Una nacion IA construye una vez"), Built, 1);
-	TestEqual(TEXT("Reportes de IA"), Reports.Num(), 1);
+	TestTrue(TEXT("America completa participa como IA no jugadora"), ExpectedAINations >= 30);
+	TestEqual(TEXT("Cada nacion IA construye una vez"), Built, ExpectedAINations);
+	TestEqual(TEXT("Reportes de IA"), Reports.Num(), ExpectedAINations);
 	TestEqual(TEXT("Jugador sin construcciones automaticas"),
 		CountBuildingsForControlledNation(Registry, Tick, TEXT("VE")), 0);
-	TestEqual(TEXT("IA con una construccion"),
+	TestEqual(TEXT("Colombia IA con una construccion"),
 		CountBuildingsForControlledNation(Registry, Tick, TEXT("CO")), 1);
+	TestEqual(TEXT("Todas las naciones IA tienen construccion"),
+		CountNationsWithBuildingsExcept(Registry, Tick, TEXT("VE")), ExpectedAINations);
 	TestTrue(TEXT("IA gasta tesoro"), Tick->GetTreasury(TEXT("CO")) < ColombiaTreasuryBefore);
-	TestEqual(TEXT("Ultimo conteo de IA"), Tick->GetLastEconomicAIBuildCount(), 1);
+	TestEqual(TEXT("Ultimo conteo de IA"), Tick->GetLastEconomicAIBuildCount(), ExpectedAINations);
 
 	GameInstance->Shutdown();
 	return true;
@@ -100,15 +146,67 @@ bool FWLEconomicAIRequiresCampaignForMonthlyTickTest::RunTest(const FString& Par
 	}
 
 	Tick->AdvanceMonth();
+	const int32 ExpectedAINations = CountNationsExcept(Registry, TEXT("VE"));
 
-	TestEqual(TEXT("Tick mensual ejecuta IA no jugadora"), Tick->GetLastEconomicAIBuildCount(), 1);
+	TestTrue(TEXT("America completa participa en tick mensual"), ExpectedAINations >= 30);
+	TestEqual(TEXT("Tick mensual ejecuta IA no jugadora"), Tick->GetLastEconomicAIBuildCount(), ExpectedAINations);
 	TestEqual(TEXT("Jugador sin auto-construccion"),
 		CountBuildingsForControlledNation(Registry, Tick, TEXT("VE")), 0);
 	TestEqual(TEXT("Colombia construye como IA"),
 		CountBuildingsForControlledNation(Registry, Tick, TEXT("CO")), 1);
+	TestEqual(TEXT("Todas las naciones IA construyen en tick mensual"),
+		CountNationsWithBuildingsExcept(Registry, Tick, TEXT("VE")), ExpectedAINations);
 
 	CampaignGameInstance->Shutdown();
 	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLEconomicAIDifficultyCadenceTest,
+	"WorldLeader.EconomyAI.DifficultyCadence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLEconomicAIDifficultyCadenceTest::RunTest(const FString& Parameters)
+{
+	auto RunCase = [this](EWLAIDifficulty Difficulty) -> int32
+	{
+		UGameInstance* GameInstance = NewObject<UGameInstance>();
+		TestNotNull(TEXT("GameInstance"), GameInstance);
+		if (!GameInstance)
+		{
+			return -1;
+		}
+		GameInstance->Init();
+
+		UWLBalanceSubsystem* Balance = GameInstance->GetSubsystem<UWLBalanceSubsystem>();
+		UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+		TestNotNull(TEXT("Balance subsystem"), Balance);
+		TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+		if (!Balance || !Tick)
+		{
+			GameInstance->Shutdown();
+			return -1;
+		}
+
+		FWLBalanceRules Rules = Balance->GetRules();
+		Rules.AIDifficulty = Difficulty;
+		Rules.EconomicAIMaxBuildsPerNationPerMonth = 1;
+		Rules.EconomicAIMinTreasuryReserve = 0;
+		Rules.EconomicAIMaxPaybackMonths = 0;
+		Rules.EconomicAIMinPublicOrderToBuild = 0;
+		Balance->SetRuntimeRules(Rules);
+
+		TArray<FString> Reports;
+		const int32 Built = Tick->RunEconomicAI(TEXT("VE"), Reports);
+		GameInstance->Shutdown();
+		return Built;
+	};
+
+	const int32 EasyBuilt = RunCase(EWLAIDifficulty::Easy);
+	const int32 HardBuilt = RunCase(EWLAIDifficulty::Hard);
+	TestTrue(TEXT("Facil sigue actuando economicamente"), EasyBuilt >= 1);
+	TestTrue(TEXT("Dificil aumenta cadencia economica"), HardBuilt > EasyBuilt);
+	return EasyBuilt >= 1 && HardBuilt > EasyBuilt;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(

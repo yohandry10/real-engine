@@ -5,6 +5,14 @@
 #include "CoreMinimal.h"
 #include "WLBalanceTypes.generated.h"
 
+UENUM(BlueprintType)
+enum class EWLAIDifficulty : uint8
+{
+	Easy   UMETA(DisplayName = "Facil"),
+	Medium UMETA(DisplayName = "Medio"),
+	Hard   UMETA(DisplayName = "Dificil")
+};
+
 /**
  * Reglas editables de balance economico/campania. Estos valores no deben
  * vivir dispersos en gameplay: el runtime los lee desde el balance subsystem,
@@ -340,6 +348,42 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Military", meta = (ClampMin = "0.0"))
 	double MilitaryUpkeepPerStrength = 0.35;
 
+	/** B1: efecto maximo del skill del general sobre poder de combate. 0.25 = skill 100 da +25%, skill 0 da -25%. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Military", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	double GeneralSkillCombatEffectAtMax = 0.25;
+
+	/** B2: velocidad base de unidades en batalla tactica abstracta. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical Battle", meta = (ClampMin = "0.0"))
+	double TacticalMoveSpeedUnitsPerSecond = 350.0;
+
+	/** B2: alcance abstracto para fuego directo en batalla tactica. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical Battle", meta = (ClampMin = "0.0"))
+	double TacticalAttackRangeUnits = 1200.0;
+
+	/** B2: escala de dano por punto de ataque y segundo. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical Battle", meta = (ClampMin = "0.0"))
+	double TacticalDamagePerAttackPerSecond = 0.06;
+
+	/** B2: cuanto mitiga cada punto de defensa tactica. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical Battle", meta = (ClampMin = "0.0"))
+	double TacticalDefenseMitigationPerPoint = 0.01;
+
+	/** B2: perdida de moral por punto de salud perdido. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical Battle", meta = (ClampMin = "0.0"))
+	double TacticalMoraleDamagePerHealth = 0.8;
+
+	/** B2: por debajo de esta moral la unidad entra en retirada y deja de combatir. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical Battle", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 TacticalRoutMoraleThreshold = 15;
+
+	/** B2: segundos necesarios para capturar un objetivo sin oposicion cercana. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical Battle", meta = (ClampMin = "1.0"))
+	double TacticalObjectiveCaptureSeconds = 20.0;
+
+	/** Dificultad de la IA de campania: afecta economia, fisco, diplomacia, intriga y reclutamiento. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI Difficulty")
+	EWLAIDifficulty AIDifficulty = EWLAIDifficulty::Medium;
+
 	/** Activa la IA economica mensual para naciones no controladas por el jugador. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Economic AI")
 	bool bEnableEconomicAI = true;
@@ -370,9 +414,210 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Calendar", meta = (ClampMin = "1"))
 	int32 MonthsPerYear = 12;
 
+	int32 GetEconomicAIMaxBuildsForDifficulty() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy:
+			return FMath::Max(1, EconomicAIMaxBuildsPerNationPerMonth);
+		case EWLAIDifficulty::Hard:
+			return FMath::Max(1, EconomicAIMaxBuildsPerNationPerMonth + 1);
+		case EWLAIDifficulty::Medium:
+		default:
+			return EconomicAIMaxBuildsPerNationPerMonth;
+		}
+	}
+
+	int64 GetEconomicAIMinTreasuryReserveForDifficulty() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy:
+			return EconomicAIMinTreasuryReserve * 2;
+		case EWLAIDifficulty::Hard:
+			return EconomicAIMinTreasuryReserve / 2;
+		case EWLAIDifficulty::Medium:
+		default:
+			return EconomicAIMinTreasuryReserve;
+		}
+	}
+
+	int32 GetEconomicAIMaxPaybackMonthsForDifficulty() const
+	{
+		if (EconomicAIMaxPaybackMonths <= 0)
+		{
+			return 0;
+		}
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy:
+			return FMath::Max(1, FMath::RoundToInt(static_cast<double>(EconomicAIMaxPaybackMonths) * 0.75));
+		case EWLAIDifficulty::Hard:
+			return EconomicAIMaxPaybackMonths + FMath::Max(12, EconomicAIMaxPaybackMonths / 2);
+		case EWLAIDifficulty::Medium:
+		default:
+			return EconomicAIMaxPaybackMonths;
+		}
+	}
+
+	int32 GetEconomicAIMinPublicOrderToBuildForDifficulty() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy:
+			return FMath::Clamp(EconomicAIMinPublicOrderToBuild + 15, 0, 100);
+		case EWLAIDifficulty::Hard:
+			return FMath::Clamp(EconomicAIMinPublicOrderToBuild - 10, 0, 100);
+		case EWLAIDifficulty::Medium:
+		default:
+			return EconomicAIMinPublicOrderToBuild;
+		}
+	}
+
+	int32 GetStrategicAITaxStep() const
+	{
+		return AIDifficulty == EWLAIDifficulty::Hard ? 10 : 5;
+	}
+
+	int32 GetStrategicAITariffStep() const
+	{
+		return AIDifficulty == EWLAIDifficulty::Hard ? 10 : 5;
+	}
+
+	int32 GetStrategicAITariffCeiling() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return 15;
+		case EWLAIDifficulty::Hard: return 30;
+		case EWLAIDifficulty::Medium:
+		default: return 20;
+		}
+	}
+
+	int32 GetStrategicAITreatyOpinionOffset() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return 10;
+		case EWLAIDifficulty::Hard: return -10;
+		case EWLAIDifficulty::Medium:
+		default: return 0;
+		}
+	}
+
+	int32 GetStrategicAIWarOpinionThreshold() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return -80;
+		case EWLAIDifficulty::Hard: return -45;
+		case EWLAIDifficulty::Medium:
+		default: return -60;
+		}
+	}
+
+	double GetStrategicAIWarStrengthRatio() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return 1.75;
+		case EWLAIDifficulty::Hard: return 1.10;
+		case EWLAIDifficulty::Medium:
+		default: return 1.33;
+		}
+	}
+
+	double GetStrategicAIPeaceStrengthRatio() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return 0.85;
+		case EWLAIDifficulty::Hard: return 0.35;
+		case EWLAIDifficulty::Medium:
+		default: return 0.50;
+		}
+	}
+
+	int32 GetStrategicAIIntrigueOpinionThreshold() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return -45;
+		case EWLAIDifficulty::Hard: return -10;
+		case EWLAIDifficulty::Medium:
+		default: return -20;
+		}
+	}
+
+	int32 GetStrategicAISpyNetworkTarget() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return 20;
+		case EWLAIDifficulty::Hard: return 45;
+		case EWLAIDifficulty::Medium:
+		default: return 30;
+		}
+	}
+
+	int32 GetStrategicAISpyExposureLimit() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return 35;
+		case EWLAIDifficulty::Hard: return 75;
+		case EWLAIDifficulty::Medium:
+		default: return 55;
+		}
+	}
+
+	int64 GetStrategicAIRecruitTreasuryThreshold() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return 75000;
+		case EWLAIDifficulty::Hard: return 25000;
+		case EWLAIDifficulty::Medium:
+		default: return 40000;
+		}
+	}
+
+	double GetStrategicAIRecruitStrengthRatio() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return 0.75;
+		case EWLAIDifficulty::Hard: return 1.15;
+		case EWLAIDifficulty::Medium:
+		default: return 1.0;
+		}
+	}
+
+	FString GetAIDifficultyId() const
+	{
+		switch (AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy: return TEXT("easy");
+		case EWLAIDifficulty::Hard: return TEXT("hard");
+		case EWLAIDifficulty::Medium:
+		default: return TEXT("medium");
+		}
+	}
+
 	FWLBalanceRules Sanitized() const
 	{
 		FWLBalanceRules Out = *this;
+		switch (Out.AIDifficulty)
+		{
+		case EWLAIDifficulty::Easy:
+		case EWLAIDifficulty::Medium:
+		case EWLAIDifficulty::Hard:
+			break;
+		default:
+			Out.AIDifficulty = EWLAIDifficulty::Medium;
+			break;
+		}
 		Out.OilPrice = FMath::Max(0, Out.OilPrice);
 		Out.GasPrice = FMath::Max(0, Out.GasPrice);
 		Out.FoodPrice = FMath::Max(0, Out.FoodPrice);
@@ -456,6 +701,14 @@ struct FWLBalanceRules
 		Out.OccupationPublicOrderPenalty = FMath::Clamp(Out.OccupationPublicOrderPenalty, 0, 100);
 		Out.InfrastructureUpkeepFactor = FMath::Max(0, Out.InfrastructureUpkeepFactor);
 		Out.MilitaryUpkeepPerStrength = FMath::Max(0.0, Out.MilitaryUpkeepPerStrength);
+		Out.GeneralSkillCombatEffectAtMax = FMath::Clamp(Out.GeneralSkillCombatEffectAtMax, 0.0, 1.0);
+		Out.TacticalMoveSpeedUnitsPerSecond = FMath::Max(0.0, Out.TacticalMoveSpeedUnitsPerSecond);
+		Out.TacticalAttackRangeUnits = FMath::Max(0.0, Out.TacticalAttackRangeUnits);
+		Out.TacticalDamagePerAttackPerSecond = FMath::Max(0.0, Out.TacticalDamagePerAttackPerSecond);
+		Out.TacticalDefenseMitigationPerPoint = FMath::Max(0.0, Out.TacticalDefenseMitigationPerPoint);
+		Out.TacticalMoraleDamagePerHealth = FMath::Max(0.0, Out.TacticalMoraleDamagePerHealth);
+		Out.TacticalRoutMoraleThreshold = FMath::Clamp(Out.TacticalRoutMoraleThreshold, 0, 100);
+		Out.TacticalObjectiveCaptureSeconds = FMath::Max(1.0, Out.TacticalObjectiveCaptureSeconds);
 		Out.EconomicAIMinTreasuryReserve = FMath::Max<int64>(0, Out.EconomicAIMinTreasuryReserve);
 		Out.EconomicAIMaxBuildsPerNationPerMonth = FMath::Max(0, Out.EconomicAIMaxBuildsPerNationPerMonth);
 		Out.EconomicAIMaxPaybackMonths = FMath::Max(0, Out.EconomicAIMaxPaybackMonths);

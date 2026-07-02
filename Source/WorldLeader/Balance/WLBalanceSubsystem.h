@@ -28,6 +28,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Balance")
 	FWLBalanceRules GetRules() const { return ActiveRules; }
 
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Balance")
+	void SetAIDifficulty(EWLAIDifficulty Difficulty);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Balance")
+	EWLAIDifficulty GetAIDifficulty() const { return ActiveRules.AIDifficulty; }
+
+	/** Backend/test hook: aplica reglas saneadas sin tocar assets ni UI. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Balance")
+	void SetRuntimeRules(const FWLBalanceRules& Rules);
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Balance")
 	int32 GetStartYear() const { return ActiveRules.StartYear; }
 

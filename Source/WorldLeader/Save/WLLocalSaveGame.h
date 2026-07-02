@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Balance/WLBalanceTypes.h"
 #include "Core/WLCharacterTypes.h"
 #include "Core/WLFinancialTypes.h"
 #include "Core/WLGameTypes.h"
@@ -57,10 +58,13 @@ class WORLDLEADER_API UWLLocalSaveGame : public USaveGame
 
 public:
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
-	int32 SaveVersion = 9;
+	int32 SaveVersion = 12;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	FString SelectedNationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	EWLAIDifficulty AIDifficulty = EWLAIDifficulty::Medium;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	int32 CurrentYear = 0;
@@ -112,4 +116,55 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	FWLCampaignOutcomeState CampaignOutcome;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLGovernmentAgendaState> GovernmentAgendas;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLMinistryProgramState> MinistryPrograms;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLCabinetDynamicsState> CabinetDynamics;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLInstitutionalPowerState> InstitutionalPower;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLPublicGroupSupportState> PublicGroupSupport;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLStateCapacityState> StateCapacity;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLPoliticalMemoryRecord> PoliticalMemory;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLPoliticalAIPlanState> GovernmentAIPlans;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLActiveReformState> ActivePolicyReforms;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLPartyState> PoliticalParties;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLElectionState> ElectionStates;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLCharacterPoliticalProfile> CharacterPoliticalProfiles;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLPatronageState> PatronageStates;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLMediaPublicOpinionState> MediaStates;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLRegionGovernorState> RegionGovernors;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLCrisisChainState> CrisisChains;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLGovernmentCalibrationState> GovernmentCalibration;
 };

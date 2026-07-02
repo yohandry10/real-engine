@@ -640,6 +640,7 @@ void UWLGovernmentWidget::RebuildCenter()
 	case EWLGovernmentTab::Politics:    BuildPoliticsTab();    break;
 	case EWLGovernmentTab::Diplomacy:   BuildDiplomacyTab();   break;
 	case EWLGovernmentTab::Records:     BuildRecordsTab();     break;
+	case EWLGovernmentTab::Province:    BuildProvinceTab();    break;
 	}
 }
 
@@ -1330,6 +1331,17 @@ void UWLGovernmentWidget::BuildPoliticsTab()
 			12, GovMuted, ETextJustify::Left, true), 4.f);
 	}
 
+	// F5.5: agenda del lider — sus rasgos modifican las opciones de los eventos.
+	{
+		const TArray<FString> Agenda = Political->GetLeaderAgendaTraits(Iso);
+		if (Agenda.Num() > 0)
+		{
+			AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
+				TEXT("Agenda del lider: %s — sus rasgos alteran las opciones de los eventos."),
+				*FString::Join(Agenda, TEXT(" · "))), 12, GovGoldDim, ETextJustify::Left, true), 8.f);
+		}
+	}
+
 	// F5: eventos politicos pendientes con sus opciones.
 	const TArray<FWLPoliticalEventInstance> Events = Political->GetQueuedEvents(Iso);
 	int32 PendingCount = 0;
@@ -1654,6 +1666,29 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 			}
 		}
 		AddDiploAction(FString::Printf(TEXT("aid:%s"), *Other.Iso), TEXT("AYUDA"), GovTabIdle);
+		// FE5.3: FDI con selector — cada candidato (provincia+edificio construible del vecino) es un boton.
+		{
+			int32 FdiShown = 0;
+			for (const FWLProvinceData& TargetProvince : Registry->GetProvincesByNation(Other.Iso))
+			{
+				if (FdiShown >= 2)
+				{
+					break;
+				}
+				for (const FWLBuildingData& Candidate : Registry->GetAllBuildings())
+				{
+					if (!Tick->IsBuildingSupportedInProvince(TargetProvince.Id, Candidate.Id)
+						|| Tick->GetProvinceBuildingLevel(TargetProvince.Id, Candidate.Id) > 0)
+					{
+						continue;
+					}
+					AddDiploAction(FString::Printf(TEXT("fdi:%s:%s:%s"), *Other.Iso, *TargetProvince.Id, *Candidate.Id),
+						FString::Printf(TEXT("INVERTIR: %s en %s"), *Candidate.Name, *TargetProvince.Name), GovFuture);
+					++FdiShown;
+					break;   // un candidato por provincia
+				}
+			}
+		}
 		if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(Actions))
 		{
 			S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
@@ -1708,11 +1743,218 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 		12, GovMuted, ETextJustify::Left, true), 8.f);
 }
 
+void UWLGovernmentWidget::OpenProvince(const FString& ProvinceId)
+{
+	ProvinceContextId = ProvinceId.TrimStartAndEnd().ToUpper();
+	SetActiveTab(EWLGovernmentTab::Province);
+}
+
+// Panel de slots de edificios de la provincia (contrato "edificios provinciales"): nivel, upgrade,
+// upkeep y efectos reales; construir/mejorar cobra del tesoro via BuildBuilding/UpgradeBuilding.
+void UWLGovernmentWidget::BuildProvinceTab()
+{
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	const UWLDataRegistry* Registry = GetRegistry();
+	FWLProvinceData Province;
+	if (!Tick || !Registry || !Registry->GetProvince(ProvinceContextId, Province))
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Selecciona una provincia en el mapa y pulsa [B]."), 14, GovMuted), 10.f);
+		return;
+	}
+
+	const FString ControllerIso = Tick->GetProvinceControllerIso(Province.Id);
+	const bool bOwn = ControllerIso.Equals(PlayerIso(), ESearchCase::IgnoreCase);
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		FString::Printf(TEXT("PROVINCIA: %s (%s)"), *Province.Name.ToUpper(), *Province.Id), 17, GovGold), 6.f);
+	FWLProvinceRuntimeState State;
+	Tick->GetProvinceState(Province.Id, State);
+	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
+		TEXT("Control: %s   ·   Poblacion: %s   ·   Orden publico: %d   ·   Balance: %+lld/mes"),
+		*ControllerIso, *GovGroupThousands(State.Population), State.PublicOrder,
+		static_cast<long long>(Tick->GetProvinceMonthlyBalance(Province.Id))),
+		13, GovMuted, ETextJustify::Left, true), 4.f);
+	if (!bOwn)
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("Provincia bajo control extranjero: solo lectura."), 12, GovBad), 4.f);
+	}
+
+	// Texto de efectos de un edificio (solo los bonus distintos de cero).
+	auto EffectsText = [](const FWLBuildingData& B) -> FString
+	{
+		FString Out;
+		auto Add = [&Out](const TCHAR* Label, int64 Value)
+		{
+			if (Value != 0)
+			{
+				Out += FString::Printf(TEXT("%s%s %+lld"), Out.IsEmpty() ? TEXT("") : TEXT(" · "), Label, static_cast<long long>(Value));
+			}
+		};
+		Add(TEXT("Oil"), B.BonusOil); Add(TEXT("Gas"), B.BonusGas); Add(TEXT("Food"), B.BonusFood);
+		Add(TEXT("Min"), B.BonusMinerals); Add(TEXT("Ind"), B.BonusIndustry);
+		Add(TEXT("Finanzas"), B.BonusFinancialIncome); Add(TEXT("Infra"), B.BonusInfrastructure);
+		Add(TEXT("Orden"), B.BonusPublicOrder); Add(TEXT("Recluta"), B.BonusRecruitmentCapacity);
+		Add(TEXT("Poder mil."), B.BonusMilitaryPower); Add(TEXT("Defensa"), B.BonusDefense);
+		Add(TEXT("Aereo"), B.BonusAirCapacity); Add(TEXT("Naval"), B.BonusNavalCapacity);
+		Add(TEXT("Tec"), B.BonusTechnology);
+		return Out.IsEmpty() ? TEXT("Sin efectos directos") : Out;
+	};
+	auto SlotToText = [](EWLBuildingSlot BuildingSlot) -> FString
+	{
+		switch (BuildingSlot)
+		{
+		case EWLBuildingSlot::Economic:       return TEXT("ECONOMICO");
+		case EWLBuildingSlot::Industrial:     return TEXT("INDUSTRIAL");
+		case EWLBuildingSlot::Military:       return TEXT("MILITAR");
+		case EWLBuildingSlot::Naval:          return TEXT("NAVAL");
+		case EWLBuildingSlot::Air:            return TEXT("AEREO");
+		case EWLBuildingSlot::Tech:           return TEXT("TECNOLOGICO");
+		case EWLBuildingSlot::Financial:      return TEXT("FINANCIERO");
+		case EWLBuildingSlot::Infrastructure: return TEXT("INFRAESTRUCTURA");
+		case EWLBuildingSlot::Defensive:      return TEXT("DEFENSIVO");
+		default:                              return TEXT("SLOT");
+		}
+	};
+
+	const TArray<FString> Built = Tick->GetProvinceBuildings(Province.Id);
+	const TArray<FWLBuildingData> AllBuildings = Registry->GetAllBuildings();
+	const EWLBuildingSlot Slots[] = {
+		EWLBuildingSlot::Economic, EWLBuildingSlot::Industrial, EWLBuildingSlot::Military,
+		EWLBuildingSlot::Naval, EWLBuildingSlot::Air, EWLBuildingSlot::Tech,
+		EWLBuildingSlot::Financial, EWLBuildingSlot::Infrastructure, EWLBuildingSlot::Defensive };
+
+	int32 Index = 0;
+	for (const EWLBuildingSlot BuildingSlot : Slots)
+	{
+		// Edificio construido de este slot (si hay).
+		FWLBuildingData BuiltBuilding;
+		bool bHasBuilt = false;
+		for (const FString& BuildingId : Built)
+		{
+			FWLBuildingData Candidate;
+			if (Registry->GetBuilding(BuildingId, Candidate) && Candidate.Slot == BuildingSlot)
+			{
+				BuiltBuilding = Candidate;
+				bHasBuilt = true;
+				break;
+			}
+		}
+
+		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UVerticalBox* SVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+
+		if (bHasBuilt)
+		{
+			const int32 Level = Tick->GetProvinceBuildingLevel(Province.Id, BuiltBuilding.Id);
+			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+				FString::Printf(TEXT("%s — %s"), *SlotToText(BuildingSlot), *BuiltBuilding.Name), 14, GovText)))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+				FString::Printf(TEXT("Nv %d/%d"), Level, BuiltBuilding.MaxLevel), 14, GovGold, ETextJustify::Right));
+			SVB->AddChildToVerticalBox(Head);
+			SVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(TEXT("%s   ·   Upkeep %s/mes"),
+				*EffectsText(BuiltBuilding), *GovGroupThousands(BuiltBuilding.MonthlyUpkeep * Level)),
+				11, GovMuted, ETextJustify::Left, true));
+			if (bOwn && Level < BuiltBuilding.MaxLevel)
+			{
+				UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+				if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
+					FString::Printf(TEXT("upgrade:%s"), *BuiltBuilding.Id),
+					FString::Printf(TEXT("MEJORAR a Nv %d (%s)"), Level + 1,
+						*GovGroupThousands(Tick->GetProvinceBuildingUpgradeCost(Province.Id, BuiltBuilding.Id))),
+					GovGoldDim, 0.f, 12)))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+				}
+				if (UVerticalBoxSlot* S = SVB->AddChildToVerticalBox(Row))
+				{
+					S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+				}
+			}
+		}
+		else
+		{
+			SVB->AddChildToVerticalBox(MakeText(WidgetTree,
+				FString::Printf(TEXT("%s — slot vacio"), *SlotToText(BuildingSlot)), 14, GovMuted));
+			// Opciones construibles de este slot con base economica en la provincia.
+			UWrapBox* Options = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
+			int32 Shown = 0;
+			for (const FWLBuildingData& Candidate : AllBuildings)
+			{
+				if (Candidate.Slot != BuildingSlot || !Tick->IsBuildingSupportedInProvince(Province.Id, Candidate.Id))
+				{
+					continue;
+				}
+				if (bOwn)
+				{
+					if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Options->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
+						FString::Printf(TEXT("build:%s"), *Candidate.Id),
+						FString::Printf(TEXT("CONSTRUIR %s (%s)"), *Candidate.Name, *GovGroupThousands(Candidate.Cost)),
+						GovTabIdle, 0.f, 11))))
+					{
+						S->SetPadding(FMargin(0.f, 4.f, 5.f, 0.f));
+					}
+				}
+				if (++Shown >= 3)
+				{
+					break;
+				}
+			}
+			if (Shown == 0)
+			{
+				SVB->AddChildToVerticalBox(MakeText(WidgetTree,
+					TEXT("Sin edificios compatibles con la base economica de esta provincia."), 11, GovMuted, ETextJustify::Left, true));
+			}
+			else if (bOwn)
+			{
+				SVB->AddChildToVerticalBox(Options);
+			}
+		}
+
+		Card->SetContent(SVB);
+		AddColumnChild(CenterBox, Card, 5.f);
+		++Index;
+	}
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		TEXT("Construir/mejorar cobra del tesoro (endeuda hasta el limite de credito). Los efectos entran al ingreso, orden y defensa de la provincia."),
+		12, GovMuted, ETextJustify::Left, true), 8.f);
+}
+
 void UWLGovernmentWidget::BuildRecordsTab()
 {
 	const UWLStrategicTickSubsystem* Tick = GetTick();
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("REGISTROS RECIENTES"), 17, GovGold), 6.f);
+	// Feed de noticias del mundo (guerras, golpes, espias detectados, IA...). Nuevas primero.
+	if (const UWLPoliticalSubsystem* Political = GetPolitical())
+	{
+		const TArray<FString> News = Political->GetNewsLog();
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("NOTICIAS DEL MUNDO"), 17, GovGold), 6.f);
+		if (News.Num() == 0)
+		{
+			AddColumnChild(CenterBox, MakeText(WidgetTree,
+				TEXT("Sin noticias todavia. El mundo se mueve al avanzar los meses."), 13, GovMuted, ETextJustify::Left, true), 8.f);
+		}
+		int32 NewsIndex = 0;
+		for (const FString& Item : News)
+		{
+			if (NewsIndex >= 15)
+			{
+				break;
+			}
+			UBorder* Row = MakeBorder(WidgetTree, (NewsIndex % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
+			Row->SetContent(MakeText(WidgetTree, Item, 13, GovText, ETextJustify::Left, true));
+			AddColumnChild(CenterBox, Row, 4.f);
+			++NewsIndex;
+		}
+	}
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("REGISTROS RECIENTES"), 17, GovGold), 18.f);
 
 	const TArray<FString> Reports = Tick ? Tick->GetLastEconomicAIReports() : TArray<FString>();
 	if (Reports.Num() > 0)
@@ -1915,6 +2157,20 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 	else if (Verb == TEXT("aid"))
 	{
 		bOk = Tick && Tick->GrantForeignAid(Iso, Arg1, 1000, 12, Message);
+	}
+	else if (Verb == TEXT("build"))
+	{
+		bOk = Tick && Tick->BuildBuilding(ProvinceContextId, Arg1, Message);
+	}
+	else if (Verb == TEXT("upgrade"))
+	{
+		bOk = Tick && Tick->UpgradeBuilding(ProvinceContextId, Arg1, Message);
+	}
+	else if (Verb == TEXT("fdi"))
+	{
+		// fdi:<iso>:<provincia>:<edificio> — invertir en el extranjero (FE5.3); construye al completarse.
+		const FString Arg3 = Parts.Num() > 3 ? Parts[3] : FString();
+		bOk = Tick && Tick->StartForeignInvestment(Iso, Arg1, Arg2, Arg3, 1500, 12, Message);
 	}
 	else
 	{

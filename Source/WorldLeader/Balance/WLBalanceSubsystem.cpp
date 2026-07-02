@@ -40,3 +40,15 @@ bool UWLBalanceSubsystem::ReloadBalance()
 		*LoadedAsset->GetPathName(), ActiveRules.StartMonth, ActiveRules.StartYear);
 	return true;
 }
+
+void UWLBalanceSubsystem::SetAIDifficulty(EWLAIDifficulty Difficulty)
+{
+	ActiveRules.AIDifficulty = Difficulty;
+	ActiveRules = ActiveRules.Sanitized();
+}
+
+void UWLBalanceSubsystem::SetRuntimeRules(const FWLBalanceRules& Rules)
+{
+	LoadedBalanceAsset = nullptr;
+	ActiveRules = Rules.Sanitized();
+}

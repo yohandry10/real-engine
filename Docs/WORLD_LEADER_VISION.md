@@ -26,13 +26,25 @@
 
 ## 📍 Estado actual
 
-- **Fase activa:** UIX. La ventana GOBIERNO ya opera TODO el backend (6 tabs: RESUMEN · ECONOMIA ·
-  ALTO MANDO · POLITICA · DIPLOMACIA · REGISTROS). Quedan 2 piezas de UIX fuera de esa ventana:
-- **Próxima tarea (UIX/pulido):** (a) panel de **slots de edificios** en el HUD de provincia,
-  (b) popup modal de eventos + feed de noticias del mes en REGISTROS, (c) acción FDI con selector,
-  (d) **playtest de calibración** (partida de 24-36 meses registrando curvas de deuda/golpe/precios).
-- **Última actualización:** 2026-07-02 (mapa↔backend militar conectado, IA estratégica jugando,
-  victorias Hegemonía/Régimen + fin de partida real; suite 35/35)
+- **Fase activa:** UIX + batalla visual. El backend local de gobierno/economia/militar ya compila y esta
+  cubierto por tests; la ventana GOBIERNO opera los endpoints principales. El backend de gobierno ya no esta
+  limitado a CO/VE: `AmericaLowDetail` se promueve a 38 naciones con capital backend, relaciones diplomaticas
+  completas, IA economica no jugadora, gabinete/pool ministerial por pais y Gobierno P1/P2 real
+  (agenda, 50 programas ministeriales, arbol de reformas, partidos, elecciones, perfiles politicos, patronazgo,
+  medios, regiones, crisis encadenadas, Congreso/base politica, grupos sociales, capacidad estatal,
+  memoria de crisis, calibracion e IA politica ampliada). La batalla tactica ya existe como
+  backend, puede devolver resultado oficial a campaña, tiene IA tactica determinista basica y conserva
+  unidades retiradas como reservas reorganizables; el movimiento estrategico tiene grafo/rutas testeables.
+  La IA de campania ya tiene dificultad **Facil / Medio / Dificil** desde backend (`FWLBalanceRules`) y
+  afecta economia, fisco, diplomacia, guerra, intriga y reclutamiento.
+- **Próxima tarea (UIX/pulido):** (a) selector/preview de combate **auto-resolve vs tactico**,
+  (b) vista tactica 3D con camara, seleccion y ordenes, (c) UIX de Gobierno P1/P2 real: agenda, programas,
+  reformas, partidos, elecciones, personajes, patronazgo, medios, regiones, crisis, calibracion e IA, (d) diplomacia
+  continental con filtros/busqueda, (e) UIX de contratacion ministerial con comparador de candidatos,
+  (f) panel de **slots de edificios** en HUD de provincia, (g) popup modal de eventos + feed de noticias del mes,
+  (h) accion FDI con selector, (i) playtest de calibracion 24-36 meses.
+- **Backlog UIX separado:** `Docs/UIX_PENDING_TASKS.md`.
+- **Última actualización:** 2026-07-02 (backend Gobierno P2 real implementado; UIX pendiente documentada; build OK + suite WorldLeader 55/55)
 
 ---
 
@@ -82,56 +94,56 @@ Criterio de "hecho" por tarea: **compila** + lo que indique la tarea.
 - [x] **F1.1 — Modelo `FWLCharacter`.** USTRUCT en `Core/WLCharacterTypes.h` con: Id, Name, CountryIso,
   Role, Rank, Skill, Loyalty, Ambition, Popularity, Renown, Traits, AssignedArmyId + enums
   `EWLCharacterRole` y `EWLMilitaryRank`. *Hecho = compila.*
-- [ ] **F1.2 — Almacén de personajes.** Subsistema `UWLCharacterSubsystem` (GameInstance) con
+- [x] **F1.2 — Almacén de personajes.** Subsistema `UWLCharacterSubsystem` (GameInstance) con
   `TMap<FString,FWLCharacter>`: `CreateGeneral(iso)`, `GetCharacter(id)`, `GetGenerals(iso)`.
   *Hecho = compila + se crea un general por código.*
-- [ ] **F1.3 — Pool de nombres/rasgos (JSON).** `Content/Data/Characters/Characters.json`
+- [x] **F1.3 — Pool de nombres/rasgos (JSON).** `Content/Data/Characters/Characters.json`
   (nombres, apellidos, rasgos) + loader → `CreateGeneral` usa nombres variados.
   *Hecho = nombres reales, no "General 1".*
-- [ ] **F1.4 — General al reclutar.** Al completar reclutamiento en un fuerte, crear/asignar general;
+- [x] **F1.4 — General al reclutar.** Al completar reclutamiento en un fuerte, crear/asignar general;
   el ejército guarda su Id; el nombre del token pasa a "&lt;Rango&gt; &lt;Apellido&gt;".
   *Hecho = el ejército reclutado se llama por su general.*
-- [ ] **F1.5 — General en el panel del ejército.** La ficha del ejército muestra general
-  (nombre, rango, skill). *Hecho = se ve al seleccionar el ejército.*
-- [ ] **F1.6 — Tab ALTO MANDO.** En `WLGovernmentWidget`, tab que lista generales
+- [~] **F1.5 — General en el panel del ejército.** Backend/nombre de token listos; falta UIX fina de ficha militar
+  fuera de GOBIERNO con nombre, rango, skill y reasignación.
+- [x] **F1.6 — Tab ALTO MANDO.** En `WLGovernmentWidget`, tab que lista generales
   (nombre, rango, skill, lealtad, ambición) con el patrón de tarjetas. *Hecho = se ven los generales del país.*
-- [ ] **F1.7 — Ascender / Dar de baja.** Botones en ALTO MANDO: ascender (sube rango) /
+- [x] **F1.7 — Ascender / Dar de baja.** Botones en ALTO MANDO: ascender (sube rango) /
   dar de baja (retira). *Hecho = cambian el estado del general.*
-- [ ] **F1.8 — Experiencia por turno.** Generales ganan renombre al avanzar turnos / al combatir;
+- [x] **F1.8 — Experiencia por turno.** Generales ganan renombre al avanzar turnos / al combatir;
   al pasar un umbral, +1 rasgo o +skill. *Hecho = el renombre sube al avanzar turnos.*
 
 ### F2 — Poder interno & Golpes  *(nace el juego de supervivencia)*
 **Objetivo:** los generales desleales y la oposición pueden derrocarte.
 
-- [ ] **F2.1 — Riesgo de golpe.** Cálculo por nación desde lealtad/ambición de generales + orden público; medidor en POLÍTICA.
-- [ ] **F2.2 — Intento de golpe.** En fin de turno, si el riesgo supera umbral, dispara golpe (resuelto por skill/lealtad/ejércitos leales).
-- [ ] **F2.3 — Oposición.** Entidad con fuerza/popularidad que crece con bajo orden público.
-- [ ] **F2.4 — Acciones internas.** Recompensar general (+lealtad, cuesta tesoro), purgar (elimina, −lealtad de otros), reprimir oposición.
-- [ ] **F2.5 — Orden público efectivo.** El orden público por provincia afecta ingreso y alimenta oposición/golpe.
-- [ ] **F2.6 — Panel POLÍTICA rehecho.** Medidor de golpe + oposición + acciones (reemplaza los "Fase futura").
+- [x] **F2.1 — Riesgo de golpe.** Cálculo por nación desde lealtad/ambición de generales + orden público; medidor en POLÍTICA.
+- [x] **F2.2 — Intento de golpe.** En fin de turno, si el riesgo supera umbral, dispara golpe (resuelto por skill/lealtad/ejércitos leales).
+- [x] **F2.3 — Oposición.** Entidad con fuerza/popularidad que crece con bajo orden público.
+- [x] **F2.4 — Acciones internas.** Recompensar general (+lealtad, cuesta tesoro), purgar (elimina, -lealtad de otros), reprimir oposición.
+- [x] **F2.5 — Orden público efectivo.** El orden público por provincia afecta ingreso y alimenta oposición/golpe.
+- [x] **F2.6 — Panel POLÍTICA rehecho.** Medidor de golpe + oposición + acciones (reemplaza los "Fase futura").
 
 ### F3 — Diplomacia & Guerra  *(el juego internacional)*
-- [ ] **F3.1 — Relación entre países.** Opinión −100..100 por par de países + almacén.
-- [ ] **F3.2 — Líderes extranjeros.** Como `FWLCharacter` (Role=ForeignLeader) con personalidad.
-- [ ] **F3.3 — Estados de relación.** Paz / tensión / guerra + casus belli.
-- [ ] **F3.4 — Declarar guerra.** Acción CO↔VE que cambia estado y habilita ataques entre países.
-- [ ] **F3.5 — Tratados.** Comercio, no-agresión, alianza (IA acepta según opinión).
-- [ ] **F3.6 — Tab DIPLOMACIA (reemplaza NACION).** Lista de países, opinión, acciones.
+- [x] **F3.1 — Relación entre países.** Opinión -100..100 por par de países + almacén.
+- [x] **F3.2 — Líderes extranjeros.** Como `FWLCharacter` (Role=ForeignLeader) con personalidad.
+- [x] **F3.3 — Estados de relación.** Paz / tensión / guerra + casus belli.
+- [x] **F3.4 — Declarar guerra.** Acción CO↔VE que cambia estado y habilita ataques entre países.
+- [x] **F3.5 — Tratados.** Comercio, no-agresión, alianza (IA acepta según opinión).
+- [x] **F3.6 — Tab DIPLOMACIA (reemplaza NACION).** Lista de países, opinión, acciones.
   *Aquí se pliega la tabla de provincias en RESUMEN y se elimina el tab NACION.*
 
 ### F4 — Intriga exterior  *(la mano oculta)*
-- [ ] **F4.1 — Agentes/espías.** `FWLCharacter` (Role=Spy) + red de inteligencia por país.
-- [ ] **F4.2 — Sabotaje.** Daña economía/ejército rival, con riesgo de descubrimiento.
-- [ ] **F4.3 — Financiar golpe/rebeldes.** Sube el riesgo de golpe del rival (reusa F2).
-- [ ] **F4.4 — Propaganda.** Baja el orden público rival / sube el tuyo.
-- [ ] **F4.5 — Contraespionaje.** Incidentes de descubrimiento que afectan la relación.
+- [x] **F4.1 — Agentes/espías.** `FWLCharacter` (Role=Spy) + red de inteligencia por país.
+- [x] **F4.2 — Sabotaje.** Daña economía/ejército rival, con riesgo de descubrimiento.
+- [x] **F4.3 — Financiar golpe/rebeldes.** Sube el riesgo de golpe del rival (reusa F2).
+- [x] **F4.4 — Propaganda.** Baja el orden público rival / sube el tuyo.
+- [x] **F4.5 — Contraespionaje.** Incidentes de descubrimiento que afectan la relación.
 
 ### F5 — Eventos & Metas  *(el tejido y el cierre)*
-- [ ] **F5.1 — Motor de eventos.** Definición de evento (condición → opciones → efectos) + cargador JSON.
-- [ ] **F5.2 — Cola + popup.** Eventos por turno con UI para resolverlos.
-- [ ] **F5.3 — Victoria.** Dominación / Hegemonía / Régimen chequeadas por turno.
-- [ ] **F5.4 — Derrota.** Golpe exitoso / revolución / conquista → fin de partida.
-- [ ] **F5.5 — Agenda del líder.** Rasgos del líder que modifican eventos/opciones.
+- [x] **F5.1 — Motor de eventos.** Definición de evento (condición → opciones → efectos) + cargador JSON.
+- [~] **F5.2 — Cola + popup.** Cola/backend y resolución listos; falta popup/modal dedicado y feed visual completo.
+- [x] **F5.3 — Victoria.** Dominación / Hegemonía / Régimen chequeadas por turno.
+- [x] **F5.4 — Derrota.** Golpe exitoso / revolución / conquista → fin de partida.
+- [x] **F5.5 — Agenda del líder.** Rasgos del líder que modifican eventos/opciones.
 
 ### Contrato backend/frontend F1-F5
 
@@ -140,30 +152,43 @@ Criterio de "hecho" por tarea: **compila** + lo que indique la tarea.
 **F1 Personajes & Generales — endpoint `UWLCharacterSubsystem`**
 - Lecturas UI: `GetCharactersByNation`, `GetCharactersByRole`, `GetGenerals`, `GetCabinet`,
   `GetCabinetMinister`, `GetGovernmentStats`, `GetPoliticalCapital`, `GetAssignedGeneralForArmy`.
-- Acciones UI: `AppointMinister`, `DismissMinister`, `CreateGeneral`, `CreateAndAssignGeneralToArmy`,
+- Acciones UI: `AppointMinister`, `DismissMinister`, `CreateMinister`, `HireMinister`, `CreateGeneral`, `CreateAndAssignGeneralToArmy`,
   `AssignGeneralToArmy`, `PromoteGeneral`, `RetireCharacter`, `AddRenownToGeneral`,
   `AdjustCharacterLoyalty`, `AdjustPoliticalCapital`.
-- Persistencia: `UWLLocalSaveGame.Characters` + `PoliticalCapital` (save local v9).
-- Falta UIX: tab **ALTO MANDO**, cards de gabinete/personajes, selector de general y botones de ascenso/baja.
-- Hook pendiente 3D/presentación: `WLCampaign3DView::SyncRecruitedArmyTokens` todavía crea tokens visuales
-  `ARMY-<fort>`; cuando esa capa se conecte al backend debe llamar a `CreateAndAssignGeneralToArmy` o mapear
-  el token visual a un `FWLArmy` real para que el nombre visible salga del general.
+- Persistencia: `UWLLocalSaveGame.Characters` + `PoliticalCapital` (save local v10).
+- Cobertura backend: cada nacion cargada tiene jefe de Estado/personaje diplomatico, general, oposicion, agente,
+  cinco ministros asignados y al menos dos candidatos por cartera; saves viejos se restauran encima del roster
+  generado para no perder paises nuevos.
+- Gobierno P1 real: `UWLPoliticalSubsystem` expone agenda nacional, programas por ministerio, dinamica de
+  gabinete, instituciones/Congreso, grupos sociales, capacidad estatal, memoria politica y plan IA de gobierno.
+- UIX actual: ventana **GOBIERNO/ALTO MANDO** ya lista roster, gabinete, generales y acciones principales.
+- Falta UIX fuera/debajo de GOBIERNO: selector/asignacion de general desde ficha militar del mapa, lista de
+  candidatos contratables por ministerio, comparador de skill/lealtad/ambicion/popularidad/rasgos, coste de
+  capital politico, agenda nacional, programas por cartera, riesgos de gabinete, Congreso, grupos sociales,
+  capacidad estatal, memoria de crisis, plan IA y mejor feedback visual de renombre/ascenso en tokens o paneles
+  de ejercito.
 
 **F2 Poder interno & Golpes — endpoint `UWLPoliticalSubsystem`**
 - Lecturas UI: `GetInternalPower`, `GetCampaignOutcome`.
 - Acciones UI: `AttemptCoup`, `RewardGeneral`, `PurgeCharacter`, `RepressOpposition`.
 - Tick backend: `ProcessPoliticalMonth` se llama desde `UWLCampaignGameInstance::WLAdvanceMonth` y desde el
   avance diario del `AWLCampaignPlayerController` solo cuando hay rollover de mes.
-- Persistencia: `UWLLocalSaveGame.InternalPowerStates` + `CampaignOutcome` (save local v9).
-- Falta UIX: medidor de golpe, oposición, botones de acciones internas, feedback y registro.
+- Persistencia: `UWLLocalSaveGame.InternalPowerStates` + `CampaignOutcome` (save local v10).
+- UIX actual: tab **POLITICA** ya muestra riesgo/oposicion y acciones principales.
+- Falta UIX: feedback visual de revuelta/golpe en mapa, confirmaciones y registro historico mas legible.
 
 **F3 Diplomacia & Guerra — endpoint `UWLPoliticalSubsystem`**
 - Lecturas UI: `GetRelationsForNation`, `GetRelation`.
 - Acciones UI: `SetRelationOpinion`, `AdjustRelationOpinion`, `DeclareWar`, `SignTreaty`, `BreakTreaty`.
+- Cobertura backend: `UWLDataRegistry` promueve `Content/Data/Campaign3D/AmericaLowDetail/*.json` a naciones
+  backend con capital sintetica cuando no existe dato detallado; `SeedRelations` crea relacion bilateral para
+  cada par de naciones cargadas. Colombia ve toda America, no solo Venezuela.
 - Integración backend: `UWLMilitarySubsystem::AutoResolveBattle` bloquea combate entre países si la relación
   no está en `EWLDiplomaticStatus::War`; declarar guerra habilita el auto-resolve.
-- Persistencia: `UWLLocalSaveGame.DiplomaticRelations` (save local v9).
-- Falta UIX: tab **DIPLOMACIA**, lista de países, estado de relación, tratados y botones de declarar guerra/tratados.
+- Persistencia: `UWLLocalSaveGame.DiplomaticRelations` (save local v10).
+- UIX actual: tab **DIPLOMACIA** ya lista paises, relacion, tratados, guerra e intriga basica.
+- Falta UIX: overlay/mapa diplomatico, confirmaciones, filtros/busqueda/ordenamiento por region/estado/tratado
+  y explicacion visual de rutas/bloqueos para una lista continental.
 
 **F4 Intriga exterior — endpoint `UWLPoliticalSubsystem`**
 - Lecturas UI: `GetIntelligenceNetwork`.
@@ -171,8 +196,9 @@ Criterio de "hecho" por tarea: **compila** + lo que indique la tarea.
   `Propaganda`, `CounterIntelligence`.
 - Efectos backend: operaciones modifican red/exposición, orden público, oposición, riesgo/funding de golpe y
   opinión diplomática si son detectadas.
-- Persistencia: `UWLLocalSaveGame.IntelligenceNetworks` (save local v9).
-- Falta UIX: panel de espías, selector de agente/objetivo, riesgo de exposición, resultado de operación.
+- Persistencia: `UWLLocalSaveGame.IntelligenceNetworks` (save local v10).
+- UIX actual: acciones de intriga estan disponibles desde **DIPLOMACIA**.
+- Falta UIX: selector dedicado de agente/objetivo, riesgo de exposicion mas claro y resultado persistente.
 
 **F5 Eventos & Metas — endpoint `UWLPoliticalSubsystem`**
 - Datos: `Content/Data/Political/PoliticalEvents.json`.
@@ -180,8 +206,28 @@ Criterio de "hecho" por tarea: **compila** + lo que indique la tarea.
 - Acciones UI: `ResolveEvent`.
 - Tick backend: `ProcessPoliticalMonth` evalúa eventos, agenda del líder, golpes y outcome; `CheckCampaignOutcome`
   cubre dominación y golpe exitoso/revolución como derrota.
-- Persistencia: `UWLLocalSaveGame.PoliticalEvents` + `CampaignOutcome` (save local v9).
-- Falta UIX: cola visible, popup/modal de evento, botones de opciones, registro histórico de decisiones.
+- Persistencia: `UWLLocalSaveGame.PoliticalEvents` + `CampaignOutcome` (save local v10).
+- UIX actual: eventos y opciones ya aparecen en **POLITICA/REGISTROS**.
+- Falta UIX: popup/modal de evento, feed de noticias del mes y registro historico de decisiones.
+
+### Contrato backend/frontend IA de campania
+
+> Estado: backend listo. No requiere frontend para actuar, pero falta UIX para escoger/mostrar dificultad.
+
+- Endpoint backend: `UWLBalanceSubsystem::SetAIDifficulty`, `GetAIDifficulty`, `SetRuntimeRules`.
+- Dato persistido: `UWLLocalSaveGame.AIDifficulty` (save local v10; default/fallback `Medium`).
+- Cobertura backend: la IA economica corre para todas las naciones no jugadoras cargadas; con America activa
+  ya no presupone que solo existe CO/VE.
+- Niveles:
+  - **Facil:** IA economica conserva mas reserva, exige mejor orden publico/retorno, evita guerras salvo opinion
+    muy baja y ventaja amplia, espia menos y recluta solo cuando esta claramente por detras.
+  - **Medio:** conserva el comportamiento anterior como baseline.
+  - **Dificil:** puede construir mas por mes, acepta retornos mas largos, baja umbrales diplomaticos para tratados,
+    declara con menos ventaja militar, tolera mas exposicion de espionaje y recluta de forma preventiva.
+- Tests esperados: `WorldLeader.Balance.AIDifficultyTuning`,
+  `WorldLeader.EconomyAI.DifficultyCadence`, `WorldLeader.Politics.StrategicAIDifficultyWarPosture`.
+- Falta UIX: selector de dificultad al iniciar/cargar campania, indicador visible en GOBIERNO/ajustes y texto de
+  explicacion de impactos. No duplicar reglas en UI; leer desde `UWLBalanceSubsystem`.
 
 ### Contrato backend/frontend edificios provinciales
 
@@ -196,14 +242,141 @@ Criterio de "hecho" por tarea: **compila** + lo que indique la tarea.
 - Efectos backend: producción/PIB, ingreso provincial, mantenimiento, orden público mensual, capacidad militar
   abstracta, capacidad naval/aérea/tecnológica y bonus defensivo leído por `UWLMilitarySubsystem::AutoResolveBattle`.
 - IA: `RunEconomicAI` puede construir un slot vacío o mejorar un edificio existente si el retorno mensual lo justifica.
-- Persistencia: `UWLLocalSaveGame.ProvinceBuildings.BuildingLevels` + save local v9; saves viejos sin niveles
+- Persistencia: `UWLLocalSaveGame.ProvinceBuildings.BuildingLevels` + save local v10; saves viejos sin niveles
   restauran edificios como nivel 1.
 - Falta UIX: panel de slots reales, nivel, coste de upgrade, mantenimiento, preview de efectos y botón construir/mejorar.
 
+### P2/P3 profundidad backend realista
+
+> Gobierno P2 local ya esta implementado como backend. Lo pendiente en esta seccion ya no es el nucleo P2 de
+> gobierno, sino UIX, contenido data-driven especifico y capas P3 para que la simulacion gane sutileza.
+> Si la pregunta es "backend del proyecto entero", tambien faltan backend online Rust/Axum, Dedicated Server
+> PvP, datos mundiales completos y persistencia online. Eso no es frontend.
+
+- **IA estrategica fuera de gobierno:** profundizar preparacion de guerra, retirada por coste esperado,
+  aseguramiento de insumos y bloques con horizonte de varios meses.
+- **Comercio:** hoy hay rutas diplomaticas agregadas; profundidad P2 seria capacidad por puertos/carreteras,
+  coste logistico, bloqueo naval/aereo, dependencia por bien critico y sustitucion parcial de insumos.
+- **Ministerios/personajes:** backend P2 ya cubre programas ampliados, perfiles, facciones, patronos/rivales,
+  escandalos, patronazgo y sucesion. P3 seria biografias y eventos handcrafted por pais/rasgo.
+- **Intriga:** hoy red/exposicion/operaciones funcionan; P2 seria niebla de guerra, contraoperaciones reactivas,
+  atribucion incierta y cadenas de represalia diplomaticas.
+- **Eventos:** backend P2 ya cubre crisis encadenadas persistentes; falta autorado data-driven amplio y UIX.
+- **IA tactica:** hoy es determinista basica; P2 seria roles por unidad, flanqueo, reserva, retirada ordenada,
+  preferencia por terreno/objetivos y perfil distinto por dificultad.
+- **Balance:** todos los P2 deben seguir entrando por `FWLBalanceRules`/`Content/Data`, con tests que prueben
+  conducta observable, no solo campos nuevos.
+
+### Contrato backend/frontend Gobierno P1 real
+
+> Estado: backend compilado. Falta UIX para operar/visualizar, no reglas en widgets.
+
+- Lecturas UI: `GetGovernmentAgenda`, `GetAvailableMinistryPrograms`, `GetActiveMinistryPrograms`,
+  `GetCabinetDynamics`, `GetInstitutionalPower`, `GetPublicGroups`, `GetStateCapacity`, `GetPoliticalMemory`,
+  `GetGovernmentAIPlan`.
+- Acciones UI/backend: `SetGovernmentAgenda`, `StartMinistryProgram`, `PassGovernmentReform`.
+- Tick backend: `ProcessPoliticalMonth` ejecuta agenda, programas, gabinete vivo, instituciones, grupos sociales,
+  capacidad estatal, memoria/cadenas de crisis e IA politica de naciones no jugadoras.
+- Persistencia: save local v12 conserva `GovernmentAgendas`, `MinistryPrograms`, `CabinetDynamics`,
+  `InstitutionalPower`, `PublicGroupSupport`, `StateCapacity`, `PoliticalMemory`, `GovernmentAIPlans`.
+- Falta UIX: selector de agenda, panel por ministerio, progreso/riesgo de programas, votaciones de reforma,
+  tablero de grupos sociales, medidor de capacidad estatal, timeline de memoria politica y plan visible de IA.
+
+### Contrato backend/frontend Gobierno P2 real
+
+> Estado: backend compilado y suite `WorldLeader` 55/55. Falta UIX; detalle completo en `Docs/UIX_PENDING_TASKS.md`.
+
+- Lecturas UI: `GetAvailablePolicyReforms`, `GetActivePolicyReforms`, `GetPoliticalParties`, `GetElectionState`,
+  `GetCharacterPoliticalProfiles`, `GetCharacterPoliticalProfile`, `GetPatronageState`, `GetMediaPublicOpinion`,
+  `GetRegionGovernors`, `GetActiveCrisisChains`, `GetGovernmentCalibration`.
+- Acciones UI/backend: `EnactPolicyReform`, `NegotiatePartySupport`, `HoldPartyInternalElection`,
+  `MakeCampaignPromise`, `UsePatronage`, `RunMediaAction`, `RunRegionPolicy`.
+- Tick backend: `ProcessPoliticalMonth` aplica reformas largas, partidos/coalicion, ciclo electoral, perfiles
+  politicos, patronazgo, medios/opinion, gobernadores/regiones, crisis persistentes y calibracion.
+- Contenido backend: 24 reformas en 12 areas y 50 programas ministeriales en cinco carteras.
+- Persistencia: save local v12 agrega `ActivePolicyReforms`, `PoliticalParties`, `ElectionStates`,
+  `CharacterPoliticalProfiles`, `PatronageStates`, `MediaStates`, `RegionGovernors`, `CrisisChains`,
+  `GovernmentCalibration`.
+- Falta UIX: arbol de reformas, Congreso por bancadas, panel electoral, perfiles/personajes, patronazgo,
+  medios, regiones/gobernadores, crisis encadenadas, IA politica visible y panel de calibracion.
+
 ### B — Batallas  *(paralelo; hasta entonces auto-resuelto)*
-- [~] **B.1 — Auto-resolución.** Combate por composición, terreno, defensa provincial, guerra diplomática,
-  bajas, ocupación y renombre posterior; falta que el skill del general pese directamente en el cálculo.
-- [ ] **B.2 — Batalla táctica.** (futuro) Total War real.
+- [x] **B.1 — Auto-resolución.** Combate por composición, skill del general parametrizado por balance,
+  terreno, defensa provincial, guerra diplomática, bajas, ocupación y renombre posterior.
+- [~] **B.2 — Batalla táctica.** Base backend iniciada; falta la batalla visual Total War real.
+- [x] **B.2a — Backend táctico determinista.** Estado de batalla, unidades desde `FWLArmy`, órdenes de
+  mover/atacar, daño, moral, captura de objetivo y victoria/derrota sin UI.
+- [ ] **B.2b — Vista/cámara/selección táctica.** Mapa 3D de batalla, cámara tipo Total War y selección de unidades.
+- [x] **B.2c — Conexión campaña→batalla→resultado.** Entrar desde campaña, simular/terminar y devolver
+  bajas, ocupación y renombre a los `FWLArmy` oficiales.
+- [x] **B.2d — IA táctica.** Comportamiento determinista básico para mover, atacar, capturar y retirarse sin input humano.
+- [x] **B.2e — Retirada/reorganización operacional.** Que unidades en retirada puedan volver como reservas,
+  prisioneros o pérdidas diferidas en vez de desaparecer siempre como baja efectiva.
+
+### Contrato backend/frontend B.1
+
+> Estado: backend compilado y cubierto por tests. Falta UIX solo para explicar el desglose de poder en la ficha de batalla.
+
+- Lecturas/acción UI: `UWLMilitarySubsystem::AutoResolveBattle` devuelve un reporte con poder de ataque/defensa,
+  multiplicador de general, terreno y defensas.
+- Balance: `FWLBalanceRules.GeneralSkillCombatEffectAtMax` controla el impacto máximo del skill del general
+  (`0.25` por defecto: skill 100 = `x1.25`, skill 0 = `x0.75`).
+- Efectos backend: requiere guerra diplomática, valida adyacencia, aplica bajas, ocupación si corresponde y
+  renombre para generales asignados.
+- Falta UIX: preview/desglose antes de combatir y registro de batalla legible para el jugador.
+
+### Contrato backend/frontend B.2a
+
+> Estado: backend táctico inicial cubierto por tests. Falta UI/3D.
+
+- Lecturas UI: `GetTacticalBattleState` devuelve `FWLTacticalBattleState` con unidades, objetivos, tiempo,
+  resultado, ganador y enlace `AttackerArmyId`/`DefenderArmyId`.
+- Acciones UI/backend: `StartTacticalBattleFromArmies`, `IssueMoveOrder`, `IssueAttackOrder`,
+  `AdvanceTacticalBattle`.
+- Balance: reglas `TacticalMoveSpeedUnitsPerSecond`, `TacticalAttackRangeUnits`,
+  `TacticalDamagePerAttackPerSecond`, `TacticalDefenseMitigationPerPoint`,
+  `TacticalMoraleDamagePerHealth`, `TacticalRoutMoraleThreshold` y `TacticalObjectiveCaptureSeconds`.
+- Efectos backend: unidades tácticas avanzan, atacan, pierden salud/moral, entran en retirada, capturan
+  objetivos y cierran la batalla con victoria/derrota/empate.
+- Falta UIX: render táctico, cámara, selección, órdenes con mouse, barra de resultado y feedback de retirada.
+
+### Contrato backend/frontend B.2c
+
+> Estado: backend compilado y cubierto por tests. No requiere UI para producir resultado oficial de campaña.
+
+- Acciones UI/backend: `UWLMilitarySubsystem::StartTacticalBattle` valida guerra diplomática, adyacencia y
+  ejércitos reales antes de crear una `FWLTacticalBattleState`; `ApplyTacticalBattleResult` aplica una batalla
+  cerrada al estado estratégico.
+- Efectos backend: las unidades tácticas destruidas salen de la composición del `FWLArmy`; las retiradas pasan
+  a `RecoveringUnits` por B.2e; victoria atacante con defensor sin fuerza efectiva ocupa provincia y cambia
+  controlador; victoria/derrota otorga renombre a generales asignados.
+- Falta UIX/sistema posterior: elección auto-resolve vs táctica, pantalla de carga/resultado, log legible y
+  visualización de reservas/retirada.
+
+### Contrato backend/frontend B.2d
+
+> Estado: backend compilado y cubierto por tests. No requiere UI para que una facción actúe en batalla táctica.
+
+- Acciones UI/backend: `SetTacticalAIControl(BattleId, OwnerIso, bEnabled)` marca qué país usa IA en una
+  `FWLTacticalBattleState`.
+- Efectos backend: `AdvanceTacticalBattle` emite órdenes automáticas para unidades IA: mantiene ataques
+  válidos, ataca al enemigo efectivo más cercano si está en rango, avanza a objetivos si no puede disparar,
+  y las unidades rotas se retiran hacia su lado del campo.
+- Falta UIX: toggle/estado visible de control IA y feedback visual de órdenes automáticas.
+
+### Contrato backend/frontend B.2e
+
+> Estado: backend compilado y cubierto por tests. Falta UIX para explicar reservas, retirada y reorganizacion.
+
+- Lecturas UI: `FWLArmy::RecoveringUnits` expone unidades desorganizadas que siguen existiendo pero no cuentan
+  como fuerza efectiva hasta reorganizarse.
+- Acciones UI/backend: `UWLMilitarySubsystem::ReorganizeArmy(ArmyId, MaxUnits, OutMessage)` devuelve reservas
+  al ejército activo; `ApplyTacticalBattleResult` reconcilia destruidas vs retiradas y mueve ejércitos derrotados
+  a una provincia aliada si hay ruta de retirada.
+- Efectos backend: un ejército con solo `RecoveringUnits` no aporta ataque, no se borra del snapshot y puede
+  volver al frente por reorganización; si no hay provincia aliada de retirada, las unidades atrapadas se pierden.
+- Falta UIX: mostrar reservas/desorganizacion en ficha de ejército, botón de reorganizar, resultado de retirada
+  en el log de batalla y explicación visual cuando una fuerza queda sin ataque efectivo.
 
 ---
 
@@ -337,6 +510,62 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-02 · Gobierno P2 real backend** — `WLPoliticalTypes.h` y `UWLPoliticalSubsystem` agregan arbol de
+  leyes/reformas, partidos/ideologias, ciclo electoral/legitimidad, 50 programas ministeriales, perfiles
+  politicos de personajes, patronazgo/corrupcion politica, medios/opinion publica, regiones/gobernadores,
+  crisis encadenadas persistentes, IA politica ampliada y metricas de calibracion. `WLLocalSaveGame` sube a
+  v12 y persiste `ActivePolicyReforms`, `PoliticalParties`, `ElectionStates`, `CharacterPoliticalProfiles`,
+  `PatronageStates`, `MediaStates`, `RegionGovernors`, `CrisisChains` y `GovernmentCalibration`. Test nuevo
+  `WorldLeader.Government.P2.RealPoliticsSystems`; build `WorldLeaderEditor Win64 Development` OK y suite
+  `Automation RunTests WorldLeader` 55/55 (`EXIT CODE: 0`). Falta UIX completa documentada en `Docs/UIX_PENDING_TASKS.md`.
+- **2026-07-02 · Gobierno P1 real backend validado** — `UWLPoliticalSubsystem` ahora modela agenda nacional,
+  programas por ministerio, gabinete vivo, Congreso/base politica, grupos sociales, capacidad estatal, memoria
+  de crisis y planificador IA de gobierno para las naciones cargadas; los programas afectan tesoro, capital
+  politico, diplomacia, orden, corrupcion, reclutamiento, industria e intriga sin depender de UIX. `WLLocalSaveGame`
+  sube a version 11 y guarda/restaura agenda, programas, dinamica de gabinete, instituciones, grupos sociales,
+  capacidad estatal, memoria politica y planes IA. Tests nuevos: `WorldLeader.Government.RealGovernment.AgendaProgramsState`,
+  `WorldLeader.Government.RealGovernment.MemoryChainsAndAI`; roundtrip actualizado en `WorldLeader.Save.LocalCampaignRoundTrip`.
+  Validacion: build `WorldLeaderEditor Win64 Development` OK + suite `Automation RunTests WorldLeader` 55/55
+  (`EXIT CODE: 0`). No se abrio Standalone. Falta UIX documentada: selector de agenda, paneles por ministerio,
+  progreso/riesgo de programas, Congreso/base politica, grupos sociales, capacidad estatal, memoria y objetivo IA visible.
+- **2026-07-02 · Auditoria backend senior y alcance real** — Verificado contra roadmap/codigo/datos: el
+  backend local de gobierno/campaña para la vertical slice CO/VE esta en P0/P1, con IA de campaña por dificultad
+  (`UWLBalanceSubsystem`/`FWLBalanceRules`) y contratos backend/frontend documentados. No equivale a "100% del
+  backend del proyecto entero": faltan backend online Rust/Axum, Dedicated Server PvP, datos mundiales completos
+  y capas P2 de realismo (planes IA, comercio logistico, agendas/rivalidades, intriga con incertidumbre,
+  eventos encadenados e IA tactica por roles). Build `WorldLeaderEditor Win64 Development` OK y suite
+  `Automation RunTests WorldLeader` 48/48. No se abrio Standalone.
+- **2026-07-02 · Grafo de rutas de campaña backend** — `FWLCampaignRouteGraph` extrae el pathfinding
+  de carreteras a lógica core testeable: aristas bidireccionales, BFS de ruta corta, alcanzables filtrados
+  y conteo de componentes. `AWLCampaign3DView` usa el helper para destinos/rutas, dejando la vista como
+  consumidora del backend. Tests nuevos `WorldLeader.Campaign.RouteGraph.ShortestPath` y
+  `WorldLeader.Campaign.RouteGraph.Filters`; build OK y suite `Automation RunTests WorldLeader` 43/43.
+- **2026-07-02 · B.2e retirada/reorganización operacional backend** — `FWLArmy` conserva
+  `RecoveringUnits`; `UWLMilitarySubsystem::ApplyTacticalBattleResult` separa destruidas de retiradas,
+  mueve fuerzas derrotadas a una provincia aliada cuando hay ruta y captura las reservas si quedan atrapadas;
+  `ReorganizeArmy` devuelve reservas al ejército activo y el snapshot conserva ejércitos sin fuerza efectiva.
+  Test nuevo `WorldLeader.Military.OperationalRecovery`; build OK y suite `Automation RunTests WorldLeader` 41/41.
+- **2026-07-02 · B.2d IA táctica backend** — `FWLTacticalBattleState` expone `AIControlledOwnerIsos`;
+  `UWLTacticalBattleSubsystem::SetTacticalAIControl` activa/desactiva IA por país; `AdvanceTacticalBattle`
+  ahora genera órdenes deterministas para unidades IA antes de resolver movimiento/daño/captura: ataca al
+  enemigo efectivo más cercano, avanza a objetivos si no puede disparar y retira unidades rotas hacia su lado
+  del campo. Test nuevo `WorldLeader.Battle.TacticalAI`; build OK y suite `WorldLeader.Battle` 4/4.
+- **2026-07-02 · B.2c campaña→batalla táctica→resultado oficial** — `FWLTacticalBattleState` guarda
+  `AttackerArmyId`/`DefenderArmyId`; `UWLMilitarySubsystem::StartTacticalBattle` inicia batallas tácticas
+  desde `FWLArmy` reales con las mismas reglas de guerra/adyacencia del auto-resolve; `ApplyTacticalBattleResult`
+  reconcilia unidades efectivas, elimina fuerzas derrotadas, ocupa provincia si corresponde y otorga renombre.
+  Test nuevo `WorldLeader.Battle.TacticalCampaignResult`; build `WorldLeaderEditor Win64 Development` OK y
+  suite `Automation RunTests WorldLeader` 39/39.
+- **2026-07-02 · B.1 auto-resolve parametrizado por skill del general** — `FWLBalanceRules` expone
+  `GeneralSkillCombatEffectAtMax`; `UWLMilitaryLibrary::GeneralSkillCombatMultiplier` centraliza la fórmula;
+  `UWLMilitarySubsystem::AutoResolveBattle` aplica el multiplicador al poder efectivo y lo reporta para UI.
+  Tests: `WorldLeader.Military.ResolveBattle`, `WorldLeader.Military.GeneralSkillAutoResolve`,
+  `WorldLeader.Balance.SanitizeRules`.
+- **2026-07-02 · B.2a backend táctico determinista** — `FWLTacticalBattleState`/`FWLTacticalUnitState`
+  modelan batalla táctica sin UI; `UWLTacticalBattleSubsystem` inicia batallas desde `FWLArmy`, recibe órdenes
+  de movimiento/ataque, avanza daño/moral/captura y declara ganador. Balance táctico agregado a
+  `FWLBalanceRules`. Tests: `WorldLeader.Battle.TacticalBackend`, `WorldLeader.Battle.TacticalMoveOrder`,
+  `WorldLeader.Balance.SanitizeRules`.
 - **2026-07-02 · Mapa↔ejércitos reales + IA estratégica + victorias/fin de partida** — **(1)** Los tokens
   de ejército del mapa ya SON ejércitos reales: `FWLArmy.SourceBaseId` liga token↔backend;
   `SyncArmyFromGarrison` crea/actualiza el `FWLArmy` (tipos de reclutamiento mapeados a Units.json:
@@ -362,6 +591,19 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
   upkeep). Suite 34/34. Archivos: `WLBalanceTypes.h`, `WLCharacterSubsystem.h/.cpp`,
   `WLStrategicTickSubsystem.cpp`, `WLPoliticalSubsystem.h/.cpp`, `WLGovernmentWidget.cpp`,
   `WLCharacterTests.cpp`.
+- **2026-07-02 · Gobierno America backend cerrado** — `UWLDataRegistry` promueve
+  `Content/Data/Campaign3D/AmericaLowDetail/*.json` a 38 naciones backend con capital sintetica para las que
+  no tienen provincia detallada; usa la ciudad capital visual para coordenadas/puerto cuando existe.
+  `UWLCharacterSubsystem` genera para cada nacion jefe de Estado, general, oposicion, agente y gabinete de cinco
+  ministerios con pool de candidatos por cartera; agrega `CreateMinister` y `HireMinister` para contratar y
+  nombrar sin UI. `UWLPoliticalSubsystem` ya crea relaciones bilaterales completas entre todas las naciones
+  cargadas; la IA economica actua para todas las no jugadoras. Tests nuevos/actualizados:
+  `WorldLeader.Data.AmericaDiplomacyNations`, `WorldLeader.Government.Characters.AmericaCabinetCoverage`,
+  `WorldLeader.Government.Characters.AmericaCabinetHiring`, `WorldLeader.Politics.F3.AmericaDiplomacyCoverage`,
+  `WorldLeader.EconomyAI.BuildsForNonPlayerOnly`, `WorldLeader.EconomyAI.MonthlyTickRequiresActiveCampaign`.
+  Validacion: build `WorldLeaderEditor Win64 Development` OK + suite `Automation RunTests WorldLeader` 52/52.
+  Falta UIX documentado: filtros/busqueda para diplomacia continental y lista/comparador/confirmacion de
+  contratacion ministerial.
 - **2026-07-02 · Auditoría de gameplay (fases 1-2 + parte de 3-4)** — Revisión UI→backend→efecto de cada
   mecánica. Corregido: **(1) escala temporal** — AVANZAR DÍA aplicaba un MES entero de economía y finanzas por
   día (30x; un bono de 24 meses se amortizaba en 24 días); ahora el día aplica 1/30 del balance al tesoro

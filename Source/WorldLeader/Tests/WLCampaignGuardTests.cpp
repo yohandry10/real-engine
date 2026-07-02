@@ -8,6 +8,7 @@
 #include "Misc/AutomationTest.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Characters/WLCharacterSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Military/WLMilitarySubsystem.h"
 #include "Politics/WLPoliticalSubsystem.h"
@@ -109,6 +110,48 @@ bool FWLGoodsCatalogTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLAmericaDiplomacyNationsTest,
+	"WorldLeader.Data.AmericaDiplomacyNations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLAmericaDiplomacyNationsTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLDataRegistry* Registry = GameInstance->GetSubsystem<UWLDataRegistry>();
+	TestNotNull(TEXT("Data registry"), Registry);
+	if (!Registry)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	TestTrue(TEXT("America cargada como naciones diplomaticas"), Registry->GetNationCount() >= 30);
+	TestTrue(TEXT("Capitales backend sinteticas agregadas"), Registry->GetProvinceCount() >= 90);
+
+	const FString ExpectedIsos[] = { TEXT("US"), TEXT("MX"), TEXT("BR"), TEXT("AR"), TEXT("PE"), TEXT("CL") };
+	for (const FString& Iso : ExpectedIsos)
+	{
+		FWLNationData Nation;
+		TestTrue(FString::Printf(TEXT("Nacion americana disponible: %s"), *Iso), Registry->GetNation(Iso, Nation));
+		TestFalse(FString::Printf(TEXT("Capital backend definida: %s"), *Iso), Nation.CapitalProvinceId.IsEmpty());
+		FWLProvinceData Capital;
+		TestTrue(FString::Printf(TEXT("Capital backend existe: %s"), *Nation.CapitalProvinceId),
+			Registry->GetProvince(Nation.CapitalProvinceId, Capital));
+		TestEqual(FString::Printf(TEXT("Capital pertenece a %s"), *Iso), Capital.CountryIso, Iso);
+	}
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLMilitarySubsystemGuardsTest,
 	"WorldLeader.Military.SubsystemGuards",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -175,6 +218,82 @@ bool FWLMilitarySubsystemGuardsTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLMilitaryGeneralSkillAutoResolveTest,
+	"WorldLeader.Military.GeneralSkillAutoResolve",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLMilitaryGeneralSkillAutoResolveTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLMilitarySubsystem* Military = GameInstance->GetSubsystem<UWLMilitarySubsystem>();
+	UWLCharacterSubsystem* Characters = GameInstance->GetSubsystem<UWLCharacterSubsystem>();
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	TestNotNull(TEXT("Military subsystem"), Military);
+	TestNotNull(TEXT("Character subsystem"), Characters);
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	if (!Military || !Characters || !Politics)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	const FString AttackerArmy = Military->CreateArmy(TEXT("VE"), TEXT("VE-ZU"), TEXT("infantry"), 3, TEXT("General Experto"));
+	const FString DefenderArmy = Military->CreateArmy(TEXT("CO"), TEXT("CO-CES"), TEXT("infantry"), 3, TEXT("General Novato"));
+	TestFalse(TEXT("Atacante valido"), AttackerArmy.IsEmpty());
+	TestFalse(TEXT("Defensor valido"), DefenderArmy.IsEmpty());
+
+	FWLCharacter AttackerGeneral;
+	AttackerGeneral.Id = TEXT("TEST-ATTACKER-GENERAL");
+	AttackerGeneral.Name = TEXT("Experto");
+	AttackerGeneral.CountryIso = TEXT("VE");
+	AttackerGeneral.Role = EWLCharacterRole::General;
+	AttackerGeneral.Rank = EWLMilitaryRank::Colonel;
+	AttackerGeneral.Skill = 100;
+	AttackerGeneral.Loyalty = 70;
+	AttackerGeneral.Ambition = 30;
+	AttackerGeneral.Popularity = 55;
+	AttackerGeneral.AssignedArmyId = AttackerArmy;
+	AttackerGeneral.bActive = true;
+
+	FWLCharacter DefenderGeneral;
+	DefenderGeneral.Id = TEXT("TEST-DEFENDER-GENERAL");
+	DefenderGeneral.Name = TEXT("Novato");
+	DefenderGeneral.CountryIso = TEXT("CO");
+	DefenderGeneral.Role = EWLCharacterRole::General;
+	DefenderGeneral.Rank = EWLMilitaryRank::Colonel;
+	DefenderGeneral.Skill = 0;
+	DefenderGeneral.Loyalty = 70;
+	DefenderGeneral.Ambition = 30;
+	DefenderGeneral.Popularity = 55;
+	DefenderGeneral.AssignedArmyId = DefenderArmy;
+	DefenderGeneral.bActive = true;
+
+	FString Message;
+	TestTrue(TEXT("Restaurar generales controlados"),
+		Characters->RestoreSaveSnapshot({ AttackerGeneral, DefenderGeneral }, {}, Message));
+	TestTrue(TEXT("VE y CO en guerra"),
+		Politics->DeclareWar(TEXT("VE"), TEXT("CO"), Message));
+
+	const EWLBattleResult Result = Military->AutoResolveBattle(AttackerArmy, DefenderArmy, Message);
+	TestEqual(TEXT("El skill del general cambia el resultado a victoria atacante"),
+		static_cast<int32>(Result), static_cast<int32>(EWLBattleResult::AttackerVictory));
+	TestTrue(TEXT("Reporte expone bonus del atacante"),
+		Message.Contains(TEXT("general x1.25")));
+	TestTrue(TEXT("Reporte expone penalizacion del defensor"),
+		Message.Contains(TEXT("general x0.75")));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLMilitarySnapshotTest,
 	"WorldLeader.Military.SnapshotRoundTrip",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -216,6 +335,68 @@ bool FWLMilitarySnapshotTest::RunTest(const FString& Parameters)
 
 	const FString SecondArmyId = Military->CreateArmy(TEXT("VE"), TEXT("VE-BO"), TEXT("infantry"), 1, TEXT(""));
 	TestTrue(TEXT("Nuevo ID no colisiona"), SecondArmyId != ArmyId);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLMilitaryOperationalRecoveryTest,
+	"WorldLeader.Military.OperationalRecovery",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLMilitaryOperationalRecoveryTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLMilitarySubsystem* Military = GameInstance->GetSubsystem<UWLMilitarySubsystem>();
+	TestNotNull(TEXT("Military subsystem"), Military);
+	if (!Military)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLArmy RoutedArmy;
+	RoutedArmy.Id = TEXT("A77");
+	RoutedArmy.OwnerIso = TEXT("VE");
+	RoutedArmy.ProvinceId = TEXT("VE-ZU");
+	RoutedArmy.General = TEXT("Rangel");
+	RoutedArmy.SourceBaseId = TEXT("VE-HQ");
+	RoutedArmy.RecoveringUnits = { TEXT("tank"), TEXT("infantry") };
+
+	FString Message;
+	TestTrue(TEXT("Restaurar ejercito desorganizado"),
+		Military->RestoreSaveSnapshot({ RoutedArmy }, 78, Message));
+
+	FWLArmy Army;
+	TestTrue(TEXT("Ejercito recuperable existe"), Military->GetArmy(TEXT("A77"), Army));
+	TestEqual(TEXT("Sin unidades efectivas iniciales"), Army.Units.Num(), 0);
+	TestEqual(TEXT("Dos unidades desorganizadas"), Army.RecoveringUnits.Num(), 2);
+	TestEqual(TEXT("Sin ataque mientras reorganiza"), Military->GetArmyAttack(TEXT("A77")), 0);
+
+	TestTrue(TEXT("Reorganizar una unidad"),
+		Military->ReorganizeArmy(TEXT("A77"), 1, Message));
+	TestTrue(TEXT("Leer ejercito reorganizado"), Military->GetArmy(TEXT("A77"), Army));
+	TestEqual(TEXT("Una unidad vuelve a efectiva"), Army.Units.Num(), 1);
+	TestEqual(TEXT("Una unidad queda desorganizada"), Army.RecoveringUnits.Num(), 1);
+	TestTrue(TEXT("Ataque vuelve al recuperar unidad"), Military->GetArmyAttack(TEXT("A77")) > 0);
+
+	TArray<FWLArmy> Snapshot;
+	int32 NextArmyNumber = 0;
+	Military->WriteSaveSnapshot(Snapshot, NextArmyNumber);
+	TestEqual(TEXT("Snapshot conserva ejercito"), Snapshot.Num(), 1);
+	if (Snapshot.Num() == 1)
+	{
+		TestEqual(TEXT("Snapshot conserva recuperacion"), Snapshot[0].RecoveringUnits.Num(), 1);
+		TestEqual(TEXT("Snapshot conserva base fuente"), Snapshot[0].SourceBaseId, FString(TEXT("VE-HQ")));
+	}
 
 	GameInstance->Shutdown();
 	return true;

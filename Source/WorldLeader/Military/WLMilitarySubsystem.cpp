@@ -1,6 +1,7 @@
 // Copyright World Leader project. See ROADMAP.md.
 
 #include "Military/WLMilitarySubsystem.h"
+#include "Battle/WLTacticalBattleSubsystem.h"
 #include "Military/WLMilitaryLibrary.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
@@ -85,6 +86,162 @@ void UWLMilitarySubsystem::ApplyCasualties(FWLArmy& Army, float LossFraction) co
 	for (int32 i = 0; i < Losses && Army.Units.Num() > 0; ++i)
 	{
 		Army.Units.Pop();
+	}
+}
+
+bool UWLMilitarySubsystem::ValidateBattlePair(const FWLArmy& Attacker, const FWLArmy& Defender, FString& OutMessage) const
+{
+	const UWLDataRegistry* Reg = GetRegistry();
+	if (!Reg)
+	{
+		OutMessage = TEXT("Registro de datos no disponible.");
+		return false;
+	}
+	if (Attacker.Id == Defender.Id)
+	{
+		OutMessage = TEXT("Un ejercito no puede atacarse a si mismo.");
+		return false;
+	}
+	if (Attacker.OwnerIso == Defender.OwnerIso)
+	{
+		OutMessage = FString::Printf(TEXT("%s y %s pertenecen a la misma nacion (%s)."),
+			*Attacker.Id, *Defender.Id, *Attacker.OwnerIso);
+		return false;
+	}
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
+		{
+			FWLDiplomaticRelationState Relation;
+			if (Politics->GetRelation(Attacker.OwnerIso, Defender.OwnerIso, Relation)
+				&& Relation.Status != EWLDiplomaticStatus::War)
+			{
+				OutMessage = FString::Printf(TEXT("%s y %s no estan en guerra."),
+					*Attacker.OwnerIso, *Defender.OwnerIso);
+				return false;
+			}
+		}
+	}
+
+	FWLProvinceData AttackerProvince;
+	if (!Reg->GetProvince(Attacker.ProvinceId, AttackerProvince))
+	{
+		OutMessage = FString::Printf(TEXT("Provincia del atacante invalida: %s"), *Attacker.ProvinceId);
+		return false;
+	}
+	FWLProvinceData DefenderProvince;
+	if (!Reg->GetProvince(Defender.ProvinceId, DefenderProvince))
+	{
+		OutMessage = FString::Printf(TEXT("Provincia del defensor invalida: %s"), *Defender.ProvinceId);
+		return false;
+	}
+	if (Attacker.ProvinceId != Defender.ProvinceId && !AttackerProvince.Neighbors.Contains(Defender.ProvinceId))
+	{
+		OutMessage = FString::Printf(TEXT("%s no puede atacar %s desde %s hasta %s: no hay adyacencia."),
+			*Attacker.Id, *Defender.Id, *Attacker.ProvinceId, *Defender.ProvinceId);
+		return false;
+	}
+	return true;
+}
+
+void UWLMilitarySubsystem::ReconcileArmyFromTacticalBattle(
+	FWLArmy& Army,
+	const FWLTacticalBattleState& Battle,
+	int32& OutDestroyedLosses,
+	int32& OutRoutedUnits) const
+{
+	const FWLBalanceRules Rules = GetStrategicTick() ? GetStrategicTick()->GetBalanceRules() : FWLBalanceRules::Default();
+	TArray<FString> EffectiveUnits;
+	TArray<FString> RoutedUnits;
+	OutDestroyedLosses = 0;
+	OutRoutedUnits = 0;
+
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		if (!Unit.SourceArmyId.Equals(Army.Id, ESearchCase::IgnoreCase))
+		{
+			continue;
+		}
+
+		if (Unit.bDestroyed || Unit.Health <= 0.0)
+		{
+			++OutDestroyedLosses;
+		}
+		else if (Unit.IsCombatEffective(Rules.TacticalRoutMoraleThreshold))
+		{
+			EffectiveUnits.Add(Unit.UnitId);
+		}
+		else
+		{
+			RoutedUnits.Add(Unit.UnitId);
+		}
+	}
+
+	OutRoutedUnits = RoutedUnits.Num();
+	Army.Units = MoveTemp(EffectiveUnits);
+	Army.RecoveringUnits.Append(MoveTemp(RoutedUnits));
+}
+
+bool UWLMilitarySubsystem::FindRetreatProvinceForArmy(
+	const FWLArmy& Army,
+	const FString& FromProvinceId,
+	FString& OutRetreatProvinceId) const
+{
+	const UWLDataRegistry* Reg = GetRegistry();
+	if (!Reg)
+	{
+		return false;
+	}
+
+	FWLProvinceData FromProvince;
+	if (!Reg->GetProvince(FromProvinceId, FromProvince))
+	{
+		return false;
+	}
+
+	TArray<FString> Candidates = FromProvince.Neighbors;
+	Candidates.Sort();
+	for (const FString& CandidateId : Candidates)
+	{
+		FWLProvinceData Candidate;
+		if (!Reg->GetProvince(CandidateId, Candidate))
+		{
+			continue;
+		}
+
+		const FString ControllerIso = GetStrategicTick()
+			? GetStrategicTick()->GetProvinceControllerIso(Candidate.Id)
+			: Candidate.CountryIso;
+		if (ControllerIso == Army.OwnerIso)
+		{
+			OutRetreatProvinceId = Candidate.Id;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void UWLMilitarySubsystem::AwardBattleRenown(const FWLArmy& Attacker, const FWLArmy& Defender, bool bAttackerWins)
+{
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
+		{
+			FWLCharacter AttackerGeneral;
+			if (Characters->GetAssignedGeneralForArmy(Attacker.Id, AttackerGeneral))
+			{
+				FString RenownMessage;
+				Characters->AddRenownToGeneral(AttackerGeneral.Id, bAttackerWins ? 8 : 4, RenownMessage);
+			}
+
+			FWLCharacter DefenderGeneral;
+			if (Characters->GetAssignedGeneralForArmy(Defender.Id, DefenderGeneral))
+			{
+				FString RenownMessage;
+				Characters->AddRenownToGeneral(DefenderGeneral.Id, bAttackerWins ? 4 : 8, RenownMessage);
+			}
+		}
 	}
 }
 
@@ -219,6 +376,7 @@ FString UWLMilitarySubsystem::SyncArmyFromGarrison(
 	if (FWLArmy* Existing = FindArmy(FindArmyIdByBase(NormalizedBase)))
 	{
 		Existing->Units = MoveTemp(Units);   // la guarnicion crecio: el ejercito real refleja la nueva tropa
+		Existing->RecoveringUnits.Reset();
 		return Existing->Id;
 	}
 
@@ -364,42 +522,8 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 		OutReport = TEXT("Ejercito atacante o defensor no encontrado.");
 		return EWLBattleResult::Invalid;
 	}
-	if (Attacker->Id == Defender->Id)
+	if (!ValidateBattlePair(*Attacker, *Defender, OutReport))
 	{
-		OutReport = TEXT("Un ejercito no puede atacarse a si mismo.");
-		return EWLBattleResult::Invalid;
-	}
-	if (Attacker->OwnerIso == Defender->OwnerIso)
-	{
-		OutReport = FString::Printf(TEXT("%s y %s pertenecen a la misma nacion (%s)."),
-			*Attacker->Id, *Defender->Id, *Attacker->OwnerIso);
-		return EWLBattleResult::Invalid;
-	}
-	if (const UGameInstance* GI = GetGameInstance())
-	{
-		if (const UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
-		{
-			FWLDiplomaticRelationState Relation;
-			if (Politics->GetRelation(Attacker->OwnerIso, Defender->OwnerIso, Relation)
-				&& Relation.Status != EWLDiplomaticStatus::War)
-			{
-				OutReport = FString::Printf(TEXT("%s y %s no estan en guerra."),
-					*Attacker->OwnerIso, *Defender->OwnerIso);
-				return EWLBattleResult::Invalid;
-			}
-		}
-	}
-
-	FWLProvinceData AttackerProvince;
-	if (!Reg->GetProvince(Attacker->ProvinceId, AttackerProvince))
-	{
-		OutReport = FString::Printf(TEXT("Provincia del atacante invalida: %s"), *Attacker->ProvinceId);
-		return EWLBattleResult::Invalid;
-	}
-	if (Attacker->ProvinceId != Defender->ProvinceId && !AttackerProvince.Neighbors.Contains(Defender->ProvinceId))
-	{
-		OutReport = FString::Printf(TEXT("%s no puede atacar %s desde %s hasta %s: no hay adyacencia."),
-			*Attacker->Id, *Defender->Id, *Attacker->ProvinceId, *Defender->ProvinceId);
 		return EWLBattleResult::Invalid;
 	}
 
@@ -411,13 +535,15 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 		TerrainMult = UWLMilitaryLibrary::TerrainDefenseMultiplier(DefProvince.Terrain);
 	}
 	float BuildingDefenseMult = 1.0f;
+	FWLBalanceRules Rules = FWLBalanceRules::Default();
 	if (const UWLStrategicTickSubsystem* Tick = GetStrategicTick())
 	{
+		Rules = Tick->GetBalanceRules();
 		const FWLProvinceBuildingEffects Effects = Tick->GetProvinceBuildingEffects(Defender->ProvinceId);
 		BuildingDefenseMult += static_cast<float>(FMath::Max(0, Effects.BonusDefense)) / 100.0f;
 	}
 
-	// El skill del general pesa en el combate: skill 50 = neutro, 100 = +25%, 0 = -25%.
+	// El skill del general pesa en el combate segun balance: skill 50 = neutro.
 	FWLCharacter AttackerGeneral;
 	FWLCharacter DefenderGeneral;
 	bool bHasAttackerGeneral = false;
@@ -432,11 +558,11 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 			bHasDefenderGeneral = Characters->GetAssignedGeneralForArmy(Defender->Id, DefenderGeneral);
 			if (bHasAttackerGeneral)
 			{
-				AttackerSkillMult = 1.0f + static_cast<float>(AttackerGeneral.Skill - 50) / 200.0f;
+				AttackerSkillMult = UWLMilitaryLibrary::GeneralSkillCombatMultiplier(AttackerGeneral.Skill, Rules);
 			}
 			if (bHasDefenderGeneral)
 			{
-				DefenderSkillMult = 1.0f + static_cast<float>(DefenderGeneral.Skill - 50) / 200.0f;
+				DefenderSkillMult = UWLMilitaryLibrary::GeneralSkillCombatMultiplier(DefenderGeneral.Skill, Rules);
 			}
 		}
 	}
@@ -472,8 +598,9 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 		});
 
 	OutReport = FString::Printf(
-		TEXT("Batalla en %s: %s (atk %d) vs %s (def %d, terreno x%.2f, defensas x%.2f) -> %s. Quedan: %s=%d, %s=%d."),
-		*DefenderProvince, *AttackerId, AttackPower, *DefenderId, DefensePower, TerrainMult, BuildingDefenseMult,
+		TEXT("Batalla en %s: %s (atk %d, general x%.2f) vs %s (def %d, terreno x%.2f, defensas x%.2f, general x%.2f) -> %s. Quedan: %s=%d, %s=%d."),
+		*DefenderProvince, *AttackerId, AttackPower, AttackerSkillMult,
+		*DefenderId, DefensePower, TerrainMult, BuildingDefenseMult, DefenderSkillMult,
 		*UWLMilitaryLibrary::BattleResultToString(Result),
 		*AttackerId, Attacker->Units.Num(), *DefenderId, Defender->Units.Num());
 
@@ -518,9 +645,216 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 	}
 
 	// Eliminar ejercitos aniquilados (esto invalida los punteros anteriores).
-	Armies.RemoveAll([](const FWLArmy& A) { return A.Units.Num() == 0; });
+	Armies.RemoveAll([](const FWLArmy& A) { return A.Units.Num() == 0 && A.RecoveringUnits.Num() == 0; });
 
 	return Result;
+}
+
+bool UWLMilitarySubsystem::StartTacticalBattle(
+	const FString& AttackerId,
+	const FString& DefenderId,
+	FWLTacticalBattleState& OutBattle,
+	FString& OutMessage)
+{
+	const UWLDataRegistry* Reg = GetRegistry();
+	const FWLArmy* Attacker = FindArmy(AttackerId);
+	const FWLArmy* Defender = FindArmy(DefenderId);
+	if (!Reg || !Attacker || !Defender)
+	{
+		OutMessage = TEXT("Ejercito atacante o defensor no encontrado.");
+		return false;
+	}
+	if (!ValidateBattlePair(*Attacker, *Defender, OutMessage))
+	{
+		return false;
+	}
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UWLTacticalBattleSubsystem* Tactical = GI->GetSubsystem<UWLTacticalBattleSubsystem>())
+		{
+			return Tactical->StartTacticalBattleFromArmies(*Attacker, *Defender, Defender->ProvinceId, OutBattle, OutMessage);
+		}
+	}
+
+	OutMessage = TEXT("Subsystem tactico no disponible.");
+	return false;
+}
+
+bool UWLMilitarySubsystem::ApplyTacticalBattleResult(const FString& BattleId, FString& OutMessage)
+{
+	UWLTacticalBattleSubsystem* Tactical = nullptr;
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		Tactical = GI->GetSubsystem<UWLTacticalBattleSubsystem>();
+	}
+	if (!Tactical)
+	{
+		OutMessage = TEXT("Subsystem tactico no disponible.");
+		return false;
+	}
+
+	FWLTacticalBattleState Battle;
+	if (!Tactical->GetTacticalBattleState(BattleId, Battle))
+	{
+		OutMessage = FString::Printf(TEXT("Batalla tactica desconocida: %s"), *BattleId);
+		return false;
+	}
+	if (Battle.bActive || Battle.Result == EWLTacticalBattleResult::Ongoing)
+	{
+		OutMessage = FString::Printf(TEXT("Batalla tactica aun activa: %s"), *Battle.BattleId);
+		return false;
+	}
+	if (Battle.AttackerArmyId.IsEmpty() || Battle.DefenderArmyId.IsEmpty())
+	{
+		OutMessage = TEXT("Batalla tactica sin enlace a ejercitos de campania.");
+		return false;
+	}
+
+	FWLArmy* Attacker = FindArmy(Battle.AttackerArmyId);
+	FWLArmy* Defender = FindArmy(Battle.DefenderArmyId);
+	if (!Attacker || !Defender)
+	{
+		OutMessage = TEXT("No se pudo aplicar resultado tactico: ejercito de campania ausente.");
+		return false;
+	}
+
+	const FString AttackerArmyId = Attacker->Id;
+	const FString DefenderArmyId = Defender->Id;
+	const FString DefenderProvince = Defender->ProvinceId;
+	const int32 AttackerBefore = Attacker->Units.Num();
+	const int32 DefenderBefore = Defender->Units.Num();
+	int32 AttackerDestroyedLosses = 0;
+	int32 AttackerRoutedUnits = 0;
+	int32 DefenderDestroyedLosses = 0;
+	int32 DefenderRoutedUnits = 0;
+	ReconcileArmyFromTacticalBattle(*Attacker, Battle, AttackerDestroyedLosses, AttackerRoutedUnits);
+	ReconcileArmyFromTacticalBattle(*Defender, Battle, DefenderDestroyedLosses, DefenderRoutedUnits);
+
+	const bool bAttackerWins = Battle.Result == EWLTacticalBattleResult::AttackerVictory;
+	const bool bDefenderWins = Battle.Result == EWLTacticalBattleResult::DefenderVictory;
+	const bool bAttackerCombatEffective = !Attacker->Units.IsEmpty();
+	const bool bDefenderCombatEffective = !Defender->Units.IsEmpty();
+	const bool bEnemyStillPresent = Armies.ContainsByPredicate(
+		[&DefenderProvince, &AttackerArmyId, &DefenderArmyId, &Attacker](const FWLArmy& Army)
+		{
+			return Army.Id != AttackerArmyId
+				&& Army.Id != DefenderArmyId
+				&& Army.ProvinceId == DefenderProvince
+				&& Army.OwnerIso != Attacker->OwnerIso
+				&& Army.Units.Num() > 0;
+		});
+
+	OutMessage = FString::Printf(
+		TEXT("Resultado tactico %s en %s: %s destruidas %d, retiradas %d/%d; %s destruidas %d, retiradas %d/%d."),
+		*Battle.BattleId,
+		*DefenderProvince,
+		*AttackerArmyId,
+		AttackerDestroyedLosses,
+		AttackerRoutedUnits,
+		AttackerBefore,
+		*DefenderArmyId,
+		DefenderDestroyedLosses,
+		DefenderRoutedUnits,
+		DefenderBefore);
+
+	if (bAttackerWins && !bDefenderCombatEffective && Defender->RecoveringUnits.Num() > 0)
+	{
+		FString RetreatProvince;
+		if (FindRetreatProvinceForArmy(*Defender, DefenderProvince, RetreatProvince))
+		{
+			Defender->ProvinceId = RetreatProvince;
+			OutMessage += FString::Printf(TEXT(" %s se repliega a %s con %d unidades desorganizadas."),
+				*DefenderArmyId, *RetreatProvince, Defender->RecoveringUnits.Num());
+		}
+		else
+		{
+			const int32 Captured = Defender->RecoveringUnits.Num();
+			Defender->RecoveringUnits.Reset();
+			OutMessage += FString::Printf(TEXT(" %s no tiene ruta de repliegue; %d unidades son capturadas/perdidas."),
+				*DefenderArmyId, Captured);
+		}
+	}
+
+	if (bDefenderWins && !bAttackerCombatEffective && Attacker->RecoveringUnits.Num() > 0 && Attacker->ProvinceId == DefenderProvince)
+	{
+		FString RetreatProvince;
+		if (FindRetreatProvinceForArmy(*Attacker, DefenderProvince, RetreatProvince))
+		{
+			Attacker->ProvinceId = RetreatProvince;
+			OutMessage += FString::Printf(TEXT(" %s se repliega a %s con %d unidades desorganizadas."),
+				*AttackerArmyId, *RetreatProvince, Attacker->RecoveringUnits.Num());
+		}
+	}
+
+	if (bAttackerWins && bAttackerCombatEffective && !bDefenderCombatEffective && !bEnemyStillPresent)
+	{
+		Attacker->ProvinceId = DefenderProvince;
+		if (UWLStrategicTickSubsystem* Tick = GetStrategicTick())
+		{
+			FString OccupationMessage;
+			Tick->SetProvinceController(DefenderProvince, Attacker->OwnerIso, OccupationMessage);
+			OutMessage += FString::Printf(TEXT(" %s ocupa %s. %s"), *AttackerArmyId, *DefenderProvince, *OccupationMessage);
+		}
+		else
+		{
+			OutMessage += FString::Printf(TEXT(" %s ocupa %s."), *AttackerArmyId, *DefenderProvince);
+		}
+	}
+	else if (bAttackerWins && bAttackerCombatEffective && !bDefenderCombatEffective && bEnemyStillPresent)
+	{
+		Attacker->ProvinceId = DefenderProvince;
+		OutMessage += FString::Printf(TEXT(" %s entra en %s, pero quedan fuerzas enemigas."), *AttackerArmyId, *DefenderProvince);
+	}
+	else if (bAttackerWins && bAttackerCombatEffective)
+	{
+		OutMessage += TEXT(" Victoria tactica atacante sin ocupacion: quedan defensores efectivos.");
+	}
+	else if (bDefenderWins)
+	{
+		OutMessage += TEXT(" Victoria tactica defensora: no cambia el control provincial.");
+	}
+	else
+	{
+		OutMessage += TEXT(" Empate tactico: no cambia el control provincial.");
+	}
+
+	if (bAttackerWins || bDefenderWins)
+	{
+		AwardBattleRenown(*Attacker, *Defender, bAttackerWins);
+	}
+
+	Armies.RemoveAll([](const FWLArmy& A) { return A.Units.Num() == 0 && A.RecoveringUnits.Num() == 0; });
+
+	UE_LOG(LogWorldLeader, Log, TEXT("%s"), *OutMessage);
+	return true;
+}
+
+bool UWLMilitarySubsystem::ReorganizeArmy(const FString& ArmyId, int32 MaxUnits, FString& OutMessage)
+{
+	FWLArmy* Army = FindArmy(ArmyId);
+	if (!Army)
+	{
+		OutMessage = FString::Printf(TEXT("Ejercito desconocido: %s"), *ArmyId);
+		return false;
+	}
+	if (Army->RecoveringUnits.IsEmpty())
+	{
+		OutMessage = FString::Printf(TEXT("%s no tiene unidades desorganizadas."), *Army->Id);
+		return false;
+	}
+
+	const int32 UnitsToRecover = MaxUnits <= 0
+		? Army->RecoveringUnits.Num()
+		: FMath::Min(MaxUnits, Army->RecoveringUnits.Num());
+	for (int32 Index = 0; Index < UnitsToRecover; ++Index)
+	{
+		Army->Units.Add(Army->RecoveringUnits[0]);
+		Army->RecoveringUnits.RemoveAt(0);
+	}
+
+	OutMessage = FString::Printf(TEXT("%s reorganiza %d unidades. Efectivas=%d, desorganizadas=%d."),
+		*Army->Id, UnitsToRecover, Army->Units.Num(), Army->RecoveringUnits.Num());
+	return true;
 }
 
 void UWLMilitarySubsystem::WriteSaveSnapshot(TArray<FWLArmy>& OutArmies, int32& OutNextArmyNumber) const
@@ -562,6 +896,7 @@ bool UWLMilitarySubsystem::RestoreSaveSnapshot(
 		Army.OwnerIso = Nation.Iso;
 		Army.ProvinceId = Province.Id;
 		Army.General = SavedArmy.General.IsEmpty() ? TEXT("Comandante") : SavedArmy.General;
+		Army.SourceBaseId = SavedArmy.SourceBaseId.TrimStartAndEnd().ToUpper();
 
 		for (const FString& UnitId : SavedArmy.Units)
 		{
@@ -571,8 +906,16 @@ bool UWLMilitarySubsystem::RestoreSaveSnapshot(
 				Army.Units.Add(Unit.Id);
 			}
 		}
+		for (const FString& UnitId : SavedArmy.RecoveringUnits)
+		{
+			FWLUnitData Unit;
+			if (Reg->GetUnit(UnitId, Unit))
+			{
+				Army.RecoveringUnits.Add(Unit.Id);
+			}
+		}
 
-		if (!Army.Id.IsEmpty() && !Army.Units.IsEmpty() && !Armies.ContainsByPredicate(
+		if (!Army.Id.IsEmpty() && (!Army.Units.IsEmpty() || !Army.RecoveringUnits.IsEmpty()) && !Armies.ContainsByPredicate(
 			[&Army](const FWLArmy& Existing) { return Existing.Id == Army.Id; }))
 		{
 			Armies.Add(MoveTemp(Army));

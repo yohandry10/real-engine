@@ -28,6 +28,7 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	}
 
 	Save->SelectedNationIso = TEXT("VE");
+	Save->AIDifficulty = EWLAIDifficulty::Hard;
 	Save->CurrentYear = 2024;
 	Save->CurrentMonth = 2;
 	Save->NextArmyNumber = 4;
@@ -139,6 +140,122 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 
 	Save->CampaignOutcome.OutcomeType = TEXT("None");
 
+	FWLGovernmentAgendaState Agenda;
+	Agenda.NationIso = TEXT("VE");
+	Agenda.Priorities = { EWLGovernmentPriority::Security, EWLGovernmentPriority::Growth, EWLGovernmentPriority::Diplomacy };
+	Agenda.MonthsActive = 3;
+	Save->GovernmentAgendas.Add(Agenda);
+
+	FWLMinistryProgramState Program;
+	Program.NationIso = TEXT("VE");
+	Program.ProgramId = TEXT("econ_public_investment");
+	Program.Name = TEXT("Inversion publica");
+	Program.Office = EWLMinisterOffice::Economy;
+	Program.RemainingMonths = 2;
+	Program.Progress = 35;
+	Save->MinistryPrograms.Add(Program);
+
+	FWLCabinetDynamicsState Cabinet;
+	Cabinet.NationIso = TEXT("VE");
+	Cabinet.RivalryPressure = 22;
+	Cabinet.ScandalRisk = 18;
+	Save->CabinetDynamics.Add(Cabinet);
+
+	FWLInstitutionalPowerState Institution;
+	Institution.NationIso = TEXT("VE");
+	Institution.RulingCoalitionSupport = 61;
+	Institution.GridlockRisk = 24;
+	Save->InstitutionalPower.Add(Institution);
+
+	FWLPublicGroupSupportState Group;
+	Group.NationIso = TEXT("VE");
+	Group.Group = EWLPublicGroup::Workers;
+	Group.Support = 57;
+	Group.Pressure = 8;
+	Save->PublicGroupSupport.Add(Group);
+
+	FWLStateCapacityState Capacity;
+	Capacity.NationIso = TEXT("VE");
+	Capacity.Bureaucracy = 58;
+	Capacity.PolicyFailureRisk = 21;
+	Save->StateCapacity.Add(Capacity);
+
+	FWLPoliticalMemoryRecord Memory;
+	Memory.NationIso = TEXT("VE");
+	Memory.MemoryKey = TEXT("crisis_unrest");
+	Memory.Value = 2;
+	Memory.MonthsRemaining = 5;
+	Save->PoliticalMemory.Add(Memory);
+
+	FWLPoliticalAIPlanState Plan;
+	Plan.NationIso = TEXT("VE");
+	Plan.Objective = EWLGovernmentAIObjective::Industrialize;
+	Plan.CurrentProgramId = TEXT("econ_public_investment");
+	Save->GovernmentAIPlans.Add(Plan);
+
+	FWLActiveReformState Reform;
+	Reform.NationIso = TEXT("VE");
+	Reform.ReformId = TEXT("tax_broad_base");
+	Reform.Name = TEXT("Base tributaria amplia");
+	Reform.Area = EWLPolicyReformArea::Tax;
+	Reform.MonthsRemaining = 18;
+	Reform.ImplementationProgress = 35;
+	Save->ActivePolicyReforms.Add(Reform);
+
+	FWLPartyState Party;
+	Party.NationIso = TEXT("VE");
+	Party.PartyId = TEXT("ve_gov");
+	Party.Name = TEXT("Partido de Gobierno");
+	Party.Role = EWLPartyRole::Ruling;
+	Party.Seats = 36;
+	Party.LoyaltyToGovernment = 72;
+	Save->PoliticalParties.Add(Party);
+
+	FWLElectionState Election;
+	Election.NationIso = TEXT("VE");
+	Election.MonthsToElection = 12;
+	Election.CampaignPromiseReformId = TEXT("edu_public_schools");
+	Save->ElectionStates.Add(Election);
+
+	FWLCharacterPoliticalProfile Profile;
+	Profile.NationIso = TEXT("VE");
+	Profile.CharacterId = TEXT("VE-MIN-ECO-SERRANO");
+	Profile.Biography = TEXT("Perfil politico de prueba");
+	Profile.FactionId = TEXT("technocrats");
+	Profile.PresidentialAmbition = 44;
+	Save->CharacterPoliticalProfiles.Add(Profile);
+
+	FWLPatronageState Patronage;
+	Patronage.NationIso = TEXT("VE");
+	Patronage.ContractCorruption = 31;
+	Save->PatronageStates.Add(Patronage);
+
+	FWLMediaPublicOpinionState Media;
+	Media.NationIso = TEXT("VE");
+	Media.PresidentialApproval = 48;
+	Media.CensorshipBacklash = 13;
+	Save->MediaStates.Add(Media);
+
+	FWLRegionGovernorState Region;
+	Region.NationIso = TEXT("VE");
+	Region.RegionId = TEXT("VE-ZU");
+	Region.RegionName = TEXT("Zulia");
+	Region.Obedience = 62;
+	Save->RegionGovernors.Add(Region);
+
+	FWLCrisisChainState Crisis;
+	Crisis.NationIso = TEXT("VE");
+	Crisis.CrisisId = TEXT("VE|2");
+	Crisis.Type = EWLCrisisChainType::CorruptionScandal;
+	Crisis.Intensity = 66;
+	Save->CrisisChains.Add(Crisis);
+
+	FWLGovernmentCalibrationState Calibration;
+	Calibration.NationIso = TEXT("VE");
+	Calibration.MonthsObserved = 7;
+	Calibration.ReformGridlockPressure = 29;
+	Save->GovernmentCalibration.Add(Calibration);
+
 	TestTrue(TEXT("Guardar slot temporal"),
 		UGameplayStatics::SaveGameToSlot(Save, SlotName, UserIndex));
 
@@ -154,7 +271,9 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Nacion seleccionada"), Loaded->SelectedNationIso, FString(TEXT("VE")));
 	TestEqual(TEXT("Anio"), Loaded->CurrentYear, 2024);
 	TestEqual(TEXT("Mes"), Loaded->CurrentMonth, 2);
-	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 9);
+	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 12);
+	TestEqual(TEXT("Dificultad IA guardada"), static_cast<int32>(Loaded->AIDifficulty),
+		static_cast<int32>(EWLAIDifficulty::Hard));
 	TestEqual(TEXT("Tesoros guardados"), Loaded->NationTreasuries.Num(), 1);
 	TestEqual(TEXT("Tesoro VE"), Loaded->NationTreasuries[0].Treasury, static_cast<int64>(61730));
 	TestEqual(TEXT("Arancel VE guardado"), Loaded->NationTreasuries[0].TariffRatePercent, 18);
@@ -190,6 +309,40 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Fuerza red guardada"), Loaded->IntelligenceNetworks[0].NetworkStrength, 42);
 	TestEqual(TEXT("Evento politico guardado"), Loaded->PoliticalEvents.Num(), 1);
 	TestEqual(TEXT("Outcome guardado"), Loaded->CampaignOutcome.OutcomeType, FString(TEXT("None")));
+	TestEqual(TEXT("Agendas de gobierno guardadas"), Loaded->GovernmentAgendas.Num(), 1);
+	TestEqual(TEXT("Prioridades de agenda guardadas"), Loaded->GovernmentAgendas[0].Priorities.Num(), 3);
+	TestEqual(TEXT("Programas ministeriales guardados"), Loaded->MinistryPrograms.Num(), 1);
+	TestEqual(TEXT("Programa guardado"), Loaded->MinistryPrograms[0].ProgramId, FString(TEXT("econ_public_investment")));
+	TestEqual(TEXT("Dinamica gabinete guardada"), Loaded->CabinetDynamics.Num(), 1);
+	TestEqual(TEXT("Instituciones guardadas"), Loaded->InstitutionalPower.Num(), 1);
+	TestEqual(TEXT("Coalicion guardada"), Loaded->InstitutionalPower[0].RulingCoalitionSupport, 61);
+	TestEqual(TEXT("Grupos sociales guardados"), Loaded->PublicGroupSupport.Num(), 1);
+	TestEqual(TEXT("Apoyo trabajadores guardado"), Loaded->PublicGroupSupport[0].Support, 57);
+	TestEqual(TEXT("Capacidad estatal guardada"), Loaded->StateCapacity.Num(), 1);
+	TestEqual(TEXT("Riesgo de fallo guardado"), Loaded->StateCapacity[0].PolicyFailureRisk, 21);
+	TestEqual(TEXT("Memoria politica guardada"), Loaded->PoliticalMemory.Num(), 1);
+	TestEqual(TEXT("Valor memoria guardado"), Loaded->PoliticalMemory[0].Value, 2);
+	TestEqual(TEXT("Planes IA gobierno guardados"), Loaded->GovernmentAIPlans.Num(), 1);
+	TestEqual(TEXT("Objetivo IA guardado"), static_cast<int32>(Loaded->GovernmentAIPlans[0].Objective),
+		static_cast<int32>(EWLGovernmentAIObjective::Industrialize));
+	TestEqual(TEXT("Reformas P2 guardadas"), Loaded->ActivePolicyReforms.Num(), 1);
+	TestEqual(TEXT("Reforma P2 guardada"), Loaded->ActivePolicyReforms[0].ReformId, FString(TEXT("tax_broad_base")));
+	TestEqual(TEXT("Partidos guardados"), Loaded->PoliticalParties.Num(), 1);
+	TestEqual(TEXT("Partido guardado"), Loaded->PoliticalParties[0].PartyId, FString(TEXT("ve_gov")));
+	TestEqual(TEXT("Elecciones guardadas"), Loaded->ElectionStates.Num(), 1);
+	TestEqual(TEXT("Promesa electoral guardada"), Loaded->ElectionStates[0].CampaignPromiseReformId, FString(TEXT("edu_public_schools")));
+	TestEqual(TEXT("Perfiles politicos guardados"), Loaded->CharacterPoliticalProfiles.Num(), 1);
+	TestEqual(TEXT("Faccion perfil guardada"), Loaded->CharacterPoliticalProfiles[0].FactionId, FString(TEXT("technocrats")));
+	TestEqual(TEXT("Patronazgo guardado"), Loaded->PatronageStates.Num(), 1);
+	TestEqual(TEXT("Corrupcion contrato guardada"), Loaded->PatronageStates[0].ContractCorruption, 31);
+	TestEqual(TEXT("Medios guardados"), Loaded->MediaStates.Num(), 1);
+	TestEqual(TEXT("Backlash censura guardado"), Loaded->MediaStates[0].CensorshipBacklash, 13);
+	TestEqual(TEXT("Regiones guardadas"), Loaded->RegionGovernors.Num(), 1);
+	TestEqual(TEXT("Region guardada"), Loaded->RegionGovernors[0].RegionId, FString(TEXT("VE-ZU")));
+	TestEqual(TEXT("Crisis guardadas"), Loaded->CrisisChains.Num(), 1);
+	TestEqual(TEXT("Intensidad crisis guardada"), Loaded->CrisisChains[0].Intensity, 66);
+	TestEqual(TEXT("Calibracion guardada"), Loaded->GovernmentCalibration.Num(), 1);
+	TestEqual(TEXT("Meses calibracion guardados"), Loaded->GovernmentCalibration[0].MonthsObserved, 7);
 
 	TestTrue(TEXT("Borrar slot temporal"),
 		UGameplayStatics::DeleteGameInSlot(SlotName, UserIndex));

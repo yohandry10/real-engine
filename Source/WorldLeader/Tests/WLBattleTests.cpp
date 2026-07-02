@@ -35,6 +35,19 @@ bool FWLBattleResolveTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Texto de resultado invalido"),
 		UWLMilitaryLibrary::BattleResultToString(EWLBattleResult::Invalid), FString(TEXT("Resultado invalido")));
 
+	const FWLBalanceRules Rules = FWLBalanceRules::Default();
+	TestTrue(TEXT("Skill 100 da bonus de combate"),
+		FMath::IsNearlyEqual(UWLMilitaryLibrary::GeneralSkillCombatMultiplier(100, Rules), 1.25f));
+	TestTrue(TEXT("Skill 50 es neutro"),
+		FMath::IsNearlyEqual(UWLMilitaryLibrary::GeneralSkillCombatMultiplier(50, Rules), 1.0f));
+	TestTrue(TEXT("Skill 0 da penalizacion de combate"),
+		FMath::IsNearlyEqual(UWLMilitaryLibrary::GeneralSkillCombatMultiplier(0, Rules), 0.75f));
+
+	FWLBalanceRules CustomRules;
+	CustomRules.GeneralSkillCombatEffectAtMax = 0.40;
+	TestTrue(TEXT("El bonus de skill sale de balance"),
+		FMath::IsNearlyEqual(UWLMilitaryLibrary::GeneralSkillCombatMultiplier(100, CustomRules), 1.40f));
+
 	// Bonus de terreno: montaña favorece claramente al defensor.
 	TestTrue(TEXT("Montaña x1.5 > llano x1.0"),
 		UWLMilitaryLibrary::TerrainDefenseMultiplier(EWLTerrainType::Mountain) >

@@ -57,7 +57,8 @@ enum class EWLGovernmentTab : uint8
 	HighCommand,  // ALTO MANDO -> gabinete + generales (F1.6/F1.7)
 	Politics,     // POLITICA   -> orden publico, golpe/oposicion (F2) + eventos (F5)
 	Diplomacy,    // DIPLOMACIA -> relaciones, tratados, guerra (F3) + intriga (F4)
-	Records       // REGISTROS  -> IA economica / reportes
+	Records,      // REGISTROS  -> noticias del mes + IA economica
+	Province      // PROVINCIA  -> slots de edificios de la provincia seleccionada (sin boton de tab; se abre con [B])
 };
 
 UCLASS()
@@ -68,6 +69,9 @@ class WORLDLEADER_API UWLGovernmentWidget : public UUserWidget
 public:
 	/** Dispatcher central de acciones de los UWLGovActionButton ("verbo:arg1:arg2"). */
 	void HandleAction(const FString& ActionId);
+
+	/** Abre la ventana en modo PROVINCIA: panel de slots de edificios (niveles, upgrade, efectos). */
+	void OpenProvince(const FString& ProvinceId);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -100,6 +104,7 @@ private:
 	void BuildPoliticsTab();      // F2: poder interno + F5: eventos
 	void BuildDiplomacyTab();     // F3: relaciones/tratados/guerra + F4: intriga
 	void BuildRecordsTab();
+	void BuildProvinceTab();      // slots de edificios de ProvinceContextId
 
 	void SetActiveTab(EWLGovernmentTab Tab);
 	void RefreshTabButtonStyles();
@@ -137,4 +142,7 @@ private:
 	/** Resultado de la ultima accion (feedback del backend), mostrado arriba del contenido. */
 	FString LastActionMessage;
 	bool bLastActionSucceeded = true;
+
+	/** Provincia mostrada por el modo PROVINCIA (destino de build:/upgrade:). */
+	FString ProvinceContextId;
 };

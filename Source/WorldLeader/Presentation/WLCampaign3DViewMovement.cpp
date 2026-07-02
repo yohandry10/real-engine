@@ -4,6 +4,7 @@
 
 #include "WorldLeader.h"
 #include "Campaign/WLDataRegistry.h"
+#include "Core/WLCampaignRouteGraph.h"
 #include "Engine/GameInstance.h"
 #include "Military/WLMilitarySubsystem.h"
 #include "Presentation/WLCampaignOverviewBuilder.h"
@@ -566,8 +567,7 @@ void AWLCampaign3DView::AddMovementEdge(const FString& A, const FString& B)
 		return;
 	}
 
-	MovementAdjacency.FindOrAdd(A).AddUnique(B);
-	MovementAdjacency.FindOrAdd(B).AddUnique(A);
+	FWLCampaignRouteGraph::AddUndirectedEdge(MovementAdjacency, A, B);
 }
 
 const FWLCampaign3DMovementNodeView* AWLCampaign3DView::FindMovementNodeById(const FString& NodeId) const
@@ -620,35 +620,26 @@ void AWLCampaign3DView::GetValidMovementDestinations(
 
 	// TODOS los nodos alcanzables por carretera (BFS), no solo los adyacentes: el jugador ordena CUALQUIER
 	// ciudad y el ejercito viaja por turnos segun su cargador. (Si es naval, solo puertos.)
-	TSet<FString> Visited;
-	Visited.Add(OriginNodeId);
-	TArray<FString> Queue;
-	Queue.Add(OriginNodeId);
-	while (!Queue.IsEmpty())
+	const auto NodeAllowedForForce = [this, &Force](const FString& NodeId)
 	{
-		const FString CurrentId = Queue.Pop(EAllowShrinking::No);
-		const TArray<FString>* Neighbors = MovementAdjacency.Find(CurrentId);
-		if (!Neighbors)
+		const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(NodeId);
+		if (!Node)
 		{
-			continue;
+			return false;
 		}
-		for (const FString& NeighborId : *Neighbors)
+		if (Force.bNaval)
 		{
-			if (Visited.Contains(NeighborId))
-			{
-				continue;
-			}
-			Visited.Add(NeighborId);
-			Queue.Add(NeighborId);
-			const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(NeighborId);
-			if (!Node)
-			{
-				continue;
-			}
-			if (Force.bNaval && !Node->bPort)
-			{
-				continue;
-			}
+			return Node->bPort;
+		}
+		return true;
+	};
+
+	TArray<FString> ReachableNodeIds;
+	FWLCampaignRouteGraph::FindReachableNodes(MovementAdjacency, OriginNodeId, NodeAllowedForForce, ReachableNodeIds);
+	for (const FString& NodeId : ReachableNodeIds)
+	{
+		if (const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(NodeId))
+		{
 			OutDestinations.Add(*Node);
 		}
 	}

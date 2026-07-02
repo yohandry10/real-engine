@@ -5,6 +5,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Balance/WLBalanceSubsystem.h"
+#include "Campaign/WLCampaignGameInstance.h"
+#include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Characters/WLCharacterSubsystem.h"
 #include "Engine/GameInstance.h"
@@ -110,6 +113,602 @@ bool FWLPoliticalDiplomacyTreatyWarTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLPoliticalAmericaDiplomacyCoverageTest,
+	"WorldLeader.Politics.F3.AmericaDiplomacyCoverage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLPoliticalAmericaDiplomacyCoverageTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	const UWLDataRegistry* Registry = GameInstance->GetSubsystem<UWLDataRegistry>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	TestNotNull(TEXT("Data registry"), Registry);
+	if (!Politics || !Registry)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	const TArray<FWLNationData> Nations = Registry->GetAllNations();
+	TestTrue(TEXT("America cargada para diplomacia"), Nations.Num() >= 30);
+	const TArray<FWLDiplomaticRelationState> Relations = Politics->GetRelationsForNation(TEXT("CO"));
+	TestEqual(TEXT("Colombia tiene diplomacia con todas las demas naciones"), Relations.Num(), Nations.Num() - 1);
+
+	for (const FWLNationData& Nation : Nations)
+	{
+		const TArray<FWLDiplomaticRelationState> NationRelations = Politics->GetRelationsForNation(Nation.Iso);
+		TestEqual(FString::Printf(TEXT("%s tiene relaciones bilaterales completas"), *Nation.Iso),
+			NationRelations.Num(), Nations.Num() - 1);
+		if (Nation.Iso != TEXT("CO"))
+		{
+			FWLDiplomaticRelationState Relation;
+			TestTrue(FString::Printf(TEXT("Relacion CO-%s existe"), *Nation.Iso),
+				Politics->GetRelation(TEXT("CO"), Nation.Iso, Relation));
+		}
+	}
+
+	const FString ExpectedIsos[] = { TEXT("US"), TEXT("MX"), TEXT("BR"), TEXT("AR"), TEXT("PE"), TEXT("CL") };
+	FString Message;
+	for (const FString& OtherIso : ExpectedIsos)
+	{
+		FWLDiplomaticRelationState Relation;
+		TestTrue(FString::Printf(TEXT("Relacion CO-%s existe"), *OtherIso),
+			Politics->GetRelation(TEXT("CO"), OtherIso, Relation));
+		TestTrue(FString::Printf(TEXT("Opinion CO-%s ajustable"), *OtherIso),
+			Politics->SetRelationOpinion(TEXT("CO"), OtherIso, 35, Message));
+		TestTrue(FString::Printf(TEXT("Tratado comercial CO-%s firmable"), *OtherIso),
+			Politics->SignTreaty(TEXT("CO"), OtherIso, EWLTreatyType::TradeAgreement, Message));
+	}
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLPoliticalDiplomacyValidationGuardsTest,
+	"WorldLeader.Politics.DiplomacyValidationGuards",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLPoliticalDiplomacyValidationGuardsTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	if (!Politics)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString Message;
+	FWLDiplomaticRelationState Relation;
+	TestFalse(TEXT("No ajusta opinion con nacion invalida"),
+		Politics->AdjustRelationOpinion(TEXT("CO"), TEXT("XX"), 10, Message));
+	TestFalse(TEXT("No crea relacion para nacion invalida"),
+		Politics->GetRelation(TEXT("CO"), TEXT("XX"), Relation));
+	TestFalse(TEXT("No rompe tratado consigo mismo"),
+		Politics->BreakTreaty(TEXT("CO"), TEXT("CO"), EWLTreatyType::TradeAgreement, Message));
+	TestFalse(TEXT("No crea relacion consigo mismo"),
+		Politics->GetRelation(TEXT("CO"), TEXT("CO"), Relation));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLPoliticalStrategicAIDifficultyWarPostureTest,
+	"WorldLeader.Politics.StrategicAIDifficultyWarPosture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLPoliticalStrategicAIDifficultyWarPostureTest::RunTest(const FString& Parameters)
+{
+	auto RunCase = [this](EWLAIDifficulty Difficulty, bool bExpectWar) -> bool
+	{
+		UWLCampaignGameInstance* GameInstance = NewObject<UWLCampaignGameInstance>();
+		TestNotNull(TEXT("Campaign GameInstance"), GameInstance);
+		if (!GameInstance)
+		{
+			return false;
+		}
+		GameInstance->Init();
+
+		UWLBalanceSubsystem* Balance = GameInstance->GetSubsystem<UWLBalanceSubsystem>();
+		UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+		UWLMilitarySubsystem* Military = GameInstance->GetSubsystem<UWLMilitarySubsystem>();
+		TestNotNull(TEXT("Balance subsystem"), Balance);
+		TestNotNull(TEXT("Political subsystem"), Politics);
+		TestNotNull(TEXT("Military subsystem"), Military);
+		if (!Balance || !Politics || !Military)
+		{
+			GameInstance->Shutdown();
+			return false;
+		}
+
+		FWLBalanceRules Rules = Balance->GetRules();
+		Rules.AIDifficulty = Difficulty;
+		Balance->SetRuntimeRules(Rules);
+		TestTrue(TEXT("Iniciar campania VE"), GameInstance->StartNewCampaign(TEXT("VE")));
+
+		const FString CoArmy = Military->CreateArmy(TEXT("CO"), TEXT("CO-DC"), TEXT("infantry"), 10, TEXT(""));
+		const FString VeArmy = Military->CreateArmy(TEXT("VE"), TEXT("VE-ZU"), TEXT("infantry"), 1, TEXT(""));
+		TestFalse(TEXT("Ejercito CO creado"), CoArmy.IsEmpty());
+		TestFalse(TEXT("Ejercito VE creado"), VeArmy.IsEmpty());
+
+		FString Message;
+		TestTrue(TEXT("Opinion tensa controlada"),
+			Politics->SetRelationOpinion(TEXT("CO"), TEXT("VE"), -55, Message));
+		Politics->ProcessPoliticalMonth();
+
+		FWLDiplomaticRelationState Relation;
+		TestTrue(TEXT("Relacion consultable"), Politics->GetRelation(TEXT("CO"), TEXT("VE"), Relation));
+		const bool bAtWar = Relation.Status == EWLDiplomaticStatus::War;
+		TestEqual(
+			bExpectWar ? TEXT("Dificil declara guerra con ventaja moderada") : TEXT("Facil evita guerra con ventaja moderada"),
+			bAtWar,
+			bExpectWar);
+
+		GameInstance->Shutdown();
+		return true;
+	};
+
+	const bool bEasyOk = RunCase(EWLAIDifficulty::Easy, false);
+	const bool bHardOk = RunCase(EWLAIDifficulty::Hard, true);
+	return bEasyOk && bHardOk;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLPoliticalEventRelationDeltaTest,
+	"WorldLeader.Politics.EventRelationDelta",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLPoliticalEventRelationDeltaTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	if (!Politics)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLPoliticalEventOption Option;
+	Option.OptionId = TEXT("support");
+	Option.Label = TEXT("Apoyar al vecino");
+	Option.RelationDelta = 12;
+
+	FWLPoliticalEventInstance Event;
+	Event.InstanceId = TEXT("EV-0900");
+	Event.EventId = TEXT("diplomatic_support");
+	Event.NationIso = TEXT("CO");
+	Event.TargetIso = TEXT("VE");
+	Event.Title = TEXT("Apoyo diplomatico");
+	Event.Body = TEXT("El gobierno toma posicion.");
+	Event.Options.Add(Option);
+
+	FString Message;
+	FWLCampaignOutcomeState Outcome;
+	TArray<FWLPoliticalEventInstance> Events;
+	Events.Add(Event);
+	TestTrue(TEXT("Restaurar evento diplomatico"),
+		Politics->RestoreSaveSnapshot(
+			TArray<FWLInternalPowerState>(),
+			TArray<FWLDiplomaticRelationState>(),
+			TArray<FWLIntelligenceNetworkState>(),
+			Events,
+			Outcome,
+			Message));
+
+	FWLDiplomaticRelationState Before;
+	TestTrue(TEXT("Relacion previa existe"), Politics->GetRelation(TEXT("CO"), TEXT("VE"), Before));
+	TestTrue(TEXT("Resolver aplica delta diplomatico"),
+		Politics->ResolveEvent(TEXT("EV-0900"), TEXT("support"), Message));
+
+	FWLDiplomaticRelationState After;
+	TestTrue(TEXT("Relacion posterior existe"), Politics->GetRelation(TEXT("CO"), TEXT("VE"), After));
+	TestEqual(TEXT("Delta diplomatico aplicado"), After.Opinion, Before.Opinion + 12);
+
+	Event.InstanceId = TEXT("EV-0901");
+	Event.TargetIso.Reset();
+	Events.Reset();
+	Events.Add(Event);
+	TestTrue(TEXT("Restaurar evento sin objetivo"),
+		Politics->RestoreSaveSnapshot(
+			TArray<FWLInternalPowerState>(),
+			TArray<FWLDiplomaticRelationState>(),
+			TArray<FWLIntelligenceNetworkState>(),
+			Events,
+			Outcome,
+			Message));
+	TestFalse(TEXT("RelationDelta sin objetivo no toca estado"),
+		Politics->ResolveEvent(TEXT("EV-0901"), TEXT("support"), Message));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLGovernmentAgendaProgramsAndStateTest,
+	"WorldLeader.Government.RealGovernment.AgendaProgramsState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLGovernmentAgendaProgramsAndStateTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	UWLCharacterSubsystem* Characters = GameInstance->GetSubsystem<UWLCharacterSubsystem>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	TestNotNull(TEXT("Character subsystem"), Characters);
+	if (!Politics || !Characters)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString Message;
+	TestTrue(TEXT("Set agenda nacional"),
+		Politics->SetGovernmentAgenda(TEXT("CO"),
+			{ EWLGovernmentPriority::Austerity, EWLGovernmentPriority::Industrialization, EWLGovernmentPriority::Control },
+			Message));
+	const FWLGovernmentAgendaState Agenda = Politics->GetGovernmentAgenda(TEXT("CO"));
+	TestEqual(TEXT("Agenda tiene tres prioridades"), Agenda.Priorities.Num(), 3);
+	TestTrue(TEXT("Agenda conserva austeridad"), Agenda.Priorities.Contains(EWLGovernmentPriority::Austerity));
+
+	const TArray<FWLMinistryProgramDefinition> Programs = Politics->GetAvailableMinistryPrograms(TEXT("CO"));
+	TestTrue(TEXT("Catalogo ministerial amplio"), Programs.Num() >= 50);
+	TSet<EWLMinisterOffice> Offices;
+	for (const FWLMinistryProgramDefinition& Program : Programs)
+	{
+		Offices.Add(Program.Office);
+	}
+	TestTrue(TEXT("Economia tiene programas"), Offices.Contains(EWLMinisterOffice::Economy));
+	TestTrue(TEXT("Defensa tiene programas"), Offices.Contains(EWLMinisterOffice::Defense));
+	TestTrue(TEXT("Interior tiene programas"), Offices.Contains(EWLMinisterOffice::Interior));
+	TestTrue(TEXT("Exterior tiene programas"), Offices.Contains(EWLMinisterOffice::Foreign));
+	TestTrue(TEXT("Inteligencia tiene programas"), Offices.Contains(EWLMinisterOffice::Intelligence));
+
+	const int32 PoliticalCapitalBefore = Characters->GetPoliticalCapital(TEXT("CO"));
+	TestTrue(TEXT("Iniciar programa de inversion publica"),
+		Politics->StartMinistryProgram(TEXT("CO"), TEXT("econ_public_investment"), Message));
+	TestTrue(TEXT("Programa queda activo"), Politics->GetActiveMinistryPrograms(TEXT("CO")).Num() > 0);
+	TestTrue(TEXT("Programa cuesta capital politico"),
+		Characters->GetPoliticalCapital(TEXT("CO")) < PoliticalCapitalBefore);
+
+	Politics->ProcessPoliticalMonth();
+	const TArray<FWLPublicGroupSupportState> Groups = Politics->GetPublicGroups(TEXT("CO"));
+	TestEqual(TEXT("Seis grupos sociales"), Groups.Num(), 6);
+	bool bWorkersShifted = false;
+	for (const FWLPublicGroupSupportState& Group : Groups)
+	{
+		if (Group.Group == EWLPublicGroup::Workers && Group.Support > 50)
+		{
+			bWorkersShifted = true;
+		}
+	}
+	TestTrue(TEXT("Programa modifica apoyo de trabajadores"), bWorkersShifted);
+
+	const FWLStateCapacityState Capacity = Politics->GetStateCapacity(TEXT("CO"));
+	TestTrue(TEXT("Capacidad estatal calculada"), Capacity.AdministrativeEfficiency >= 0 && Capacity.PolicyFailureRisk >= 0);
+
+	const FWLCabinetDynamicsState Dynamics = Politics->GetCabinetDynamics(TEXT("CO"));
+	TestTrue(TEXT("Dinamica de gabinete calculada"),
+		Dynamics.ScandalRisk >= 0 && Dynamics.SabotageRisk >= 0 && Dynamics.ResignationRisk >= 0);
+
+	const FWLInstitutionalPowerState InstitutionsBefore = Politics->GetInstitutionalPower(TEXT("CO"));
+	TestTrue(TEXT("Aprobar reforma consume base institucional"),
+		Politics->PassGovernmentReform(TEXT("CO"), TEXT("test_reform"), 4, Message));
+	const FWLInstitutionalPowerState InstitutionsAfter = Politics->GetInstitutionalPower(TEXT("CO"));
+	TestFalse(TEXT("Congreso registra votacion"), InstitutionsAfter.LastVoteReport.IsEmpty());
+	TestTrue(TEXT("Coalicion no sube gratis con reforma"),
+		InstitutionsAfter.RulingCoalitionSupport <= InstitutionsBefore.RulingCoalitionSupport);
+
+	TArray<FWLGovernmentAgendaState> SavedAgendas;
+	TArray<FWLMinistryProgramState> SavedPrograms;
+	TArray<FWLCabinetDynamicsState> SavedDynamics;
+	TArray<FWLInstitutionalPowerState> SavedInstitutions;
+	TArray<FWLPublicGroupSupportState> SavedGroups;
+	TArray<FWLStateCapacityState> SavedCapacity;
+	TArray<FWLPoliticalMemoryRecord> SavedMemory;
+	TArray<FWLPoliticalAIPlanState> SavedPlans;
+	Politics->WriteGovernmentSaveSnapshot(
+		SavedAgendas,
+		SavedPrograms,
+		SavedDynamics,
+		SavedInstitutions,
+		SavedGroups,
+		SavedCapacity,
+		SavedMemory,
+		SavedPlans);
+	TestTrue(TEXT("Snapshot guarda agenda"), SavedAgendas.Num() > 0);
+	TestTrue(TEXT("Snapshot guarda grupos sociales"), SavedGroups.Num() >= 6);
+	TestTrue(TEXT("Restaurar snapshot de gobierno"),
+		Politics->RestoreGovernmentSaveSnapshot(
+			SavedAgendas,
+			SavedPrograms,
+			SavedDynamics,
+			SavedInstitutions,
+			SavedGroups,
+			SavedCapacity,
+			SavedMemory,
+			SavedPlans,
+			Message));
+	TestEqual(TEXT("Agenda restaurada"), Politics->GetGovernmentAgenda(TEXT("CO")).Priorities.Num(), 3);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLGovernmentP2RealPoliticsSystemsTest,
+	"WorldLeader.Government.P2.RealPoliticsSystems",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	if (!Politics)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	const TArray<FWLPolicyReformDefinition> Reforms = Politics->GetAvailablePolicyReforms(TEXT("CO"));
+	TestTrue(TEXT("Catalogo de reformas P2 fuerte"), Reforms.Num() >= 24);
+	TSet<EWLPolicyReformArea> Areas;
+	for (const FWLPolicyReformDefinition& Reform : Reforms)
+	{
+		Areas.Add(Reform.Area);
+	}
+	TestEqual(TEXT("Todas las areas de reforma cubiertas"), Areas.Num(), 12);
+
+	FString Message;
+	TestTrue(TEXT("Aprobar reforma tributaria P2"),
+		Politics->EnactPolicyReform(TEXT("CO"), TEXT("tax_broad_base"), Message));
+	TestTrue(TEXT("Reforma queda activa"), Politics->GetActivePolicyReforms(TEXT("CO")).Num() > 0);
+
+	const TArray<FWLPartyState> PartiesBefore = Politics->GetPoliticalParties(TEXT("CO"));
+	TestTrue(TEXT("Partidos politicos sembrados"), PartiesBefore.Num() >= 5);
+	FString NegotiatedPartyId;
+	for (const FWLPartyState& Party : PartiesBefore)
+	{
+		if (Party.Role == EWLPartyRole::SoftOpposition || Party.Role == EWLPartyRole::Ally)
+		{
+			NegotiatedPartyId = Party.PartyId;
+			break;
+		}
+	}
+	TestFalse(TEXT("Hay partido negociable"), NegotiatedPartyId.IsEmpty());
+	TestTrue(TEXT("Negociar soporte partidista"),
+		Politics->NegotiatePartySupport(TEXT("CO"), NegotiatedPartyId, Message));
+
+	TestTrue(TEXT("Promesa electoral valida"),
+		Politics->MakeCampaignPromise(TEXT("CO"), TEXT("edu_public_schools"), Message));
+	const FWLElectionState Election = Politics->GetElectionState(TEXT("CO"));
+	TestEqual(TEXT("Promesa queda registrada"), Election.CampaignPromiseReformId, FString(TEXT("edu_public_schools")));
+
+	const TArray<FWLCharacterPoliticalProfile> Profiles = Politics->GetCharacterPoliticalProfiles(TEXT("CO"));
+	TestTrue(TEXT("Personajes tienen perfil politico"), Profiles.Num() > 0);
+	TestFalse(TEXT("Perfil tiene biografia"), Profiles[0].Biography.IsEmpty());
+
+	TestTrue(TEXT("Usar patronazgo"),
+		Politics->UsePatronage(TEXT("CO"), EWLPatronageActionType::AwardContract, Message));
+	TestTrue(TEXT("Patronazgo eleva corrupcion de contratos"),
+		Politics->GetPatronageState(TEXT("CO")).ContractCorruption > 0);
+
+	TestTrue(TEXT("Accion de medios"),
+		Politics->RunMediaAction(TEXT("CO"), EWLMediaActionType::Censorship, Message));
+	TestTrue(TEXT("Censura deja backlash"),
+		Politics->GetMediaPublicOpinion(TEXT("CO")).CensorshipBacklash > 0);
+
+	const TArray<FWLRegionGovernorState> Regions = Politics->GetRegionGovernors(TEXT("CO"));
+	TestTrue(TEXT("Gobernadores/regiones sembrados"), Regions.Num() > 0);
+	TestTrue(TEXT("Politica regional ejecuta"),
+		Politics->RunRegionPolicy(TEXT("CO"), Regions[0].RegionId, EWLRegionPolicyActionType::RegionalInvestment, Message));
+
+	FWLCrisisChainState Crisis;
+	Crisis.NationIso = TEXT("CO");
+	Crisis.CrisisId = TEXT("CO|TEST_CRISIS");
+	Crisis.Type = EWLCrisisChainType::Impeachment;
+	Crisis.Stage = 2;
+	Crisis.Intensity = 85;
+	Crisis.MonthsActive = 1;
+	Crisis.LastReport = TEXT("crisis test");
+	TestTrue(TEXT("Restaurar crisis P2"),
+		Politics->RestoreGovernmentP2SaveSnapshot(
+			Politics->GetActivePolicyReforms(TEXT("CO")),
+			Politics->GetPoliticalParties(TEXT("CO")),
+			{ Politics->GetElectionState(TEXT("CO")) },
+			Politics->GetCharacterPoliticalProfiles(TEXT("CO")),
+			{ Politics->GetPatronageState(TEXT("CO")) },
+			{ Politics->GetMediaPublicOpinion(TEXT("CO")) },
+			Politics->GetRegionGovernors(TEXT("CO")),
+			{ Crisis },
+			{ Politics->GetGovernmentCalibration(TEXT("CO")) },
+			Message));
+	TestTrue(TEXT("Crisis P2 activa restaurada"), Politics->GetActiveCrisisChains(TEXT("CO")).Num() > 0);
+
+	Politics->ProcessPoliticalMonth();
+	TestTrue(TEXT("Calibracion observa mes"),
+		Politics->GetGovernmentCalibration(TEXT("CO")).MonthsObserved > 0);
+
+	TArray<FWLActiveReformState> SavedReforms;
+	TArray<FWLPartyState> SavedParties;
+	TArray<FWLElectionState> SavedElections;
+	TArray<FWLCharacterPoliticalProfile> SavedProfiles;
+	TArray<FWLPatronageState> SavedPatronage;
+	TArray<FWLMediaPublicOpinionState> SavedMedia;
+	TArray<FWLRegionGovernorState> SavedRegions;
+	TArray<FWLCrisisChainState> SavedCrises;
+	TArray<FWLGovernmentCalibrationState> SavedCalibration;
+	Politics->WriteGovernmentP2SaveSnapshot(
+		SavedReforms,
+		SavedParties,
+		SavedElections,
+		SavedProfiles,
+		SavedPatronage,
+		SavedMedia,
+		SavedRegions,
+		SavedCrises,
+		SavedCalibration);
+	TestTrue(TEXT("Snapshot P2 guarda reformas"), SavedReforms.Num() > 0);
+	TestTrue(TEXT("Snapshot P2 guarda partidos"), SavedParties.Num() >= 5);
+	TestTrue(TEXT("Snapshot P2 guarda elecciones"), SavedElections.Num() > 0);
+	TestTrue(TEXT("Snapshot P2 guarda perfiles"), SavedProfiles.Num() > 0);
+	TestTrue(TEXT("Snapshot P2 guarda regiones"), SavedRegions.Num() > 0);
+	TestTrue(TEXT("Snapshot P2 guarda calibracion"), SavedCalibration.Num() > 0);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLGovernmentMemoryChainsAndAITest,
+	"WorldLeader.Government.RealGovernment.MemoryChainsAndAI",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLGovernmentMemoryChainsAndAITest::RunTest(const FString& Parameters)
+{
+	UWLCampaignGameInstance* GameInstance = NewObject<UWLCampaignGameInstance>();
+	TestNotNull(TEXT("Campaign GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+	TestTrue(TEXT("Campania CO"), GameInstance->StartNewCampaign(TEXT("CO")));
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	if (!Politics)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLPoliticalEventOption Repress;
+	Repress.OptionId = TEXT("repress");
+	Repress.Label = TEXT("Reprimir protestas");
+	Repress.OppositionDelta = -8;
+	Repress.PublicOrderDelta = -4;
+
+	FWLPoliticalEventInstance Event;
+	Event.InstanceId = TEXT("EV-0888");
+	Event.EventId = TEXT("memory_seed");
+	Event.NationIso = TEXT("CO");
+	Event.Title = TEXT("Protesta local");
+	Event.Body = TEXT("La protesta exige respuesta.");
+	Event.Options.Add(Repress);
+
+	FWLCampaignOutcomeState Outcome;
+	FString Message;
+	TestTrue(TEXT("Restaurar evento para memoria"),
+		Politics->RestoreSaveSnapshot(
+			TArray<FWLInternalPowerState>(),
+			TArray<FWLDiplomaticRelationState>(),
+			TArray<FWLIntelligenceNetworkState>(),
+			{ Event },
+			Outcome,
+			Message));
+	TestTrue(TEXT("Resolver evento crea memoria"),
+		Politics->ResolveEvent(TEXT("EV-0888"), TEXT("repress"), Message));
+	TestTrue(TEXT("Memoria politica registrada"),
+		Politics->GetPoliticalMemory(TEXT("CO")).Num() > 0);
+
+	FWLPoliticalMemoryRecord Unrest;
+	Unrest.NationIso = TEXT("CO");
+	Unrest.MemoryKey = TEXT("crisis_unrest");
+	Unrest.Value = 2;
+	Unrest.MonthsRemaining = 6;
+	Unrest.LastReason = TEXT("test crisis");
+	TestTrue(TEXT("Restaurar memoria de crisis"),
+		Politics->RestoreGovernmentSaveSnapshot(
+			TArray<FWLGovernmentAgendaState>(),
+			TArray<FWLMinistryProgramState>(),
+			TArray<FWLCabinetDynamicsState>(),
+			TArray<FWLInstitutionalPowerState>(),
+			TArray<FWLPublicGroupSupportState>(),
+			TArray<FWLStateCapacityState>(),
+			{ Unrest },
+			TArray<FWLPoliticalAIPlanState>(),
+			Message));
+	Politics->ProcessPoliticalMonth();
+	const TArray<FWLPoliticalEventInstance> CoEvents = Politics->GetQueuedEvents(TEXT("CO"));
+	const bool bStrikeQueued = CoEvents.ContainsByPredicate([](const FWLPoliticalEventInstance& Queued)
+	{
+		return Queued.EventId == TEXT("crisis_strike");
+	});
+	TestTrue(TEXT("Memoria escala a cadena de crisis"), bStrikeQueued);
+
+	TestTrue(TEXT("Reiniciar campania VE para probar IA CO"), GameInstance->StartNewCampaign(TEXT("VE")));
+	FWLInternalPowerState CoInternal;
+	CoInternal.NationIso = TEXT("CO");
+	CoInternal.AveragePublicOrder = 35;
+	CoInternal.OppositionStrength = 75;
+	CoInternal.CoupRisk = 70;
+	TestTrue(TEXT("Restaurar presion politica CO"),
+		Politics->RestoreSaveSnapshot(
+			{ CoInternal },
+			TArray<FWLDiplomaticRelationState>(),
+			TArray<FWLIntelligenceNetworkState>(),
+			TArray<FWLPoliticalEventInstance>(),
+			Outcome,
+			Message));
+	Politics->ProcessPoliticalMonth();
+	const FWLPoliticalAIPlanState Plan = Politics->GetGovernmentAIPlan(TEXT("CO"));
+	TestEqual(TEXT("IA politica elige estabilizar"),
+		static_cast<int32>(Plan.Objective), static_cast<int32>(EWLGovernmentAIObjective::Stabilize));
+	TestTrue(TEXT("IA politica define agenda"),
+		Politics->GetGovernmentAgenda(TEXT("CO")).Priorities.Contains(EWLGovernmentPriority::Control));
+	TestTrue(TEXT("IA politica inicia programa"), !Plan.CurrentProgramId.IsEmpty()
+		|| Politics->GetActiveMinistryPrograms(TEXT("CO")).Num() > 0);
+	TestTrue(TEXT("IA politica usa backend P2 de reformas"),
+		Politics->GetActivePolicyReforms(TEXT("CO")).Num() > 0);
+	TestTrue(TEXT("IA politica conserva partidos para coalicion"),
+		Politics->GetPoliticalParties(TEXT("CO")).Num() >= 5);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLPoliticalIntrigueEventsSaveTest,
 	"WorldLeader.Politics.F2F4F5.IntrigueEventsSave",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -146,9 +745,24 @@ bool FWLPoliticalIntrigueEventsSaveTest::RunTest(const FString& Parameters)
 	FWLInternalPowerState Internal = Politics->GetInternalPower(TEXT("VE"));
 	TestTrue(TEXT("Financiacion externa aplicada"), Internal.ExternalCoupFunding > 0);
 
+	TArray<FWLInternalPowerState> SavedInternal;
+	TArray<FWLDiplomaticRelationState> SavedRelations;
+	TArray<FWLIntelligenceNetworkState> SavedNetworks;
+	TArray<FWLPoliticalEventInstance> SavedEvents;
+	FWLCampaignOutcomeState SavedOutcome;
 	Tick->AdjustNationPublicOrder(TEXT("VE"), -40);
-	Politics->ProcessPoliticalMonth();
-	Politics->ProcessPoliticalMonth();
+	Politics->WriteSaveSnapshot(SavedInternal, SavedRelations, SavedNetworks, SavedEvents, SavedOutcome);
+	for (FWLInternalPowerState& SavedState : SavedInternal)
+	{
+		if (SavedState.NationIso == TEXT("VE"))
+		{
+			SavedState.AveragePublicOrder = 35;
+			SavedState.OppositionStrength = 55;
+			SavedState.CoupRisk = 65;
+		}
+	}
+	TestTrue(TEXT("Restaurar presion interna para evento"),
+		Politics->RestoreSaveSnapshot(SavedInternal, SavedRelations, SavedNetworks, SavedEvents, SavedOutcome, Message));
 	Politics->ProcessPoliticalMonth();
 	const TArray<FWLPoliticalEventInstance> Events = Politics->GetQueuedEvents(TEXT("VE"));
 	TestTrue(TEXT("Eventos politicos encolados"), Events.Num() > 0);
@@ -159,11 +773,6 @@ bool FWLPoliticalIntrigueEventsSaveTest::RunTest(const FString& Parameters)
 			Politics->ResolveEvent(Events[0].InstanceId, Events[0].Options[0].OptionId, Message));
 	}
 
-	TArray<FWLInternalPowerState> SavedInternal;
-	TArray<FWLDiplomaticRelationState> SavedRelations;
-	TArray<FWLIntelligenceNetworkState> SavedNetworks;
-	TArray<FWLPoliticalEventInstance> SavedEvents;
-	FWLCampaignOutcomeState SavedOutcome;
 	Politics->WriteSaveSnapshot(SavedInternal, SavedRelations, SavedNetworks, SavedEvents, SavedOutcome);
 	Politics->ResetPoliticalState();
 	FString RestoreMessage;

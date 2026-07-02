@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Core/WLGameTypes.h"
+#include "Core/WLTacticalBattleTypes.h"
 #include "WLMilitarySubsystem.generated.h"
 
 class UWLDataRegistry;
@@ -69,6 +70,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	EWLBattleResult AutoResolveBattle(const FString& AttackerId, const FString& DefenderId, FString& OutReport);
 
+	/** Inicia una batalla tactica oficial desde ejercitos de campania validados. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	bool StartTacticalBattle(const FString& AttackerId, const FString& DefenderId, FWLTacticalBattleState& OutBattle, FString& OutMessage);
+
+	/** Aplica el resultado tactico cerrado al estado militar de campania: bajas, ocupacion y renombre. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	bool ApplyTacticalBattleResult(const FString& BattleId, FString& OutMessage);
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	bool ReorganizeArmy(const FString& ArmyId, int32 MaxUnits, FString& OutMessage);
+
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	void ResetMilitaryState();
 
@@ -87,4 +99,8 @@ private:
 	const FWLArmy* FindArmy(const FString& ArmyId) const;
 	int32 SumUnitStat(const FWLArmy& Army, bool bAttack) const;
 	void ApplyCasualties(FWLArmy& Army, float LossFraction) const;
+	bool ValidateBattlePair(const FWLArmy& Attacker, const FWLArmy& Defender, FString& OutMessage) const;
+	void ReconcileArmyFromTacticalBattle(FWLArmy& Army, const FWLTacticalBattleState& Battle, int32& OutDestroyedLosses, int32& OutRoutedUnits) const;
+	bool FindRetreatProvinceForArmy(const FWLArmy& Army, const FString& FromProvinceId, FString& OutRetreatProvinceId) const;
+	void AwardBattleRenown(const FWLArmy& Attacker, const FWLArmy& Defender, bool bAttackerWins);
 };

@@ -1,6 +1,7 @@
 // Copyright World Leader project. See ROADMAP.md.
 
 #include "Campaign/WLCampaignGameInstance.h"
+#include "Balance/WLBalanceSubsystem.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Characters/WLCharacterSubsystem.h"
@@ -14,7 +15,7 @@ namespace
 {
 	const FString WLLocalCampaignSlot = TEXT("WorldLeader_LocalCampaign");
 	constexpr int32 WLLocalCampaignUserIndex = 0;
-	constexpr int32 WLLocalCampaignSaveVersion = 9;
+	constexpr int32 WLLocalCampaignSaveVersion = 12;
 }
 
 UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
@@ -135,6 +136,10 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 
 	Save->SaveVersion = WLLocalCampaignSaveVersion;
 	Save->SelectedNationIso = Nation.Iso;
+	if (const UWLBalanceSubsystem* Balance = GetSubsystem<UWLBalanceSubsystem>())
+	{
+		Save->AIDifficulty = Balance->GetAIDifficulty();
+	}
 	Tick->WriteSaveSnapshot(
 		Save->CurrentYear,
 		Save->CurrentMonth,
@@ -160,6 +165,25 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 			Save->IntelligenceNetworks,
 			Save->PoliticalEvents,
 			Save->CampaignOutcome);
+		Politics->WriteGovernmentSaveSnapshot(
+			Save->GovernmentAgendas,
+			Save->MinistryPrograms,
+			Save->CabinetDynamics,
+			Save->InstitutionalPower,
+			Save->PublicGroupSupport,
+			Save->StateCapacity,
+			Save->PoliticalMemory,
+			Save->GovernmentAIPlans);
+		Politics->WriteGovernmentP2SaveSnapshot(
+			Save->ActivePolicyReforms,
+			Save->PoliticalParties,
+			Save->ElectionStates,
+			Save->CharacterPoliticalProfiles,
+			Save->PatronageStates,
+			Save->MediaStates,
+			Save->RegionGovernors,
+			Save->CrisisChains,
+			Save->GovernmentCalibration);
 	}
 
 	const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, WLLocalCampaignSlot, WLLocalCampaignUserIndex);
@@ -197,6 +221,11 @@ bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 	{
 		OutMessage = FString::Printf(TEXT("Nacion guardada no disponible: %s"), *Save->SelectedNationIso);
 		return false;
+	}
+
+	if (UWLBalanceSubsystem* Balance = GetSubsystem<UWLBalanceSubsystem>())
+	{
+		Balance->SetAIDifficulty(Save->AIDifficulty);
 	}
 
 	FString RestoreMessage;
@@ -244,6 +273,35 @@ bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 			Save->IntelligenceNetworks,
 			Save->PoliticalEvents,
 			Save->CampaignOutcome,
+			PoliticsMessage))
+		{
+			OutMessage = PoliticsMessage;
+			return false;
+		}
+		if (!Politics->RestoreGovernmentSaveSnapshot(
+			Save->GovernmentAgendas,
+			Save->MinistryPrograms,
+			Save->CabinetDynamics,
+			Save->InstitutionalPower,
+			Save->PublicGroupSupport,
+			Save->StateCapacity,
+			Save->PoliticalMemory,
+			Save->GovernmentAIPlans,
+			PoliticsMessage))
+		{
+			OutMessage = PoliticsMessage;
+			return false;
+		}
+		if (!Politics->RestoreGovernmentP2SaveSnapshot(
+			Save->ActivePolicyReforms,
+			Save->PoliticalParties,
+			Save->ElectionStates,
+			Save->CharacterPoliticalProfiles,
+			Save->PatronageStates,
+			Save->MediaStates,
+			Save->RegionGovernors,
+			Save->CrisisChains,
+			Save->GovernmentCalibration,
 			PoliticsMessage))
 		{
 			OutMessage = PoliticsMessage;

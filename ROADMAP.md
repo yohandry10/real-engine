@@ -1337,6 +1337,12 @@ Source/
 
 # BACKEND ONLINE
 
+> **Estado actual (2026-07-02):** esta sección describe la plataforma online futura
+> (Rust/Axum + PostgreSQL + Redis). No forma parte del backend local jugable que ya
+> compila en Unreal; en esta rama no existe todavía `Source/WorldLeader/Online/` ni
+> un servicio Rust. Si el alcance pasa a multijugador/online persistente, esta será
+> una fase backend separada, no UIX.
+
 ## Stack backend
 
 ```txt
@@ -1981,21 +1987,67 @@ De ahí se desprenden las reglas duras del mapa:
   los corredores reales hacia las capitales/puertos enemigos; los puentes y pasos son
   cuellos de botella decisivos.
 
-**Implicación técnica (pendiente):** convertir esta red en el **grafo de pathfinding** de
-ejércitos (nodos=ciudades, aristas=corredores con costo), para que "elegí destino → la
-tropa recorre las carreteras reales y cruza por la frontera real" sea la jugada base.
+**Implicación técnica (backend listo):** la red ya tiene **grafo de pathfinding** de
+ejércitos: `FWLCampaignRouteGraph` calcula aristas bidireccionales, rutas cortas y nodos
+alcanzables con filtros (p.ej. naval solo por puertos), y `AWLCampaign3DView` lo consume
+para que "elegí destino → la tropa recorre las carreteras reales y cruza por la frontera
+real" sea la jugada base. Falta UIX/feedback visual, no el backend del grafo.
 
 ---
 
 ## ANEXO — CAMPAIGN3D: GAMEPLAY DE PRESIDENTE + UX PENDIENTE
 
-> **Estado actual del prototipo Campaign3D (teatro Colombia–Venezuela):** ya hay mapa 3D,
-> ciudades, carreteras, **fuertes de reclutamiento**, **ejércitos que se mueven siguiendo el
-> trazado de la carretera** por turnos, **tick mensual [M]**, tesoro por país y
-> **reclutamiento por país (cada país en sus fuertes, tesoro/ejército independientes)**.
-> Lo que FALTA es la **capa de gobierno** ("¿qué puedo hacer como presidente?") y **pulir la
-> UX**. La visión macro ya está descrita arriba en «SISTEMAS POLÍTICOS Y DIPLOMÁTICOS»,
-> «ECONOMÍA», «Edificios por slot» y la Phase 5; esta sección la baja a **tareas concretas**.
+> **Estado actual del prototipo Campaign3D (teatro Colombia–Venezuela + backend América):** ya hay mapa 3D,
+> ciudades, carreteras, **fuertes de reclutamiento**, **ejércitos reales conectados al backend**,
+> movimiento por carretera, **tick mensual [M]**, tesoro por país, reclutamiento por país,
+> economía/gobierno/diplomacia/intriga locales, **38 naciones americanas promovidas a backend
+> diplomático/económico**, gabinete y pool de personajes por nación, contratación/nombramiento de ministros,
+> **Gobierno P1/P2 real** (agenda nacional, 50 programas ministeriales, árbol de 24 leyes/reformas,
+> partidos/ideologías, elecciones/legitimidad, perfiles políticos de personajes, patronazgo/corrupción política,
+> medios/opinión pública, gobernadores regionales, crisis encadenadas, métricas de calibración e IA política ampliada),
+> IA económica continental no jugadora y batalla táctica backend con IA básica, retirada/reorganización
+> operacional y resultado oficial de campaña. Lo que FALTA ya no es el backend de gobierno: falta
+> **UIX fuera de la ventana GOBIERNO**, batalla táctica visual y pulido de feedback/UX. La visión macro ya está descrita
+> arriba en «SISTEMAS POLÍTICOS Y DIPLOMÁTICOS», «ECONOMÍA», «Edificios por slot» y la Phase 5;
+> esta sección la baja a **tareas concretas**.
+
+### Auditoría backend senior — alcance real
+
+> **Conclusión:** no está "100% listo todo el backend del proyecto entero". Está listo el **backend local
+> jugable P0/P2 de gobierno/campaña**: personajes, gabinete, contratación/nombramiento/destitución de ministros,
+> pools generados por ministerio para todas las naciones americanas cargadas, poder interno, diplomacia/guerra
+> continental, intriga, eventos, **agenda nacional, programas ministeriales, árbol de leyes/reformas, partidos,
+> elecciones, perfiles políticos, patronazgo, medios, regiones/gobernadores, crisis encadenadas, dinámica de gabinete,
+> instituciones, grupos sociales, capacidad estatal, memoria política, calibración y planificador IA de gobierno**, economía FE1-FE6,
+> edificios, guardado local, IA económica/estratégica por dificultad, batalla táctica backend, resultado oficial,
+> retirada/reorganización y grafo de rutas. Si el alcance
+> es el GDD entero, faltan backend online, dedicated server PvP, datos mundiales profundos fuera de esta capa local
+> y profundidad P3/data-driven de simulación. Validación actual: build `WorldLeaderEditor Win64 Development` OK;
+> suite `Automation RunTests WorldLeader` 55/55 (`EXIT CODE: 0`). No se abrió Standalone en esta pasada.
+
+**No es frontend/UIX:**
+- Backend online Rust/Axum + PostgreSQL + Redis + matchmaking + perfiles + resultados PvP.
+- Dedicated Server autoritativo para batallas PvP y validación de resultado online.
+- Datos mundiales profundos: `Nations.json`/`Provinces.json` mantienen CO/VE detallado, pero
+  `UWLDataRegistry` promueve `Content/Data/Campaign3D/AmericaLowDetail/*.json` a 38 naciones backend con
+  capitales sintéticas para diplomacia/economía/IA. Falta P2 de 100-300 provincias handcrafted y datasets
+  económicos/militares por país con granularidad real.
+- IA política de gobierno P2: backend local listo para planes, coalición, reformas, promesas, medios, patronazgo
+  y regiones. Falta UIX visible y más contenido data-driven para países específicos.
+- Comercio P2: capacidad logística por puertos/carreteras, bloqueo naval/aéreo, dependencia por bien crítico,
+  sustitución parcial de insumos y coste de transporte.
+- Ministerios/personajes P2: backend local listo para 50 programas, perfiles políticos, facciones, rivales,
+  patronos, ambición presidencial, corrupción personal, escándalos y sucesión. Falta UIX y contenido narrativo
+  específico por país/rasgo.
+- Intriga P2: niebla de guerra, contraoperaciones reactivas, atribución incierta y represalias diplomáticas.
+- Eventos/crisis de gobierno P2: backend local listo para crisis encadenadas persistentes. Falta UIX, más cadenas
+  data-driven y escritura narrativa.
+- IA táctica P2: roles por unidad, flanqueo, reservas, terreno, objetivos y perfil táctico por dificultad.
+
+**Riesgo arquitectónico detectado:** `Campaign` es el módulo de mayor fan-out y `Politics`/`Military` dependen
+de `Campaign` para consultar tick/datos. Eso es aceptable para el prototipo local, pero P2 debe entrar con
+interfaces o servicios pequeños para no convertir `WLStrategicTickSubsystem` en el punto único donde todo se
+mezcla.
 
 ### A. UX / pulido inmediato (lo que se ve feo o confuso HOY)
 - [x] **Cards de reclutamiento legibles y amigables.** (1ª pasada) Cards grandes de 60px con icono + nombre + coste + días + franja de categoría; fuentes mayores. Queda afinar tamaños de fuente si hace falta.
@@ -2006,38 +2058,78 @@ tropa recorre las carreteras reales y cruza por la frontera real" sea la jugada 
 
 ### B. Gameplay de presidente (la capa que falta)
 Qué puede HACER el jugador gobernando su país, sobre el tick mensual + economía ya existentes:
-- [~] **Economía activa:** backend FE1-FE6 listo para UI en campaña local: impuestos, presupuesto, deuda, bonos/préstamos/FMI, rating/default, ayuda exterior, FDI, PIB, sectores, cadenas, demanda, precios, shocks de mercado, comercio regional/global, acuerdos comerciales, aranceles, embargos/sanciones, rutas cortables por guerra, inflación, ciclo económico y gobernanza económica por ministro/corrupción/tecnología. Falta backend online/PvP si se entra a Phase 4 y falta UIX completa.
-- [~] **Ministerios / gabinete:** backend F1 listo para UI: roster, gabinete, capital político, nombrar/remover ministros, autogeneral al crear ejército, crear/asignar generales, ascender/retirar, renombre y save/load. Falta la UIX completa para que el jugador lo use desde el HUD.
-- [~] **Edificios provinciales:** backend listo para UI: catálogo JSON con slots económico/industrial/militar/naval/aéreo/tecnológico/financiero/infra/defensa, niveles 1–5, coste de mejora, mantenimiento, efectos económicos/militares/orden público, save/load v9, IA económica que construye o mejora, y bonus defensivo en auto-resolve. Falta UIX completa de slots, niveles y botón de mejorar.
-- [~] **Relaciones internacionales:** backend F3 listo para UI: matriz de opinión, paz/tensión/guerra, declarar guerra, tratados y bloqueo de combate si no hay guerra.
-- [~] **Alianzas y bloques:** backend F3 listo para UI: tratados `TradeAgreement`, `NonAggression`, `Alliance`, `Embargo`; falta representación visual/acciones completas de bloque.
-- [~] **Espionaje y sabotaje:** backend F4 listo para UI: redes de inteligencia, sabotaje económico/militar, financiar golpe, propaganda y contraespionaje.
-- [~] **Orden público y sublevaciones:** backend F2/F5 listo para UI: orden público alimenta oposición, eventos y riesgo de golpe; falta pantalla/feedback de revuelta.
-- [~] **Golpes de Estado (sufrirlos y darlos):** backend F2/F4 listo para UI: riesgo, intento de golpe, financiación externa y derrota por golpe exitoso.
-- [~] **Generales rebeldes:** backend base listo: lealtad/ambición alimentan golpe; falta la rama visual/narrativa de deserción con ejército.
-- [~] **Intrigas / eventos políticos:** backend F5 listo para UI: eventos JSON, cola, resolver opción, efectos persistentes.
-- [~] **Ascensiones / progresión:** backend F1 listo para UI: ascenso, retiro, renombre mensual y por batalla; falta pantalla y ceremonias/feedback.
+- [x] **Economía activa:** backend FE1-FE6 listo y ventana GOBIERNO lo expone para campaña local.
+- [x] **Ministerios / gabinete:** backend F1 listo: roster, gabinete, capital político, generales,
+  ascenso/recompensa/purga/baja, nombrar/remover/contratar ministros, pools por ministerio para todas las
+  naciones americanas y renombre. UI principal en GOBIERNO consume lo básico; queda UIX fina de contratación.
+- [x] **Gobierno P1 real:** backend listo para agenda nacional, programas por ministerio, reformas con coste
+  político, gabinete vivo, instituciones/Congreso, grupos sociales, capacidad estatal, memoria de crisis e IA
+  política de gobierno. Falta UIX para operarlo de forma legible.
+- [x] **Gobierno P2 real:** backend listo para árbol de leyes/reformas, partidos/ideologías, elecciones/legitimidad,
+  50 programas ministeriales, perfiles políticos de personajes, patronazgo/corrupción política, medios/opinión,
+  gobernadores regionales, crisis encadenadas, IA política ampliada y métricas de calibración. Falta UIX en
+  `Docs/UIX_PENDING_TASKS.md`.
+- [x] **IA de campaña por dificultad:** backend listo para **Fácil / Medio / Difícil**; afecta economía,
+  fisco, diplomacia, guerra, intriga y reclutamiento, y persiste en save local.
+- [~] **Edificios provinciales:** backend listo; falta UIX de slots/niveles desde HUD de provincia.
+- [x] **Relaciones internacionales / alianzas:** backend F3 continental listo; Colombia ya tiene relaciones con
+  todas las demás naciones americanas cargadas, no solo Venezuela. Tab DIPLOMACIA expone guerra, tratados,
+  acuerdos, embargos y rutas; queda UIX de escala continental.
+- [x] **Espionaje y sabotaje:** backend F4 y acciones principales desde DIPLOMACIA listas.
+- [~] **Orden público, golpes, intrigas/eventos:** backend F2/F5 y tab POLITICA listos; falta modal/feed/feedback
+  de consecuencias en mapa.
+- [~] **Batallas:** auto-resolve B.1, conexión B.2c campaña→batalla táctica→resultado oficial, IA táctica
+  B.2d y retirada/reorganización B.2e listos; falta UI/3D táctica, elección de modo de combate y feedback visual.
 
-### C. Frontend / UIX pendiente para gobierno
-- [ ] **Panel Gabinete real:** cards por ministerio con ministro actual, skill, lealtad, ambición, popularidad, rasgos y coste de acción.
-- [ ] **Acciones de gabinete:** flujo de nombrar/remover ministro con selector de candidatos, confirmación, preview de capital político y feedback visible.
-- [ ] **Panel Personajes:** lista filtrable por rol (ministros, generales, oposición, espías, líderes) y país.
-- [ ] **Stats presidenciales:** mostrar capital político, estabilidad, corrupción y riesgo de golpe con tooltips y colores de riesgo.
-- [ ] **Panel Gobernanza económica:** mostrar ministro de Economía, skill/rasgos, tecnología, eficiencia fiscal, pérdida por corrupción y productividad.
-- [ ] **Panel finanzas avanzadas / ayuda / FDI:** mostrar rating, deuda, crédito disponible, servicio mensual, riesgo/default, FMI, ayudas activas, FDI y acciones de emitir deuda, pedir préstamo/FMI, conceder ayuda e invertir.
-- [ ] **Panel shocks de mercado:** mostrar shocks activos, bien afectado, duración restante, multiplicador e impacto en inflación/comercio.
-- [ ] **Panel comercio exterior:** rutas por país desde `GetTradeRoutesForNation`, acuerdos/embargos, arancel nacional, imports/exports, `TariffIncome` y preview de impacto diplomático.
-- [ ] **Generales en UI militar:** mostrar general asignado en ejército/selección y permitir asignarlo desde una lista válida.
-- [ ] **Panel Diplomacia:** lista de relaciones desde `UWLPoliticalSubsystem::GetRelationsForNation`, acciones `DeclareWar`/`SignTreaty`/`BreakTreaty`.
-- [ ] **Panel Intriga:** redes desde `GetIntelligenceNetwork`, acciones `BuildSpyNetwork`/`RunSpyOperation`, riesgo de exposición y resultado.
-- [ ] **Eventos políticos:** cola desde `GetQueuedEvents`, modal con opciones y `ResolveEvent`.
-- [ ] **Registro político:** log de decisiones y eventos de gobierno para que las consecuencias sean legibles.
-- [ ] **Edificios provinciales UIX:** mostrar slots reales, edificio actual, nivel 1–5, coste de mejora, mantenimiento, efectos y acciones construir/mejorar desde HUD.
+### C. Frontend / UIX pendiente real
+> Backlog separado y completo: `Docs/UIX_PENDING_TASKS.md`.
+
+- [x] **Ventana GOBIERNO principal:** RESUMEN, ECONOMIA, ALTO MANDO, POLITICA, DIPLOMACIA y REGISTROS conectados
+  a endpoints backend principales.
+- [ ] **Flujo de combate:** selector/preview `Auto-resolve` vs `Batalla tactica`, desglose de poder, confirmación y log.
+- [ ] **Vista táctica:** mapa 3D de batalla, cámara tipo Total War, selección de unidades, órdenes con mouse,
+  barra de objetivo/moral y panel de resultado.
+- [x] **IA táctica backend:** comportamiento determinista para mover, atacar, capturar y retirarse sin input humano.
+- [ ] **IA táctica visible:** mostrar/explicar órdenes automáticas y control IA en la UI de batalla.
+- [ ] **Dificultad visible:** selector de dificultad de campaña, indicador de nivel activo y explicación corta
+  de impactos. La UI debe leer `UWLBalanceSubsystem`; no duplicar reglas.
+- [ ] **Contratación de ministros UIX:** lista de candidatos por ministerio, botón contratar/nombrar,
+  comparación de skill/lealtad/ambición/popularidad/rasgos, coste de capital político y confirmación antes de reemplazar.
+- [ ] **Agenda nacional UIX:** selector de hasta 3 prioridades (seguridad, crecimiento, austeridad,
+  industrialización, diplomacia, control interno), efectos previstos y estado de meses activos.
+- [ ] **Programas ministeriales UIX:** panel por cartera para iniciar/ver programas activos, duración, coste,
+  bloqueo por Congreso/capacidad estatal, progreso, riesgo de fallo y efecto mensual.
+- [ ] **Gabinete vivo UIX:** mostrar rivalidad, faccionalismo, riesgo de escándalo, sabotaje y renuncia, con
+  incidentes recientes vinculados al ministro/oficina afectada.
+- [ ] **Congreso/base política UIX:** coalición oficialista, oposición legislativa, coste de reforma, riesgo de
+  bloqueo y resultado de votaciones.
+- [ ] **Grupos sociales UIX:** empresarios, militares, trabajadores, regiones, clase media y sindicatos con
+  apoyo/presión y explicación de qué decisión los movió.
+- [ ] **Capacidad estatal UIX:** burocracia, corrupción, eficiencia administrativa, autoridad central y riesgo de
+  fallo de política, visible antes de iniciar programas.
+- [ ] **Memoria política/cadenas UIX:** timeline de decisiones recordadas, crisis en curso y escalamiento
+  protesta -> huelga -> escándalo/golpe.
+- [ ] **IA política visible UIX:** objetivo de cada país IA (estabilizar, expandirse, endeudarse, militarizarse,
+  alinearse, industrializarse), programa actual y motivo del plan.
+- [ ] **Gobierno P2 UIX:** árbol de leyes, partidos, elecciones, perfiles políticos, patronazgo, medios,
+  gobernadores/regiones, crisis encadenadas y calibración; detalle completo en `Docs/UIX_PENDING_TASKS.md`.
+- [ ] **Diplomacia continental UIX:** filtros/búsqueda por región/estado/tratado, ordenamiento por opinión,
+  panel de detalle por país y acciones agrupadas para que 37+ relaciones no sean una lista plana confusa.
+- [ ] **Retirada/reorganización visible:** mostrar reservas/desorganización en ficha de ejército, botón de
+  reorganizar y log claro cuando una fuerza se retira, queda atrapada o vuelve al frente.
+- [ ] **Edificios provinciales UIX:** slots reales, edificio actual, nivel 1–5, coste de mejora, mantenimiento,
+  efectos y acciones construir/mejorar desde HUD de provincia.
+- [ ] **Eventos políticos:** popup/modal con opciones, feed de noticias del mes y registro histórico más legible.
+- [ ] **FDI con selector:** elegir provincia/edificio/objetivo antes de ejecutar inversión extranjera.
+- [ ] **UI militar de generales:** ficha de ejército con general asignado, renombre, skill y opción de reasignación.
+- [ ] **Feedback/onboarding:** mensajes claros para reclutar/mover/combatir/fondos insuficientes, tooltips y pulido visual.
 
 ### Orden sugerido de implementación
 1. **A (UX)** — barato y desbloquea poder jugar/testear con gusto (cards + botón de turno + leyenda).
-2. **Economía activa + edificios + orden público** — el bucle de gobierno base.
-3. **Diplomacia + alianzas + ministerios** — el mundo vivo.
-4. **Espionaje + golpes de Estado + generales rebeldes + intrigas** — la capa de traición Total-War.
+2. **Flujo de combate + batalla visual** — convertir el backend B.2c en experiencia jugable.
+3. **Diplomacia continental + contratación ministerial UIX** — hacer operables las nuevas listas grandes sin
+   meter reglas en widgets.
+4. **Edificios provinciales + eventos modal** — cerrar las piezas de UIX fuera de GOBIERNO.
+5. **FDI/generales/feedback** — pulido de acciones avanzadas y claridad para playtest largo.
 
-**Código actual relevante:** `WLStrategicTickSubsystem*` (tick, tesoro, orden público, reclutamiento, economía, shocks de mercado FE3.4, comercio avanzado FE4.2-FE4.5, finanzas avanzadas FE5.1/FE5.3, gobernanza económica FE6, edificios provinciales con niveles/efectos), `WLFinancialTypes.h` (instrumentos de deuda, perfil financiero, ayuda/FDI), `WLCharacterSubsystem*` (personajes/gabinete/capital político/generales), `WLPoliticalSubsystem*` (poder interno, golpes, diplomacia, tratados/acuerdos/embargos, aranceles, intriga, eventos/outcome y disparo de shocks desde opciones F5), `WLCampaign3DView*` (mapa/ciudades/ejércitos/carreteras), `WLCampaignHUD*` + `WLCampaignHUDPanels.inl` (paneles/cards), `WLCampaignPlayerController*` (input/selección/reclutar). Datos en `Content/Data/` (Nations, Provinces, Units, Buildings, Goods, Characters, Political, Campaign3D/RecruitableUnits.json).
+**Código actual relevante:** `UWLBalanceSubsystem`/`FWLBalanceRules`/`EWLAIDifficulty` (balance y dificultad IA), `UWLDataRegistry` (CO/VE detallado + promoción de `Campaign3D/AmericaLowDetail` a naciones/capitales backend), `WLStrategicTickSubsystem*` (tick, tesoro, orden público, reclutamiento, economía, shocks de mercado FE3.4, comercio avanzado FE4.2-FE4.5, finanzas avanzadas FE5.1/FE5.3, gobernanza económica FE6, edificios provinciales con niveles/efectos e IA económica continental), `WLFinancialTypes.h` (instrumentos de deuda, perfil financiero, ayuda/FDI), `WLCharacterSubsystem*` (personajes/gabinete/capital político/generales, `CreateMinister`, `HireMinister`, pools generados por cartera), `WLPoliticalTypes.h` + `WLPoliticalSubsystem*` (poder interno, golpes, Gobierno P1 real: `FWLGovernmentAgendaState`, `FWLMinistryProgramState`, `FWLCabinetDynamicsState`, `FWLInstitutionalPowerState`, `FWLPublicGroupSupportState`, `FWLStateCapacityState`, `FWLPoliticalMemoryRecord`, `FWLPoliticalAIPlanState`; diplomacia continental, tratados/acuerdos/embargos, aranceles, intriga, eventos/outcome, IA estratégica y disparo de shocks desde opciones F5), `WLMilitarySubsystem*` (auto-resolve B.1, `StartTacticalBattle`, `ApplyTacticalBattleResult`, `ReorganizeArmy` y reservas `RecoveringUnits`), `WLTacticalBattleSubsystem*` + `WLTacticalBattleTypes.h` (backend B.2a/B.2c/B.2d de batalla táctica determinista con enlace a ejércitos e IA por país), `WLCampaignRouteGraph*` (pathfinding backend de carreteras/rutas alcanzables), `WLCampaign3DView*` (mapa/ciudades/ejércitos/carreteras), `WLCampaignHUD*` + `WLCampaignHUDPanels.inl` (paneles/cards), `WLCampaignPlayerController*` (input/selección/reclutar). Datos en `Content/Data/` (Nations, Provinces, Units, Buildings, Goods, Characters, Political, Campaign3D/RecruitableUnits.json, Campaign3D/AmericaLowDetail/*.json).

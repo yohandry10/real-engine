@@ -90,6 +90,44 @@ bool FWLTaxLeverLafferTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLAIDifficultyTuningTest,
+	"WorldLeader.Balance.AIDifficultyTuning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLAIDifficultyTuningTest::RunTest(const FString& Parameters)
+{
+	FWLBalanceRules Easy = FWLBalanceRules::Default();
+	FWLBalanceRules Medium = FWLBalanceRules::Default();
+	FWLBalanceRules Hard = FWLBalanceRules::Default();
+	Easy.AIDifficulty = EWLAIDifficulty::Easy;
+	Medium.AIDifficulty = EWLAIDifficulty::Medium;
+	Hard.AIDifficulty = EWLAIDifficulty::Hard;
+
+	TestEqual(TEXT("ID facil"), Easy.GetAIDifficultyId(), FString(TEXT("easy")));
+	TestEqual(TEXT("ID medio"), Medium.GetAIDifficultyId(), FString(TEXT("medium")));
+	TestEqual(TEXT("ID dificil"), Hard.GetAIDifficultyId(), FString(TEXT("hard")));
+	TestTrue(TEXT("Dificil construye mas por mes"),
+		Hard.GetEconomicAIMaxBuildsForDifficulty() > Medium.GetEconomicAIMaxBuildsForDifficulty());
+	TestTrue(TEXT("Facil conserva mas reserva"),
+		Easy.GetEconomicAIMinTreasuryReserveForDifficulty() > Medium.GetEconomicAIMinTreasuryReserveForDifficulty());
+	TestTrue(TEXT("Dificil acepta retornos mas largos"),
+		Hard.GetEconomicAIMaxPaybackMonthsForDifficulty() > Medium.GetEconomicAIMaxPaybackMonthsForDifficulty());
+	TestTrue(TEXT("Dificil declara guerra con menos ventaja"),
+		Hard.GetStrategicAIWarStrengthRatio() < Medium.GetStrategicAIWarStrengthRatio());
+	TestTrue(TEXT("Facil evita mas la guerra"),
+		Easy.GetStrategicAIWarOpinionThreshold() < Medium.GetStrategicAIWarOpinionThreshold());
+	TestTrue(TEXT("Dificil espia con mas riesgo"),
+		Hard.GetStrategicAISpyExposureLimit() > Medium.GetStrategicAISpyExposureLimit());
+
+	FWLBalanceRules Invalid = FWLBalanceRules::Default();
+	Invalid.AIDifficulty = static_cast<EWLAIDifficulty>(255);
+	TestEqual(TEXT("Dificultad invalida sanea a medio"),
+		static_cast<int32>(Invalid.Sanitized().AIDifficulty), static_cast<int32>(EWLAIDifficulty::Medium));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLNationBudgetBreakdownTest,
 	"WorldLeader.Balance.NationBudgetBreakdown",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -822,6 +860,14 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	Rules.ForeignSupportMaxMonths = -4;
 	Rules.ForeignAidMonthlyCapIncomeRatio = 2.0;
 	Rules.ForeignInvestmentMonthlyCapIncomeRatio = -0.5;
+	Rules.GeneralSkillCombatEffectAtMax = 2.0;
+	Rules.TacticalMoveSpeedUnitsPerSecond = -10.0;
+	Rules.TacticalAttackRangeUnits = -20.0;
+	Rules.TacticalDamagePerAttackPerSecond = -0.5;
+	Rules.TacticalDefenseMitigationPerPoint = -0.1;
+	Rules.TacticalMoraleDamagePerHealth = -2.0;
+	Rules.TacticalRoutMoraleThreshold = 250;
+	Rules.TacticalObjectiveCaptureSeconds = -3.0;
 	Rules.MaxMonthlyInflationRate = 2.0;
 	Rules.MinMonthlyInflationRate = -2.0;
 	Rules.CycleUnemploymentWeight = -0.1;
@@ -890,6 +936,14 @@ bool FWLBalanceRulesSanitizeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Duracion apoyo saneada"), Sanitized.ForeignSupportMaxMonths, 1);
 	TestEqual(TEXT("Cap ayuda clamp"), Sanitized.ForeignAidMonthlyCapIncomeRatio, 1.0);
 	TestEqual(TEXT("Cap FDI saneado"), Sanitized.ForeignInvestmentMonthlyCapIncomeRatio, 0.0);
+	TestEqual(TEXT("Efecto skill general clamp"), Sanitized.GeneralSkillCombatEffectAtMax, 1.0);
+	TestEqual(TEXT("Velocidad tactica saneada"), Sanitized.TacticalMoveSpeedUnitsPerSecond, 0.0);
+	TestEqual(TEXT("Alcance tactico saneado"), Sanitized.TacticalAttackRangeUnits, 0.0);
+	TestEqual(TEXT("Dano tactico saneado"), Sanitized.TacticalDamagePerAttackPerSecond, 0.0);
+	TestEqual(TEXT("Mitigacion tactica saneada"), Sanitized.TacticalDefenseMitigationPerPoint, 0.0);
+	TestEqual(TEXT("Moral tactica saneada"), Sanitized.TacticalMoraleDamagePerHealth, 0.0);
+	TestEqual(TEXT("Umbral retirada tactica clamp"), Sanitized.TacticalRoutMoraleThreshold, 100);
+	TestEqual(TEXT("Captura tactica saneada"), Sanitized.TacticalObjectiveCaptureSeconds, 1.0);
 	TestEqual(TEXT("Inflacion maxima clamp"), Sanitized.MaxMonthlyInflationRate, 1.0);
 	TestEqual(TEXT("Inflacion minima clamp"), Sanitized.MinMonthlyInflationRate, -1.0);
 	TestEqual(TEXT("Peso desempleo ciclo saneado"), Sanitized.CycleUnemploymentWeight, 0.0);

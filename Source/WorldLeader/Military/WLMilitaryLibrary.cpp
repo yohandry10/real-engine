@@ -28,6 +28,13 @@ EWLBattleResult UWLMilitaryLibrary::ResolveBattle(int32 AttackPower, int32 Defen
 	return EWLBattleResult::DefenderDecisiveVictory;
 }
 
+float UWLMilitaryLibrary::GeneralSkillCombatMultiplier(int32 Skill, const FWLBalanceRules& Rules)
+{
+	const FWLBalanceRules Balance = Rules.Sanitized();
+	const double SkillFactor = static_cast<double>(FMath::Clamp(Skill, 0, 100) - 50) / 50.0;
+	return static_cast<float>(1.0 + SkillFactor * Balance.GeneralSkillCombatEffectAtMax);
+}
+
 FString UWLMilitaryLibrary::BattleResultToString(EWLBattleResult Result)
 {
 	switch (Result)

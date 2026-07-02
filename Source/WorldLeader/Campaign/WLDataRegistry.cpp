@@ -7,6 +7,95 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Dom/JsonObject.h"
+#include "HAL/FileManager.h"
+
+namespace
+{
+	uint32 StableIsoHash(const FString& Iso)
+	{
+		uint32 Hash = 2166136261u;
+		for (const TCHAR Ch : Iso)
+		{
+			Hash ^= static_cast<uint32>(FChar::ToUpper(Ch));
+			Hash *= 16777619u;
+		}
+		return Hash;
+	}
+
+	FLinearColor StableNationColor(const FString& Iso)
+	{
+		const uint32 Hash = StableIsoHash(Iso);
+		return FLinearColor::MakeFromHSV8(
+			static_cast<uint8>(Hash % 255),
+			170,
+			210);
+	}
+
+	int64 EstimateAmericaPopulation(const FString& DetailLevel, bool bAdministrable, uint32 Hash)
+	{
+		const FString Detail = DetailLevel.ToLower();
+		int64 Base = 900000;
+		if (Detail == TEXT("high"))
+		{
+			Base = 6500000;
+		}
+		else if (Detail == TEXT("mid"))
+		{
+			Base = 2600000;
+		}
+		else if (Detail == TEXT("low"))
+		{
+			Base = 850000;
+		}
+		if (bAdministrable)
+		{
+			Base += 1500000;
+		}
+		return Base + static_cast<int64>(Hash % 750000);
+	}
+
+	int32 EstimateAmericaInfrastructure(const FString& DetailLevel, bool bAdministrable, uint32 Hash)
+	{
+		const FString Detail = DetailLevel.ToLower();
+		int32 Base = 35;
+		if (Detail == TEXT("high"))
+		{
+			Base = 62;
+		}
+		else if (Detail == TEXT("mid"))
+		{
+			Base = 50;
+		}
+		if (bAdministrable)
+		{
+			Base += 5;
+		}
+		return FMath::Clamp(Base + static_cast<int32>(Hash % 9) - 4, 20, 85);
+	}
+
+	bool TextSuggestsPort(const FString& Text)
+	{
+		const FString S = Text.ToLower();
+		return S.Contains(TEXT("coast"))
+			|| S.Contains(TEXT("costa"))
+			|| S.Contains(TEXT("caribbean"))
+			|| S.Contains(TEXT("pacific"))
+			|| S.Contains(TEXT("atlantic"))
+			|| S.Contains(TEXT("island"))
+			|| S.Contains(TEXT("isla"))
+			|| S.Contains(TEXT("port"));
+	}
+
+	struct FAmericaCapitalSeed
+	{
+		FString Name;
+		FString Region;
+		double Lon = 0.0;
+		double Lat = 0.0;
+		bool bHasCoordinates = false;
+		bool bHasPort = false;
+	};
+}
 
 void UWLDataRegistry::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -25,6 +114,7 @@ bool UWLDataRegistry::LoadGameData()
 	const FString DataDir = FPaths::ProjectContentDir() / TEXT("Data");
 	const bool bProvinces = LoadProvincesFromFile(DataDir / TEXT("Provinces") / TEXT("Provinces.json"));
 	const bool bNations   = LoadNationsFromFile(DataDir / TEXT("Nations") / TEXT("Nations.json"));
+	LoadAmericaDiplomacyNationsFromDirectory(DataDir / TEXT("Campaign3D") / TEXT("AmericaLowDetail"));
 	const bool bBuildings = LoadBuildingsFromFile(DataDir / TEXT("Buildings") / TEXT("Buildings.json"));
 	const bool bUnits     = LoadUnitsFromFile(DataDir / TEXT("Units") / TEXT("Units.json"));
 	const bool bGoods     = LoadGoodsFromFile(DataDir / TEXT("Goods") / TEXT("Goods.json"));
@@ -231,6 +321,203 @@ bool UWLDataRegistry::LoadNationsFromFile(const FString& FilePath)
 	}
 
 	return Nations.Num() > 0;
+}
+
+bool UWLDataRegistry::LoadAmericaDiplomacyNationsFromDirectory(const FString& DirectoryPath)
+{
+	TArray<FString> FileNames;
+	IFileManager::Get().FindFiles(FileNames, *(DirectoryPath / TEXT("*.json")), true, false);
+	FileNames.Sort();
+
+	int32 AddedNations = 0;
+	int32 AddedCapitalProvinces = 0;
+
+	for (const FString& FileName : FileNames)
+	{
+		const FString FilePath = DirectoryPath / FileName;
+		FString Raw;
+		if (!FFileHelper::LoadFileToString(Raw, *FilePath))
+		{
+			continue;
+		}
+
+		TSharedPtr<FJsonObject> Root;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Raw);
+		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+		{
+			UE_LOG(LogWorldLeader, Warning, TEXT("WLDataRegistry: AmericaLowDetail invalido en %s"), *FilePath);
+			continue;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* Countries = nullptr;
+		if (!Root->TryGetArrayField(TEXT("countries"), Countries) || !Countries)
+		{
+			continue;
+		}
+
+		TMap<FString, FAmericaCapitalSeed> CapitalSeedsByIso;
+		const TArray<TSharedPtr<FJsonValue>>* Cities = nullptr;
+		if (Root->TryGetArrayField(TEXT("cities"), Cities) && Cities)
+		{
+			for (const TSharedPtr<FJsonValue>& CityValue : *Cities)
+			{
+				const TSharedPtr<FJsonObject>* CityObjPtr = nullptr;
+				if (!CityValue.IsValid() || !CityValue->TryGetObject(CityObjPtr) || !CityObjPtr)
+				{
+					continue;
+				}
+				const TSharedPtr<FJsonObject>& CityObj = *CityObjPtr;
+
+				FString CityIso;
+				CityObj->TryGetStringField(TEXT("country_iso"), CityIso);
+				CityIso = NormalizeIso(CityIso);
+				if (CityIso.IsEmpty() || CapitalSeedsByIso.Contains(CityIso))
+				{
+					continue;
+				}
+
+				bool bCapitalCity = false;
+				CityObj->TryGetBoolField(TEXT("capital"), bCapitalCity);
+				FString MarkerType;
+				CityObj->TryGetStringField(TEXT("marker_type"), MarkerType);
+				if (!bCapitalCity && !MarkerType.ToLower().Contains(TEXT("capital")))
+				{
+					continue;
+				}
+
+				FAmericaCapitalSeed Seed;
+				CityObj->TryGetStringField(TEXT("name"), Seed.Name);
+				CityObj->TryGetStringField(TEXT("region"), Seed.Region);
+				double Lon = 0.0;
+				double Lat = 0.0;
+				const bool bHasLon = CityObj->TryGetNumberField(TEXT("lon"), Lon);
+				const bool bHasLat = CityObj->TryGetNumberField(TEXT("lat"), Lat);
+				if (bHasLon && bHasLat)
+				{
+					Seed.Lon = Lon;
+					Seed.Lat = Lat;
+					Seed.bHasCoordinates = true;
+				}
+				CityObj->TryGetBoolField(TEXT("port"), Seed.bHasPort);
+				CapitalSeedsByIso.Add(CityIso, MoveTemp(Seed));
+			}
+		}
+
+		for (const TSharedPtr<FJsonValue>& CountryValue : *Countries)
+		{
+			const TSharedPtr<FJsonObject>* CountryObjPtr = nullptr;
+			if (!CountryValue.IsValid() || !CountryValue->TryGetObject(CountryObjPtr) || !CountryObjPtr)
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonObject>& Obj = *CountryObjPtr;
+
+			FString Iso;
+			Obj->TryGetStringField(TEXT("iso"), Iso);
+			Iso = NormalizeIso(Iso);
+			if (Iso.IsEmpty())
+			{
+				continue;
+			}
+
+			FString DisplayName;
+			Obj->TryGetStringField(TEXT("display_name"), DisplayName);
+			if (DisplayName.TrimStartAndEnd().IsEmpty())
+			{
+				Obj->TryGetStringField(TEXT("geo_admin"), DisplayName);
+			}
+			if (DisplayName.TrimStartAndEnd().IsEmpty())
+			{
+				DisplayName = Iso;
+			}
+
+			FString Capital;
+			Obj->TryGetStringField(TEXT("capital"), Capital);
+			if (Capital.TrimStartAndEnd().IsEmpty())
+			{
+				Capital = DisplayName;
+			}
+			const FAmericaCapitalSeed* CapitalSeed = CapitalSeedsByIso.Find(Iso);
+			if (CapitalSeed && !CapitalSeed->Name.TrimStartAndEnd().IsEmpty())
+			{
+				Capital = CapitalSeed->Name;
+			}
+
+			FString DetailLevel;
+			Obj->TryGetStringField(TEXT("detail_level"), DetailLevel);
+			FString Region;
+			Obj->TryGetStringField(TEXT("continental_region"), Region);
+			FString Biome;
+			Obj->TryGetStringField(TEXT("primary_biome"), Biome);
+			FString VisualProfile;
+			Obj->TryGetStringField(TEXT("visual_profile"), VisualProfile);
+			bool bSpecialTerritory = false;
+			Obj->TryGetBoolField(TEXT("special_territory"), bSpecialTerritory);
+			bool bAdministrable = false;
+			Obj->TryGetBoolField(TEXT("administrable"), bAdministrable);
+			double LabelLon = 0.0;
+			double LabelLat = 0.0;
+			Obj->TryGetNumberField(TEXT("label_lon"), LabelLon);
+			Obj->TryGetNumberField(TEXT("label_lat"), LabelLat);
+
+			const uint32 Hash = StableIsoHash(Iso);
+			FWLNationData* Nation = Nations.Find(Iso);
+			if (!Nation)
+			{
+				FWLNationData NewNation;
+				NewNation.Iso = Iso;
+				NewNation.Name = DisplayName;
+				NewNation.CapitalProvinceId = NormalizeProvinceId(Iso + TEXT("-CAP"));
+				NewNation.StartingTreasury = 30000 + static_cast<int64>(Hash % 50000) + (bAdministrable ? 20000 : 0);
+				NewNation.GovernmentType = bSpecialTerritory ? TEXT("Administracion territorial") : TEXT("Gobierno nacional");
+				NewNation.Leader = FString::Printf(TEXT("Gobierno de %s"), *DisplayName);
+				NewNation.MapColor = StableNationColor(Iso);
+				Nations.Add(Iso, NewNation);
+				Nation = Nations.Find(Iso);
+				++AddedNations;
+			}
+
+			if (Nation && !Provinces.Contains(Nation->CapitalProvinceId))
+			{
+				FWLProvinceData CapitalProvince;
+				CapitalProvince.Id = Nation->CapitalProvinceId;
+				CapitalProvince.Name = Capital;
+				CapitalProvince.CountryIso = Iso;
+				CapitalProvince.Region = CapitalSeed && !CapitalSeed->Region.TrimStartAndEnd().IsEmpty()
+					? CapitalSeed->Region
+					: (Region.IsEmpty() ? TEXT("America") : Region);
+				CapitalProvince.Capital = Capital;
+				CapitalProvince.Terrain = TerrainFromString(Biome + TEXT(" ") + VisualProfile);
+				CapitalProvince.Population = EstimateAmericaPopulation(DetailLevel, bAdministrable, Hash);
+				CapitalProvince.Infrastructure = EstimateAmericaInfrastructure(DetailLevel, bAdministrable, Hash);
+				CapitalProvince.StrategicValue = FMath::Clamp(
+					(DetailLevel.ToLower() == TEXT("high") ? 8 : DetailLevel.ToLower() == TEXT("mid") ? 6 : 4)
+					+ (bAdministrable ? 1 : 0),
+					1,
+					10);
+				CapitalProvince.MapLon = static_cast<float>(CapitalSeed && CapitalSeed->bHasCoordinates ? CapitalSeed->Lon : LabelLon);
+				CapitalProvince.MapLat = static_cast<float>(CapitalSeed && CapitalSeed->bHasCoordinates ? CapitalSeed->Lat : LabelLat);
+				CapitalProvince.bIsCapital = true;
+				CapitalProvince.bHasPort = (CapitalSeed && CapitalSeed->bHasPort)
+					|| TextSuggestsPort(Biome + TEXT(" ") + VisualProfile + TEXT(" ") + Capital);
+				CapitalProvince.bHasAirbase = true;
+				CapitalProvince.BaseFood = 35 + static_cast<int32>(Hash % 45);
+				CapitalProvince.BaseMinerals = 12 + static_cast<int32>((Hash / 7) % 35);
+				CapitalProvince.BaseIndustry = 18 + static_cast<int32>((Hash / 13) % 40);
+				CapitalProvince.BaseOil = static_cast<int32>((Hash / 17) % 18);
+				CapitalProvince.BaseGas = static_cast<int32>((Hash / 19) % 16);
+				Provinces.Add(CapitalProvince.Id, MoveTemp(CapitalProvince));
+				++AddedCapitalProvinces;
+			}
+		}
+	}
+
+	if (AddedNations > 0 || AddedCapitalProvinces > 0)
+	{
+		UE_LOG(LogWorldLeader, Log, TEXT("WLDataRegistry: America diplomacy agrego %d naciones y %d capitales backend."),
+			AddedNations, AddedCapitalProvinces);
+	}
+	return AddedNations > 0 || AddedCapitalProvinces > 0;
 }
 
 bool UWLDataRegistry::LoadBuildingsFromFile(const FString& FilePath)

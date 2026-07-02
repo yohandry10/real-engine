@@ -47,6 +47,151 @@ namespace
 		};
 		return Names;
 	}
+
+	const TArray<FString>& GeneratedFirstNames()
+	{
+		static const TArray<FString> Names = {
+			TEXT("Alex"),
+			TEXT("Camila"),
+			TEXT("Daniel"),
+			TEXT("Elena"),
+			TEXT("Julian"),
+			TEXT("Lucia"),
+			TEXT("Marcos"),
+			TEXT("Sofia"),
+			TEXT("Tomas"),
+			TEXT("Valeria")
+		};
+		return Names;
+	}
+
+	const TArray<FString>& GeneratedSurnames()
+	{
+		static const TArray<FString> Names = {
+			TEXT("Acosta"),
+			TEXT("Benitez"),
+			TEXT("Castillo"),
+			TEXT("Delgado"),
+			TEXT("Herrera"),
+			TEXT("Mendoza"),
+			TEXT("Navarro"),
+			TEXT("Rojas"),
+			TEXT("Torres"),
+			TEXT("Valencia")
+		};
+		return Names;
+	}
+
+	uint32 StableCharacterHash(const FString& Text)
+	{
+		uint32 Hash = 2166136261u;
+		for (const TCHAR Ch : Text)
+		{
+			Hash ^= static_cast<uint32>(FChar::ToUpper(Ch));
+			Hash *= 16777619u;
+		}
+		return Hash;
+	}
+
+	FString OfficeCode(EWLMinisterOffice Office)
+	{
+		switch (Office)
+		{
+		case EWLMinisterOffice::Economy:      return TEXT("ECO");
+		case EWLMinisterOffice::Defense:      return TEXT("DEF");
+		case EWLMinisterOffice::Interior:     return TEXT("INT");
+		case EWLMinisterOffice::Foreign:      return TEXT("FOR");
+		case EWLMinisterOffice::Intelligence: return TEXT("SEC");
+		default:                              return TEXT("GEN");
+		}
+	}
+
+	FString GeneratedNameForSeed(const FString& Seed)
+	{
+		const uint32 Hash = StableCharacterHash(Seed);
+		const TArray<FString>& FirstNames = GeneratedFirstNames();
+		const TArray<FString>& Surnames = GeneratedSurnames();
+		return FString::Printf(TEXT("%s %s"),
+			*FirstNames[Hash % FirstNames.Num()],
+			*Surnames[(Hash / 11) % Surnames.Num()]);
+	}
+
+	void AddOfficeTraits(FWLCharacter& Character)
+	{
+		switch (Character.PreferredOffice)
+		{
+		case EWLMinisterOffice::Economy:
+			Character.Traits = { TEXT("tecnocrata"), TEXT("fiscalista") };
+			break;
+		case EWLMinisterOffice::Defense:
+			Character.Traits = { TEXT("disciplinado"), TEXT("halcon") };
+			break;
+		case EWLMinisterOffice::Interior:
+			Character.Traits = { TEXT("negociadora"), TEXT("orden") };
+			break;
+		case EWLMinisterOffice::Foreign:
+			Character.Traits = { TEXT("diplomatica"), TEXT("pragmatica") };
+			break;
+		case EWLMinisterOffice::Intelligence:
+			Character.Traits = { TEXT("reservado"), TEXT("sigiloso") };
+			break;
+		default:
+			Character.Traits = { TEXT("pragmatica") };
+			break;
+		}
+	}
+
+	FWLCharacter BuildGeneratedMinister(const FString& NationIso, EWLMinisterOffice Office, int32 Index, bool bAssigned)
+	{
+		FWLCharacter Character;
+		Character.CountryIso = NationIso;
+		Character.Role = EWLCharacterRole::Minister;
+		Character.PreferredOffice = Office;
+		Character.AssignedOffice = bAssigned ? Office : EWLMinisterOffice::None;
+		Character.Id = FString::Printf(TEXT("%s-MIN-%s-GEN%02d"), *NationIso, *OfficeCode(Office), Index);
+		Character.Name = GeneratedNameForSeed(Character.Id);
+		const uint32 Hash = StableCharacterHash(Character.Id);
+		Character.Skill = ClampStat(58 + static_cast<int32>(Hash % 29) - 8);
+		Character.Loyalty = ClampStat(54 + static_cast<int32>((Hash / 7) % 31) - 12);
+		Character.Ambition = ClampStat(42 + static_cast<int32>((Hash / 13) % 36));
+		Character.Popularity = ClampStat(38 + static_cast<int32>((Hash / 17) % 35));
+		AddOfficeTraits(Character);
+		return Character;
+	}
+
+	FWLCharacter BuildGeneratedRoleCharacter(const FString& NationIso, EWLCharacterRole Role, const FString& Code, int32 Index)
+	{
+		FWLCharacter Character;
+		Character.CountryIso = NationIso;
+		Character.Role = Role;
+		Character.Id = FString::Printf(TEXT("%s-%s-GEN%02d"), *NationIso, *Code, Index);
+		Character.Name = GeneratedNameForSeed(Character.Id);
+		const uint32 Hash = StableCharacterHash(Character.Id);
+		Character.Skill = ClampStat(55 + static_cast<int32>(Hash % 31) - 10);
+		Character.Loyalty = ClampStat(55 + static_cast<int32>((Hash / 7) % 35) - 15);
+		Character.Ambition = ClampStat(40 + static_cast<int32>((Hash / 13) % 42));
+		Character.Popularity = ClampStat(35 + static_cast<int32>((Hash / 17) % 45));
+		if (Role == EWLCharacterRole::ForeignLeader)
+		{
+			Character.Loyalty = 100;
+			Character.Traits = { TEXT("pragmatica") };
+		}
+		else if (Role == EWLCharacterRole::Spy)
+		{
+			Character.Traits = { TEXT("sigiloso") };
+		}
+		else if (Role == EWLCharacterRole::Opposition)
+		{
+			Character.Loyalty = 20;
+			Character.Traits = { TEXT("opositor") };
+		}
+		else if (Role == EWLCharacterRole::General)
+		{
+			Character.Rank = EWLMilitaryRank::BrigadeGeneral;
+			Character.Traits = { TEXT("fronterizo") };
+		}
+		return Character;
+	}
 }
 
 void UWLCharacterSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -160,6 +305,7 @@ void UWLCharacterSubsystem::ResetCharacterState()
 	PoliticalCapitalByNation.Reset();
 	const FString FilePath = FPaths::ProjectContentDir() / TEXT("Data") / TEXT("Characters") / TEXT("Characters.json");
 	LoadCharactersFromFile(FilePath);
+	SeedGeneratedCharactersForAllNations();
 	SeedPoliticalCapital();
 }
 
@@ -264,6 +410,117 @@ bool UWLCharacterSubsystem::LoadCharactersFromFile(const FString& FilePath)
 
 	UE_LOG(LogWorldLeader, Log, TEXT("WLCharacterSubsystem: %d personajes cargados."), Characters.Num());
 	return Characters.Num() > 0;
+}
+
+void UWLCharacterSubsystem::SeedGeneratedCharactersForAllNations()
+{
+	const UWLDataRegistry* Registry = GetRegistry();
+	if (!Registry)
+	{
+		return;
+	}
+
+	int32 GeneratedCount = 0;
+	auto AddIfMissing = [this, &GeneratedCount](FWLCharacter Character)
+	{
+		Character.Id = NormalizeCharacterId(Character.Id);
+		Character.CountryIso = NormalizeIso(Character.CountryIso);
+		if (!Character.IsValid() || Characters.Contains(Character.Id))
+		{
+			return;
+		}
+		Characters.Add(Character.Id, MoveTemp(Character));
+		++GeneratedCount;
+	};
+	auto CountRole = [this](const FString& Iso, EWLCharacterRole Role)
+	{
+		int32 Count = 0;
+		for (const TPair<FString, FWLCharacter>& Pair : Characters)
+		{
+			const FWLCharacter& Character = Pair.Value;
+			if (Character.CountryIso == Iso && Character.Role == Role && Character.bActive)
+			{
+				++Count;
+			}
+		}
+		return Count;
+	};
+	auto CountMinistersForOffice = [this](const FString& Iso, EWLMinisterOffice Office)
+	{
+		int32 Count = 0;
+		for (const TPair<FString, FWLCharacter>& Pair : Characters)
+		{
+			const FWLCharacter& Character = Pair.Value;
+			if (Character.CountryIso == Iso
+				&& Character.Role == EWLCharacterRole::Minister
+				&& Character.PreferredOffice == Office
+				&& Character.bActive)
+			{
+				++Count;
+			}
+		}
+		return Count;
+	};
+	auto HasAssignedMinister = [this](const FString& Iso, EWLMinisterOffice Office)
+	{
+		for (const TPair<FString, FWLCharacter>& Pair : Characters)
+		{
+			const FWLCharacter& Character = Pair.Value;
+			if (Character.CountryIso == Iso
+				&& Character.Role == EWLCharacterRole::Minister
+				&& Character.AssignedOffice == Office
+				&& Character.bActive)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	for (const FWLNationData& Nation : Registry->GetAllNations())
+	{
+		const FString Iso = NormalizeIso(Nation.Iso);
+		if (CountRole(Iso, EWLCharacterRole::ForeignLeader) <= 0)
+		{
+			FWLCharacter Leader = BuildGeneratedRoleCharacter(Iso, EWLCharacterRole::ForeignLeader, TEXT("LEADER"), 1);
+			Leader.Name = Nation.Leader.IsEmpty() ? Leader.Name : Nation.Leader;
+			AddIfMissing(MoveTemp(Leader));
+		}
+		if (CountRole(Iso, EWLCharacterRole::General) <= 0)
+		{
+			AddIfMissing(BuildGeneratedRoleCharacter(Iso, EWLCharacterRole::General, TEXT("GEN"), 1));
+		}
+		if (CountRole(Iso, EWLCharacterRole::Opposition) <= 0)
+		{
+			AddIfMissing(BuildGeneratedRoleCharacter(Iso, EWLCharacterRole::Opposition, TEXT("OPP"), 1));
+		}
+		if (CountRole(Iso, EWLCharacterRole::Spy) <= 0)
+		{
+			AddIfMissing(BuildGeneratedRoleCharacter(Iso, EWLCharacterRole::Spy, TEXT("SPY"), 1));
+		}
+
+		for (EWLMinisterOffice Office : AllCabinetOffices())
+		{
+			if (!HasAssignedMinister(Iso, Office))
+			{
+				AddIfMissing(BuildGeneratedMinister(Iso, Office, 1, true));
+			}
+			while (CountMinistersForOffice(Iso, Office) < 2)
+			{
+				int32 Index = 2;
+				while (Characters.Contains(NormalizeCharacterId(FString::Printf(TEXT("%s-MIN-%s-GEN%02d"), *Iso, *OfficeCode(Office), Index))))
+				{
+					++Index;
+				}
+				AddIfMissing(BuildGeneratedMinister(Iso, Office, Index, false));
+			}
+		}
+	}
+
+	if (GeneratedCount > 0)
+	{
+		UE_LOG(LogWorldLeader, Log, TEXT("WLCharacterSubsystem: %d personajes generados para gabinetes/diplomacia de America."), GeneratedCount);
+	}
 }
 
 void UWLCharacterSubsystem::SeedPoliticalCapital()
@@ -587,6 +844,72 @@ bool UWLCharacterSubsystem::DismissMinister(const FString& NationIso, EWLMiniste
 	return true;
 }
 
+bool UWLCharacterSubsystem::CreateMinister(
+	const FString& NationIso,
+	EWLMinisterOffice PreferredOffice,
+	FWLCharacter& OutMinister,
+	FString& OutMessage)
+{
+	const FString Iso = NormalizeIso(NationIso);
+	if (PreferredOffice == EWLMinisterOffice::None)
+	{
+		OutMessage = TEXT("Cartera invalida para contratar ministro.");
+		return false;
+	}
+	if (!ValidateNation(Iso))
+	{
+		OutMessage = FString::Printf(TEXT("Nacion no disponible: %s"), *NationIso);
+		return false;
+	}
+
+	int32 Index = 1;
+	FString CandidateId;
+	do
+	{
+		CandidateId = NormalizeCharacterId(FString::Printf(TEXT("%s-MIN-%s-GEN%02d"), *Iso, *OfficeCode(PreferredOffice), Index));
+		++Index;
+	}
+	while (Characters.Contains(CandidateId));
+
+	OutMinister = BuildGeneratedMinister(Iso, PreferredOffice, Index - 1, false);
+	OutMinister.Id = CandidateId;
+	Characters.Add(OutMinister.Id, OutMinister);
+	OutMessage = FString::Printf(TEXT("%s contratado como candidato para %s."),
+		*OutMinister.Name, *MinisterOfficeToString(PreferredOffice));
+	return true;
+}
+
+bool UWLCharacterSubsystem::HireMinister(
+	const FString& NationIso,
+	EWLMinisterOffice Office,
+	FWLCharacter& OutMinister,
+	FString& OutMessage)
+{
+	const FString Iso = NormalizeIso(NationIso);
+	if (GetPoliticalCapital(Iso) < AppointMinisterPoliticalCost)
+	{
+		OutMessage = TEXT("Capital politico insuficiente para contratar y nombrar ministro.");
+		return false;
+	}
+	if (!CreateMinister(Iso, Office, OutMinister, OutMessage))
+	{
+		return false;
+	}
+	FString AppointMessage;
+	if (!AppointMinister(Iso, Office, OutMinister.Id, AppointMessage))
+	{
+		OutMessage = AppointMessage;
+		return false;
+	}
+	if (!GetCharacter(OutMinister.Id, OutMinister))
+	{
+		OutMessage = TEXT("Ministro contratado, pero no se pudo leer su estado final.");
+		return false;
+	}
+	OutMessage = AppointMessage;
+	return true;
+}
+
 bool UWLCharacterSubsystem::AssignGeneralToArmy(
 	const FString& CharacterId,
 	const FString& ArmyId,
@@ -899,7 +1222,6 @@ bool UWLCharacterSubsystem::RestoreSaveSnapshot(
 	ResetCharacterState();
 	if (SavedCharacters.Num() > 0)
 	{
-		Characters.Reset();
 		for (FWLCharacter Character : SavedCharacters)
 		{
 			Character.Id = NormalizeCharacterId(Character.Id);
@@ -914,7 +1236,7 @@ bool UWLCharacterSubsystem::RestoreSaveSnapshot(
 				Character.AssignedOffice = EWLMinisterOffice::None;
 				Character.PreferredOffice = EWLMinisterOffice::None;
 			}
-			if (Character.IsValid() && ValidateNation(Character.CountryIso) && !Characters.Contains(Character.Id))
+			if (Character.IsValid() && ValidateNation(Character.CountryIso))
 			{
 				Characters.Add(Character.Id, MoveTemp(Character));
 			}

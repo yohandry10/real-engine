@@ -4,6 +4,7 @@
 
 #include "WorldLeader.h"
 #include "Campaign/WLDataRegistry.h"
+#include "Core/WLCampaignRouteGraph.h"
 #include "Presentation/WLCampaignOverviewBuilder.h"
 #include "Presentation/WLCampaignRegionGeometry.h"
 #include "Presentation/WLCampaignRouteBuilder.h"
@@ -287,74 +288,43 @@ bool AWLCampaign3DView::BuildMovementRouteForForce(
 		return false;
 	}
 
-	const auto NodeAllowedForForce = [&Force](const FWLCampaign3DMovementNodeView& Node)
+	const auto NodeAllowedForForce = [this, &Force](const FString& NodeId)
 	{
+		const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(NodeId);
+		if (!Node)
+		{
+			return false;
+		}
 		if (Force.bAir)
 		{
 			return false;
 		}
 		if (Force.bNaval)
 		{
-			return Node.bPort;
+			return Node->bPort;
 		}
 		return true;
 	};
 
-	if (!NodeAllowedForForce(*DestinationNode))
+	if (!NodeAllowedForForce(DestinationNode->Id))
 	{
 		return false;
 	}
 
-	TArray<FString> Queue;
-	TMap<FString, FString> CameFrom;
-	Queue.Add(OriginNodeId);
-	CameFrom.Add(OriginNodeId, TEXT(""));
-	for (int32 Cursor = 0; Cursor < Queue.Num(); ++Cursor)
-	{
-		const FString Current = Queue[Cursor];
-		if (Current.Equals(DestinationNodeId, ESearchCase::IgnoreCase))
-		{
-			break;
-		}
-
-		const TArray<FString>* Neighbors = MovementAdjacency.Find(Current);
-		if (!Neighbors)
-		{
-			continue;
-		}
-		for (const FString& NeighborId : *Neighbors)
-		{
-			if (CameFrom.Contains(NeighborId))
-			{
-				continue;
-			}
-			const FWLCampaign3DMovementNodeView* NeighborNode = FindMovementNodeById(NeighborId);
-			if (!NeighborNode || !NodeAllowedForForce(*NeighborNode))
-			{
-				continue;
-			}
-			CameFrom.Add(NeighborId, Current);
-			Queue.Add(NeighborId);
-		}
-	}
-
-	if (!CameFrom.Contains(DestinationNodeId))
+	TArray<FString> RouteNodeIds;
+	if (!FWLCampaignRouteGraph::FindShortestPath(
+		MovementAdjacency,
+		OriginNodeId,
+		DestinationNodeId,
+		NodeAllowedForForce,
+		RouteNodeIds))
 	{
 		return false;
 	}
 
-	TArray<FString> ReverseNodeIds;
-	FString Current = DestinationNodeId;
-	while (!Current.IsEmpty())
+	for (const FString& NodeId : RouteNodeIds)
 	{
-		ReverseNodeIds.Add(Current);
-		const FString* Previous = CameFrom.Find(Current);
-		Current = Previous ? *Previous : FString();
-	}
-
-	for (int32 Index = ReverseNodeIds.Num() - 1; Index >= 0; --Index)
-	{
-		if (const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(ReverseNodeIds[Index]))
+		if (const FWLCampaign3DMovementNodeView* Node = FindMovementNodeById(NodeId))
 		{
 			OutRouteNodes.Add(*Node);
 		}

@@ -119,6 +119,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
 	bool DismissMinister(const FString& NationIso, EWLMinisterOffice Office, FString& OutMessage);
 
+	/** Backend de contratacion: crea un candidato civil para una cartera, sin nombrarlo todavia. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
+	bool CreateMinister(const FString& NationIso, EWLMinisterOffice PreferredOffice, FWLCharacter& OutMinister, FString& OutMessage);
+
+	/** Backend de contratacion: crea un candidato y lo nombra en la cartera indicada si hay capital politico. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
+	bool HireMinister(const FString& NationIso, EWLMinisterOffice Office, FWLCharacter& OutMinister, FString& OutMessage);
+
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
 	bool AssignGeneralToArmy(const FString& CharacterId, const FString& ArmyId, FString& OutMessage);
 
@@ -165,6 +173,7 @@ private:
 	TMap<FString, int32> PoliticalCapitalByNation;
 
 	bool LoadCharactersFromFile(const FString& FilePath);
+	void SeedGeneratedCharactersForAllNations();
 	void SeedPoliticalCapital();
 	void EnsureNationPoliticalCapital(const FString& NationIso);
 

@@ -72,6 +72,22 @@ void AWLCampaignHUD::DrawHUD()
 	DrawText(bDiplomacy ? TEXT("DIPLOMACIA / MAPA POLITICO") : TEXT("CAMPAIGN 3D / TEATRO COLOMBIA-VENEZUELA"),
 		Gold, 172.f, 11.f, SmallFont, 0.92f);
 
+	// F5.2: aviso de eventos pendientes — el juego te avisa, no hace falta abrir el tab correcto por azar.
+	if (const UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
+	{
+		if (const UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
+		{
+			const int32 PendingEvents = Politics->GetQueuedEvents(CampaignGI->GetSelectedNationIso()).Num();
+			if (PendingEvents > 0)
+			{
+				DrawRect(FLinearColor(0.30f, 0.23f, 0.06f, 0.96f), W * 0.5f - 250.f, 42.f, 500.f, 26.f);
+				DrawText(FString::Printf(TEXT("%d evento%s esperan tu decision — [C] GOBIERNO > POLITICA"),
+					PendingEvents, PendingEvents == 1 ? TEXT("") : TEXT("s")),
+					Gold, W * 0.5f - 232.f, 47.f, SmallFont, 0.95f);
+			}
+		}
+	}
+
 	const float ButtonY = 58.f;
 	const float ButtonW = 158.f;
 	const float ButtonH = 38.f;

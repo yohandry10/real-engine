@@ -28,6 +28,7 @@ int32 UWLStrategicTickSubsystem::RunEconomicAIInternal(const FString& PlayerNati
 	{
 		return 0;
 	}
+	const int32 MaxBuildsPerNation = Rules.GetEconomicAIMaxBuildsForDifficulty();
 
 	const UWLDataRegistry* Registry = GetDataRegistry();
 	if (!Registry)
@@ -51,7 +52,7 @@ int32 UWLStrategicTickSubsystem::RunEconomicAIInternal(const FString& PlayerNati
 		}
 
 		int32 BuiltForNation = 0;
-		while (BuiltForNation < Rules.EconomicAIMaxBuildsPerNationPerMonth)
+		while (BuiltForNation < MaxBuildsPerNation)
 		{
 			FString ProvinceId;
 			FString BuildingId;
@@ -110,7 +111,8 @@ bool UWLStrategicTickSubsystem::FindBestEconomicAIBuildCandidate(
 	const FWLBalanceRules Rules = GetBalanceRules();
 	const FString NormalizedIso = NormalizeIso(NationIso);
 	const int64 Treasury = GetTreasury(NormalizedIso);
-	if (Treasury <= Rules.EconomicAIMinTreasuryReserve)
+	const int64 MinTreasuryReserve = Rules.GetEconomicAIMinTreasuryReserveForDifficulty();
+	if (Treasury <= MinTreasuryReserve)
 	{
 		return false;
 	}
@@ -151,7 +153,7 @@ bool UWLStrategicTickSubsystem::FindBestEconomicAIBuildCandidate(
 			State.Population = FMath::Max<int64>(0, Province.Population);
 			State.PublicOrder = Rules.InitialPublicOrder;
 		}
-		if (State.PublicOrder < Rules.EconomicAIMinPublicOrderToBuild)
+		if (State.PublicOrder < Rules.GetEconomicAIMinPublicOrderToBuildForDifficulty())
 		{
 			continue;
 		}
@@ -187,7 +189,7 @@ bool UWLStrategicTickSubsystem::FindBestEconomicAIBuildCandidate(
 			const int64 Cost = bUpgrade
 				? GetProvinceBuildingUpgradeCost(Province.Id, Building.Id)
 				: Building.Cost;
-			if (Cost <= 0 || Treasury - Cost < Rules.EconomicAIMinTreasuryReserve)
+			if (Cost <= 0 || Treasury - Cost < MinTreasuryReserve)
 			{
 				continue;
 			}
@@ -209,7 +211,8 @@ bool UWLStrategicTickSubsystem::FindBestEconomicAIBuildCandidate(
 			const int64 PaybackMonths = Cost <= 0
 				? 0
 				: (Cost + MonthlyGain - 1) / MonthlyGain;
-			if (Rules.EconomicAIMaxPaybackMonths > 0 && PaybackMonths > Rules.EconomicAIMaxPaybackMonths)
+			const int32 MaxPaybackMonths = Rules.GetEconomicAIMaxPaybackMonthsForDifficulty();
+			if (MaxPaybackMonths > 0 && PaybackMonths > MaxPaybackMonths)
 			{
 				continue;
 			}
