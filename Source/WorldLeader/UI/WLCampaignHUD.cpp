@@ -148,8 +148,11 @@ void AWLCampaignHUD::DrawHUD()
 
 	if (SelectedNation.IsValid())
 	{
-		DrawText(FString::Printf(TEXT("Tesoro: %lld   Balance/dia: %+lld"),
-			Tick->GetTreasury(SelectedNation.Iso), Tick->GetMonthlyBalance(SelectedNation.Iso)),
+		// El balance es MENSUAL; el avance por dias aplica 1/30 al tesoro cada dia.
+		const int64 MonthlyBalance = Tick->GetMonthlyBalance(SelectedNation.Iso);
+		DrawText(FString::Printf(TEXT("Tesoro: %lld   Balance/mes: %+lld (%+lld/dia)"),
+			Tick->GetTreasury(SelectedNation.Iso), MonthlyBalance,
+			static_cast<int64>(FMath::RoundToDouble(static_cast<double>(MonthlyBalance) / 30.0))),
 			Text, X, Y, SmallFont);
 		Y += LineHeight;
 	}

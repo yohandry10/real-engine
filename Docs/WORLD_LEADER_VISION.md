@@ -28,11 +28,14 @@
 
 - **Fase activa:** UIX. La ventana GOBIERNO ya opera TODO el backend (6 tabs: RESUMEN · ECONOMIA ·
   ALTO MANDO · POLITICA · DIPLOMACIA · REGISTROS). Quedan 2 piezas de UIX fuera de esa ventana:
-- **Próxima tarea UIX:** (a) panel de **slots de edificios** en el HUD de provincia (niveles/upgrade/efectos,
-  contrato "edificios provinciales") y (b) **general en el panel del ejército** + hook del token 3D
-  (`SyncRecruitedArmyTokens` → `CreateAndAssignGeneralToArmy`). Después: popup modal de eventos (hoy son
-  tarjetas en POLITICA) y acción FDI con selector de provincia/edificio.
-- **Última actualización:** 2026-07-02 (UIX de gobierno completa; suite 33/33)
+- **Próxima tarea (Fase 3 de la auditoría de gameplay):** dar efecto real a los 4 ministros decorativos —
+  Defensa (− upkeep militar por skill), Interior (+ deriva de orden público), Exterior (+ opinión mensual
+  con vecinos), Inteligencia (+ fuerza de red / − exposición) — y escalar los efectos de espionaje por
+  `SuccessScore` (hoy el "éxito/resultado limitado" es solo texto).
+- **Después (UIX):** (a) panel de **slots de edificios** en el HUD de provincia, (b) **general en el panel
+  del ejército** + hook token 3D (`SyncRecruitedArmyTokens` → `CreateAndAssignGeneralToArmy`),
+  (c) popup modal de eventos, (d) acción FDI con selector de provincia/edificio.
+- **Última actualización:** 2026-07-02 (auditoría de gameplay: fases 1-2 corregidas; suite 33/33)
 
 ---
 
@@ -337,6 +340,22 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-02 · Auditoría de gameplay (fases 1-2 + parte de 3-4)** — Revisión UI→backend→efecto de cada
+  mecánica. Corregido: **(1) escala temporal** — AVANZAR DÍA aplicaba un MES entero de economía y finanzas por
+  día (30x; un bono de 24 meses se amortizaba en 24 días); ahora el día aplica 1/30 del balance al tesoro
+  (`ApplyDailyEconomy`) y finanzas/provincias/PIB/shocks/IA corren solo al cerrar mes; HUD pasa de
+  "Balance/dia" a "Balance/mes (+x/día)". **(2) La guerra era eterna** — nuevo `MakePeace` (guerra→tensión,
+  opinión −30) + botón NEGOCIAR PAZ. **(3) La ayuda exterior creaba dinero** — ahora el patrocinador la paga
+  (`FWLNationBudget.ForeignAidExpense`) y concederla da +8 de opinión. **(4) Golpe en nación IA terminaba TU
+  partida** — ahora es cambio de régimen (junta: −oposición, −orden, fuga de capitales); solo el golpe en la
+  nación del jugador es derrota. **(5) La IA no resolvía sus eventos** — `AutoResolveEventsForAI` elige la
+  opción que más baja su oposición. **(6) La exposición de espionaje nunca bajaba** — decae −4/mes. **(7) El
+  skill del general no pesaba en batalla** — ahora ±25% de poder (skill 0–100). **(8) UI** — filas de botones
+  en WrapBox (ya no se desbordan de la tarjeta) y el presupuesto muestra las líneas que faltaban (aranceles,
+  ayuda recibida/concedida, servicio de deuda, corrupción). PENDIENTE (Fase 3): ministros de Defensa/Interior/
+  Exterior/Inteligencia sin efecto; efectos de espionaje no escalan con éxito. Suite 33/33. Archivos:
+  `WLStrategicTickSubsystem.h/.cpp`, `WLPoliticalSubsystem.h/.cpp`, `WLMilitarySubsystem.cpp`,
+  `WLCampaignHUD.cpp`, `WLGovernmentWidget.cpp`.
 - **2026-07-02 · UIX ventana GOBIERNO completa** — `WLGovernmentWidget` reorganizado a los 6 tabs de la
   visión (NACION eliminado; su tabla vive en RESUMEN) y conectado a TODOS los contratos backend/frontend:
   **RESUMEN** (+banner de victoria/derrota de `GetCampaignOutcome` + territorio), **ECONOMIA** (+shocks

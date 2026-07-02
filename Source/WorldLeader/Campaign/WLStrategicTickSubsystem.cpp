@@ -292,13 +292,11 @@ void UWLStrategicTickSubsystem::AdvanceDay()
 {
 	const FWLBalanceRules Rules = GetBalanceRules();
 
-	// Un "avanzar dia" (accion clara del jugador) corre el tick de economia, provincias y reclutamiento cada
-	// dia (progreso visible por dias). La IA economica corre al cerrar el MES (no cada dia -> no sobre-construye).
-	ApplyMonthlyEconomy();
-	AdvanceFinancialMonth();
-	ApplyMonthlyProvinceState();
+	// Coherencia temporal: un dia aplica 1/30 del balance MENSUAL al tesoro (progreso visible sin acelerar
+	// la economia 30x). Todo lo demas que es mensual (finanzas, provincias, PIB, shocks, IA) corre SOLO al
+	// cerrar el mes. El reclutamiento si avanza por dia (sus "turnos" son dias).
+	ApplyDailyEconomy();
 	AdvanceRecruitment();
-	UpdateGDPHistory();   // FE1.5: crecimiento medido entre ticks economicos
 
 	bool bMonthRolled = false;
 	if (++CurrentDay > 30)
@@ -314,13 +312,16 @@ void UWLStrategicTickSubsystem::AdvanceDay()
 
 	if (bMonthRolled)
 	{
+		AdvanceFinancialMonth();
+		ApplyMonthlyProvinceState();
+		UpdateGDPHistory();
+		AdvanceMarketShocks();
 		LastEconomicAIReports.Reset();
 		const FString PlayerNationIso = GetActivePlayerNationIsoForAI();
 		if (!PlayerNationIso.IsEmpty())
 		{
 			RunEconomicAIInternal(PlayerNationIso, LastEconomicAIReports);
 		}
-		AdvanceMarketShocks();
 	}
 
 	UE_LOG(LogWorldLeader, Log, TEXT("Avanzar dia -> %02d/%02d/%d"), CurrentDay, CurrentMonth, CurrentYear);
@@ -332,6 +333,15 @@ void UWLStrategicTickSubsystem::ApplyMonthlyEconomy()
 	for (TPair<FString, int64>& Pair : Treasuries)
 	{
 		Pair.Value += GetMonthlyBalance(Pair.Key);
+	}
+}
+
+void UWLStrategicTickSubsystem::ApplyDailyEconomy()
+{
+	for (TPair<FString, int64>& Pair : Treasuries)
+	{
+		Pair.Value += static_cast<int64>(FMath::RoundToDouble(
+			static_cast<double>(GetMonthlyBalance(Pair.Key)) / 30.0));
 	}
 }
 
@@ -450,17 +460,25 @@ FWLNationBudget UWLStrategicTickSubsystem::GetNationBudget(const FString& Nation
 	}
 	for (const FWLForeignSupportState& Support : ForeignSupportStates)
 	{
-		if (!Support.IsActive() || Support.RecipientIso != NormalizedIso)
+		if (!Support.IsActive())
 		{
 			continue;
 		}
-		if (Support.Type == EWLForeignSupportType::ForeignAid)
+		if (Support.RecipientIso == NormalizedIso)
 		{
-			Budget.ForeignAidIncome += Support.MonthlyAmount;   // FE5.3
+			if (Support.Type == EWLForeignSupportType::ForeignAid)
+			{
+				Budget.ForeignAidIncome += Support.MonthlyAmount;   // FE5.3
+			}
+			else if (Support.Type == EWLForeignSupportType::ForeignDirectInvestment)
+			{
+				Budget.ForeignInvestmentInflow += Support.MonthlyAmount;   // FE5.3: exposicion, no tesoro
+			}
 		}
-		else if (Support.Type == EWLForeignSupportType::ForeignDirectInvestment)
+		// La ayuda concedida la PAGA el patrocinador (antes era dinero creado de la nada).
+		if (Support.SponsorIso == NormalizedIso && Support.Type == EWLForeignSupportType::ForeignAid)
 		{
-			Budget.ForeignInvestmentInflow += Support.MonthlyAmount;   // FE5.3: exposicion, no tesoro
+			Budget.ForeignAidExpense += Support.MonthlyAmount;
 		}
 	}
 	// FE1.4: la deuda (tesoro negativo) cobra interes mensual como gasto del presupuesto.
@@ -899,6 +917,15 @@ bool UWLStrategicTickSubsystem::GrantForeignAid(
 	Support.TotalAmount = Support.MonthlyAmount * Support.TotalMonths;
 	Support.Title = FString::Printf(TEXT("Ayuda exterior %s->%s"), *Sponsor.Iso, *Recipient.Iso);
 	ForeignSupportStates.Add(Support);
+	// Dar ayuda compra influencia: mejora la opinion del receptor hacia el patrocinador.
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
+		{
+			FString RelationMessage;
+			Politics->AdjustRelationOpinion(Sponsor.Iso, Recipient.Iso, 8, RelationMessage);
+		}
+	}
 	OutMessage = FString::Printf(TEXT("%s concede ayuda %s a %s: %lld/mes por %d meses."),
 		*Sponsor.Iso,
 		*Support.SupportId,

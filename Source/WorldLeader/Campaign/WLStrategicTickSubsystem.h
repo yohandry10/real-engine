@@ -61,8 +61,12 @@ struct FWLNationBudget
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
 	int64 CorruptionLoss = 0;     // FE6.2: filtracion del presupuesto por corrupcion sistemica
 
+	/** FE5.3: ayuda exterior CONCEDIDA a otros (el patrocinador la paga cada mes). */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Economy")
+	int64 ForeignAidExpense = 0;
+
 	int64 TotalIncome() const { return ResourceIncome + TaxIncome + ExportIncome + TariffIncome + ForeignAidIncome; }
-	int64 TotalSpending() const { return MilitaryUpkeep + InfrastructureUpkeep + PublicWages + SocialSpending + DebtInterest + DebtService + ImportCost + CorruptionLoss; }
+	int64 TotalSpending() const { return MilitaryUpkeep + InfrastructureUpkeep + PublicWages + SocialSpending + DebtInterest + DebtService + ImportCost + CorruptionLoss + ForeignAidExpense; }
 	int64 Net() const { return TotalIncome() - TotalSpending(); }
 };
 
@@ -702,6 +706,7 @@ private:
 	void InitTreasuriesFromData();
 	void InitProvinceStatesFromData();
 	void ApplyMonthlyEconomy();
+	void ApplyDailyEconomy();   // 1/30 del balance mensual (coherencia temporal del avance por dias)
 	void ApplyMonthlyProvinceState();
 	int32 RunEconomicAIInternal(const FString& PlayerNationIso, TArray<FString>& OutReports);
 	bool FindBestEconomicAIBuildCandidate(

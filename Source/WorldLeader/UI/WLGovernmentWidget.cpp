@@ -20,6 +20,8 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/WrapBox.h"
+#include "Components/WrapBoxSlot.h"
 #include "Components/SizeBox.h"
 #include "Components/ScrollBox.h"
 #include "Components/UniformGridPanel.h"
@@ -816,6 +818,14 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	{
 		AddBudgetRow(TEXT("Exportaciones"), Budget.ExportIncome, true, false, 2);
 	}
+	if (Budget.TariffIncome > 0)
+	{
+		AddBudgetRow(TEXT("Aranceles"), Budget.TariffIncome, true, false, 3);   // FE4.3
+	}
+	if (Budget.ForeignAidIncome > 0)
+	{
+		AddBudgetRow(TEXT("Ayuda exterior recibida"), Budget.ForeignAidIncome, true, false, 4);   // FE5.3
+	}
 	AddBudgetRow(TEXT("TOTAL INGRESOS"), Budget.TotalIncome(), true, true, 0);
 
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GASTOS"), 13, GovMuted), 14.f);
@@ -827,9 +837,21 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	{
 		AddBudgetRow(TEXT("Intereses de deuda"), Budget.DebtInterest, false, false, 4);   // FE1.4
 	}
+	if (Budget.DebtService > 0)
+	{
+		AddBudgetRow(TEXT("Servicio de deuda (bonos/FMI)"), Budget.DebtService, false, false, 5);   // FE5.1
+	}
 	if (Budget.ImportCost > 0)
 	{
-		AddBudgetRow(TEXT("Importaciones criticas"), Budget.ImportCost, false, false, 5);
+		AddBudgetRow(TEXT("Importaciones criticas"), Budget.ImportCost, false, false, 6);
+	}
+	if (Budget.CorruptionLoss > 0)
+	{
+		AddBudgetRow(TEXT("Perdida por corrupcion"), Budget.CorruptionLoss, false, false, 7);   // FE6.2
+	}
+	if (Budget.ForeignAidExpense > 0)
+	{
+		AddBudgetRow(TEXT("Ayuda exterior concedida"), Budget.ForeignAidExpense, false, false, 8);   // FE5.3
 	}
 	AddBudgetRow(TEXT("TOTAL GASTOS"), Budget.TotalSpending(), false, true, 0);
 
@@ -1467,14 +1489,13 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 		{
 			S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
 		}
-		UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UWrapBox* Actions = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
 		auto AddGeneralAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
 		{
-			if (UHorizontalBoxSlot* S = Actions->AddChildToHorizontalBox(
-				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 108.f)))
+			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Actions->AddChildToWrapBox(
+				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 108.f))))
 			{
-				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
-				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 6.f, 5.f));
 			}
 		};
 		AddGeneralAction(FString::Printf(TEXT("promote:%s"), *General.Id), TEXT("ASCENDER"), GovGoldDim);
@@ -1567,19 +1588,22 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 		}
 
-		// Acciones diplomaticas.
-		UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		// Acciones diplomaticas (WrapBox: con 6+ botones la fila se parte en varias lineas, no se desborda).
+		UWrapBox* Actions = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
 		auto AddDiploAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
 		{
-			if (UHorizontalBoxSlot* S = Actions->AddChildToHorizontalBox(
-				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 0.f, 11)))
+			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Actions->AddChildToWrapBox(
+				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 0.f, 11))))
 			{
-				S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
-				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
 			}
 		};
 		auto HasTreaty = [&Relation](EWLTreatyType Type) { return Relation.Treaties.Contains(Type); };
-		if (!bAtWar)
+		if (bAtWar)
+		{
+			AddDiploAction(FString::Printf(TEXT("peace:%s"), *Other.Iso), TEXT("NEGOCIAR PAZ"), GovGoldDim);
+		}
+		else
 		{
 			AddDiploAction(FString::Printf(TEXT("war:%s"), *Other.Iso), TEXT("DECLARAR GUERRA"), FLinearColor(0.40f, 0.12f, 0.10f, 1.f));
 		}
@@ -1627,14 +1651,13 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 		}
 		else
 		{
-			UHorizontalBox* SpyActions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			UWrapBox* SpyActions = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
 			auto AddSpyAction = [&](const FString& ActionId, const FString& Label)
 			{
-				if (UHorizontalBoxSlot* S = SpyActions->AddChildToHorizontalBox(
-					MakeActionButton(WidgetTree, this, ActionId, Label, GovFuture, 0.f, 11)))
+				if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(SpyActions->AddChildToWrapBox(
+					MakeActionButton(WidgetTree, this, ActionId, Label, GovFuture, 0.f, 11))))
 				{
-					S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
-					S->SetVerticalAlignment(VAlign_Center);
+					S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
 				}
 			};
 			AddSpyAction(FString::Printf(TEXT("spynet:%s"), *Other.Iso), TEXT("RED +"));
@@ -1806,6 +1829,10 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 	else if (Verb == TEXT("war"))
 	{
 		bOk = Political && Political->DeclareWar(Iso, Arg1, Message);
+	}
+	else if (Verb == TEXT("peace"))
+	{
+		bOk = Political && Political->MakePeace(Iso, Arg1, Message);
 	}
 	else if (Verb == TEXT("treaty"))
 	{

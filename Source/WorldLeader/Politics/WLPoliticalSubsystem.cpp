@@ -1,6 +1,7 @@
 // Copyright World Leader project. See ROADMAP.md.
 
 #include "Politics/WLPoliticalSubsystem.h"
+#include "Campaign/WLCampaignGameInstance.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Characters/WLCharacterSubsystem.h"
@@ -156,6 +157,15 @@ bool UWLPoliticalSubsystem::ValidateNation(const FString& NationIso) const
 	const UWLDataRegistry* Registry = GetRegistry();
 	FWLNationData Nation;
 	return Registry && Registry->GetNation(NormalizeIso(NationIso), Nation);
+}
+
+FString UWLPoliticalSubsystem::GetPlayerNationIso() const
+{
+	if (const UWLCampaignGameInstance* GI = Cast<UWLCampaignGameInstance>(GetGameInstance()))
+	{
+		return NormalizeIso(GI->GetSelectedNationIso());
+	}
+	return FString();
 }
 
 void UWLPoliticalSubsystem::ResetPoliticalState()
@@ -450,6 +460,7 @@ void UWLPoliticalSubsystem::ProcessPoliticalMonth()
 		return;
 	}
 
+	const FString PlayerIso = GetPlayerNationIso();
 	for (const FWLNationData& Nation : Registry->GetAllNations())
 	{
 		if (Characters)
@@ -458,6 +469,10 @@ void UWLPoliticalSubsystem::ProcessPoliticalMonth()
 		}
 		UpdateInternalPowerForNation(Nation.Iso);
 		QueueTriggeredEventsForNation(Nation.Iso);
+		if (!PlayerIso.IsEmpty() && Nation.Iso != PlayerIso)
+		{
+			AutoResolveEventsForAI(Nation.Iso);   // la IA no deja eventos pudriendose en cola
+		}
 		FWLInternalPowerState& State = EnsureInternalPower(Nation.Iso);
 		if (!CampaignOutcome.bGameOver && State.CoupRisk >= CoupAttemptRiskThreshold)
 		{
@@ -465,7 +480,38 @@ void UWLPoliticalSubsystem::ProcessPoliticalMonth()
 			AttemptCoup(Nation.Iso, Report);
 		}
 	}
+
+	// Las redes de espionaje se enfrian con el tiempo: sin operaciones nuevas, la exposicion baja.
+	for (TPair<FString, FWLIntelligenceNetworkState>& Pair : IntelligenceByPair)
+	{
+		Pair.Value.Exposure = ClampPercent(Pair.Value.Exposure - 4);
+	}
+
 	CheckCampaignOutcome();
+}
+
+void UWLPoliticalSubsystem::AutoResolveEventsForAI(const FString& NationIso)
+{
+	const FString Iso = NormalizeIso(NationIso);
+	for (FWLPoliticalEventInstance& Event : EventQueue)
+	{
+		if (Event.bResolved || Event.NationIso != Iso || Event.Options.IsEmpty())
+		{
+			continue;
+		}
+		// Criterio IA: la opcion que mas reduce su oposicion (empate -> menor coste de orden publico).
+		const FWLPoliticalEventOption* Best = &Event.Options[0];
+		for (const FWLPoliticalEventOption& Option : Event.Options)
+		{
+			if (Option.OppositionDelta < Best->OppositionDelta
+				|| (Option.OppositionDelta == Best->OppositionDelta && Option.PublicOrderDelta > Best->PublicOrderDelta))
+			{
+				Best = &Option;
+			}
+		}
+		FString Message;
+		ResolveEvent(Event.InstanceId, Best->OptionId, Message);
+	}
 }
 
 bool UWLPoliticalSubsystem::AttemptCoup(const FString& NationIso, FString& OutReport)
@@ -507,6 +553,27 @@ bool UWLPoliticalSubsystem::AttemptCoup(const FString& NationIso, FString& OutRe
 
 	if (State.bLastCoupSucceeded)
 	{
+		const FString PlayerIso = GetPlayerNationIso();
+		if (!PlayerIso.IsEmpty() && Iso != PlayerIso)
+		{
+			// Golpe en una nacion IA: cambio de regimen, NO fin de la partida del jugador.
+			// La junta purga a la oposicion, corta la financiacion externa y desestabiliza el pais.
+			State.OppositionStrength = ClampPercent(State.OppositionStrength - 30);
+			State.ExternalCoupFunding = 0;
+			if (UWLStrategicTickSubsystem* Tick = GetTick())
+			{
+				Tick->AdjustNationPublicOrder(Iso, -12);
+				FString TreasuryMessage;
+				Tick->AdjustTreasury(Iso, -Tick->GetTreasury(Iso) / 5, TreasuryMessage);   // fuga de capitales
+			}
+			State.LastCoupReport = FString::Printf(
+				TEXT("Golpe exitoso en %s: una junta toma el poder (presion %d vs defensa %d)."),
+				*Iso, CoupPressure, LoyalDefense);
+			UpdateInternalPowerForNation(Iso);
+			OutReport = State.LastCoupReport;
+			return true;
+		}
+
 		CampaignOutcome.bGameOver = true;
 		CampaignOutcome.OutcomeType = TEXT("Coup");
 		CampaignOutcome.LosingNationIso = Iso;
@@ -703,6 +770,31 @@ bool UWLPoliticalSubsystem::DeclareWar(
 	Relation.Treaties.Remove(EWLTreatyType::NonAggression);
 	Relation.Treaties.Remove(EWLTreatyType::Alliance);
 	OutMessage = Relation.CasusBelli;
+	return true;
+}
+
+bool UWLPoliticalSubsystem::MakePeace(
+	const FString& NationA,
+	const FString& NationB,
+	FString& OutMessage)
+{
+	if (!ValidateNation(NationA) || !ValidateNation(NationB) || NormalizeIso(NationA) == NormalizeIso(NationB))
+	{
+		OutMessage = TEXT("Paz invalida.");
+		return false;
+	}
+	FWLDiplomaticRelationState& Relation = EnsureRelation(NationA, NationB);
+	if (Relation.Status != EWLDiplomaticStatus::War)
+	{
+		OutMessage = FString::Printf(TEXT("%s y %s no estan en guerra."), *Relation.NationA, *Relation.NationB);
+		return false;
+	}
+	// La posguerra deja tension, no amistad: opinion arranca en -30 y las rutas reabren a medias.
+	Relation.Status = EWLDiplomaticStatus::Tension;
+	Relation.Opinion = FMath::Max(Relation.Opinion, -30);
+	Relation.CasusBelli.Reset();
+	OutMessage = FString::Printf(TEXT("Paz firmada entre %s y %s. La tension persiste."),
+		*Relation.NationA, *Relation.NationB);
 	return true;
 }
 

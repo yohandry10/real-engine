@@ -61,6 +61,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Diplomacy")
 	bool DeclareWar(const FString& AggressorIso, const FString& TargetIso, FString& OutMessage);
 
+	/** Termina una guerra: vuelve a tension (opinion -30) y reabre rutas. Sin esto la guerra era eterna. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Diplomacy")
+	bool MakePeace(const FString& NationA, const FString& NationB, FString& OutMessage);
+
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Diplomacy")
 	bool SignTreaty(const FString& NationA, const FString& NationB, EWLTreatyType Treaty, FString& OutMessage);
 
@@ -156,6 +160,10 @@ private:
 	static FString OperationToString(EWLSpyOperationType Operation);
 
 	bool ValidateNation(const FString& NationIso) const;
+	/** ISO de la nacion del jugador (vacio sin campana activa). Distingue golpe=derrota de golpe=cambio de regimen IA. */
+	FString GetPlayerNationIso() const;
+	/** La IA resuelve sus propios eventos pendientes (elige la opcion que mas baja su oposicion). */
+	void AutoResolveEventsForAI(const FString& NationIso);
 	bool ValidateSpy(const FString& OwnerIso, const FString& SpyCharacterId, int32& OutSkill, FString& OutMessage) const;
 	int32 GetAveragePublicOrder(const FString& NationIso) const;
 	int32 GetLeaderAgendaPressure(const FString& NationIso) const;

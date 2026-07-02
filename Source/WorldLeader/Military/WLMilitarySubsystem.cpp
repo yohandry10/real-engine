@@ -301,8 +301,32 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 		BuildingDefenseMult += static_cast<float>(FMath::Max(0, Effects.BonusDefense)) / 100.0f;
 	}
 
-	const int32 AttackPower = SumUnitStat(*Attacker, true);
-	const int32 DefensePower = FMath::RoundToInt(SumUnitStat(*Defender, false) * TerrainMult * BuildingDefenseMult);
+	// El skill del general pesa en el combate: skill 50 = neutro, 100 = +25%, 0 = -25%.
+	FWLCharacter AttackerGeneral;
+	FWLCharacter DefenderGeneral;
+	bool bHasAttackerGeneral = false;
+	bool bHasDefenderGeneral = false;
+	float AttackerSkillMult = 1.0f;
+	float DefenderSkillMult = 1.0f;
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
+		{
+			bHasAttackerGeneral = Characters->GetAssignedGeneralForArmy(Attacker->Id, AttackerGeneral);
+			bHasDefenderGeneral = Characters->GetAssignedGeneralForArmy(Defender->Id, DefenderGeneral);
+			if (bHasAttackerGeneral)
+			{
+				AttackerSkillMult = 1.0f + static_cast<float>(AttackerGeneral.Skill - 50) / 200.0f;
+			}
+			if (bHasDefenderGeneral)
+			{
+				DefenderSkillMult = 1.0f + static_cast<float>(DefenderGeneral.Skill - 50) / 200.0f;
+			}
+		}
+	}
+
+	const int32 AttackPower = FMath::RoundToInt(SumUnitStat(*Attacker, true) * AttackerSkillMult);
+	const int32 DefensePower = FMath::RoundToInt(SumUnitStat(*Defender, false) * TerrainMult * BuildingDefenseMult * DefenderSkillMult);
 	const EWLBattleResult Result = UWLMilitaryLibrary::ResolveBattle(AttackPower, DefensePower);
 
 	float AttackerLoss = 0.f;
@@ -364,17 +388,15 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 	{
 		if (UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
 		{
-			FWLCharacter AttackingGeneral;
-			if (Characters->GetAssignedGeneralForArmy(Attacker->Id, AttackingGeneral))
+			if (bHasAttackerGeneral)
 			{
 				FString RenownMessage;
-				Characters->AddRenownToGeneral(AttackingGeneral.Id, bAttackerWins ? 8 : 4, RenownMessage);
+				Characters->AddRenownToGeneral(AttackerGeneral.Id, bAttackerWins ? 8 : 4, RenownMessage);
 			}
-			FWLCharacter DefendingGeneral;
-			if (Characters->GetAssignedGeneralForArmy(Defender->Id, DefendingGeneral))
+			if (bHasDefenderGeneral)
 			{
 				FString RenownMessage;
-				Characters->AddRenownToGeneral(DefendingGeneral.Id, bAttackerWins ? 4 : 8, RenownMessage);
+				Characters->AddRenownToGeneral(DefenderGeneral.Id, bAttackerWins ? 4 : 8, RenownMessage);
 			}
 		}
 	}
