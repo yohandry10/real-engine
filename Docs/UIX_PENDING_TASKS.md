@@ -38,9 +38,25 @@ Hecho y compilando (`Build.bat WorldLeaderEditor Win64 Development` OK):
   MakeAlert, MakeActionButton con estado de confirmacion). Widget partido en `WLGovernmentWidget.cpp` +
   `WLGovernmentWidgetGovernance.cpp`.
 
-Pendiente: **vista tactica 3D interactiva** (camara, seleccion y ordenes con mouse sobre el mapa de
-batalla) — el backend tactico existe y se juega solo AI-vs-AI desde `ResolveTacticalBattleToEnd`, pero la
-vista jugable es su propia fase. Y validar todo en Standalone (build compila; falta playtest visual).
+- **Vista tactica 3D interactiva** (contrato "Vista Tactica"): `AWLTacticalBattleView` (actor autonomo:
+  campo, una malla por unidad coloreada por bando/salud, anillos de objetivo, camara/luces) +
+  modo de batalla en el PlayerController (`WLCampaignPlayerControllerBattle.cpp`): inicia la batalla
+  (IA en el rival, jugador comanda su bando), avanza la simulacion cada frame, traduce clics a
+  seleccion/mover/atacar (`IssueMoveOrder`/`IssueAttackOrder`), auto-resuelve el resto y aplica el
+  resultado a campania (`ApplyTacticalBattleResult`). HUD tactico con barra de batalla, controles,
+  botones AUTO-RESOLVER/TERMINAR (hit-test en `WLTacticalHudLayout.h`) y banner de resultado.
+  El boton BATALLA TACTICA del preview de combate entra a esta vista.
+
+Estado de tests (suite `Automation RunTests WorldLeader`): la regresion que introduje en el reporte de
+`AutoResolveBattle` quedo corregida (`WorldLeader.Military.*` 6/6 en verde). Queda **un fallo preexistente
+del backend** (`WorldLeader.Politics.StrategicAIDifficultyWarPosture`): el test crea ejercitos de campo
+para simular ventaja, pero `UWLStrategicTickSubsystem::GetNationMilitaryStrength` (lo que la IA usa para
+decidir guerra) solo cuenta fuerza pre-colocada + guarniciones reclutadas, no los ejercitos de `CreateArmy`
+(el propio codigo lo marca como "proxy hasta que F1.4 enlace ejercito<->nacion"). Es una decision de
+balance/backend fuera del alcance UIX; no la toque para no alterar el comportamiento de la IA.
+
+Pendiente: **render de rutas del mapa de campana 3D** (visualizar ruta/nodos alcanzables sobre el mapa; el
+preview textual de ruta ya existe en el modo movimiento). Y validar todo en Standalone (build compila).
 
 ## Principio De Implementacion
 
