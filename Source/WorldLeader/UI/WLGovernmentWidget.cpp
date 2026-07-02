@@ -5,7 +5,12 @@
 #include "Campaign/WLCampaignPlayerController.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
+#include "Characters/WLCharacterSubsystem.h"
+#include "Core/WLCharacterTypes.h"
+#include "Core/WLFinancialTypes.h"
+#include "Core/WLPoliticalTypes.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Politics/WLPoliticalSubsystem.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -157,6 +162,96 @@ namespace
 		{
 			S->SetPadding(FMargin(0.f, TopPad, 0.f, 0.f));
 		}
+	}
+
+	FString RankToText(EWLMilitaryRank Rank)
+	{
+		switch (Rank)
+		{
+		case EWLMilitaryRank::Colonel:         return TEXT("Coronel");
+		case EWLMilitaryRank::BrigadeGeneral:  return TEXT("Gral. de brigada");
+		case EWLMilitaryRank::DivisionGeneral: return TEXT("Gral. de division");
+		case EWLMilitaryRank::CorpsGeneral:    return TEXT("Gral. de cuerpo");
+		case EWLMilitaryRank::FieldMarshal:    return TEXT("Mariscal de campo");
+		default:                               return TEXT("Oficial");
+		}
+	}
+
+	FString DiplomaticStatusToText(EWLDiplomaticStatus Status)
+	{
+		switch (Status)
+		{
+		case EWLDiplomaticStatus::War:     return TEXT("GUERRA");
+		case EWLDiplomaticStatus::Tension: return TEXT("Tension");
+		default:                           return TEXT("Paz");
+		}
+	}
+
+	FString TreatyToText(EWLTreatyType Treaty)
+	{
+		switch (Treaty)
+		{
+		case EWLTreatyType::TradeAgreement: return TEXT("Acuerdo comercial");
+		case EWLTreatyType::NonAggression:  return TEXT("No agresion");
+		case EWLTreatyType::Alliance:       return TEXT("Alianza");
+		case EWLTreatyType::Embargo:        return TEXT("Embargo");
+		default:                            return TEXT("Tratado");
+		}
+	}
+
+	// Boton de accion pequeno con payload, enlazado al dispatcher del widget.
+	UWLGovActionButton* MakeActionButton(UWidgetTree* Tree, UWLGovernmentWidget* Owner,
+		const FString& ActionId, const FString& Label, const FLinearColor& Bg,
+		float MinWidth = 0.f, int32 FontSize = 12)
+	{
+		UWLGovActionButton* Button = Tree->ConstructWidget<UWLGovActionButton>(UWLGovActionButton::StaticClass());
+		Button->SetBackgroundColor(Bg);
+		Button->BindAction(Owner, ActionId);
+		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 5.f));
+		Pad->SetContent(MakeText(Tree, Label, FontSize, GovText, ETextJustify::Center));
+		if (MinWidth > 0.f)
+		{
+			USizeBox* Box = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			Box->SetMinDesiredWidth(MinWidth);
+			Box->SetContent(Pad);
+			Button->SetContent(Box);
+		}
+		else
+		{
+			Button->SetContent(Pad);
+		}
+		return Button;
+	}
+
+	// Fila "Etiqueta ..... valor" para paneles de stats.
+	UBorder* MakeStatRow(UWidgetTree* Tree, const FString& Label, const FString& Value,
+		const FLinearColor& ValueColor, const FLinearColor& RowColor)
+	{
+		UBorder* Row = MakeBorder(Tree, RowColor, FMargin(12.f, 7.f));
+		UHorizontalBox* HB = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(Tree, Label, 13, GovText)))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		HB->AddChildToHorizontalBox(MakeText(Tree, Value, 13, ValueColor, ETextJustify::Right));
+		Row->SetContent(HB);
+		return Row;
+	}
+}
+
+void UWLGovActionButton::BindAction(UWLGovernmentWidget* InOwner, const FString& InActionId)
+{
+	Owner = InOwner;
+	ActionId = InActionId;
+	OnClicked.AddDynamic(this, &UWLGovActionButton::HandleClicked);
+}
+
+void UWLGovActionButton::HandleClicked()
+{
+	if (Owner)
+	{
+		Owner->HandleAction(ActionId);
 	}
 }
 
@@ -320,7 +415,7 @@ void UWLGovernmentWidget::BuildTabs(UVerticalBox* Root)
 
 	// AddDynamic estampa el NOMBRE de la funcion en tiempo de compilacion, asi que el handler NO puede
 	// venir de una variable (puntero a miembro): cada pestana se enlaza explicitamente por indice.
-	const TCHAR* Labels[] = { TEXT("RESUMEN"), TEXT("ECONOMIA"), TEXT("POLITICA"), TEXT("NACION"), TEXT("REGISTROS") };
+	const TCHAR* Labels[] = { TEXT("RESUMEN"), TEXT("ECONOMIA"), TEXT("ALTO MANDO"), TEXT("POLITICA"), TEXT("DIPLOMACIA"), TEXT("REGISTROS") };
 
 	TabButtons.Reset();
 	for (int32 i = 0; i < UE_ARRAY_COUNT(Labels); ++i)
@@ -329,18 +424,19 @@ void UWLGovernmentWidget::BuildTabs(UVerticalBox* Root)
 		Button->SetBackgroundColor(GovTabIdle);
 		switch (i)
 		{
-		case 0: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabOverview); break;
-		case 1: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabEconomy);  break;
-		case 2: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabPolitics); break;
-		case 3: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabNation);   break;
-		case 4: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabRecords);  break;
+		case 0: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabOverview);    break;
+		case 1: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabEconomy);     break;
+		case 2: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabHighCommand); break;
+		case 3: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabPolitics);    break;
+		case 4: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabDiplomacy);   break;
+		case 5: Button->OnClicked.AddDynamic(this, &UWLGovernmentWidget::OnTabRecords);     break;
 		default: break;
 		}
 
 		USizeBox* Box = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 		Box->SetHeightOverride(42.f);
-		Box->SetMinDesiredWidth(150.f);
-		Box->SetContent(MakeText(WidgetTree, Labels[i], 16, GovText, ETextJustify::Center));
+		Box->SetMinDesiredWidth(118.f);
+		Box->SetContent(MakeText(WidgetTree, Labels[i], 15, GovText, ETextJustify::Center));
 		Button->SetContent(Box);
 
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Button))
@@ -366,19 +462,26 @@ void UWLGovernmentWidget::BuildBody(UVerticalBox* Root)
 		UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		VB->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("GABINETE"), 15, GovGold));
 
-		struct FMinistry { const TCHAR* Name; const TCHAR* Role; };
-		const FMinistry Ministries[] = {
-			{ TEXT("Defensa"),      TEXT("Fuerzas armadas") },
-			{ TEXT("Economia"),     TEXT("Tesoro y produccion") },
-			{ TEXT("Exterior"),     TEXT("Diplomacia y tratados") },
-			{ TEXT("Interior"),     TEXT("Orden y estabilidad") },
-			{ TEXT("Inteligencia"), TEXT("Espionaje y contra") },
-			{ TEXT("Ciencia"),      TEXT("Tecnologia e I+D") },
-		};
-		for (const FMinistry& M : Ministries)
+		// Gabinete REAL desde el backend de personajes (gestion en ALTO MANDO).
+		const UWLCharacterSubsystem* Characters = GetCharacters();
+		const TArray<FWLCabinetSeat> Cabinet = Characters
+			? Characters->GetCabinet(PlayerIso())
+			: TArray<FWLCabinetSeat>();
+		if (Cabinet.Num() > 0)
 		{
-			AddColumnChild(VB, MakeListCard(WidgetTree, GovGoldDim,
-				FString::Printf(TEXT("Min. de %s"), M.Name), M.Role, TEXT("Por asignar"), GovGold), 8.f);
+			for (const FWLCabinetSeat& Seat : Cabinet)
+			{
+				const bool bFilled = Seat.Minister.IsValid();
+				AddColumnChild(VB, MakeListCard(WidgetTree, bFilled ? GovGoldDim : GovMuted,
+					FString::Printf(TEXT("Min. de %s"), *UWLCharacterSubsystem::MinisterOfficeToString(Seat.Office)),
+					bFilled ? Seat.Minister.Name : TEXT("Cargo vacante"),
+					bFilled ? FString::Printf(TEXT("Skill %d"), Seat.Minister.Skill) : TEXT("Vacante"),
+					bFilled ? GovGood : GovGold), 8.f);
+			}
+		}
+		else
+		{
+			AddColumnChild(VB, MakeText(WidgetTree, TEXT("Sin datos de gabinete."), 13, GovMuted, ETextJustify::Left, true), 8.f);
 		}
 		Scroll->AddChild(VB);
 		Col->SetContent(Scroll);
@@ -518,13 +621,23 @@ void UWLGovernmentWidget::RebuildCenter()
 	{
 		CenterScroll->ScrollToStart();
 	}
+	// Feedback de la ultima accion (nombramientos, tratados, bonos...): visible en cualquier tab.
+	if (!LastActionMessage.IsEmpty())
+	{
+		UBorder* Strip = MakeBorder(WidgetTree, GovHeaderStrip, FMargin(12.f, 8.f));
+		Strip->SetContent(MakeText(WidgetTree, LastActionMessage, 13,
+			bLastActionSucceeded ? GovGold : GovBad, ETextJustify::Left, true));
+		AddColumnChild(CenterBox, Strip, 4.f);
+	}
+
 	switch (ActiveTab)
 	{
-	case EWLGovernmentTab::Overview: BuildOverviewTab(); break;
-	case EWLGovernmentTab::Economy:  BuildEconomyTab();  break;
-	case EWLGovernmentTab::Politics: BuildPoliticsTab(); break;
-	case EWLGovernmentTab::Nation:   BuildNationTab();   break;
-	case EWLGovernmentTab::Records:  BuildRecordsTab();  break;
+	case EWLGovernmentTab::Overview:    BuildOverviewTab();    break;
+	case EWLGovernmentTab::Economy:     BuildEconomyTab();     break;
+	case EWLGovernmentTab::HighCommand: BuildHighCommandTab(); break;
+	case EWLGovernmentTab::Politics:    BuildPoliticsTab();    break;
+	case EWLGovernmentTab::Diplomacy:   BuildDiplomacyTab();   break;
+	case EWLGovernmentTab::Records:     BuildRecordsTab();     break;
 	}
 }
 
@@ -535,6 +648,27 @@ void UWLGovernmentWidget::BuildOverviewTab()
 	const FSummary Sum = BuildSummary();
 	const int64 Treasury = Tick ? Tick->GetTreasury(Iso) : 0;
 	const int64 Balance = Tick ? Tick->GetMonthlyBalance(Iso) : 0;
+
+	// F5.3/F5.4: si la campania termino, el RESUMEN lo anuncia primero.
+	if (const UWLPoliticalSubsystem* Political = GetPolitical())
+	{
+		const FWLCampaignOutcomeState Outcome = Political->GetCampaignOutcome();
+		if (Outcome.bGameOver)
+		{
+			const bool bPlayerWon = Outcome.WinningNationIso.Equals(Iso, ESearchCase::IgnoreCase);
+			UBorder* Banner = MakeBorder(WidgetTree, bPlayerWon ? GovGoldDim : FLinearColor(0.35f, 0.10f, 0.08f, 1.f), FMargin(14.f, 12.f));
+			UVerticalBox* BVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+			BVB->AddChildToVerticalBox(MakeText(WidgetTree,
+				bPlayerWon ? TEXT("VICTORIA") : TEXT("FIN DE LA PARTIDA"), 22, GovText));
+			if (UVerticalBoxSlot* S = BVB->AddChildToVerticalBox(MakeText(WidgetTree,
+				FString::Printf(TEXT("%s — %s"), *Outcome.OutcomeType, *Outcome.Reason), 13, GovText, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			}
+			Banner->SetContent(BVB);
+			AddColumnChild(CenterBox, Banner, 6.f);
+		}
+	}
 
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("ESTADO DE LA NACION"), 17, GovGold), 6.f);
 
@@ -576,7 +710,51 @@ void UWLGovernmentWidget::BuildOverviewTab()
 		}
 	}
 	AddColumnChild(CenterBox, Tags, 8.f);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Seguimiento de objetivos: fase futura del roadmap."), 13, GovMuted), 8.f);
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Dominacion y golpe/revolucion se chequean cada mes; el resto llega con sus fases."), 13, GovMuted, ETextJustify::Left, true), 8.f);
+
+	// Territorio (antes tab NACION): provincias controladas con poblacion y balance real.
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		FString::Printf(TEXT("TERRITORIO  (%d provincias)"), Sum.ProvinceCount), 17, GovGold), 20.f);
+	if (Sum.Controlled.Num() == 0)
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin provincias bajo control directo."), 14, GovMuted), 10.f);
+		return;
+	}
+
+	auto MakeRow = [&](const FString& Name, const FString& Pop, const FString& Bal, const FLinearColor& BalColor,
+		const FLinearColor& RowColor, int32 FontSize, const FLinearColor& NameColor)
+	{
+		UBorder* Row = MakeBorder(WidgetTree, RowColor, FMargin(12.f, 8.f));
+		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, Name, FontSize, NameColor)))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		USizeBox* PopBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		PopBox->SetWidthOverride(160.f);
+		PopBox->SetContent(MakeText(WidgetTree, Pop, FontSize, GovMuted, ETextJustify::Right));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(PopBox)) { S->SetVerticalAlignment(VAlign_Center); }
+		USizeBox* BalBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		BalBox->SetWidthOverride(140.f);
+		BalBox->SetContent(MakeText(WidgetTree, Bal, FontSize, BalColor, ETextJustify::Right));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(BalBox)) { S->SetVerticalAlignment(VAlign_Center); }
+		Row->SetContent(HB);
+		return Row;
+	};
+
+	AddColumnChild(CenterBox, MakeRow(TEXT("Provincia"), TEXT("Poblacion"), TEXT("Balance/mes"),
+		GovMuted, FLinearColor(0.f, 0.f, 0.f, 0.f), 12, GovMuted), 6.f);
+
+	int32 Index = 0;
+	for (const FWLProvinceData& P : Sum.Controlled)
+	{
+		const int64 Bal = Tick ? Tick->GetProvinceMonthlyBalance(P.Id) : 0;
+		AddColumnChild(CenterBox, MakeRow(P.Name, GovGroupThousands(P.Population),
+			FString::Printf(TEXT("%s%s"), Bal >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Bal)),
+			Bal >= 0 ? GovGood : GovBad, (Index % 2 == 0) ? GovCard : GovCardAlt, 15, GovText), 4.f);
+		++Index;
+	}
 }
 
 // FE1.3: panel ECONOMIA — presupuesto mensual desglosado por categorias + palanca de impuestos (FE1.2).
@@ -615,10 +793,18 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	// FE1.5: PIB y crecimiento arriba del presupuesto.
 	{
 		const double Growth = Tick->GetNationGDPGrowth(Iso);
+		const double Inflation = Tick->GetNationInflationRate(Iso);
+		const FWLNationLaborStats Labor = Tick->GetNationLaborStats(Iso);
 		AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-			TEXT("PIB: %s / mes   ·   Crecimiento: %+.2f%%"),
-			*GovGroupThousands(Tick->GetNationGDP(Iso)), Growth * 100.0),
+			TEXT("PIB: %s / mes   ·   Crecimiento: %+.2f%%   ·   Inflacion: %+.2f%%   ·   Ciclo: %s"),
+			*GovGroupThousands(Tick->GetNationGDP(Iso)), Growth * 100.0,
+			Inflation * 100.0, *Tick->GetNationEconomicCycleLabel(Iso)),
 			14, Growth < 0.0 ? GovBad : GovText), 6.f);
+		AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
+			TEXT("Empleo: %s / %s   ·   Desempleo: %.1f%%   ·   Productividad: %.0f%%"),
+			*GovGroupThousands(Labor.Employed), *GovGroupThousands(Labor.Workforce),
+			Labor.UnemploymentRate * 100.0, Labor.Productivity * 100.0),
+			12, Labor.UnemploymentRate > 0.15 ? GovBad : GovMuted), 4.f);
 	}
 
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PRESUPUESTO MENSUAL"), 17, GovGold), 12.f);
@@ -626,6 +812,10 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("INGRESOS"), 13, GovMuted), 12.f);
 	AddBudgetRow(TEXT("Recursos y produccion"), Budget.ResourceIncome, true, false, 0);
 	AddBudgetRow(TEXT("Impuestos"), Budget.TaxIncome, true, false, 1);
+	if (Budget.ExportIncome > 0)
+	{
+		AddBudgetRow(TEXT("Exportaciones"), Budget.ExportIncome, true, false, 2);
+	}
 	AddBudgetRow(TEXT("TOTAL INGRESOS"), Budget.TotalIncome(), true, true, 0);
 
 	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GASTOS"), 13, GovMuted), 14.f);
@@ -636,6 +826,10 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	if (Budget.DebtInterest > 0)
 	{
 		AddBudgetRow(TEXT("Intereses de deuda"), Budget.DebtInterest, false, false, 4);   // FE1.4
+	}
+	if (Budget.ImportCost > 0)
+	{
+		AddBudgetRow(TEXT("Importaciones criticas"), Budget.ImportCost, false, false, 5);
 	}
 	AddBudgetRow(TEXT("TOTAL GASTOS"), Budget.TotalSpending(), false, true, 0);
 
@@ -693,19 +887,19 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		}
 	}
 
-	// FE2.2: produccion nacional por bien (extraccion + manufactura, limitadas por trabajo).
+	// FE2.3-FE4.1: produccion nacional por bien con insumos, demanda, precios y comercio.
 	{
-		const TArray<FWLGoodOutput> Production = Tick->GetNationProduction(Iso);
-		if (Production.Num() > 0)
+		const TArray<FWLGoodMarketBalance> Market = Tick->GetNationGoodMarketBalance(Iso);
+		if (Market.Num() > 0)
 		{
-			AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PRODUCCION NACIONAL / MES"), 17, GovGold), 20.f);
+			AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("MERCADO NACIONAL / MES"), 17, GovGold), 20.f);
 			const UWLDataRegistry* Registry = GetRegistry();
 			int32 Index = 0;
-			for (const FWLGoodOutput& Out : Production)
+			for (const FWLGoodMarketBalance& Balance : Market)
 			{
 				FWLGoodData Good;
-				const bool bHasGood = Registry && Registry->GetGood(Out.GoodId, Good);
-				const FString GoodName = bHasGood ? Good.Name : Out.GoodId;
+				const bool bHasGood = Registry && Registry->GetGood(Balance.GoodId, Good);
+				const FString GoodName = bHasGood ? Good.Name : Balance.GoodId;
 				const bool bManufactured = bHasGood && Good.Category == EWLGoodCategory::Manufactured;
 
 				UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
@@ -716,22 +910,208 @@ void UWLGovernmentWidget::BuildEconomyTab()
 					S->SetVerticalAlignment(VAlign_Center);
 				}
 				USizeBox* KindBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-				KindBox->SetWidthOverride(120.f);
+				KindBox->SetWidthOverride(104.f);
 				KindBox->SetContent(MakeText(WidgetTree, bManufactured ? TEXT("Manufactura") : TEXT("Extraccion"),
 					11, GovMuted, ETextJustify::Right));
 				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(KindBox)) { S->SetVerticalAlignment(VAlign_Center); }
 				USizeBox* UnitsBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-				UnitsBox->SetWidthOverride(110.f);
-				UnitsBox->SetContent(MakeText(WidgetTree, GovGroupThousands(Out.Units), 14, GovGold, ETextJustify::Right));
+				UnitsBox->SetWidthOverride(142.f);
+				UnitsBox->SetContent(MakeText(WidgetTree,
+					FString::Printf(TEXT("%s / %s"), *GovGroupThousands(Balance.Production), *GovGroupThousands(Balance.Demand)),
+					13, GovGold, ETextJustify::Right));
 				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(UnitsBox)) { S->SetVerticalAlignment(VAlign_Center); }
+				USizeBox* PriceBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+				PriceBox->SetWidthOverride(86.f);
+				PriceBox->SetContent(MakeText(WidgetTree,
+					FString::Printf(TEXT("x%.2f"), Balance.PriceMultiplier),
+					13, Balance.PriceMultiplier > 1.05 ? GovBad : GovMuted, ETextJustify::Right));
+				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(PriceBox)) { S->SetVerticalAlignment(VAlign_Center); }
+				USizeBox* TradeBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+				TradeBox->SetWidthOverride(136.f);
+				TradeBox->SetContent(MakeText(WidgetTree,
+					FString::Printf(TEXT("I %s / E %s"),
+						*GovGroupThousands(Balance.Imports), *GovGroupThousands(Balance.Exports)),
+					12, (Balance.Deficit > 0 || Balance.Imports > 0) ? GovBad : GovMuted, ETextJustify::Right));
+				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(TradeBox)) { S->SetVerticalAlignment(VAlign_Center); }
 				Row->SetContent(HB);
 				AddColumnChild(CenterBox, Row, 4.f);
 				++Index;
 			}
 			AddColumnChild(CenterBox, MakeText(WidgetTree,
-				TEXT("La produccion la limita la mano de obra disponible. Demanda, mercado y precios: proximas fases."),
+				TEXT("Oferta final tras insumos, precios y comercio regional."),
 				12, GovMuted, ETextJustify::Left, true), 6.f);
 		}
+	}
+
+	// FE3.4: shocks de mercado activos (bien, multiplicador, duracion restante).
+	{
+		const TArray<FWLMarketShockState> Shocks = Tick->GetActiveMarketShocks();
+		if (Shocks.Num() > 0)
+		{
+			AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("SHOCKS DE MERCADO ACTIVOS"), 17, GovGold), 20.f);
+			const UWLDataRegistry* Registry = GetRegistry();
+			int32 Index = 0;
+			for (const FWLMarketShockState& Shock : Shocks)
+			{
+				FWLGoodData Good;
+				const FString GoodName = (Shock.GoodId == TEXT("*") || Shock.GoodId.Equals(TEXT("all"), ESearchCase::IgnoreCase))
+					? TEXT("Todo el mercado")
+					: ((Registry && Registry->GetGood(Shock.GoodId, Good)) ? Good.Name : Shock.GoodId);
+				AddColumnChild(CenterBox, MakeStatRow(WidgetTree,
+					FString::Printf(TEXT("%s — %s"), *Shock.Title, *GoodName),
+					FString::Printf(TEXT("x%.2f · %d/%d meses"), Shock.PriceMultiplier, Shock.RemainingMonths, Shock.TotalMonths),
+					Shock.PriceMultiplier >= 1.0 ? GovBad : GovGood,
+					(Index % 2 == 0) ? GovCard : GovCardAlt), 4.f);
+				++Index;
+			}
+		}
+	}
+
+	// FE4.3: arancel nacional (stepper) + resumen de comercio del presupuesto.
+	{
+		const int32 Tariff = Tick->GetTariffRate(Iso);
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("COMERCIO EXTERIOR"), 17, GovGold), 20.f);
+
+		UBorder* TariffCard = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
+		UHorizontalBox* TariffRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UVerticalBox* TariffInfo = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		TariffInfo->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("ARANCEL A IMPORTACIONES"), 12, GovMuted));
+		if (UVerticalBoxSlot* S = TariffInfo->AddChildToVerticalBox(
+			MakeText(WidgetTree, FString::Printf(TEXT("%d%%"), Tariff), 27, GovGold)))
+		{
+			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+		if (UVerticalBoxSlot* S = TariffInfo->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+			TEXT("Ingreso por aranceles: %s/mes   ·   Exporta %s · Importa %s"),
+			*GovGroupThousands(Budget.TariffIncome),
+			*GovGroupThousands(Budget.ExportIncome), *GovGroupThousands(Budget.ImportCost)),
+			13, GovMuted, ETextJustify::Left, true)))
+		{
+			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+		if (UHorizontalBoxSlot* S = TariffRow->AddChildToHorizontalBox(TariffInfo))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		auto AddTariffButton = [&](const FString& ActionId, const TCHAR* Label)
+		{
+			if (UHorizontalBoxSlot* S = TariffRow->AddChildToHorizontalBox(
+				MakeActionButton(WidgetTree, this, ActionId, Label, GovTabIdle, 52.f, 20)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(6.f, 0.f, 0.f, 0.f));
+			}
+		};
+		AddTariffButton(TEXT("tariffdown"), TEXT("-"));
+		AddTariffButton(TEXT("tariffup"), TEXT("+"));
+		TariffCard->SetContent(TariffRow);
+		AddColumnChild(CenterBox, TariffCard, 10.f);
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("Subir aranceles recauda y protege la industria local, pero encarece importaciones y molesta a los vecinos. Rutas y embargos: en DIPLOMACIA."),
+			12, GovMuted, ETextJustify::Left, true), 6.f);
+	}
+
+	// FE5.1/FE5.3: finanzas soberanas — rating, deuda, bonos, FMI, default, apoyos externos.
+	{
+		const FWLFinancialProfile Profile = Tick->GetFinancialProfile(Iso);
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("FINANZAS SOBERANAS"), 17, GovGold), 20.f);
+
+		const FLinearColor RatingColor = Profile.bInDefault ? GovBad : (Profile.CreditScore >= 60 ? GovGood : GovGold);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Calificacion crediticia"),
+			FString::Printf(TEXT("%s (%d/100)%s"), *Profile.CreditRatingLabel, Profile.CreditScore,
+				Profile.bInDefault ? TEXT(" · EN DEFAULT") : TEXT("")),
+			RatingColor, GovCard), 8.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Deuda viva / servicio mensual"),
+			FString::Printf(TEXT("%s / %s"), *GovGroupThousands(Profile.OutstandingDebt), *GovGroupThousands(Profile.MonthlyDebtService)),
+			Profile.OutstandingDebt > 0 ? GovBad : GovMuted, GovCardAlt), 4.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Credito disponible"),
+			GovGroupThousands(Profile.AvailableCredit), GovText, GovCard), 4.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Riesgo de default"),
+			FString::Printf(TEXT("%.0f%%%s"), Profile.DefaultRisk * 100.0, Profile.bIMFEligible ? TEXT(" · elegible para FMI") : TEXT("")),
+			Profile.DefaultRisk > 0.4 ? GovBad : GovMuted, GovCardAlt), 4.f);
+
+		UHorizontalBox* FinActions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		auto AddFinAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
+		{
+			if (UHorizontalBoxSlot* S = FinActions->AddChildToHorizontalBox(
+				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 130.f)))
+			{
+				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+		};
+		AddFinAction(TEXT("bond"), TEXT("EMITIR BONO"), GovGoldDim);
+		if (Profile.bIMFEligible)
+		{
+			AddFinAction(TEXT("imf"), TEXT("PROGRAMA FMI"), GovTabIdle);
+		}
+		if (Profile.OutstandingDebt > 0 && !Profile.bInDefault)
+		{
+			AddFinAction(TEXT("default"), TEXT("DECLARAR DEFAULT"), FLinearColor(0.40f, 0.12f, 0.10f, 1.f));
+		}
+		AddColumnChild(CenterBox, FinActions, 10.f);
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("El bono emite deuda a 24 meses segun tu rating. El FMI presta barato con condiciones. El default borra deuda pero hunde rating y orden."),
+			12, GovMuted, ETextJustify::Left, true), 4.f);
+
+		const TArray<FWLFinancialInstrumentState> Instruments = Tick->GetFinancialInstrumentsForNation(Iso);
+		int32 ActiveCount = 0;
+		for (const FWLFinancialInstrumentState& Inst : Instruments)
+		{
+			if (!Inst.IsActive())
+			{
+				continue;
+			}
+			if (ActiveCount == 0)
+			{
+				AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("INSTRUMENTOS ACTIVOS"), 13, GovMuted), 10.f);
+			}
+			AddColumnChild(CenterBox, MakeStatRow(WidgetTree, Inst.Title,
+				FString::Printf(TEXT("%s restante · %s/mes · %d meses"),
+					*GovGroupThousands(Inst.PrincipalRemaining), *GovGroupThousands(Inst.MonthlyPayment), Inst.RemainingMonths),
+				GovMuted, (ActiveCount % 2 == 0) ? GovCard : GovCardAlt), 4.f);
+			++ActiveCount;
+		}
+
+		const TArray<FWLForeignSupportState> Supports = Tick->GetForeignSupportForNation(Iso);
+		int32 SupportCount = 0;
+		for (const FWLForeignSupportState& Support : Supports)
+		{
+			if (Support.bCompleted)
+			{
+				continue;
+			}
+			if (SupportCount == 0)
+			{
+				AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("APOYOS EXTERNOS ACTIVOS"), 13, GovMuted), 10.f);
+			}
+			AddColumnChild(CenterBox, MakeStatRow(WidgetTree,
+				FString::Printf(TEXT("%s -> %s"), *Support.SponsorIso, *Support.RecipientIso),
+				FString::Printf(TEXT("%s/mes · %d meses"), *GovGroupThousands(Support.MonthlyAmount), Support.RemainingMonths),
+				GovGood, (SupportCount % 2 == 0) ? GovCard : GovCardAlt), 4.f);
+			++SupportCount;
+		}
+	}
+
+	// FE6: gobernanza economica — ministro, corrupcion y tecnologia mueven la economia real.
+	{
+		const FWLEconomicGovernanceStats Gov = Tick->GetEconomicGovernanceStats(Iso);
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GOBERNANZA ECONOMICA"), 17, GovGold), 20.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Ministro de Economia"),
+			Gov.EconomyMinisterName.IsEmpty()
+				? TEXT("Cargo vacante (nombra en ALTO MANDO)")
+				: FString::Printf(TEXT("%s · skill %d"), *Gov.EconomyMinisterName, Gov.EconomyMinisterSkill),
+			Gov.EconomyMinisterName.IsEmpty() ? GovGold : GovText, GovCard), 8.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Corrupcion sistemica"),
+			FString::Printf(TEXT("%d/100 · skim %.1f%% (%s/mes)"),
+				Gov.SystemicCorruption, Gov.CorruptionSkimRate * 100.0, *GovGroupThousands(Budget.CorruptionLoss)),
+			Gov.SystemicCorruption >= 50 ? GovBad : GovMuted, GovCardAlt), 4.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Tecnologia / clima de inversion"),
+			FString::Printf(TEXT("%d / %d"), Gov.TechnologyLevel, Gov.InvestmentClimate), GovText, GovCard), 4.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Eficiencia fiscal / productividad"),
+			FString::Printf(TEXT("x%.2f / x%.2f"), Gov.TaxCollectionMultiplier, Gov.ProductivityMultiplier),
+			GovText, GovCardAlt), 4.f);
 	}
 
 	// FE1.2: palanca de impuestos. Mover la tasa cambia la recaudacion (Laffer) y el orden publico mensual.
@@ -846,74 +1226,436 @@ void UWLGovernmentWidget::BuildPoliticsTab()
 	OrderCard->SetContent(OVB);
 	AddColumnChild(CenterBox, OrderCard, 10.f);
 
-	// Sistemas del roadmap aun no implementados.
-	const TCHAR* Systems[] = {
-		TEXT("Estabilidad interna"), TEXT("Corrupcion"), TEXT("Apoyo popular"),
-		TEXT("Partidos politicos"), TEXT("Elecciones"), TEXT("Leyes y decretos"),
-	};
-	for (const TCHAR* Sy : Systems)
+	const FString Iso = PlayerIso();
+	UWLPoliticalSubsystem* Political = GetPolitical();
+	if (!Political || Iso.IsEmpty())
 	{
-		UBorder* Row = MakeBorder(WidgetTree, GovFuture, FMargin(12.f, 9.f));
-		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, Sy, 14, GovMuted)))
-		{
-			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-			S->SetVerticalAlignment(VAlign_Center);
-		}
-		HB->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("Fase futura"), 12, GovGoldDim, ETextJustify::Right));
-		Row->SetContent(HB);
-		AddColumnChild(CenterBox, Row, 7.f);
-	}
-}
-
-void UWLGovernmentWidget::BuildNationTab()
-{
-	const UWLStrategicTickSubsystem* Tick = GetTick();
-	const FSummary Sum = BuildSummary();
-
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("TERRITORIO  (%d provincias)"), Sum.ProvinceCount), 17, GovGold), 6.f);
-
-	if (Sum.Controlled.Num() == 0)
-	{
-		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin provincias bajo control directo."), 14, GovMuted), 10.f);
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin datos politicos."), 14, GovMuted), 10.f);
 		return;
 	}
 
-	auto MakeRow = [&](const FString& Name, const FString& Pop, const FString& Bal, const FLinearColor& BalColor,
-		const FLinearColor& RowColor, int32 FontSize, const FLinearColor& NameColor)
+	// F2: poder interno — riesgo de golpe y oposicion (datos reales del backend).
+	const FWLInternalPowerState Power = Political->GetInternalPower(Iso);
+
+	UBorder* CoupCard = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 12.f));
+	UVerticalBox* CVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	UHorizontalBox* CHead = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	if (UHorizontalBoxSlot* S = CHead->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("Riesgo de golpe de estado"), 15, GovText)))
 	{
-		UBorder* Row = MakeBorder(WidgetTree, RowColor, FMargin(12.f, 8.f));
+		S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+	}
+	const FLinearColor CoupColor = Power.CoupRisk >= 60 ? GovBad : (Power.CoupRisk >= 30 ? GovGold : GovGood);
+	CHead->AddChildToHorizontalBox(MakeText(WidgetTree, FString::Printf(TEXT("%d / 100"), Power.CoupRisk), 15, CoupColor, ETextJustify::Right));
+	CVB->AddChildToVerticalBox(CHead);
+
+	// Barra de riesgo (mismo patron que la de orden publico).
+	{
+		UBorder* CoupTrack = MakeBorder(WidgetTree, FLinearColor(0.04f, 0.045f, 0.05f, 1.f), FMargin(0.f));
+		USizeBox* CoupTrackBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		CoupTrackBox->SetHeightOverride(12.f);
+		UHorizontalBox* CoupFillRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		const float CoupFrac = FMath::Clamp(Power.CoupRisk / 100.f, 0.f, 1.f);
+		UBorder* CoupFill = MakeBorder(WidgetTree, CoupColor, FMargin(0.f));
+		if (UHorizontalBoxSlot* S = CoupFillRow->AddChildToHorizontalBox(CoupFill))
+		{
+			FSlateChildSize Size(ESlateSizeRule::Fill);
+			Size.Value = FMath::Max(CoupFrac, 0.001f);
+			S->SetSize(Size);
+		}
+		UBorder* CoupRest = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f));
+		if (UHorizontalBoxSlot* S = CoupFillRow->AddChildToHorizontalBox(CoupRest))
+		{
+			FSlateChildSize Size(ESlateSizeRule::Fill);
+			Size.Value = FMath::Max(1.f - CoupFrac, 0.001f);
+			S->SetSize(Size);
+		}
+		CoupTrackBox->SetContent(CoupFillRow);
+		CoupTrack->SetContent(CoupTrackBox);
+		if (UVerticalBoxSlot* S = CVB->AddChildToVerticalBox(CoupTrack))
+		{
+			S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+		}
+	}
+	if (UVerticalBoxSlot* S = CVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+		TEXT("Oposicion: fuerza %d · popularidad %d   ·   Financiacion externa de golpe: %d"),
+		Power.OppositionStrength, Power.OppositionPopularity, Power.ExternalCoupFunding),
+		13, Power.OppositionStrength >= 50 ? GovBad : GovMuted, ETextJustify::Left, true)))
+	{
+		S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+	}
+	CoupCard->SetContent(CVB);
+	AddColumnChild(CenterBox, CoupCard, 10.f);
+
+	if (!Power.LastCoupReport.IsEmpty())
+	{
+		UBorder* Report = MakeBorder(WidgetTree, GovCardAlt, FMargin(12.f, 8.f));
+		Report->SetContent(MakeText(WidgetTree, FString::Printf(TEXT("Ultimo golpe: %s"), *Power.LastCoupReport),
+			13, Power.bLastCoupSucceeded ? GovBad : GovMuted, ETextJustify::Left, true));
+		AddColumnChild(CenterBox, Report, 6.f);
+	}
+
+	// F2.4: acciones internas (recompensar/purgar viven en cada general de ALTO MANDO).
+	{
+		UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = Actions->AddChildToHorizontalBox(
+			MakeActionButton(WidgetTree, this, TEXT("repress"), TEXT("REPRIMIR OPOSICION"), GovTabIdle, 170.f, 13)))
+		{
+			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		}
+		AddColumnChild(CenterBox, Actions, 10.f);
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("Reprimir baja la fuerza de la oposicion a costa de orden publico y tesoro. Recompensar o purgar generales: en ALTO MANDO."),
+			12, GovMuted, ETextJustify::Left, true), 4.f);
+	}
+
+	// F5: eventos politicos pendientes con sus opciones.
+	const TArray<FWLPoliticalEventInstance> Events = Political->GetQueuedEvents(Iso);
+	int32 PendingCount = 0;
+	for (const FWLPoliticalEventInstance& Event : Events)
+	{
+		if (!Event.bResolved)
+		{
+			++PendingCount;
+		}
+	}
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		FString::Printf(TEXT("EVENTOS  (%d pendientes)"), PendingCount), 17, GovGold), 20.f);
+	if (PendingCount == 0)
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("Sin eventos pendientes. Se disparan al avanzar el mes segun la situacion interna."),
+			13, GovMuted, ETextJustify::Left, true), 8.f);
+	}
+	for (const FWLPoliticalEventInstance& Event : Events)
+	{
+		if (Event.bResolved)
+		{
+			continue;
+		}
+		UBorder* Card = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 12.f));
+		UVerticalBox* EVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		EVB->AddChildToVerticalBox(MakeText(WidgetTree, Event.Title, 16, GovGold, ETextJustify::Left, true));
+		if (UVerticalBoxSlot* S = EVB->AddChildToVerticalBox(MakeText(WidgetTree, Event.Body, 13, GovText, ETextJustify::Left, true)))
+		{
+			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+		for (const FWLPoliticalEventOption& Option : Event.Options)
+		{
+			UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
+				FString::Printf(TEXT("event:%s:%s"), *Event.InstanceId, *Option.OptionId),
+				Option.Label, GovGoldDim, 150.f, 13)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
+			}
+			FString Effects;
+			if (Option.PoliticalCapitalDelta != 0) Effects += FString::Printf(TEXT("Capital %+d  "), Option.PoliticalCapitalDelta);
+			if (Option.TreasuryDelta != 0)         Effects += FString::Printf(TEXT("Tesoro %+lld  "), static_cast<long long>(Option.TreasuryDelta));
+			if (Option.PublicOrderDelta != 0)      Effects += FString::Printf(TEXT("Orden %+d  "), Option.PublicOrderDelta);
+			if (Option.OppositionDelta != 0)       Effects += FString::Printf(TEXT("Oposicion %+d  "), Option.OppositionDelta);
+			if (Option.RelationDelta != 0)         Effects += FString::Printf(TEXT("Relacion %+d  "), Option.RelationDelta);
+			if (!Option.MarketShockGoodId.IsEmpty()) Effects += TEXT("Shock de mercado");
+			if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(MakeText(WidgetTree, Effects, 12, GovMuted, ETextJustify::Left, true)))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			if (UVerticalBoxSlot* S = EVB->AddChildToVerticalBox(Row))
+			{
+				S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+			}
+		}
+		Card->SetContent(EVB);
+		AddColumnChild(CenterBox, Card, 8.f);
+	}
+}
+
+// F1.6/F1.7: ALTO MANDO — gabinete gestionable + generales con ascenso/baja/recompensa.
+void UWLGovernmentWidget::BuildHighCommandTab()
+{
+	const FString Iso = PlayerIso();
+	UWLCharacterSubsystem* Characters = GetCharacters();
+	if (!Characters || Iso.IsEmpty())
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin datos de personajes."), 14, GovMuted), 10.f);
+		return;
+	}
+
+	const FWLGovernmentStats Stats = Characters->GetGovernmentStats(Iso);
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("ALTO MANDO"), 17, GovGold), 6.f);
+	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
+		TEXT("Capital politico: %d   ·   Estabilidad: %d   ·   Corrupcion: %d   ·   Riesgo de golpe: %d"),
+		Stats.PoliticalCapital, Stats.Stability, Stats.Corruption, Stats.CoupRisk),
+		13, Stats.CoupRisk >= 50 ? GovBad : GovMuted, ETextJustify::Left, true), 4.f);
+
+	// Gabinete: cada cargo con su ministro o vacante + nombrar/destituir.
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GABINETE"), 15, GovGold), 14.f);
+	const TArray<FWLCabinetSeat> Cabinet = Characters->GetCabinet(Iso);
+	int32 Index = 0;
+	for (const FWLCabinetSeat& Seat : Cabinet)
+	{
+		const bool bFilled = Seat.Minister.IsValid();
+		UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, Name, FontSize, NameColor)))
+		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		Info->AddChildToVerticalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("Ministerio de %s"), *UWLCharacterSubsystem::MinisterOfficeToString(Seat.Office)), 14, GovText));
+		Info->AddChildToVerticalBox(MakeText(WidgetTree,
+			bFilled
+				? FString::Printf(TEXT("%s — skill %d · lealtad %d"), *Seat.Minister.Name, Seat.Minister.Skill, Seat.Minister.Loyalty)
+				: TEXT("Cargo vacante"),
+			12, bFilled ? GovMuted : GovGold, ETextJustify::Left, true));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Info))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			S->SetVerticalAlignment(VAlign_Center);
 		}
-		USizeBox* PopBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		PopBox->SetWidthOverride(160.f);
-		PopBox->SetContent(MakeText(WidgetTree, Pop, FontSize, GovMuted, ETextJustify::Right));
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(PopBox)) { S->SetVerticalAlignment(VAlign_Center); }
-		USizeBox* BalBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		BalBox->SetWidthOverride(140.f);
-		BalBox->SetContent(MakeText(WidgetTree, Bal, FontSize, BalColor, ETextJustify::Right));
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(BalBox)) { S->SetVerticalAlignment(VAlign_Center); }
+		if (bFilled)
+		{
+			if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
+				FString::Printf(TEXT("dismiss:%d"), static_cast<int32>(Seat.Office)), TEXT("DESTITUIR"), FLinearColor(0.34f, 0.13f, 0.11f, 1.f), 96.f)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+		}
+		else
+		{
+			if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
+				FString::Printf(TEXT("appoint:%d"), static_cast<int32>(Seat.Office)), TEXT("NOMBRAR"), GovGoldDim, 96.f)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+		}
 		Row->SetContent(HB);
-		return Row;
-	};
-
-	AddColumnChild(CenterBox, MakeRow(TEXT("Provincia"), TEXT("Poblacion"), TEXT("Balance/mes"),
-		GovMuted, FLinearColor(0.f, 0.f, 0.f, 0.f), 12, GovMuted), 6.f);
-
-	int32 Index = 0;
-	for (const FWLProvinceData& P : Sum.Controlled)
-	{
-		const int64 Bal = Tick ? Tick->GetProvinceMonthlyBalance(P.Id) : 0;
-		AddColumnChild(CenterBox, MakeRow(P.Name, GovGroupThousands(P.Population),
-			FString::Printf(TEXT("%s%s"), Bal >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Bal)),
-			Bal >= 0 ? GovGood : GovBad, (Index % 2 == 0) ? GovCard : GovCardAlt, 15, GovText), 4.f);
+		AddColumnChild(CenterBox, Row, 4.f);
 		++Index;
 	}
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		TEXT("NOMBRAR elige al candidato disponible con mas skill (prefiere su cartera). Nombrar cuesta capital politico."),
+		12, GovMuted, ETextJustify::Left, true), 4.f);
+
+	// Generales: tarjeta por general con stats + acciones F1.7/F2.4.
+	const TArray<FWLCharacter> Generals = Characters->GetGenerals(Iso);
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		FString::Printf(TEXT("GENERALES  (%d)"), Generals.Num()), 15, GovGold), 16.f);
+	Index = 0;
+	for (const FWLCharacter& General : Generals)
+	{
+		if (!General.bActive)
+		{
+			continue;
+		}
+		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UVerticalBox* GVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("%s — %s"), *General.Name, *RankToText(General.Rank)), 14, GovText, ETextJustify::Left, true)))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+			General.AssignedArmyId.IsEmpty() ? TEXT("Sin mando") : FString::Printf(TEXT("Ejercito %s"), *General.AssignedArmyId),
+			11, GovMuted, ETextJustify::Right));
+		GVB->AddChildToVerticalBox(Head);
+		const FLinearColor LoyaltyColor = General.Loyalty < 40 ? GovBad : (General.Loyalty < 60 ? GovGold : GovGood);
+		if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+			TEXT("Skill %d · Lealtad %d · Ambicion %d · Popularidad %d · Renombre %d"),
+			General.Skill, General.Loyalty, General.Ambition, General.Popularity, General.Renown),
+			12, LoyaltyColor, ETextJustify::Left, true)))
+		{
+			S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+		}
+		UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		auto AddGeneralAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
+		{
+			if (UHorizontalBoxSlot* S = Actions->AddChildToHorizontalBox(
+				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 108.f)))
+			{
+				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+		};
+		AddGeneralAction(FString::Printf(TEXT("promote:%s"), *General.Id), TEXT("ASCENDER"), GovGoldDim);
+		AddGeneralAction(FString::Printf(TEXT("reward:%s"), *General.Id), TEXT("RECOMPENSAR"), GovTabIdle);
+		AddGeneralAction(FString::Printf(TEXT("purge:%s"), *General.Id), TEXT("PURGAR"), FLinearColor(0.34f, 0.13f, 0.11f, 1.f));
+		AddGeneralAction(FString::Printf(TEXT("retire:%s"), *General.Id), TEXT("DAR DE BAJA"), GovTabIdle);
+		if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(Actions))
+		{
+			S->SetPadding(FMargin(0.f, 7.f, 0.f, 0.f));
+		}
+		Card->SetContent(GVB);
+		AddColumnChild(CenterBox, Card, 5.f);
+		++Index;
+	}
+	AddColumnChild(CenterBox, MakeActionButton(WidgetTree, this, TEXT("creategeneral"), TEXT("+ CREAR GENERAL"), GovGoldDim, 160.f, 13), 10.f);
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		TEXT("Recompensar sube lealtad (cuesta tesoro). Purgar elimina al general y asusta al resto (-lealtad). Lealtad baja + ambicion alta = golpe."),
+		12, GovMuted, ETextJustify::Left, true), 4.f);
+}
+
+// F3.6 + F4: DIPLOMACIA — relaciones, tratados, guerra e intriga por pais.
+void UWLGovernmentWidget::BuildDiplomacyTab()
+{
+	const FString Iso = PlayerIso();
+	UWLPoliticalSubsystem* Political = GetPolitical();
+	const UWLDataRegistry* Registry = GetRegistry();
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	if (!Political || !Registry || !Tick || Iso.IsEmpty())
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin datos diplomaticos."), 14, GovMuted), 10.f);
+		return;
+	}
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("DIPLOMACIA"), 17, GovGold), 6.f);
+
+	const FString SpyId = FindPlayerSpyId();
+	TArray<FWLNationData> Nations = Registry->GetAllNations();
+	Nations.Sort([](const FWLNationData& A, const FWLNationData& B) { return A.Name < B.Name; });
+	for (const FWLNationData& Other : Nations)
+	{
+		if (Other.Iso.Equals(Iso, ESearchCase::IgnoreCase))
+		{
+			continue;
+		}
+
+		FWLDiplomaticRelationState Relation;
+		Political->GetRelation(Iso, Other.Iso, Relation);
+		const FWLTradeRouteState Route = Tick->GetTradeRouteBetween(Iso, Other.Iso);
+		const FWLIntelligenceNetworkState Network = Political->GetIntelligenceNetwork(Iso, Other.Iso);
+		const bool bAtWar = Relation.Status == EWLDiplomaticStatus::War;
+
+		UBorder* Card = MakeBorder(WidgetTree, GovCard, FMargin(12.f, 10.f));
+		UVerticalBox* NVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+
+		// Cabecera: nombre + estado + opinion.
+		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		USizeBox* EmblemBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		EmblemBox->SetWidthOverride(26.f);
+		EmblemBox->SetHeightOverride(26.f);
+		EmblemBox->SetContent(MakeBorder(WidgetTree, Other.MapColor, FMargin(0.f)));
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(EmblemBox)) { S->SetVerticalAlignment(VAlign_Center); }
+		UBorder* NamePad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 0.f, 0.f, 0.f));
+		NamePad->SetContent(MakeText(WidgetTree, Other.Name.ToUpper(), 15, GovText));
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(NamePad))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		const FLinearColor StatusColor = bAtWar ? GovBad : (Relation.Status == EWLDiplomaticStatus::Tension ? GovGold : GovGood);
+		Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("%s · Opinion %+d"), *DiplomaticStatusToText(Relation.Status), Relation.Opinion),
+			13, StatusColor, ETextJustify::Right));
+		NVB->AddChildToVerticalBox(Head);
+
+		// Tratados + ruta comercial.
+		FString TreatyLine;
+		for (const EWLTreatyType Treaty : Relation.Treaties)
+		{
+			TreatyLine += (TreatyLine.IsEmpty() ? TEXT("") : TEXT(" · ")) + TreatyToText(Treaty);
+		}
+		if (TreatyLine.IsEmpty())
+		{
+			TreatyLine = TEXT("Sin tratados");
+		}
+		if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+			TEXT("%s   ·   Ruta comercial: %s (x%.2f)"),
+			*TreatyLine, Route.bOpen ? TEXT("abierta") : *FString::Printf(TEXT("CERRADA — %s"), *Route.Reason), Route.AccessMultiplier),
+			12, Route.bOpen ? GovMuted : GovBad, ETextJustify::Left, true)))
+		{
+			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+
+		// Acciones diplomaticas.
+		UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		auto AddDiploAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
+		{
+			if (UHorizontalBoxSlot* S = Actions->AddChildToHorizontalBox(
+				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 0.f, 11)))
+			{
+				S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+		};
+		auto HasTreaty = [&Relation](EWLTreatyType Type) { return Relation.Treaties.Contains(Type); };
+		if (!bAtWar)
+		{
+			AddDiploAction(FString::Printf(TEXT("war:%s"), *Other.Iso), TEXT("DECLARAR GUERRA"), FLinearColor(0.40f, 0.12f, 0.10f, 1.f));
+		}
+		const struct { EWLTreatyType Type; const TCHAR* Label; } TreatyDefs[] = {
+			{ EWLTreatyType::TradeAgreement, TEXT("COMERCIO") },
+			{ EWLTreatyType::NonAggression,  TEXT("NO AGRESION") },
+			{ EWLTreatyType::Alliance,       TEXT("ALIANZA") },
+			{ EWLTreatyType::Embargo,        TEXT("EMBARGO") },
+		};
+		for (const auto& Def : TreatyDefs)
+		{
+			if (HasTreaty(Def.Type))
+			{
+				AddDiploAction(FString::Printf(TEXT("breaktreaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
+					FString::Printf(TEXT("ROMPER %s"), Def.Label), GovTabIdle);
+			}
+			else
+			{
+				AddDiploAction(FString::Printf(TEXT("treaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
+					Def.Label, GovGoldDim);
+			}
+		}
+		AddDiploAction(FString::Printf(TEXT("aid:%s"), *Other.Iso), TEXT("AYUDA"), GovTabIdle);
+		if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(Actions))
+		{
+			S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+		}
+
+		// F4: intriga contra este pais.
+		if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
+			TEXT("INTELIGENCIA — red %d · exposicion %d%s"),
+			Network.NetworkStrength, Network.Exposure,
+			Network.LastOperationReport.IsEmpty() ? TEXT("") : *FString::Printf(TEXT("  ·  %s"), *Network.LastOperationReport)),
+			12, Network.Exposure >= 60 ? GovBad : GovMuted, ETextJustify::Left, true)))
+		{
+			S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+		}
+		if (SpyId.IsEmpty())
+		{
+			if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(MakeText(WidgetTree,
+				TEXT("Sin espias activos disponibles."), 12, GovMuted)))
+			{
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			}
+		}
+		else
+		{
+			UHorizontalBox* SpyActions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			auto AddSpyAction = [&](const FString& ActionId, const FString& Label)
+			{
+				if (UHorizontalBoxSlot* S = SpyActions->AddChildToHorizontalBox(
+					MakeActionButton(WidgetTree, this, ActionId, Label, GovFuture, 0.f, 11)))
+				{
+					S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
+					S->SetVerticalAlignment(VAlign_Center);
+				}
+			};
+			AddSpyAction(FString::Printf(TEXT("spynet:%s"), *Other.Iso), TEXT("RED +"));
+			AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::SabotageEconomy), *Other.Iso), TEXT("SABOTEAR ECO"));
+			AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::SabotageArmy), *Other.Iso), TEXT("SABOTEAR EJERCITO"));
+			AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::FundCoup), *Other.Iso), TEXT("FINANCIAR GOLPE"));
+			AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::Propaganda), *Other.Iso), TEXT("PROPAGANDA"));
+			AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::CounterIntelligence), *Other.Iso), TEXT("CONTRAESP."));
+			if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(SpyActions))
+			{
+				S->SetPadding(FMargin(0.f, 5.f, 0.f, 0.f));
+			}
+		}
+
+		Card->SetContent(NVB);
+		AddColumnChild(CenterBox, Card, 8.f);
+	}
+
+	AddColumnChild(CenterBox, MakeText(WidgetTree,
+		TEXT("Las operaciones de intriga suben la exposicion; si te descubren, la relacion se hunde. La guerra habilita batallas y corta rutas."),
+		12, GovMuted, ETextJustify::Left, true), 8.f);
 }
 
 void UWLGovernmentWidget::BuildRecordsTab()
@@ -948,6 +1690,7 @@ void UWLGovernmentWidget::BuildRecordsTab()
 void UWLGovernmentWidget::SetActiveTab(EWLGovernmentTab Tab)
 {
 	ActiveTab = Tab;
+	LastActionMessage.Reset();   // el feedback de acciones es del tab donde ocurrio
 	RefreshTabButtonStyles();
 	RebuildCenter();
 }
@@ -963,11 +1706,173 @@ void UWLGovernmentWidget::RefreshTabButtonStyles()
 	}
 }
 
-void UWLGovernmentWidget::OnTabOverview() { SetActiveTab(EWLGovernmentTab::Overview); }
-void UWLGovernmentWidget::OnTabEconomy()  { SetActiveTab(EWLGovernmentTab::Economy); }
-void UWLGovernmentWidget::OnTabPolitics() { SetActiveTab(EWLGovernmentTab::Politics); }
-void UWLGovernmentWidget::OnTabNation()   { SetActiveTab(EWLGovernmentTab::Nation); }
-void UWLGovernmentWidget::OnTabRecords()  { SetActiveTab(EWLGovernmentTab::Records); }
+void UWLGovernmentWidget::OnTabOverview()    { SetActiveTab(EWLGovernmentTab::Overview); }
+void UWLGovernmentWidget::OnTabEconomy()     { SetActiveTab(EWLGovernmentTab::Economy); }
+void UWLGovernmentWidget::OnTabHighCommand() { SetActiveTab(EWLGovernmentTab::HighCommand); }
+void UWLGovernmentWidget::OnTabPolitics()    { SetActiveTab(EWLGovernmentTab::Politics); }
+void UWLGovernmentWidget::OnTabDiplomacy()   { SetActiveTab(EWLGovernmentTab::Diplomacy); }
+void UWLGovernmentWidget::OnTabRecords()     { SetActiveTab(EWLGovernmentTab::Records); }
+
+// Dispatcher central: todos los UWLGovActionButton llegan aqui con "verbo[:arg1[:arg2]]".
+// Cada rama llama al endpoint backend correspondiente y refresca el tab con el mensaje resultante.
+void UWLGovernmentWidget::HandleAction(const FString& ActionId)
+{
+	TArray<FString> Parts;
+	ActionId.ParseIntoArray(Parts, TEXT(":"), true);
+	if (Parts.Num() == 0)
+	{
+		return;
+	}
+	const FString Verb = Parts[0];
+	const FString Arg1 = Parts.Num() > 1 ? Parts[1] : FString();
+	const FString Arg2 = Parts.Num() > 2 ? Parts[2] : FString();
+
+	const FString Iso = PlayerIso();
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	UWLCharacterSubsystem* Characters = GetCharacters();
+	UWLPoliticalSubsystem* Political = GetPolitical();
+
+	FString Message;
+	bool bOk = false;
+
+	if (Verb == TEXT("tariffup") || Verb == TEXT("tariffdown"))
+	{
+		if (Political && Tick)
+		{
+			const int32 Delta = Verb == TEXT("tariffup") ? 5 : -5;
+			bOk = Political->SetNationTariffRate(Iso, Tick->GetTariffRate(Iso) + Delta, Message);
+		}
+	}
+	else if (Verb == TEXT("creategeneral"))
+	{
+		FWLCharacter NewGeneral;
+		bOk = Characters && Characters->CreateGeneral(Iso, NewGeneral, Message);
+	}
+	else if (Verb == TEXT("promote"))
+	{
+		bOk = Characters && Characters->PromoteGeneral(Arg1, Message);
+	}
+	else if (Verb == TEXT("retire"))
+	{
+		bOk = Characters && Characters->RetireCharacter(Arg1, Message);
+	}
+	else if (Verb == TEXT("reward"))
+	{
+		bOk = Political && Political->RewardGeneral(Iso, Arg1, Message);
+	}
+	else if (Verb == TEXT("purge"))
+	{
+		bOk = Political && Political->PurgeCharacter(Iso, Arg1, Message);
+	}
+	else if (Verb == TEXT("repress"))
+	{
+		bOk = Political && Political->RepressOpposition(Iso, Message);
+	}
+	else if (Verb == TEXT("appoint"))
+	{
+		// Elige al mejor candidato disponible: rol ministro, activo y sin cargo; prefiere su cartera, luego skill.
+		if (Characters)
+		{
+			const EWLMinisterOffice Office = static_cast<EWLMinisterOffice>(FCString::Atoi(*Arg1));
+			TArray<FWLCharacter> Candidates = Characters->GetCharactersByRole(Iso, EWLCharacterRole::Minister);
+			Candidates.RemoveAll([](const FWLCharacter& C)
+			{
+				return !C.bActive || C.AssignedOffice != EWLMinisterOffice::None;
+			});
+			Candidates.Sort([Office](const FWLCharacter& A, const FWLCharacter& B)
+			{
+				const bool bAPref = A.PreferredOffice == Office;
+				const bool bBPref = B.PreferredOffice == Office;
+				if (bAPref != bBPref)
+				{
+					return bAPref;
+				}
+				return A.Skill > B.Skill;
+			});
+			if (Candidates.Num() > 0)
+			{
+				bOk = Characters->AppointMinister(Iso, Office, Candidates[0].Id, Message);
+			}
+			else
+			{
+				Message = TEXT("No hay candidatos a ministro disponibles.");
+			}
+		}
+	}
+	else if (Verb == TEXT("dismiss"))
+	{
+		bOk = Characters && Characters->DismissMinister(Iso, static_cast<EWLMinisterOffice>(FCString::Atoi(*Arg1)), Message);
+	}
+	else if (Verb == TEXT("war"))
+	{
+		bOk = Political && Political->DeclareWar(Iso, Arg1, Message);
+	}
+	else if (Verb == TEXT("treaty"))
+	{
+		bOk = Political && Political->SignTreaty(Iso, Arg2, static_cast<EWLTreatyType>(FCString::Atoi(*Arg1)), Message);
+	}
+	else if (Verb == TEXT("breaktreaty"))
+	{
+		bOk = Political && Political->BreakTreaty(Iso, Arg2, static_cast<EWLTreatyType>(FCString::Atoi(*Arg1)), Message);
+	}
+	else if (Verb == TEXT("spynet"))
+	{
+		const FString SpyId = FindPlayerSpyId();
+		bOk = Political && !SpyId.IsEmpty() && Political->BuildSpyNetwork(Iso, Arg1, SpyId, Message);
+		if (SpyId.IsEmpty())
+		{
+			Message = TEXT("Sin espias activos disponibles.");
+		}
+	}
+	else if (Verb == TEXT("spy"))
+	{
+		const FString SpyId = FindPlayerSpyId();
+		bOk = Political && !SpyId.IsEmpty() && Political->RunSpyOperation(
+			Iso, Arg2, SpyId, static_cast<EWLSpyOperationType>(FCString::Atoi(*Arg1)), Message);
+		if (SpyId.IsEmpty())
+		{
+			Message = TEXT("Sin espias activos disponibles.");
+		}
+	}
+	else if (Verb == TEXT("event"))
+	{
+		bOk = Political && Political->ResolveEvent(Arg1, Arg2, Message);
+	}
+	else if (Verb == TEXT("bond"))
+	{
+		if (Tick)
+		{
+			const int64 Principal = FMath::Max<int64>(10000, Tick->GetFinancialProfile(Iso).AvailableCredit / 4);
+			bOk = Tick->IssueBond(Iso, Principal, 24, Message);
+		}
+	}
+	else if (Verb == TEXT("imf"))
+	{
+		if (Tick)
+		{
+			const int64 Principal = FMath::Max<int64>(10000, Tick->GetFinancialProfile(Iso).AvailableCredit / 3);
+			bOk = Tick->RequestIMFProgram(Iso, Principal, 36, Message);
+		}
+	}
+	else if (Verb == TEXT("default"))
+	{
+		bOk = Tick && Tick->MarkDebtDefault(Iso, Message);
+	}
+	else if (Verb == TEXT("aid"))
+	{
+		bOk = Tick && Tick->GrantForeignAid(Iso, Arg1, 1000, 12, Message);
+	}
+	else
+	{
+		Message = FString::Printf(TEXT("Accion desconocida: %s"), *ActionId);
+	}
+
+	LastActionMessage = Message.IsEmpty()
+		? FString::Printf(TEXT("%s: %s"), *Verb, bOk ? TEXT("hecho.") : TEXT("no se pudo."))
+		: Message;
+	bLastActionSucceeded = bOk;
+	RebuildCenter();
+}
 
 void UWLGovernmentWidget::OnCloseClicked()
 {
@@ -1048,4 +1953,33 @@ UWLStrategicTickSubsystem* UWLGovernmentWidget::GetTick() const
 {
 	const UGameInstance* GI = GetGameInstance();
 	return GI ? GI->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr;
+}
+
+UWLCharacterSubsystem* UWLGovernmentWidget::GetCharacters() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	return GI ? GI->GetSubsystem<UWLCharacterSubsystem>() : nullptr;
+}
+
+UWLPoliticalSubsystem* UWLGovernmentWidget::GetPolitical() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	return GI ? GI->GetSubsystem<UWLPoliticalSubsystem>() : nullptr;
+}
+
+FString UWLGovernmentWidget::FindPlayerSpyId() const
+{
+	const UWLCharacterSubsystem* Characters = GetCharacters();
+	if (!Characters)
+	{
+		return FString();
+	}
+	for (const FWLCharacter& Spy : Characters->GetCharactersByRole(PlayerIso(), EWLCharacterRole::Spy))
+	{
+		if (Spy.bActive)
+		{
+			return Spy.Id;
+		}
+	}
+	return FString();
 }

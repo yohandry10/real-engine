@@ -2,20 +2,21 @@
 //
 // Ventana de GOBIERNO / PRESIDENCIA construida en UMG/C++ (mismo patron que
 // WLMainMenuWidget: sin assets binarios, fuentes Slate reales, UBorder con
-// padding). Es el equivalente moderno al panel de faccion de Total War
-// (Resumen / Politica / Personajes / Registros), adaptado al roadmap de
-// World Leader: presidencia, gabinete de ministerios, otras potencias y
-// registros. Reemplaza al overlay de Canvas (ilegible) por UI de verdad.
+// padding). Es el equivalente moderno al panel de faccion de Total War,
+// adaptado al roadmap: RESUMEN · ECONOMIA · ALTO MANDO · POLITICA ·
+// DIPLOMACIA · REGISTROS. Toda la logica vive en los subsystems
+// (UWLStrategicTickSubsystem, UWLCharacterSubsystem, UWLPoliticalSubsystem);
+// este widget solo lee endpoints y dispara acciones.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Core/WLGameTypes.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Button.h"
 #include "WLGovernmentWidget.generated.h"
 
 class UBorder;
-class UButton;
 class UTextBlock;
 class UVerticalBox;
 class UScrollBox;
@@ -23,22 +24,50 @@ class UWidget;
 class UWLDataRegistry;
 class UWLStrategicTickSubsystem;
 class UWLCampaignGameInstance;
+class UWLCharacterSubsystem;
+class UWLPoliticalSubsystem;
+class UWLGovernmentWidget;
+
+/**
+ * Boton con payload: OnClicked dinamico no identifica al emisor, asi que cada
+ * boton de accion (ascender general X, declarar guerra a Y...) guarda su
+ * ActionId y lo reenvia al dispatcher central del widget (HandleAction).
+ */
+UCLASS()
+class WORLDLEADER_API UWLGovActionButton : public UButton
+{
+	GENERATED_BODY()
+
+public:
+	void BindAction(UWLGovernmentWidget* InOwner, const FString& InActionId);
+
+private:
+	UFUNCTION() void HandleClicked();
+
+	UPROPERTY() TObjectPtr<UWLGovernmentWidget> Owner = nullptr;
+	FString ActionId;
+};
 
 /** Pestanas de la ventana de Gobierno (cambian el contenido central). */
 UENUM()
 enum class EWLGovernmentTab : uint8
 {
-	Overview,  // RESUMEN  -> metricas de la nacion
-	Economy,   // ECONOMIA -> presupuesto por categorias + palanca de impuestos (FE1.3)
-	Politics,  // POLITICA -> orden publico (real) + sistemas del roadmap (fase futura)
-	Nation,    // NACION   -> provincias controladas (datos reales)
-	Records    // REGISTROS-> eventos recientes / IA economica
+	Overview,     // RESUMEN    -> metricas + territorio + outcome
+	Economy,      // ECONOMIA   -> presupuesto, mercado, comercio, finanzas, gobernanza, impuestos
+	HighCommand,  // ALTO MANDO -> gabinete + generales (F1.6/F1.7)
+	Politics,     // POLITICA   -> orden publico, golpe/oposicion (F2) + eventos (F5)
+	Diplomacy,    // DIPLOMACIA -> relaciones, tratados, guerra (F3) + intriga (F4)
+	Records       // REGISTROS  -> IA economica / reportes
 };
 
 UCLASS()
 class WORLDLEADER_API UWLGovernmentWidget : public UUserWidget
 {
 	GENERATED_BODY()
+
+public:
+	/** Dispatcher central de acciones de los UWLGovActionButton ("verbo:arg1:arg2"). */
+	void HandleAction(const FString& ActionId);
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -66,18 +95,20 @@ private:
 	void RebuildCenter();
 
 	void BuildOverviewTab();
-	void BuildEconomyTab();   // FE1.3
-	void BuildPoliticsTab();
-	void BuildNationTab();
+	void BuildEconomyTab();       // FE: presupuesto/mercado/comercio/finanzas/gobernanza/impuestos
+	void BuildHighCommandTab();   // F1.6/F1.7: gabinete + generales
+	void BuildPoliticsTab();      // F2: poder interno + F5: eventos
+	void BuildDiplomacyTab();     // F3: relaciones/tratados/guerra + F4: intriga
 	void BuildRecordsTab();
 
 	void SetActiveTab(EWLGovernmentTab Tab);
 	void RefreshTabButtonStyles();
 
 	UFUNCTION() void OnTabOverview();
-	UFUNCTION() void OnTabEconomy();   // FE1.3
+	UFUNCTION() void OnTabEconomy();
+	UFUNCTION() void OnTabHighCommand();
 	UFUNCTION() void OnTabPolitics();
-	UFUNCTION() void OnTabNation();
+	UFUNCTION() void OnTabDiplomacy();
 	UFUNCTION() void OnTabRecords();
 	UFUNCTION() void OnCloseClicked();
 	UFUNCTION() void OnTaxDown();   // FE1.2: palanca de impuestos
@@ -91,10 +122,19 @@ private:
 	UWLCampaignGameInstance* GetCampaignGI() const;
 	UWLDataRegistry* GetRegistry() const;
 	UWLStrategicTickSubsystem* GetTick() const;
+	UWLCharacterSubsystem* GetCharacters() const;
+	UWLPoliticalSubsystem* GetPolitical() const;
+
+	/** Primer espia activo del jugador (las operaciones de intriga lo requieren). Vacio si no hay. */
+	FString FindPlayerSpyId() const;
 
 	UPROPERTY() UScrollBox* CenterScroll = nullptr;
 	UPROPERTY() UVerticalBox* CenterBox = nullptr;
 	UPROPERTY() TArray<UButton*> TabButtons;
 
 	EWLGovernmentTab ActiveTab = EWLGovernmentTab::Overview;
+
+	/** Resultado de la ultima accion (feedback del backend), mostrado arriba del contenido. */
+	FString LastActionMessage;
+	bool bLastActionSucceeded = true;
 };

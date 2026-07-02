@@ -26,9 +26,13 @@
 
 ## 📍 Estado actual
 
-- **Fase activa:** FE — Economía (el usuario priorizó economía). *F1 Generales queda en pausa (próxima F1.2).*
-- **Próxima tarea:** **FE2.3** — Cadenas de producción
-- **Última actualización:** 2026-07-01
+- **Fase activa:** UIX. La ventana GOBIERNO ya opera TODO el backend (6 tabs: RESUMEN · ECONOMIA ·
+  ALTO MANDO · POLITICA · DIPLOMACIA · REGISTROS). Quedan 2 piezas de UIX fuera de esa ventana:
+- **Próxima tarea UIX:** (a) panel de **slots de edificios** en el HUD de provincia (niveles/upgrade/efectos,
+  contrato "edificios provinciales") y (b) **general en el panel del ejército** + hook del token 3D
+  (`SyncRecruitedArmyTokens` → `CreateAndAssignGeneralToArmy`). Después: popup modal de eventos (hoy son
+  tarjetas en POLITICA) y acción FDI con selector de provincia/edificio.
+- **Última actualización:** 2026-07-02 (UIX de gobierno completa; suite 33/33)
 
 ---
 
@@ -129,8 +133,76 @@ Criterio de "hecho" por tarea: **compila** + lo que indique la tarea.
 - [ ] **F5.4 — Derrota.** Golpe exitoso / revolución / conquista → fin de partida.
 - [ ] **F5.5 — Agenda del líder.** Rasgos del líder que modifican eventos/opciones.
 
+### Contrato backend/frontend F1-F5
+
+> Estado: backend compilado y cubierto por tests. Lo pendiente aquí es UIX, no datos hardcodeados en widgets.
+
+**F1 Personajes & Generales — endpoint `UWLCharacterSubsystem`**
+- Lecturas UI: `GetCharactersByNation`, `GetCharactersByRole`, `GetGenerals`, `GetCabinet`,
+  `GetCabinetMinister`, `GetGovernmentStats`, `GetPoliticalCapital`, `GetAssignedGeneralForArmy`.
+- Acciones UI: `AppointMinister`, `DismissMinister`, `CreateGeneral`, `CreateAndAssignGeneralToArmy`,
+  `AssignGeneralToArmy`, `PromoteGeneral`, `RetireCharacter`, `AddRenownToGeneral`,
+  `AdjustCharacterLoyalty`, `AdjustPoliticalCapital`.
+- Persistencia: `UWLLocalSaveGame.Characters` + `PoliticalCapital` (save local v9).
+- Falta UIX: tab **ALTO MANDO**, cards de gabinete/personajes, selector de general y botones de ascenso/baja.
+- Hook pendiente 3D/presentación: `WLCampaign3DView::SyncRecruitedArmyTokens` todavía crea tokens visuales
+  `ARMY-<fort>`; cuando esa capa se conecte al backend debe llamar a `CreateAndAssignGeneralToArmy` o mapear
+  el token visual a un `FWLArmy` real para que el nombre visible salga del general.
+
+**F2 Poder interno & Golpes — endpoint `UWLPoliticalSubsystem`**
+- Lecturas UI: `GetInternalPower`, `GetCampaignOutcome`.
+- Acciones UI: `AttemptCoup`, `RewardGeneral`, `PurgeCharacter`, `RepressOpposition`.
+- Tick backend: `ProcessPoliticalMonth` se llama desde `UWLCampaignGameInstance::WLAdvanceMonth` y desde el
+  avance diario del `AWLCampaignPlayerController` solo cuando hay rollover de mes.
+- Persistencia: `UWLLocalSaveGame.InternalPowerStates` + `CampaignOutcome` (save local v9).
+- Falta UIX: medidor de golpe, oposición, botones de acciones internas, feedback y registro.
+
+**F3 Diplomacia & Guerra — endpoint `UWLPoliticalSubsystem`**
+- Lecturas UI: `GetRelationsForNation`, `GetRelation`.
+- Acciones UI: `SetRelationOpinion`, `AdjustRelationOpinion`, `DeclareWar`, `SignTreaty`, `BreakTreaty`.
+- Integración backend: `UWLMilitarySubsystem::AutoResolveBattle` bloquea combate entre países si la relación
+  no está en `EWLDiplomaticStatus::War`; declarar guerra habilita el auto-resolve.
+- Persistencia: `UWLLocalSaveGame.DiplomaticRelations` (save local v9).
+- Falta UIX: tab **DIPLOMACIA**, lista de países, estado de relación, tratados y botones de declarar guerra/tratados.
+
+**F4 Intriga exterior — endpoint `UWLPoliticalSubsystem`**
+- Lecturas UI: `GetIntelligenceNetwork`.
+- Acciones UI: `BuildSpyNetwork`, `RunSpyOperation` con `SabotageEconomy`, `SabotageArmy`, `FundCoup`,
+  `Propaganda`, `CounterIntelligence`.
+- Efectos backend: operaciones modifican red/exposición, orden público, oposición, riesgo/funding de golpe y
+  opinión diplomática si son detectadas.
+- Persistencia: `UWLLocalSaveGame.IntelligenceNetworks` (save local v9).
+- Falta UIX: panel de espías, selector de agente/objetivo, riesgo de exposición, resultado de operación.
+
+**F5 Eventos & Metas — endpoint `UWLPoliticalSubsystem`**
+- Datos: `Content/Data/Political/PoliticalEvents.json`.
+- Lecturas UI: `GetQueuedEvents`, `GetCampaignOutcome`, `GetLeaderAgendaTraits`.
+- Acciones UI: `ResolveEvent`.
+- Tick backend: `ProcessPoliticalMonth` evalúa eventos, agenda del líder, golpes y outcome; `CheckCampaignOutcome`
+  cubre dominación y golpe exitoso/revolución como derrota.
+- Persistencia: `UWLLocalSaveGame.PoliticalEvents` + `CampaignOutcome` (save local v9).
+- Falta UIX: cola visible, popup/modal de evento, botones de opciones, registro histórico de decisiones.
+
+### Contrato backend/frontend edificios provinciales
+
+> Estado: backend compilado y cubierto por tests. Falta UIX para operar slots/niveles desde HUD.
+
+- Datos: `Content/Data/Buildings/Buildings.json` define los 9 slots del GDD (`Economic`, `Industrial`,
+  `Military`, `Naval`, `Air`, `Tech`, `Financial`, `Infrastructure`, `Defensive`) con `max_level` 1-5,
+  coste, multiplicador de upgrade, upkeep mensual y efectos.
+- Lecturas UI: `GetProvinceBuildings`, `GetProvinceBuildingLevel`, `GetProvinceBuildingUpgradeCost`,
+  `GetProvinceBuildingEffects`, `IsBuildingSupportedInProvince`.
+- Acciones UI/backend: `BuildBuilding`, `UpgradeBuilding`.
+- Efectos backend: producción/PIB, ingreso provincial, mantenimiento, orden público mensual, capacidad militar
+  abstracta, capacidad naval/aérea/tecnológica y bonus defensivo leído por `UWLMilitarySubsystem::AutoResolveBattle`.
+- IA: `RunEconomicAI` puede construir un slot vacío o mejorar un edificio existente si el retorno mensual lo justifica.
+- Persistencia: `UWLLocalSaveGame.ProvinceBuildings.BuildingLevels` + save local v9; saves viejos sin niveles
+  restauran edificios como nivel 1.
+- Falta UIX: panel de slots reales, nivel, coste de upgrade, mantenimiento, preview de efectos y botón construir/mejorar.
+
 ### B — Batallas  *(paralelo; hasta entonces auto-resuelto)*
-- [ ] **B.1 — Auto-resolución.** Combate entre dos ejércitos por skill del general + composición → `EWLBattleResult`.
+- [~] **B.1 — Auto-resolución.** Combate por composición, terreno, defensa provincial, guerra diplomática,
+  bajas, ocupación y renombre posterior; falta que el skill del general pese directamente en el cálculo.
 - [ ] **B.2 — Batalla táctica.** (futuro) Total War real.
 
 ---
@@ -167,49 +239,172 @@ Todo parametrizado en `FWLBalanceRules` / `Content/Data/` (nunca hardcodear bala
 - [x] **FE2.1 — Catálogo de bienes (JSON).** Crudos (petróleo, gas, carbón, minerales, alimentos, café) y
   manufacturados (combustible, acero, bienes de consumo, armamento).
 - [x] **FE2.2 — Sectores por provincia.** Extracción / manufactura / servicios producen bienes usando trabajo.
-- [ ] **FE2.3 — Cadenas de producción.** petróleo→refinería→combustible; hierro+carbón→acero→armas/maquinaria.
-- [ ] **FE2.4 — Empleo y productividad.** La población trabaja en sectores; desempleo; el nivel de
+- [x] **FE2.3 — Cadenas de producción.** petróleo→refinería→combustible; hierro+carbón→acero→armas/maquinaria.
+- [x] **FE2.4 — Empleo y productividad.** La población trabaja en sectores; desempleo; el nivel de
   industrialización sube la productividad por trabajador.
 
 ### FE3 — Demanda, mercado y precios dinámicos
-- [ ] **FE3.1 — Demanda.** Consumo de la población (según nivel de vida) + insumos de industria + suministro del ejército.
-- [ ] **FE3.2 — Balance por bien.** Superávit/déficit y sus efectos: déficit de alimentos → −orden público;
+- [x] **FE3.1 — Demanda.** Consumo de la población (según nivel de vida) + insumos de industria + suministro del ejército.
+- [x] **FE3.2 — Balance por bien.** Superávit/déficit y sus efectos: déficit de alimentos → −orden público;
   déficit de insumos → las fábricas subproducen.
-- [ ] **FE3.3 — Precios dinámicos.** Precio por oferta/demanda (reemplaza los precios fijos de `FWLBalanceRules`).
-- [ ] **FE3.4 — Shocks de mercado.** Shock del precio del petróleo, boom/crisis (evento; conecta con F5).
+- [x] **FE3.3 — Precios dinámicos.** Precio por oferta/demanda (reemplaza los precios fijos de `FWLBalanceRules`).
+- [x] **FE3.4 — Shocks de mercado.** Shock del precio del petróleo, boom/crisis (evento; conecta con F5).
+
+### Contrato backend/frontend FE3.4
+
+> Estado: backend compilado y cubierto por tests. Falta UIX para mostrar shocks activos y sus impactos.
+
+- Lecturas UI: `GetActiveMarketShocks`, `GetMarketShockMultiplier`, `GetNationGoodMarketBalance`,
+  `GetNationInflationRate`, `GetNationEconomicCycleLabel`.
+- Acciones UI/backend: `ApplyMarketShock`, `ClearMarketShock`.
+- Efectos backend: `FWLMarketShockState` multiplica precios por bien o `*` global; modifica valor de producción,
+  coste de importación, ingreso por exportación, inflación, PIB y ciclo económico.
+- Integración F5: `FWLPoliticalEventOption` puede declarar `market_shock_good_id`,
+  `market_shock_price_multiplier`, `market_shock_duration_months` y `market_shock_title`; `ResolveEvent`
+  dispara el shock.
+- Persistencia: `UWLLocalSaveGame.ActiveMarketShocks` + save local v9; al avanzar mes baja
+  `RemainingMonths` y expira automáticamente.
+- Falta UIX: panel/log de shocks activos, bien afectado, duración restante, multiplicador e impacto en inflación/comercio.
 
 ### FE4 — Comercio exterior  *(conecta con DIPLOMACIA F3)*
-- [ ] **FE4.1 — Exportar/importar.** Vender superávit / comprar déficit en un mercado regional.
-- [ ] **FE4.2 — Acuerdos comerciales.** Suben volumen e ingreso de **ambos** países (se firman en Diplomacia).
-- [ ] **FE4.3 — Aranceles.** Ingreso + protección de la industria local, a costa de la relación.
-- [ ] **FE4.4 — Embargos / sanciones.** Arma económica: cortan el comercio del rival (daño mutuo).
-- [ ] **FE4.5 — Rutas comerciales.** Cortables en guerra (bloqueo naval, frontera cerrada) → escasez.
+- [x] **FE4.1 — Exportar/importar.** Vender superávit / comprar déficit en un mercado regional.
+- [x] **FE4.2 — Acuerdos comerciales.** Suben volumen e ingreso de **ambos** países (se firman en Diplomacia).
+- [x] **FE4.3 — Aranceles.** Ingreso + protección de la industria local, a costa de la relación.
+- [x] **FE4.4 — Embargos / sanciones.** Arma económica: cortan el comercio del rival (daño mutuo).
+- [x] **FE4.5 — Rutas comerciales.** Cortables en guerra (bloqueo naval, frontera cerrada) → escasez.
+
+### Contrato backend/frontend FE4.2-FE4.5
+
+> Estado: backend compilado y cubierto por tests. Falta UIX para operar y leer esta capa desde ECONOMIA/DIPLOMACIA.
+
+- Lecturas UI: `GetTradeRoutesForNation`, `GetTradeRouteBetween`, `GetTariffRate`,
+  `GetNationGoodMarketBalance`, `GetNationBudget`.
+- Acciones UI/backend: `SignTreaty(TradeAgreement)`, `SignTreaty(Embargo)`, `BreakTreaty`,
+  `SetNationTariffRate`.
+- Efectos backend: acuerdos comerciales suben acceso/volumen bilateral; aranceles reducen volumen importable,
+  generan `TariffIncome` y penalizan relación; embargos/sanciones cierran la ruta regional; guerra prioriza
+  cierre por frontera/bloqueo; el mercado global sigue como fallback cuando la región no alcanza.
+- Persistencia: `FWLNationTreasurySave.TariffRatePercent` + `UWLLocalSaveGame.DiplomaticRelations`
+  en save local v9.
+- Falta UIX: panel de comercio exterior con rutas por país, estado de ruta, acuerdos/embargos, slider o stepper
+  de arancel, preview de impacto en importaciones/exportaciones, presupuesto y relación diplomática.
 
 ### FE5 — Finanzas avanzadas, ayuda y ciclo económico
-- [ ] **FE5.1 — Bonos / préstamos.** Emitir deuda, calificación crediticia, riesgo de default, FMI.
-- [ ] **FE5.2 — Inflación.** Por masa monetaria / escasez; erosiona ingreso y nivel de vida.
-- [ ] **FE5.3 — Ayuda e inversión extranjera.** Aliados que subsidian/financian + FDI (empresas extranjeras
+- [x] **FE5.1 — Bonos / préstamos.** Emitir deuda, calificación crediticia, riesgo de default, FMI.
+- [x] **FE5.2 — Inflación.** Por masa monetaria / escasez; erosiona ingreso y nivel de vida.
+- [x] **FE5.3 — Ayuda e inversión extranjera.** Aliados que subsidian/financian + FDI (empresas extranjeras
   construyen en tu país).
-- [ ] **FE5.4 — Crecimiento vs recesión.** Motor con drivers ↑ (inversión, estabilidad, apertura comercial,
+- [x] **FE5.4 — Crecimiento vs recesión.** Motor con drivers ↑ (inversión, estabilidad, apertura comercial,
   tecnología, precios favorables) y ↓ (guerra, sanciones, shock, inestabilidad, deuda, corrupción) + ciclo/recesión.
 
+### Contrato backend/frontend FE5.1/FE5.3
+
+> Estado: backend compilado y cubierto por tests. Falta UIX para operar bonos, deuda externa, FMI, ayuda y FDI desde ECONOMIA/DIPLOMACIA.
+
+- Lecturas UI: `GetFinancialProfile`, `GetFinancialInstrumentsForNation`, `GetForeignSupportForNation`,
+  `GetNationBudget`.
+- Acciones UI/backend: `IssueBond`, `RegisterBilateralLoan`, `RequestIMFProgram`, `MarkDebtDefault`,
+  `GrantForeignAid`, `StartForeignInvestment`.
+- Efectos backend: bonos, préstamos y FMI suman tesoro y servicio de deuda mensual; el perfil financiero expone
+  rating, deuda, crédito disponible y riesgo/default; el default marca instrumentos y baja orden público; la ayuda
+  entra como `ForeignAidIncome`; la FDI se expone como `ForeignInvestmentInflow` y construye el edificio objetivo
+  al completarse.
+- Persistencia: `UWLLocalSaveGame.FinancialInstruments` + `ForeignSupportStates` en save local v9.
+- Falta UIX: panel de rating/deuda/default/FMI, acciones de ayuda/FDI, preview de impacto presupuestario,
+  historial de instrumentos y apoyos externos.
+
 ### FE6 — Gobernanza económica  *(conecta con PERSONAJES)*
-- [ ] **FE6.1 — Ministro de Economía.** Su competencia/corrupción mueve el ingreso y la eficiencia de recaudación.
-- [ ] **FE6.2 — Corrupción sistémica.** Skim del tesoro + peor "facilidad de negocios" (menos inversión/crecimiento).
-- [ ] **FE6.3 — Modernización/tecnología.** Multiplicador de productividad por nivel tecnológico (hook para tech futura).
+- [x] **FE6.1 — Ministro de Economía.** Su competencia/corrupción mueve el ingreso y la eficiencia de recaudación.
+- [x] **FE6.2 — Corrupción sistémica.** Skim del tesoro + peor "facilidad de negocios" (menos inversión/crecimiento).
+- [x] **FE6.3 — Modernización/tecnología.** Multiplicador de productividad por nivel tecnológico (hook para tech futura).
+
+### Contrato backend/frontend FE6
+
+> Estado: backend compilado y cubierto por tests. Falta UIX para mostrar y operar esta capa desde ECONOMIA/GABINETE.
+
+- Lecturas UI: `GetEconomicGovernanceStats`, `GetNationSystemicCorruption`, `GetNationTechnologyLevel`,
+  `GetNationBudget`.
+- Datos fuente: gabinete/personajes desde `UWLCharacterSubsystem`; tecnologia agregada desde edificios con
+  `BonusTechnology`.
+- Efectos backend: el ministro de Economia y sus rasgos ajustan eficiencia fiscal y corrupcion sistemica;
+  la corrupcion agrega `CorruptionLoss` al presupuesto y penaliza productividad; la tecnologia aumenta
+  productividad nacional y afecta produccion/ingreso/PIB.
+- Falta UIX: panel de gobernanza economica con ministro actual, skill/rasgos, corrupcion, tecnologia,
+  eficiencia fiscal, perdida por corrupcion y preview de impacto economico.
 
 ---
 
 ## 📒 Registro (bitácora de tareas hechas)
 
 <!-- Añade la más reciente arriba. Formato: fecha · tarea — resumen (archivos) -->
+- **2026-07-02 · UIX ventana GOBIERNO completa** — `WLGovernmentWidget` reorganizado a los 6 tabs de la
+  visión (NACION eliminado; su tabla vive en RESUMEN) y conectado a TODOS los contratos backend/frontend:
+  **RESUMEN** (+banner de victoria/derrota de `GetCampaignOutcome` + territorio), **ECONOMIA** (+shocks
+  activos, arancel con stepper −/+ vía `SetNationTariffRate`, finanzas soberanas: rating/deuda/riesgo con
+  botones EMITIR BONO · FMI · DEFAULT, instrumentos y apoyos activos, gobernanza FE6: ministro/corrupción/
+  tecnología/eficiencia), **ALTO MANDO** (capital político+stats, gabinete real con NOMBRAR —mejor candidato
+  disponible— y DESTITUIR, generales con ASCENDER · RECOMPENSAR · PURGAR · DAR DE BAJA · +CREAR GENERAL),
+  **POLITICA** (medidor de riesgo de golpe + oposición + financiación externa + REPRIMIR + último golpe +
+  eventos F5 con opciones y preview de efectos), **DIPLOMACIA** (por país: opinión/estado/tratados/ruta
+  comercial + DECLARAR GUERRA · 4 tratados firmar/romper · AYUDA + intriga F4: red/exposición + 6 operaciones
+  de espionaje). Columna GABINETE del marco ahora lee el gabinete real. Mecánica UI: `UWLGovActionButton`
+  (botón con payload "verbo:args") → dispatcher `HandleAction` → endpoint backend → strip de feedback.
+  Compila + suite completa 33/33. Pendiente UIX (fuera de esta ventana): panel de slots de edificios en HUD,
+  general en panel de ejército/token 3D, popup modal de eventos, FDI con selector. Archivos:
+  `WLGovernmentWidget.h/.cpp`.
+- **2026-07-02 · FE5.1/FE5.3 finanzas avanzadas backend** — `FWLFinancialInstrumentState`,
+  `FWLFinancialProfile` y `FWLForeignSupportState` agregan deuda soberana, bonos, préstamos bilaterales,
+  FMI, rating/default, ayuda exterior y FDI; `UWLStrategicTickSubsystem` expone endpoints para emitir deuda,
+  registrar préstamos, pedir FMI, declarar default, conceder ayuda e iniciar FDI; `FWLNationBudget` ahora muestra
+  `DebtService`, `ForeignAidIncome` y `ForeignInvestmentInflow`; `UWLLocalSaveGame` sube a v9 y persiste
+  instrumentos/apoyos. Tests: `WorldLeader.Economy.AdvancedFinanceFE5`,
+  `WorldLeader.Save.LocalCampaignRoundTrip`, `WorldLeader.Balance.SanitizeRules`; batería completa:
+  `Automation RunTests WorldLeader` 33/33.
+- **2026-07-02 · FE4.2-FE4.5 comercio avanzado backend** — `FWLTradeRouteState` expone rutas
+  bilaterales desde diplomacia; `UWLStrategicTickSubsystem` calcula comercio por socio con acuerdos,
+  tension, embargo y guerra, expone aranceles nacionales y suma `TariffIncome` al presupuesto;
+  `UWLPoliticalSubsystem::SetNationTariffRate` ajusta arancel y penaliza relaciones; `UWLLocalSaveGame`
+  sube a v8 y persiste `TariffRatePercent`. Tests: `WorldLeader.Economy.AdvancedTradeFE4`,
+  `WorldLeader.Economy.NationalMarketAndMacro`, `WorldLeader.Economy.MarketShocksFE34`,
+  `WorldLeader.Politics.F3.DiplomacyTreatyWar`, `WorldLeader.Save.LocalCampaignRoundTrip`,
+  `WorldLeader.Balance.SanitizeRules`; batería completa: `Automation RunTests WorldLeader` 32/32.
+- **2026-07-02 · FE3.4 shocks de mercado backend** — `FWLMarketShockState` agrega shocks temporales
+  por bien o globales; `UWLStrategicTickSubsystem` expone `ApplyMarketShock`, `ClearMarketShock`,
+  `GetActiveMarketShocks` y `GetMarketShockMultiplier`; `FWLGoodMarketBalance` muestra
+  `MarketShockMultiplier`; precios, comercio, inflacion, PIB y ciclo economico consumen el multiplicador;
+  `FWLPoliticalEventOption` puede disparar shocks desde eventos F5; `UWLLocalSaveGame` sube a v7 y
+  persiste `ActiveMarketShocks`. Tests: `WorldLeader.Economy.MarketShocksFE34`,
+  `WorldLeader.Economy.NationalMarketAndMacro`, `WorldLeader.Save.LocalCampaignRoundTrip`,
+  `WorldLeader.Politics.F2F4F5.IntrigueEventsSave`, `WorldLeader.Balance.SanitizeRules`.
+- **2026-07-02 · FE6 gobernanza economica backend** — `FWLEconomicGovernanceStats` expone ministro de
+  Economia, skill, corrupcion sistemica, tecnologia, clima de inversion, eficiencia fiscal, productividad
+  y skim por corrupcion; `FWLNationBudget` ahora incluye `CorruptionLoss`; produccion, ingreso provincial,
+  PIB y presupuesto consumen los multiplicadores FE6; edificios tecnologicos elevan el nivel tecnologico
+  nacional. Tests: `WorldLeader.Economy.GovernanceFE6`, `WorldLeader.Economy.NationalMarketAndMacro`,
+  `WorldLeader.Government.Characters`, `WorldLeader.Construction`, `WorldLeader.Save.LocalCampaignRoundTrip`.
+- **2026-07-02 · Edificios provinciales backend** — `FWLBuildingData` ampliado con niveles 1-5,
+  coste de upgrade, upkeep y efectos por slot; `Content/Data/Buildings/Buildings.json` ahora cubre los 9 slots
+  del GDD; `UWLStrategicTickSubsystem` expone build/upgrade, level, upgrade cost y efectos agregados; producción,
+  PIB, upkeep, orden público e IA económica consumen esos efectos; `UWLMilitarySubsystem::AutoResolveBattle`
+  lee el bonus defensivo provincial; `UWLLocalSaveGame` sube a v6 y persiste niveles. Tests:
+  `WorldLeader.Construction`, `WorldLeader.EconomyAI`, `WorldLeader.Save.LocalCampaignRoundTrip`,
+  `WorldLeader.Military.SubsystemGuards`.
+- **2026-07-02 · F1-F5 backend pass** — Backend de gobierno vivo: `UWLCharacterSubsystem` ampliado con
+  `CreateGeneral`, `CreateAndAssignGeneralToArmy`, autogeneral en `CreateArmy`, ascenso/baja, renombre mensual/batalla y capital político;
+  `UWLPoliticalSubsystem` nuevo para poder interno/golpes, diplomacia/guerra/tratados, intriga/espionaje,
+  eventos JSON y outcome de campaña; `UWLMilitarySubsystem::AutoResolveBattle` ahora exige guerra diplomática
+  y otorga renombre a generales asignados; `UWLLocalSaveGame` sube a v6 y persiste política/diplomacia/intriga/
+  eventos/outcome. Datos: `Content/Data/Political/PoliticalEvents.json`. Tests: `WorldLeader.Politics`,
+  `WorldLeader.Government.Characters`, `WorldLeader.Save.LocalCampaignRoundTrip`,
+  `WorldLeader.Military.SubsystemGuards`. Falta UIX: conectar `WLGovernmentWidget`, panel militar y mapa
+  diplomático a los endpoints listados arriba; no se lanzó Standalone por instrucción del usuario.
 - **2026-07-01 · FE2.2** — Sectores por provincia: extracción (bases oil/gas/minerals/food → crudos) y
   manufactura (base_industry → manufacturados repartidos por `industry_share` del catálogo) producen bienes
   usando TRABAJO: fuerza laboral = población × `LaborParticipationRate` (0.45); cada punto de base pide
   `WorkersPerBasePoint` (200) trabajadores; si no alcanzan, `LaborCoverage` < 1 subproduce (Arauca ~0.6).
-  Servicios = resto del empleo (desempleo llega en FE2.4). API: `GetProvinceProduction`/`GetNationProduction`/
+  Servicios = resto del empleo. API: `GetProvinceProduction`/`GetNationProduction`/
   `GetProvinceEmployment` (`FWLGoodOutput`, `FWLSectorEmployment`). UI: sección PRODUCCIÓN NACIONAL/MES en
-  ECONOMIA (bien, sector, unidades). Aún sin consumir insumos (eso es FE2.3) ni demanda/precios (FE3).
+  ECONOMIA (bien, sector, unidades). Actualizado después: FE2.3/FE3 ya consumen insumos, demanda y precios.
   Test `Economy.ProvinceSectorsProduction` (suite 20/21). Archivos: `WLBalanceTypes.h`, `Goods.json`,
   `WLGameTypes.h`, `WLDataRegistry.cpp`, `WLStrategicTickSubsystem.h/.cpp`, `WLGovernmentWidget.cpp`,
   `WLBalanceTests.cpp`.
