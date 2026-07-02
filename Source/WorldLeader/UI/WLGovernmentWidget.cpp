@@ -396,7 +396,7 @@ void UWLGovernmentWidget::BuildFooter(UVerticalBox* Root)
 	{
 		S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
 	}
-	Right->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("Agenda y rasgos del lider: fase futura del roadmap."), 12, GovMuted));
+	Right->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("Agenda nacional, reformas y crisis: pestana POLITICA."), 12, GovMuted));
 	if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Right))
 	{
 		S->SetVerticalAlignment(VAlign_Center);
