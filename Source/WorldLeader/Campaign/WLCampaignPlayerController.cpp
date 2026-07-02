@@ -54,6 +54,11 @@ void AWLCampaignPlayerController::BeginPlay()
 void AWLCampaignPlayerController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bTacticalBattleActive)
+	{
+		TickTacticalBattle(DeltaSeconds);
+		return;   // durante la batalla la camara y el hover del mapa quedan congelados
+	}
 	UpdateMapCamera(DeltaSeconds);
 	if (IsForceMovementModeActive())
 	{
@@ -245,6 +250,13 @@ void AWLCampaignPlayerController::OnSelectCountry()
 {
 	if (!HasCampaignInput())
 	{
+		return;
+	}
+
+	// Durante la batalla tactica el clic va integramente al campo de batalla (seleccion/ordenes/HUD).
+	if (bTacticalBattleActive)
+	{
+		HandleTacticalBattleClick();
 		return;
 	}
 

@@ -2307,7 +2307,7 @@ void UWLGovernmentWidget::BuildBattlePreviewPanel()
 		S->SetPadding(FMargin(0.f, 10.f, 0.f, 0.f));
 	}
 	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(WidgetTree,
-		TEXT("Auto-resolver calcula el resultado por poderes al instante. La batalla tactica la juega la IA tactica determinista y aplica bajas/ocupacion (la vista 3D interactiva es fase aparte). Ambas requieren guerra declarada."),
+		TEXT("Auto-resolver calcula el resultado por poderes al instante. Batalla tactica abre el campo de batalla 3D donde comandas tu bando (la IA lleva al rival) y aplica bajas/ocupacion al volver. Ambas requieren guerra declarada."),
 		11, GovMuted, ETextJustify::Left, true)))
 	{
 		S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));

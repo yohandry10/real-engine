@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/WLGameTypes.h"
+#include "Core/WLTacticalBattleTypes.h"
 #include "UI/WLCampaignBuildingSlotData.h"
 #include "UI/WLCampaignGovernmentLayout.h"
 #include "GameFramework/PlayerController.h"
@@ -17,6 +18,7 @@ class AWLCampaign3DView;
 class UWLMainMenuWidget;
 class UWLGovernmentWidget;
 class UWLEventModalWidget;
+class AWLTacticalBattleView;
 struct FWLCampaign3DCityView;
 struct FWLCampaign3DForceView;
 
@@ -170,6 +172,24 @@ public:
 	void SetEventModalOpen(bool bOpen);
 	/** Si hay eventos sin resolver del jugador, abre el modal (se llama al cerrar cada mes). */
 	void ShowEventModalIfPending();
+
+	// --- Vista de BATALLA TACTICA 3D interactiva (contrato "Vista Tactica" del roadmap) ---
+	/** Inicia la batalla tactica jugable: el jugador comanda su bando, la IA el rival. */
+	void EnterTacticalBattle(const FString& AttackerId, const FString& DefenderId);
+	/** Cierra la vista tactica; si bApplyResult, aplica bajas/ocupacion a campania. */
+	void ExitTacticalBattle(bool bApplyResult);
+	bool IsTacticalBattleActive() const { return bTacticalBattleActive; }
+	/** Auto-resuelve lo que queda de la batalla activa (IA en ambos bandos) y la termina. */
+	void AutoFinishTacticalBattle();
+
+	// Lectura para el HUD tactico (AWLCampaignHUD dibuja la barra de batalla).
+	bool IsTacticalBattleFinished() const { return bTacticalFinished; }
+	FString GetTacticalBattleHeadline() const;
+	FString GetTacticalBattleStatusLine() const;
+	FString GetTacticalBattleResultText() const;
+	FString GetTacticalSelectedUnitInfo() const;
+	int32 GetTacticalPlayerUnitCount() const;
+	int32 GetTacticalEnemyUnitCount() const;
 
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|CampaignView")
 	void ShowCampaign3DView();
@@ -365,4 +385,23 @@ private:
 
 	UPROPERTY()
 	UWLEventModalWidget* EventModalWidget = nullptr;
+
+	// --- Batalla tactica 3D interactiva (WLCampaignPlayerControllerBattle.cpp) ---
+	void TickTacticalBattle(float DeltaSeconds);
+	bool HandleTacticalBattleClick();
+	void RefreshTacticalBattleCache();
+
+	bool bTacticalBattleActive = false;
+	bool bTacticalFinished = false;
+	FString TacticalBattleId;
+	FString TacticalPlayerIso;
+	FString TacticalSelectedUnitId;
+	float TacticalStepAccumulator = 0.f;
+	FWLTacticalBattleState TacticalBattleCache;
+
+	UPROPERTY()
+	AWLTacticalBattleView* TacticalBattleView = nullptr;
+
+	UPROPERTY()
+	AActor* PreTacticalViewTarget = nullptr;
 };

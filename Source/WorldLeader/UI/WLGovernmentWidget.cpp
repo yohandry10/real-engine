@@ -2263,18 +2263,29 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 				Level == EWLAIDifficulty::Easy ? TEXT("Facil") : (Level == EWLAIDifficulty::Hard ? TEXT("Dificil") : TEXT("Medio")));
 		}
 	}
-	else if (Verb == TEXT("autoresolve") || Verb == TEXT("tacticalresolve"))
+	else if (Verb == TEXT("autoresolve"))
 	{
-		// autoresolve/tacticalresolve:<attackerId>:<defenderId> — resuelve el combate del preview.
+		// autoresolve:<attackerId>:<defenderId> — resultado instantaneo por calculo de poderes.
 		if (UWLMilitarySubsystem* Military = GetMilitary())
 		{
-			const EWLBattleResult Result = Verb == TEXT("autoresolve")
-				? Military->AutoResolveBattle(Arg1, Arg2, Message)
-				: Military->ResolveTacticalBattleToEnd(Arg1, Arg2, Message);
+			const EWLBattleResult Result = Military->AutoResolveBattle(Arg1, Arg2, Message);
 			bOk = Result != EWLBattleResult::Invalid;
-			// El combate consumio el objetivo (destruido/retirado/ocupado): cierra el preview.
 			BattleAttackerId.Reset();
 			BattleDefenderId.Reset();
+		}
+	}
+	else if (Verb == TEXT("tacticalresolve"))
+	{
+		// Cierra la ventana de gobierno y entra a la BATALLA TACTICA 3D interactiva.
+		if (AWLCampaignPlayerController* PC = GetOwningPlayer<AWLCampaignPlayerController>())
+		{
+			const FString Atk = Arg1;
+			const FString Def = Arg2;
+			BattleAttackerId.Reset();
+			BattleDefenderId.Reset();
+			PC->SetGovernmentWindowOpen(false);   // esto destruye/oculta esta ventana
+			PC->EnterTacticalBattle(Atk, Def);
+			return;   // 'this' ya no esta en pantalla: no toques mas estado del widget
 		}
 	}
 	else

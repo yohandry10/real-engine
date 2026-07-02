@@ -9,6 +9,7 @@
 #include "UI/WLCampaignBuildingSlotData.h"
 #include "UI/WLCampaignSelectionPanelData.h"
 #include "UI/WLCampaignGovernmentLayout.h"
+#include "UI/WLTacticalHudLayout.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -24,6 +25,68 @@ UWLDataRegistry* AWLCampaignHUD::GetRegistry() const
 {
 	const UGameInstance* GI = UGameplayStatics::GetGameInstance(this);
 	return GI ? GI->GetSubsystem<UWLDataRegistry>() : nullptr;
+}
+
+void AWLCampaignHUD::DrawTacticalBattleHud(const AWLCampaignPlayerController* PC, float W, float H, UFont* Font, UFont* SmallFont)
+{
+	const FLinearColor Ink(0.010f, 0.014f, 0.018f, 0.90f);
+	const FLinearColor InkHard(0.006f, 0.010f, 0.014f, 0.95f);
+	const FLinearColor Gold(0.90f, 0.72f, 0.28f, 1.f);
+	const FLinearColor Text(0.90f, 0.94f, 0.95f, 1.f);
+	const FLinearColor Muted(0.58f, 0.68f, 0.70f, 1.f);
+	const FLinearColor Good(0.55f, 0.86f, 0.52f, 1.f);
+	const FLinearColor Bad(0.94f, 0.52f, 0.42f, 1.f);
+
+	// Cabecera.
+	DrawRect(InkHard, 0.f, 0.f, W, 66.f);
+	DrawText(PC->GetTacticalBattleHeadline(), Gold, 24.f, 12.f, Font, 1.0f);
+	DrawText(PC->GetTacticalBattleStatusLine(), Text, 24.f, 38.f, SmallFont, 0.92f);
+
+	// Barra inferior: unidad seleccionada + ayuda de controles.
+	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
+	DrawText(PC->GetTacticalSelectedUnitInfo(), Text, 24.f, H - 24.f, SmallFont, 0.9f);
+
+	// Panel de ayuda (izquierda).
+	DrawRect(Ink, 24.f, 78.f, 360.f, 92.f);
+	DrawText(TEXT("CONTROLES DE BATALLA"), Gold, 36.f, 86.f, SmallFont, 0.86f);
+	DrawText(TEXT("Clic en tu unidad (azul): seleccionar"), Muted, 36.f, 106.f, SmallFont, 0.78f);
+	DrawText(TEXT("Clic en suelo: mover   ·   Clic en enemigo (rojo): atacar"), Muted, 36.f, 124.f, SmallFont, 0.78f);
+	DrawText(TEXT("La IA comanda al rival. AUTO-RESOLVER juega el resto."), Muted, 36.f, 142.f, SmallFont, 0.78f);
+
+	// Botones (mismas coords que el hit-test del PlayerController).
+	const bool bFinished = PC->IsTacticalBattleFinished();
+	const FBox2D AutoBtn = WLTacticalHudLayout::AutoResolveButton(W, H);
+	const FBox2D ExitBtn = WLTacticalHudLayout::ExitButton(W, H);
+	if (!bFinished)
+	{
+		DrawRect(FLinearColor(0.30f, 0.24f, 0.08f, 0.96f), AutoBtn.Min.X, AutoBtn.Min.Y,
+			AutoBtn.Max.X - AutoBtn.Min.X, AutoBtn.Max.Y - AutoBtn.Min.Y);
+		DrawRect(Gold, AutoBtn.Min.X, AutoBtn.Min.Y, AutoBtn.Max.X - AutoBtn.Min.X, 3.f);
+		DrawText(TEXT("AUTO-RESOLVER"), Text, AutoBtn.Min.X + 22.f, AutoBtn.Min.Y + 12.f, Font, 0.92f);
+	}
+	const FLinearColor ExitFill = bFinished ? FLinearColor(0.16f, 0.34f, 0.16f, 0.97f) : FLinearColor(0.34f, 0.14f, 0.12f, 0.96f);
+	DrawRect(ExitFill, ExitBtn.Min.X, ExitBtn.Min.Y, ExitBtn.Max.X - ExitBtn.Min.X, ExitBtn.Max.Y - ExitBtn.Min.Y);
+	DrawRect(Gold, ExitBtn.Min.X, ExitBtn.Min.Y, ExitBtn.Max.X - ExitBtn.Min.X, 3.f);
+	DrawText(bFinished ? TEXT("TERMINAR Y APLICAR") : TEXT("RETIRARSE Y APLICAR"),
+		Text, ExitBtn.Min.X + 22.f, ExitBtn.Min.Y + 12.f, Font, 0.92f);
+
+	// Banner de resultado.
+	if (bFinished)
+	{
+		const FString ResultText = PC->GetTacticalBattleResultText();
+		const bool bWon = ResultText == TEXT("VICTORIA");
+		const bool bDraw = ResultText == TEXT("EMPATE");
+		const float BannerH = 96.f;
+		const float BannerY = H * 0.5f - BannerH * 0.5f;
+		DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.42f), 0.f, 0.f, W, H);
+		DrawRect(bWon ? FLinearColor(0.15f, 0.13f, 0.04f, 0.97f)
+			: (bDraw ? FLinearColor(0.10f, 0.11f, 0.12f, 0.97f) : FLinearColor(0.15f, 0.05f, 0.04f, 0.97f)),
+			0.f, BannerY, W, BannerH);
+		DrawRect(Gold, 0.f, BannerY, W, 3.f);
+		DrawText(ResultText, bWon ? Gold : (bDraw ? Text : Bad), W * 0.5f - 70.f, BannerY + 20.f, Font, 1.7f);
+		DrawText(TEXT("Pulsa TERMINAR Y APLICAR para volver a la campana con las bajas y la ocupacion."),
+			Muted, W * 0.5f - 300.f, BannerY + 62.f, SmallFont, 0.95f);
+	}
 }
 
 UWLStrategicTickSubsystem* AWLCampaignHUD::GetTick() const
@@ -58,6 +121,14 @@ void AWLCampaignHUD::DrawHUD()
 	const float H = Canvas->ClipY;
 	const float LineHeight = 19.f;
 	const AWLCampaignPlayerController* PC = Cast<AWLCampaignPlayerController>(GetOwningPlayerController());
+
+	// Batalla tactica 3D activa: el HUD de campana se sustituye por la barra de batalla.
+	if (PC && PC->IsTacticalBattleActive())
+	{
+		DrawTacticalBattleHud(PC, W, H, Font, SmallFont);
+		return;
+	}
+
 	const bool bDiplomacy = PC && PC->IsDiplomacyViewActive();
 
 	const FLinearColor Ink(0.012f, 0.020f, 0.024f, 0.82f);
