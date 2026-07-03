@@ -34,4 +34,11 @@ namespace WLGovIconsNS
 {
 	/** Textura del icono (cacheada por icono+tamano+color). Nunca nullptr salvo fallo de asignacion. */
 	UTexture2D* GetIconTexture(EWLGovIcon Icon, int32 SizePx, const FLinearColor& Color);
+
+	/**
+	 * Retrato de personaje generado en runtime: busto estilizado (cara + pelo + hombros con el color
+	 * de la cartera) sobre un fondo en gradiente, variado de forma determinista por Seed (id/nombre).
+	 * Cacheado. Da "arte de personaje" sin depender de fotos externas.
+	 */
+	UTexture2D* GetPortraitTexture(const FString& Seed, const FLinearColor& Accent, int32 W, int32 H);
 }

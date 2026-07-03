@@ -1816,6 +1816,11 @@ void UWLGovernmentWidget::BuildMinisterComparator(EWLMinisterOffice Office)
 		}
 		UBorder* Row = MakeCard(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(11.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakePortrait(WidgetTree, Candidate.Id, GovGoldDim, 44.f, 54.f)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
+		}
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* NameRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = NameRow->AddChildToHorizontalBox(MakeText(WidgetTree, Candidate.Name, 13, GovText)))
@@ -1938,6 +1943,13 @@ void UWLGovernmentWidget::BuildPoliticalProfilesSection()
 			continue;
 		}
 		UBorder* Card = MakeCard(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UHorizontalBox* CardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree, Profile.CharacterId,
+			Character.Loyalty < 40 ? GovBad : GovGoldDim, 48.f, 58.f)))
+		{
+			S->SetVerticalAlignment(VAlign_Top);
+			S->SetPadding(FMargin(0.f, 0.f, 11.f, 0.f));
+		}
 		UVerticalBox* PVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Character.Name, 14, GovText)))
@@ -2000,7 +2012,12 @@ void UWLGovernmentWidget::BuildPoliticalProfilesSection()
 		{
 			PVB->AddChildToVerticalBox(MakeText(WidgetTree, Profile.LastProfileEvent, 11, GovBad, ETextJustify::Left, true));
 		}
-		Card->SetContent(PVB);
+		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(PVB))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Card->SetContent(CardRow);
 		AddColumnChild(CenterBox, Card, 4.f);
 		++Shown;
 	}

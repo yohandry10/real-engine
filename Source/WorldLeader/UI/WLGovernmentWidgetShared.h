@@ -190,6 +190,31 @@ namespace WLGovUI
 		return B;
 	}
 
+	/**
+	 * Retrato de personaje ENMARCADO: UI/Portraits/<Seed>.png si existe, si no un busto estilizado
+	 * generado en runtime (cara+pelo+hombros con el color de la cartera). Marco redondeado con acento.
+	 */
+	inline UWidget* MakePortrait(UWidgetTree* Tree, const FString& Seed, const FLinearColor& Accent, float W, float H)
+	{
+		UBorder* Frame = MakeCard(Tree, GovDarkInk, FMargin(2.f), 6.f, Accent * 0.7f + FLinearColor(0.10f, 0.11f, 0.13f), 1.4f);
+		UImage* Img = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+		UTexture2D* Tex = WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Portraits/%s.png"), *Seed));
+		if (!Tex)
+		{
+			Tex = WLGovIconsNS::GetPortraitTexture(Seed, Accent, static_cast<int32>(W), static_cast<int32>(H));
+		}
+		if (Tex)
+		{
+			Img->SetBrushFromTexture(Tex, false);
+		}
+		Frame->SetContent(Img);
+		USizeBox* Box = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Box->SetWidthOverride(W);
+		Box->SetHeightOverride(H);
+		Box->SetContent(Frame);
+		return Box;
+	}
+
 	/** Icono vectorial generado en runtime (moneda, poblacion, escudo...) mostrado a SizePx y tintado. */
 	inline UImage* MakeIcon(UWidgetTree* Tree, EWLGovIcon Icon, int32 SizePx, const FLinearColor& Color)
 	{

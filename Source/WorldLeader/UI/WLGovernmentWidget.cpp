@@ -1294,6 +1294,21 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 		const double Factor = Characters->GetMinisterEffectFactor(Iso, Seat.Office);
 		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+		// Retrato del ministro (arte de personaje) con color de acento por cartera.
+		const FLinearColor OfficeAccent =
+			Seat.Office == EWLMinisterOffice::Economy     ? GovGold :
+			Seat.Office == EWLMinisterOffice::Defense     ? FLinearColor(0.88f, 0.38f, 0.32f) :
+			Seat.Office == EWLMinisterOffice::Interior    ? FLinearColor(0.42f, 0.78f, 0.52f) :
+			Seat.Office == EWLMinisterOffice::Foreign     ? FLinearColor(0.45f, 0.68f, 0.95f) :
+			                                                FLinearColor(0.72f, 0.56f, 0.90f);
+		const FString PortraitSeed = bFilled ? Seat.CharacterId : FString::Printf(TEXT("VAC-%d"), static_cast<int32>(Seat.Office));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakePortrait(WidgetTree, PortraitSeed, OfficeAccent, 58.f, 72.f)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
+		}
+
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Info->AddChildToVerticalBox(MakeText(WidgetTree,
 			FString::Printf(TEXT("Ministerio de %s"), *UWLCharacterSubsystem::MinisterOfficeToString(Seat.Office)), 14, GovText));

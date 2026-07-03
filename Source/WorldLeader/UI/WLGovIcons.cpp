@@ -143,6 +143,88 @@ namespace
 	}
 }
 
+namespace
+{
+	uint32 PortraitHash(const FString& S)
+	{
+		uint32 H = 2166136261u;
+		for (const TCHAR C : S) { H ^= static_cast<uint32>(C); H *= 16777619u; }
+		return H;
+	}
+}
+
+UTexture2D* WLGovIconsNS::GetPortraitTexture(const FString& Seed, const FLinearColor& Accent, int32 W, int32 H)
+{
+	W = FMath::Clamp(W, 32, 256);
+	H = FMath::Clamp(H, 32, 256);
+	static TMap<FString, UTexture2D*> Cache;
+	const FString Key = FString::Printf(TEXT("%s|%dx%d"), *Seed, W, H);
+	if (UTexture2D** Found = Cache.Find(Key))
+	{
+		return *Found;
+	}
+
+	const uint32 Hash = PortraitHash(Seed);
+	// Paletas variadas de forma determinista.
+	const FLinearColor Skins[] = {
+		FLinearColor(0.86f, 0.70f, 0.56f), FLinearColor(0.74f, 0.57f, 0.44f),
+		FLinearColor(0.60f, 0.45f, 0.35f), FLinearColor(0.90f, 0.78f, 0.66f),
+		FLinearColor(0.48f, 0.35f, 0.27f) };
+	const FLinearColor Hairs[] = {
+		FLinearColor(0.10f, 0.08f, 0.07f), FLinearColor(0.22f, 0.15f, 0.10f),
+		FLinearColor(0.35f, 0.30f, 0.28f), FLinearColor(0.55f, 0.52f, 0.50f),
+		FLinearColor(0.28f, 0.20f, 0.13f) };
+	const FLinearColor Skin = Skins[Hash % 5];
+	const FLinearColor Hair = Hairs[(Hash / 7) % 5];
+	// Ropa: tono derivado del acento de la cartera, oscurecido.
+	const FLinearColor Cloth = Accent * 0.55f + FLinearColor(0.06f, 0.07f, 0.09f);
+	// Fondo: gradiente frio con un toque del acento.
+	const FLinearColor BgTop = FLinearColor(0.09f, 0.11f, 0.15f);
+	const FLinearColor BgBot = Accent * 0.16f + FLinearColor(0.05f, 0.06f, 0.09f);
+
+	UTexture2D* Tex = UTexture2D::CreateTransient(W, H, PF_B8G8R8A8);
+	if (!Tex) { return nullptr; }
+	Tex->SRGB = true; Tex->Filter = TF_Bilinear; Tex->AddressX = TA_Clamp; Tex->AddressY = TA_Clamp;
+
+	const int32 SS = 3;
+	TArray<FColor> Px; Px.SetNumUninitialized(W * H);
+	auto InDisc = [](float u, float v, float cx, float cy, float r){ return FMath::Square(u - cx) + FMath::Square(v - cy) <= r * r; };
+	auto InEllipse = [](float u, float v, float cx, float cy, float rx, float ry){ return FMath::Square((u - cx) / rx) + FMath::Square((v - cy) / ry) <= 1.f; };
+
+	for (int32 y = 0; y < H; ++y)
+	{
+		for (int32 x = 0; x < W; ++x)
+		{
+			float rr = 0, gg = 0, bb = 0;
+			for (int32 sy = 0; sy < SS; ++sy) for (int32 sx = 0; sx < SS; ++sx)
+			{
+				const float u = (x + (sx + 0.5f) / SS) / W;
+				const float v = (y + (sy + 0.5f) / SS) / H;
+				FLinearColor Csub;
+				// Frente a fondo: cara > pelo > cuello > ropa(hombros) > fondo.
+				if (InDisc(u, v, 0.5f, 0.46f, 0.165f))                 Csub = Skin;                 // cara
+				else if (InDisc(u, v, 0.5f, 0.40f, 0.205f))            Csub = Hair;                 // pelo (enmarca)
+				else if (u > 0.44f && u < 0.56f && v > 0.55f && v < 0.68f) Csub = Skin;             // cuello
+				else if (InEllipse(u, v, 0.5f, 1.06f, 0.42f, 0.52f) && v > 0.60f) Csub = Cloth;     // hombros
+				else { const float t = FMath::Clamp(v, 0.f, 1.f); Csub = FMath::Lerp(BgTop, BgBot, t); }
+				const FColor F = Csub.ToFColor(true);
+				rr += F.R; gg += F.G; bb += F.B;
+			}
+			const int32 Div = SS * SS;
+			Px[y * W + x] = FColor(static_cast<uint8>(rr / Div), static_cast<uint8>(gg / Div), static_cast<uint8>(bb / Div), 255);
+		}
+	}
+
+	FTexture2DMipMap& Mip = Tex->GetPlatformData()->Mips[0];
+	void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
+	FMemory::Memcpy(Data, Px.GetData(), Px.Num() * sizeof(FColor));
+	Mip.BulkData.Unlock();
+	Tex->UpdateResource();
+	Tex->AddToRoot();
+	Cache.Add(Key, Tex);
+	return Tex;
+}
+
 UTexture2D* WLGovIconsNS::GetIconTexture(EWLGovIcon Icon, int32 SizePx, const FLinearColor& Color)
 {
 	SizePx = FMath::Clamp(SizePx, 12, 128);
