@@ -34,7 +34,7 @@ namespace WLGovUI
 	inline const FLinearColor GovBackdrop     (0.006f, 0.008f, 0.012f, 0.82f);
 	inline const FLinearColor GovPanel        (0.030f, 0.036f, 0.048f, 0.995f); // pizarra casi negra
 	inline const FLinearColor GovPanelSoft    (0.050f, 0.058f, 0.074f, 1.00f);
-	inline const FLinearColor GovHeaderStrip  (0.105f, 0.090f, 0.045f, 1.00f);  // franja gold-brown para identidad
+	inline const FLinearColor GovHeaderStrip  (0.058f, 0.068f, 0.090f, 1.00f);  // franja pizarra limpia (antes gold-brown muddy)
 	inline const FLinearColor GovCard         (0.082f, 0.092f, 0.116f, 1.00f);  // tarjeta pizarra
 	inline const FLinearColor GovCardAlt      (0.102f, 0.114f, 0.142f, 1.00f);
 	inline const FLinearColor GovCardEdge     (0.22f, 0.25f, 0.31f, 1.00f);     // borde de tarjeta (contraste)
@@ -309,26 +309,45 @@ namespace WLGovUI
 		return Tag;
 	}
 
+	/** Icono de seccion derivado del titulo por palabra clave (ancla visual, no otro muro de texto). */
+	inline EWLGovIcon SectionIconFor(const FString& Title)
+	{
+		const FString T = Title.ToUpper();
+		auto Has = [&T](const TCHAR* K) { return T.Contains(K); };
+		if (Has(TEXT("PRESUPUESTO")) || Has(TEXT("MERCADO")) || Has(TEXT("COMERCIO")) || Has(TEXT("INGRES")) || Has(TEXT("GASTO"))) return EWLGovIcon::Balance;
+		if (Has(TEXT("FINANZAS")) || Has(TEXT("IMPUEST")) || Has(TEXT("DEUDA"))) return EWLGovIcon::Treasury;
+		if (Has(TEXT("GRUPOS")) || Has(TEXT("POBLAC")) || Has(TEXT("SOCIAL"))) return EWLGovIcon::Population;
+		if (Has(TEXT("TERRITORIO")) || Has(TEXT("PROVINCIA")) || Has(TEXT("REGION"))) return EWLGovIcon::Provinces;
+		if (Has(TEXT("PODER")) || Has(TEXT("ORDEN")) || Has(TEXT("CAPACIDAD")) || Has(TEXT("GOBERNANZA"))) return EWLGovIcon::Order;
+		if (Has(TEXT("DIPLOMAC")) || Has(TEXT("PANORAMA")) || Has(TEXT("EXTERIOR"))) return EWLGovIcon::Diplomacy;
+		if (Has(TEXT("ALTO MANDO")) || Has(TEXT("GABINETE")) || Has(TEXT("GENERAL")) || Has(TEXT("EJERCITO")) || Has(TEXT("MILITAR")) || Has(TEXT("BATALLA"))) return EWLGovIcon::Military;
+		if (Has(TEXT("ELECCION")) || Has(TEXT("APROBAC")) || Has(TEXT("PERFILES"))) return EWLGovIcon::Approval;
+		if (Has(TEXT("CRISIS")) || Has(TEXT("MEMORIA")) || Has(TEXT("EVENTO")) || Has(TEXT("NOTICIAS"))) return EWLGovIcon::Crisis;
+		if (Has(TEXT("CONGRESO")) || Has(TEXT("LEYES")) || Has(TEXT("REFORMA")) || Has(TEXT("AGENDA")) || Has(TEXT("PATRONAZGO")) || Has(TEXT("MEDIOS"))) return EWLGovIcon::Politics;
+		if (Has(TEXT("CRECIMIENTO")) || Has(TEXT("PROGRAMA"))) return EWLGovIcon::Growth;
+		return EWLGovIcon::Capital;
+	}
+
 	/**
-	 * Titulo de seccion con jerarquia clara: barra de acento dorada + texto en mayusculas sobre una
-	 * franja tenue, y una linea divisoria debajo que separa cada bloque. Da la estructura visual que
-	 * una simple linea de texto dorada no consigue.
+	 * Cabecera de seccion: icono + titulo en mayusculas sobre una franja oscura limpia y una linea
+	 * dorada debajo. El icono da un ancla visual que separa cada bloque de un vistazo (mas intuitivo
+	 * que una linea de texto suelta).
 	 */
 	inline UWidget* MakeSectionTitle(UWidgetTree* Tree, const FString& Title)
 	{
 		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 
-		UBorder* Strip = MakeBorder(Tree, FLinearColor(0.140f, 0.115f, 0.060f, 0.55f), FMargin(0.f));
+		UBorder* Strip = MakeRoundedSurface(Tree, FLinearColor(0.085f, 0.098f, 0.126f, 0.92f), FMargin(0.f), 5.f);
 		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		USizeBox* Bar = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		Bar->SetWidthOverride(5.f);
-		Bar->SetContent(MakeBorder(Tree, GovGold, FMargin(0.f)));
-		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(Bar))
-		{
-			S->SetVerticalAlignment(VAlign_Fill);
-		}
-		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(10.f, 6.f));
-		Pad->SetContent(MakeText(Tree, Title.ToUpper(), 16, GovGold));
+
+		// Icono de la seccion.
+		UBorder* IconPad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(11.f, 6.f, 4.f, 6.f));
+		IconPad->SetVerticalAlignment(VAlign_Center);
+		IconPad->SetContent(MakeIcon(Tree, SectionIconFor(Title), 20, GovGold));
+		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(IconPad)) { S->SetVerticalAlignment(VAlign_Center); }
+
+		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(4.f, 7.f, 10.f, 7.f));
+		Pad->SetContent(MakeText(Tree, Title.ToUpper(), 15, GovGold));
 		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(Pad))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -337,14 +356,11 @@ namespace WLGovUI
 		Strip->SetContent(Row);
 		VB->AddChildToVerticalBox(Strip);
 
-		// Linea divisoria fina bajo la franja.
+		// Linea divisoria dorada fina.
 		USizeBox* Line = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 		Line->SetHeightOverride(2.f);
-		Line->SetContent(MakeBorder(Tree, GovGoldDim, FMargin(0.f)));
-		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(Line))
-		{
-			S->SetPadding(FMargin(0.f, 0.f, 0.f, 0.f));
-		}
+		Line->SetContent(MakeRoundedSurface(Tree, GovGold, FMargin(0.f), 1.f));
+		VB->AddChildToVerticalBox(Line);
 		return VB;
 	}
 

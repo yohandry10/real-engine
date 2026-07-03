@@ -247,6 +247,12 @@ void UWLGovernmentWidget::BuildHeader(UVerticalBox* Root)
 	}
 
 	AddColumnChild(Root, Strip, 0.f);
+
+	// Linea de acento dorada bajo la cabecera (identidad, ahora que la franja es pizarra oscura).
+	USizeBox* Accent = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	Accent->SetHeightOverride(3.f);
+	Accent->SetContent(MakeRoundedSurface(WidgetTree, GovGold, FMargin(0.f), 1.5f));
+	AddColumnChild(Root, Accent, 0.f);
 }
 
 void UWLGovernmentWidget::BuildTabs(UVerticalBox* Root)
@@ -813,22 +819,33 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		AddColumnChild(CenterBox, Row, bTotal ? 8.f : 4.f);
 	};
 
-	// FE1.5: PIB y crecimiento arriba del presupuesto.
+	// FE1.5: macro en tiles con icono (antes eran dos lineas de texto apretadas e ilegibles).
 	{
 		const double Growth = GetCachedNationGDPGrowth();
 		const double Inflation = GetCachedNationInflationRate(Rules);
 		const FWLNationLaborStats& Labor = GetCachedNationLaborStats();
 		const FString& CycleLabel = GetCachedNationEconomicCycleLabel(Rules);
-		AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-			TEXT("PIB: %s / mes   ·   Crecimiento: %+.2f%%   ·   Inflacion: %+.2f%%   ·   Ciclo: %s"),
-			*GovGroupThousands(GetCachedNationGDP()), Growth * 100.0,
-			Inflation * 100.0, *CycleLabel),
-			14, Growth < 0.0 ? GovBad : GovText), 6.f);
-		AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-			TEXT("Empleo: %s / %s   ·   Desempleo: %.1f%%   ·   Productividad: %.0f%%"),
-			*GovGroupThousands(Labor.Employed), *GovGroupThousands(Labor.Workforce),
-			Labor.UnemploymentRate * 100.0, Labor.Productivity * 100.0),
-			12, Labor.UnemploymentRate > 0.15 ? GovBad : GovMuted), 4.f);
+
+		UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		Grid->SetSlotPadding(FMargin(5.f));
+		auto Place = [&](int32 R, int32 C, UBorder* Card)
+		{
+			if (UUniformGridSlot* S = Grid->AddChildToUniformGrid(Card, R, C)) { S->SetHorizontalAlignment(HAlign_Fill); }
+		};
+		Place(0, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Treasury, GovGold,
+			TEXT("PIB / mes"), GovGroupThousands(GetCachedNationGDP()), GovText));
+		Place(0, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Growth, Growth < 0.0 ? GovBad : GovGood,
+			TEXT("Crecimiento"), FString::Printf(TEXT("%+.2f%%"), Growth * 100.0), Growth < 0.0 ? GovBad : GovGood));
+		Place(0, 2, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Balance, GovGoldDim,
+			TEXT("Inflacion"), FString::Printf(TEXT("%+.2f%%"), Inflation * 100.0), Inflation > 0.05 ? GovBad : GovText));
+		Place(1, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Politics, FLinearColor(0.55f, 0.68f, 0.95f),
+			TEXT("Ciclo economico"), CycleLabel, GovText));
+		Place(1, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Crisis, Labor.UnemploymentRate > 0.15 ? GovBad : GovGood,
+			TEXT("Desempleo"), FString::Printf(TEXT("%.1f%%"), Labor.UnemploymentRate * 100.0),
+			Labor.UnemploymentRate > 0.15 ? GovBad : GovGood));
+		Place(1, 2, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Order, FLinearColor(0.85f, 0.55f, 0.40f),
+			TEXT("Productividad"), FString::Printf(TEXT("%.0f%%"), Labor.Productivity * 100.0), GovText));
+		AddColumnChild(CenterBox, Grid, 6.f);
 	}
 
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PRESUPUESTO MENSUAL")), 12.f);
