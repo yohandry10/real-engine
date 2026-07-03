@@ -1435,7 +1435,18 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 		{
 			S->SetPadding(FMargin(0.f, 7.f, 0.f, 0.f));
 		}
-		Card->SetContent(GVB);
+		UHorizontalBox* CardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree, General.Id, GovGoldDim, 52.f, 64.f)))
+		{
+			S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(GVB))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Card->SetContent(CardRow);
 		AddColumnChild(CenterBox, Card, 5.f);
 		++Index;
 	}
@@ -1499,6 +1510,20 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 		TEXT("En guerra %d · Alianzas %d · Embargos %d · Tratados vigentes %d"),
 		WarCount, AllyCount, EmbargoCount, TreatyCount),
 		13, WarCount > 0 ? GovBad : GovMuted, ETextJustify::Left, true), 4.f);
+
+	// Master/detalle: si hay un pais en gestion mostramos SOLO su ficha limpia (sin buscador ni lista).
+	if (!SelectedDiplomacyIso.IsEmpty())
+	{
+		for (const FDiploRow& Row : Rows)
+		{
+			if (Row.Nation.Iso.Equals(SelectedDiplomacyIso, ESearchCase::IgnoreCase))
+			{
+				BuildDiplomacyDetailPanel(Row.Nation);
+				return;
+			}
+		}
+		SelectedDiplomacyIso.Reset();   // el pais ya no existe: volvemos a la lista
+	}
 
 	// Buscador compacto por nombre/ISO (Enter confirma). Ancho fijo con etiqueta: no un cajon vacio a lo ancho.
 	{
@@ -1622,23 +1647,12 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 		return;
 	}
 
-	// Panel de gestion del pais seleccionado (arriba, con todas las acciones).
-	for (const FDiploRow& Row : Rows)
-	{
-		if (Row.Nation.Iso.Equals(SelectedDiplomacyIso, ESearchCase::IgnoreCase))
-		{
-			BuildDiplomacyDetailPanel(Row.Nation);
-			break;
-		}
-	}
-
-	// Listado compacto: una fila por pais, GESTIONAR abre/cierra su panel.
+	// Listado compacto: una fila por pais, GESTIONAR abre su ficha de gestion (vista master/detalle).
 	int32 Index = 0;
 	for (const FDiploRow& Row : Rows)
 	{
-		const bool bSelected = Row.Nation.Iso.Equals(SelectedDiplomacyIso, ESearchCase::IgnoreCase);
 		const bool bAtWar = Row.Relation.Status == EWLDiplomaticStatus::War;
-		UBorder* Card = MakeBorder(WidgetTree, bSelected ? GovHeaderStrip : ((Index % 2 == 0) ? GovCard : GovCardAlt), FMargin(10.f, 6.f));
+		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(10.f, 6.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeFlag(WidgetTree,
@@ -1679,8 +1693,7 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
 			FString::Printf(TEXT("dipsel:%s"), *Row.Nation.Iso),
-			bSelected ? TEXT("CERRAR") : TEXT("GESTIONAR"),
-			bSelected ? GovTabIdle : GovGoldDim, 96.f, 10)))
+			TEXT("GESTIONAR"), GovGoldDim, 96.f, 10)))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
@@ -1714,101 +1727,137 @@ void UWLGovernmentWidget::BuildDiplomacyDetailPanel(const FWLNationData& Other)
 	const bool bAtWar = Relation.Status == EWLDiplomaticStatus::War;
 	const FString SpyId = FindPlayerSpyId();
 
-	UBorder* Panel = MakeBorder(WidgetTree, GovPanelSoft, FMargin(12.f, 10.f));
-	UVerticalBox* NVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-
-	// Cabecera: nombre + estado + opinion.
-	UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeFlag(WidgetTree,
-		Other.Iso, Other.MapColor, 38.f, 26.f))) { S->SetVerticalAlignment(VAlign_Center); }
-	UBorder* NamePad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 0.f, 0.f, 0.f));
-	NamePad->SetContent(MakeText(WidgetTree, Other.Name.ToUpper(), 15, GovText));
-	if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(NamePad))
-	{
-		S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-		S->SetVerticalAlignment(VAlign_Center);
-	}
 	const FLinearColor StatusColor = bAtWar ? GovBad : (Relation.Status == EWLDiplomaticStatus::Tension ? GovGold : GovGood);
-	Head->AddChildToHorizontalBox(MakeText(WidgetTree,
-		FString::Printf(TEXT("%s · Opinion %+d"), *DiplomaticStatusToText(Relation.Status), Relation.Opinion),
-		13, StatusColor, ETextJustify::Right));
-	NVB->AddChildToVerticalBox(Head);
 
-	// Tratados + ruta comercial (con multiplicador y razon de bloqueo).
-	FString TreatyLine;
-	for (const EWLTreatyType Treaty : Relation.Treaties)
+	// --- Barra de navegacion: VOLVER a la lista. Master/detalle claro. ---
 	{
-		TreatyLine += (TreatyLine.IsEmpty() ? TEXT("") : TEXT(" · ")) + TreatyToText(Treaty);
-	}
-	if (TreatyLine.IsEmpty())
-	{
-		TreatyLine = TEXT("Sin tratados");
-	}
-	if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-		TEXT("%s   ·   Ruta comercial: %s (x%.2f)"),
-		*TreatyLine, Route.bOpen ? TEXT("abierta") : *FString::Printf(TEXT("CERRADA — %s"), *Route.Reason), Route.AccessMultiplier),
-		12, Route.bOpen ? GovMuted : GovBad, ETextJustify::Left, true)))
-	{
-		S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
-	}
-	if (!Relation.CasusBelli.IsEmpty())
-	{
-		NVB->AddChildToVerticalBox(MakeText(WidgetTree,
-			FString::Printf(TEXT("Casus belli: %s"), *Relation.CasusBelli), 12, GovGold, ETextJustify::Left, true));
-	}
-	NVB->AddChildToVerticalBox(MakeText(WidgetTree,
-		bAtWar ? TEXT("EN GUERRA: tus ejercitos pueden atacar; las rutas mutuas estan cortadas.")
-		       : TEXT("Sin guerra declarada: el combate contra este pais esta bloqueado."),
-		11, bAtWar ? GovBad : GovMuted, ETextJustify::Left, true));
-
-	// Acciones diplomaticas (todas con confirmacion en dos clics).
-	UWrapBox* Actions = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
-	auto AddDiploAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
-	{
-		if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Actions->AddChildToWrapBox(
-			MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 0.f, 11))))
+		UHorizontalBox* NavBar = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = NavBar->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
+			FString::Printf(TEXT("dipsel:%s"), *Other.Iso), TEXT("←  VOLVER A LA LISTA"), GovTabIdle, 210.f, 12)))
 		{
-			S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		AddColumnChild(CenterBox, NavBar, 8.f);
+	}
+
+	// --- Cabecera heroica: bandera grande + nombre + insignia de estado. ---
+	{
+		UBorder* Hero = MakeCard(WidgetTree, GovHeaderStrip, FMargin(14.f, 12.f));
+		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeFlag(WidgetTree,
+			Other.Iso, Other.MapColor, 66.f, 44.f))) { S->SetVerticalAlignment(VAlign_Center); }
+
+		UVerticalBox* Title = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		Title->AddChildToVerticalBox(MakeText(WidgetTree, Other.Name.ToUpper(), 20, GovText));
+		Title->AddChildToVerticalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("%s  ·  %d provincias"), *Other.Iso, Registry->GetProvincesByNation(Other.Iso).Num()),
+			12, GovMuted, ETextJustify::Left, true));
+		UBorder* TitlePad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(12.f, 0.f, 0.f, 0.f));
+		TitlePad->SetContent(Title);
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(TitlePad))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeBadge(WidgetTree,
+			FString::Printf(TEXT("%s · %+d"), *DiplomaticStatusToText(Relation.Status), Relation.Opinion),
+			StatusColor, GovDarkInk)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Hero->SetContent(Head);
+		AddColumnChild(CenterBox, Hero, 10.f);
+	}
+
+	// ===== RELACION: estado, tratados y ruta comercial en filas legibles. =====
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("RELACION")), 6.f);
+	{
+		FString TreatyLine;
+		for (const EWLTreatyType Treaty : Relation.Treaties)
+		{
+			TreatyLine += (TreatyLine.IsEmpty() ? TEXT("") : TEXT(" · ")) + TreatyToText(Treaty);
+		}
+		if (TreatyLine.IsEmpty()) { TreatyLine = TEXT("Sin tratados"); }
+
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Estado"),
+			DiplomaticStatusToText(Relation.Status), StatusColor, GovCard), 3.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Opinion"),
+			FString::Printf(TEXT("%+d"), Relation.Opinion),
+			Relation.Opinion >= 0 ? GovGood : GovBad, GovCardAlt), 3.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Tratados"), TreatyLine, GovText, GovCard), 3.f);
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Ruta comercial"),
+			Route.bOpen ? FString::Printf(TEXT("Abierta (x%.2f)"), Route.AccessMultiplier)
+			            : FString::Printf(TEXT("Cerrada — %s"), *Route.Reason),
+			Route.bOpen ? GovGood : GovBad, GovCardAlt), 3.f);
+		if (!Relation.CasusBelli.IsEmpty())
+		{
+			AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Casus belli"),
+				Relation.CasusBelli, GovGold, GovCard), 3.f);
+		}
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			bAtWar ? TEXT("EN GUERRA: tus ejercitos pueden atacar; las rutas mutuas estan cortadas.")
+			       : TEXT("Sin guerra declarada el combate contra este pais esta bloqueado."),
+			11, bAtWar ? GovBad : GovMuted, ETextJustify::Left, true), 5.f);
+	}
+
+	// Lambda para agrupar botones de accion con separacion consistente.
+	auto MakeActionWrap = [&](UWrapBox*& OutWrap)
+	{
+		OutWrap = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
+	};
+	auto AddWrapAction = [&](UWrapBox* Wrap, const FString& ActionId, const FString& Label, const FLinearColor& Bg)
+	{
+		if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Wrap->AddChildToWrapBox(
+			MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 0.f, 12))))
+		{
+			S->SetPadding(FMargin(0.f, 0.f, 6.f, 6.f));
 		}
 	};
 	auto HasTreaty = [&Relation](EWLTreatyType Type) { return Relation.Treaties.Contains(Type); };
-	if (bAtWar)
+
+	// ===== DIPLOMACIA: guerra/paz + tratados. =====
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("DIPLOMACIA")), 10.f);
 	{
-		AddDiploAction(FString::Printf(TEXT("peace:%s"), *Other.Iso), TEXT("NEGOCIAR PAZ"), GovGoldDim);
-	}
-	else
-	{
-		AddDiploAction(FString::Printf(TEXT("war:%s"), *Other.Iso), TEXT("DECLARAR GUERRA"), GovDanger);
-	}
-	const struct { EWLTreatyType Type; const TCHAR* Label; } TreatyDefs[] = {
-		{ EWLTreatyType::TradeAgreement, TEXT("COMERCIO") },
-		{ EWLTreatyType::NonAggression,  TEXT("NO AGRESION") },
-		{ EWLTreatyType::Alliance,       TEXT("ALIANZA") },
-		{ EWLTreatyType::Embargo,        TEXT("EMBARGO") },
-	};
-	for (const auto& Def : TreatyDefs)
-	{
-		if (HasTreaty(Def.Type))
+		UWrapBox* Wrap; MakeActionWrap(Wrap);
+		if (bAtWar)
 		{
-			AddDiploAction(FString::Printf(TEXT("breaktreaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
-				FString::Printf(TEXT("ROMPER %s"), Def.Label), GovTabIdle);
+			AddWrapAction(Wrap, FString::Printf(TEXT("peace:%s"), *Other.Iso), TEXT("NEGOCIAR PAZ"), GovGoldDim);
 		}
 		else
 		{
-			AddDiploAction(FString::Printf(TEXT("treaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
-				Def.Label, GovGoldDim);
+			AddWrapAction(Wrap, FString::Printf(TEXT("war:%s"), *Other.Iso), TEXT("DECLARAR GUERRA"), GovDanger);
 		}
+		const struct { EWLTreatyType Type; const TCHAR* Label; } TreatyDefs[] = {
+			{ EWLTreatyType::TradeAgreement, TEXT("COMERCIO") },
+			{ EWLTreatyType::NonAggression,  TEXT("NO AGRESION") },
+			{ EWLTreatyType::Alliance,       TEXT("ALIANZA") },
+			{ EWLTreatyType::Embargo,        TEXT("EMBARGO") },
+		};
+		for (const auto& Def : TreatyDefs)
+		{
+			if (HasTreaty(Def.Type))
+			{
+				AddWrapAction(Wrap, FString::Printf(TEXT("breaktreaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
+					FString::Printf(TEXT("ROMPER %s"), Def.Label), GovTabIdle);
+			}
+			else
+			{
+				AddWrapAction(Wrap, FString::Printf(TEXT("treaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
+					FString::Printf(TEXT("FIRMAR %s"), Def.Label), GovGoldDim);
+			}
+		}
+		AddColumnChild(CenterBox, Wrap, 4.f);
 	}
-	AddDiploAction(FString::Printf(TEXT("aid:%s"), *Other.Iso), TEXT("AYUDA"), GovTabIdle);
-	// FE5.3: FDI con selector — cada candidato (provincia+edificio construible del vecino) es un boton.
+
+	// ===== ECONOMIA: ayuda financiera + inversion extranjera. =====
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ECONOMIA")), 10.f);
 	{
+		UWrapBox* Wrap; MakeActionWrap(Wrap);
+		AddWrapAction(Wrap, FString::Printf(TEXT("aid:%s"), *Other.Iso), TEXT("ENVIAR AYUDA"), GovTabIdle);
 		int32 FdiShown = 0;
 		for (const FWLProvinceData& TargetProvince : Registry->GetProvincesByNation(Other.Iso))
 		{
-			if (FdiShown >= 2)
-			{
-				break;
-			}
+			if (FdiShown >= 2) { break; }
 			for (const FWLBuildingData& Candidate : Registry->GetAllBuildings())
 			{
 				if (!Tick->IsBuildingSupportedInProvince(TargetProvince.Id, Candidate.Id)
@@ -1816,63 +1865,47 @@ void UWLGovernmentWidget::BuildDiplomacyDetailPanel(const FWLNationData& Other)
 				{
 					continue;
 				}
-				AddDiploAction(FString::Printf(TEXT("fdi:%s:%s:%s"), *Other.Iso, *TargetProvince.Id, *Candidate.Id),
+				AddWrapAction(Wrap, FString::Printf(TEXT("fdi:%s:%s:%s"), *Other.Iso, *TargetProvince.Id, *Candidate.Id),
 					FString::Printf(TEXT("INVERTIR: %s en %s"), *Candidate.Name, *TargetProvince.Name), GovFuture);
 				++FdiShown;
 				break;   // un candidato por provincia
 			}
 		}
-	}
-	if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(Actions))
-	{
-		S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+		AddColumnChild(CenterBox, Wrap, 4.f);
 	}
 
-	// F4: intriga contra este pais.
-	if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-		TEXT("INTELIGENCIA — red %d · exposicion %d%s"),
-		Network.NetworkStrength, Network.Exposure,
-		Network.LastOperationReport.IsEmpty() ? TEXT("") : *FString::Printf(TEXT("  ·  %s"), *Network.LastOperationReport)),
-		12, Network.Exposure >= 60 ? GovBad : GovMuted, ETextJustify::Left, true)))
+	// ===== INTELIGENCIA: red de espias + operaciones de intriga. =====
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("INTELIGENCIA")), 10.f);
 	{
-		S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
-	}
-	if (SpyId.IsEmpty())
-	{
-		if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(MakeText(WidgetTree,
-			TEXT("Sin espias activos disponibles."), 12, GovMuted)))
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Red de espionaje"),
+			FString::Printf(TEXT("Fuerza %d  ·  Exposicion %d"), Network.NetworkStrength, Network.Exposure),
+			Network.Exposure >= 60 ? GovBad : GovText, GovCard), 3.f);
+		if (!Network.LastOperationReport.IsEmpty())
 		{
-			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Ultima operacion"),
+				Network.LastOperationReport, GovMuted, GovCardAlt), 3.f);
+		}
+		if (SpyId.IsEmpty())
+		{
+			AddColumnChild(CenterBox, MakeText(WidgetTree,
+				TEXT("Sin espias activos disponibles. Recluta un espia para operar aqui."), 12, GovMuted,
+				ETextJustify::Left, true), 5.f);
+		}
+		else
+		{
+			UWrapBox* Wrap; MakeActionWrap(Wrap);
+			AddWrapAction(Wrap, FString::Printf(TEXT("spynet:%s"), *Other.Iso), TEXT("AMPLIAR RED"), GovGoldDim);
+			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::SabotageEconomy), *Other.Iso), TEXT("SABOTEAR ECO"), GovFuture);
+			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::SabotageArmy), *Other.Iso), TEXT("SABOTEAR EJERCITO"), GovFuture);
+			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::FundCoup), *Other.Iso), TEXT("FINANCIAR GOLPE"), GovFuture);
+			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::Propaganda), *Other.Iso), TEXT("PROPAGANDA"), GovFuture);
+			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::CounterIntelligence), *Other.Iso), TEXT("CONTRAESPIONAJE"), GovFuture);
+			AddColumnChild(CenterBox, Wrap, 4.f);
+			AddColumnChild(CenterBox, MakeText(WidgetTree,
+				TEXT("La intriga sube tu exposicion; si te descubren, la relacion se hunde y hay incidente diplomatico."),
+				11, GovMuted, ETextJustify::Left, true), 5.f);
 		}
 	}
-	else
-	{
-		UWrapBox* SpyActions = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
-		auto AddSpyAction = [&](const FString& ActionId, const FString& Label)
-		{
-			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(SpyActions->AddChildToWrapBox(
-				MakeActionButton(WidgetTree, this, ActionId, Label, GovFuture, 0.f, 11))))
-			{
-				S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
-			}
-		};
-		AddSpyAction(FString::Printf(TEXT("spynet:%s"), *Other.Iso), TEXT("RED +"));
-		AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::SabotageEconomy), *Other.Iso), TEXT("SABOTEAR ECO"));
-		AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::SabotageArmy), *Other.Iso), TEXT("SABOTEAR EJERCITO"));
-		AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::FundCoup), *Other.Iso), TEXT("FINANCIAR GOLPE"));
-		AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::Propaganda), *Other.Iso), TEXT("PROPAGANDA"));
-		AddSpyAction(FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::CounterIntelligence), *Other.Iso), TEXT("CONTRAESP."));
-		if (UVerticalBoxSlot* S = NVB->AddChildToVerticalBox(SpyActions))
-		{
-			S->SetPadding(FMargin(0.f, 5.f, 0.f, 0.f));
-		}
-		NVB->AddChildToVerticalBox(MakeText(WidgetTree,
-			TEXT("La intriga sube tu exposicion; si te descubren, la relacion se hunde y hay incidente diplomatico."),
-			11, GovMuted, ETextJustify::Left, true));
-	}
-
-	Panel->SetContent(NVB);
-	AddColumnChild(CenterBox, Panel, 8.f);
 }
 
 void UWLGovernmentWidget::OpenProvince(const FString& ProvinceId)
@@ -2104,7 +2137,7 @@ void UWLGovernmentWidget::BuildRecordsTab()
 	else
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
-			TEXT("Aun no hay eventos. Avanza el tiempo con [M] o el boton AVANZAR DIA."), 14, GovMuted, ETextJustify::Left, true), 10.f);
+			TEXT("Aun no hay eventos. Avanza el tiempo con [Space] o el boton AVANZAR DIA."), 14, GovMuted, ETextJustify::Left, true), 10.f);
 	}
 
 	// Gobierno P2: que persigue cada gobierno IA de America y por que.
