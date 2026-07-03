@@ -380,18 +380,17 @@ void UWLGovernmentWidget::BuildFooter(UVerticalBox* Root)
 	AddColumnChild(Root, Footer, 12.f);
 }
 
-void UWLGovernmentWidget::RebuildCenter()
+void UWLGovernmentWidget::RebuildCenter(bool bPreserveScrollOffset)
 {
 	FWLScopedGovernmentPerfLog Perf(TEXT("RebuildCenter"), 0.10, GovernmentTabPerfName(ActiveTab));
 	if (!CenterBox)
 	{
 		return;
 	}
+	const float PreviousScrollOffset = (bPreserveScrollOffset && CenterScroll)
+		? CenterScroll->GetScrollOffset()
+		: 0.f;
 	CenterBox->ClearChildren();
-	if (CenterScroll)
-	{
-		CenterScroll->ScrollToStart();
-	}
 	// Feedback de la ultima accion (nombramientos, tratados, bonos...): visible en cualquier tab.
 	if (!LastActionMessage.IsEmpty())
 	{
@@ -410,6 +409,17 @@ void UWLGovernmentWidget::RebuildCenter()
 	case EWLGovernmentTab::Diplomacy:   BuildDiplomacyTab();   break;
 	case EWLGovernmentTab::Records:     BuildRecordsTab();     break;
 	case EWLGovernmentTab::Province:    BuildProvinceTab();    break;
+	}
+	if (CenterScroll)
+	{
+		if (bPreserveScrollOffset)
+		{
+			CenterScroll->SetScrollOffset(PreviousScrollOffset);
+		}
+		else
+		{
+			CenterScroll->ScrollToStart();
+		}
 	}
 }
 
@@ -581,6 +591,7 @@ double UWLGovernmentWidget::GetCachedNationGDPGrowth() const
 
 double UWLGovernmentWidget::GetCachedNationInflationRate(const FWLBalanceRules& Rules) const
 {
+	(void)Rules;
 	EnsureDataSnapshotContext();
 	if (!DataSnapshot.bNationInflationRateValid)
 	{
@@ -619,6 +630,7 @@ const FWLNationLaborStats& UWLGovernmentWidget::GetCachedNationLaborStats() cons
 
 const FString& UWLGovernmentWidget::GetCachedNationEconomicCycleLabel(const FWLBalanceRules& Rules) const
 {
+	(void)Rules;
 	EnsureDataSnapshotContext();
 	if (!DataSnapshot.bNationEconomicCycleLabelValid)
 	{
@@ -1295,16 +1307,34 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 
 	const FWLGovernmentStats Stats = Characters->GetGovernmentStats(Iso);
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ALTO MANDO")), 6.f);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-		TEXT("Capital politico: %d   ·   Estabilidad: %d   ·   Corrupcion: %d   ·   Riesgo de golpe: %d"),
-		Stats.PoliticalCapital, Stats.Stability, Stats.Corruption, Stats.CoupRisk),
-		13, Stats.CoupRisk >= 50 ? GovBad : GovMuted, ETextJustify::Left, true), 4.f);
+
+	// Indicadores de gobierno como tarjetas de metrica (mismo lenguaje que RESUMEN), no una linea de texto.
+	{
+		UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		Grid->SetSlotPadding(FMargin(5.f));
+		auto Place = [&](int32 C, UBorder* Card)
+		{
+			if (UUniformGridSlot* S = Grid->AddChildToUniformGrid(Card, 0, C)) { S->SetHorizontalAlignment(HAlign_Fill); }
+		};
+		Place(0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Capital, GovGold,
+			TEXT("Capital politico"), FString::Printf(TEXT("%d"), Stats.PoliticalCapital), GovText));
+		Place(1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Order, Stats.Stability < 40 ? GovBad : GovGood,
+			TEXT("Estabilidad"), FString::Printf(TEXT("%d"), Stats.Stability),
+			Stats.Stability < 40 ? GovBad : GovGood));
+		Place(2, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Politics, Stats.Corruption >= 50 ? GovBad : GovGoldDim,
+			TEXT("Corrupcion"), FString::Printf(TEXT("%d"), Stats.Corruption),
+			Stats.Corruption >= 50 ? GovBad : GovText));
+		Place(3, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Crisis, Stats.CoupRisk >= 50 ? GovBad : GovMuted,
+			TEXT("Riesgo de golpe"), FString::Printf(TEXT("%d"), Stats.CoupRisk),
+			Stats.CoupRisk >= 50 ? GovBad : GovText));
+		AddColumnChild(CenterBox, Grid, 6.f);
+	}
 
 	// Gobierno P1: gabinete vivo — rivalidad, faccionalismo y riesgos de escandalo/sabotaje/renuncia.
 	BuildCabinetDynamicsCard();
 
 	// Gabinete: cada cargo con su ministro o vacante + nombrar/destituir + su efecto REAL en el juego.
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GABINETE"), 15, GovGold), 14.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("GABINETE")), 14.f);
 	const UWLStrategicTickSubsystem* Tick = GetTick();
 	const FWLBalanceRules Rules = Tick ? Tick->GetBalanceRules() : FWLBalanceRules::Default();
 	auto MinisterEffectText = [&](EWLMinisterOffice Office, double Factor) -> FString
@@ -1353,20 +1383,32 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 		}
 
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		// Jerarquia clara: cartera pequena arriba en su color, NOMBRE del ministro grande debajo.
 		Info->AddChildToVerticalBox(MakeText(WidgetTree,
-			FString::Printf(TEXT("Ministerio de %s"), *UWLCharacterSubsystem::MinisterOfficeToString(Seat.Office)), 14, GovText));
+			FString::Printf(TEXT("MINISTERIO DE %s"), *UWLCharacterSubsystem::MinisterOfficeToString(Seat.Office).ToUpper()),
+			10, OfficeAccent));
 		Info->AddChildToVerticalBox(MakeText(WidgetTree,
-			bFilled
-				? FString::Printf(TEXT("%s — skill %d · lealtad %d · ambicion %d · popularidad %d"),
-					*Seat.Minister.Name, Seat.Minister.Skill, Seat.Minister.Loyalty,
-					Seat.Minister.Ambition, Seat.Minister.Popularity)
-				: TEXT("Cargo vacante"),
-			12, bFilled ? GovMuted : GovGold, ETextJustify::Left, true));
-		if (bFilled && Seat.Minister.Traits.Num() > 0)
+			bFilled ? Seat.Minister.Name : TEXT("Cargo vacante"), 15, bFilled ? GovText : GovGold));
+		if (bFilled)
 		{
 			Info->AddChildToVerticalBox(MakeText(WidgetTree,
-				FString::Printf(TEXT("Rasgos: %s"), *FString::Join(Seat.Minister.Traits, TEXT(" · "))),
-				11, GovGoldDim, ETextJustify::Left, true));
+				FString::Printf(TEXT("Skill %d · Lealtad %d · Ambicion %d · Popularidad %d"),
+					Seat.Minister.Skill, Seat.Minister.Loyalty, Seat.Minister.Ambition, Seat.Minister.Popularity),
+				11, Seat.Minister.Loyalty < 40 ? GovBad : GovMuted, ETextJustify::Left, true));
+		}
+		// Rasgos como insignias, no texto corrido.
+		if (bFilled && Seat.Minister.Traits.Num() > 0)
+		{
+			UHorizontalBox* TraitRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			for (const FString& Trait : Seat.Minister.Traits)
+			{
+				if (UHorizontalBoxSlot* S = TraitRow->AddChildToHorizontalBox(
+					MakeBadge(WidgetTree, Trait.ToUpper(), GovHeaderStrip, GovGoldDim)))
+				{
+					S->SetPadding(FMargin(0.f, 3.f, 5.f, 2.f));
+				}
+			}
+			Info->AddChildToVerticalBox(TraitRow);
 		}
 		Info->AddChildToVerticalBox(MakeText(WidgetTree, MinisterEffectText(Seat.Office, Factor), 11,
 			Factor < 0.0 ? GovBad : (Factor > 0.0 ? GovGood : GovMuted), ETextJustify::Left, true));
@@ -1431,8 +1473,14 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 
 	// Generales: tarjeta por general con stats + acciones F1.7/F2.4.
 	const TArray<FWLCharacter> Generals = Characters->GetGenerals(Iso);
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("GENERALES  (%d)"), Generals.Num()), 15, GovGold), 16.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("GENERALES  (%d)"), Generals.Num())), 16.f);
+	if (Generals.Num() == 0)
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("Sin generales en plantilla. Crea uno para poder dar mando a tus ejercitos."),
+			12, GovMuted, ETextJustify::Left, true), 4.f);
+	}
 	Index = 0;
 	for (const FWLCharacter& General : Generals)
 	{
@@ -1443,23 +1491,52 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 		UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* GVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
-			FString::Printf(TEXT("%s — %s"), *General.Name, *RankToText(General.Rank)), 14, GovText, ETextJustify::Left, true)))
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, General.Name, 15, GovText)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		}
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(
+			MakeBadge(WidgetTree, RankToText(General.Rank).ToUpper(), GovHeaderStrip, GovGold)))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetHorizontalAlignment(HAlign_Left);
 			S->SetVerticalAlignment(VAlign_Center);
 		}
-		Head->AddChildToHorizontalBox(MakeText(WidgetTree,
-			General.AssignedArmyId.IsEmpty() ? TEXT("Sin mando") : FString::Printf(TEXT("Ejercito %s"), *General.AssignedArmyId),
-			11, GovMuted, ETextJustify::Right));
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(General.AssignedArmyId.IsEmpty()
+			? MakeBadge(WidgetTree, TEXT("SIN MANDO"), GovTabIdle, GovMuted)
+			: MakeBadge(WidgetTree, FString::Printf(TEXT("EJERCITO %s"), *General.AssignedArmyId.ToUpper()), GovGoldDim, GovDarkInk)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+		}
 		GVB->AddChildToVerticalBox(Head);
 		const FLinearColor LoyaltyColor = General.Loyalty < 40 ? GovBad : (General.Loyalty < 60 ? GovGold : GovGood);
 		if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-			TEXT("Skill %d · Lealtad %d · Ambicion %d · Popularidad %d · Renombre %d"),
-			General.Skill, General.Loyalty, General.Ambition, General.Popularity, General.Renown),
-			12, LoyaltyColor, ETextJustify::Left, true)))
+			TEXT("Skill %d · Ambicion %d · Popularidad %d · Renombre %d"),
+			General.Skill, General.Ambition, General.Popularity, General.Renown),
+			12, GovMuted, ETextJustify::Left, true)))
 		{
 			S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+		}
+		// Lealtad como barra: es EL numero que decide golpes de estado.
+		{
+			UHorizontalBox* LoyaltyRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = LoyaltyRow->AddChildToHorizontalBox(
+				MakeText(WidgetTree, FString::Printf(TEXT("Lealtad %d"), General.Loyalty), 11, LoyaltyColor)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+			}
+			if (UHorizontalBoxSlot* S = LoyaltyRow->AddChildToHorizontalBox(
+				MakeBar(WidgetTree, General.Loyalty / 100.f, LoyaltyColor, 7.f)))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(LoyaltyRow))
+			{
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			}
 		}
 		UWrapBox* Actions = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
 		auto AddGeneralAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
@@ -1549,10 +1626,6 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
 		FString::Printf(TEXT("DIPLOMACIA CONTINENTAL  (%d naciones)"), Rows.Num())), 6.f);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-		TEXT("En guerra %d · Alianzas %d · Embargos %d · Tratados vigentes %d"),
-		WarCount, AllyCount, EmbargoCount, TreatyCount),
-		13, WarCount > 0 ? GovBad : GovMuted, ETextJustify::Left, true), 4.f);
 
 	// Master/detalle: si hay un pais en gestion mostramos SOLO su ficha limpia (sin buscador ni lista).
 	if (!SelectedDiplomacyIso.IsEmpty())
@@ -1568,83 +1641,111 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 		SelectedDiplomacyIso.Reset();   // el pais ya no existe: volvemos a la lista
 	}
 
-	// Buscador compacto por nombre/ISO (Enter confirma). Ancho fijo con etiqueta: no un cajon vacio a lo ancho.
+	// Resumen del continente como insignias de color (se apagan cuando estan a cero).
 	{
-		UHorizontalBox* SearchRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-
-		UBorder* Field = MakeCard(WidgetTree, GovCard, FMargin(10.f, 3.f));
-		UHorizontalBox* FieldRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = FieldRow->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("BUSCAR"), 11, GovGold)))
+		UHorizontalBox* Badges = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		auto AddSummaryBadge = [&](const FString& Label, int32 Count, const FLinearColor& ActiveBg)
 		{
-			S->SetVerticalAlignment(VAlign_Center);
-			S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
-		}
-		UEditableTextBox* SearchBox = WidgetTree->ConstructWidget<UEditableTextBox>(UEditableTextBox::StaticClass());
-		SearchBox->SetText(FText::FromString(DiplomacySearchText));
-		SearchBox->SetHintText(FText::FromString(TEXT("Nombre o ISO del pais...")));
-		SearchBox->WidgetStyle.TextStyle.Font.Size = 13;
-		SearchBox->OnTextCommitted.AddDynamic(this, &UWLGovernmentWidget::OnDiplomacySearchCommitted);
-		if (UHorizontalBoxSlot* S = FieldRow->AddChildToHorizontalBox(SearchBox))
-		{
-			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-			S->SetVerticalAlignment(VAlign_Center);
-		}
-		Field->SetContent(FieldRow);
-		USizeBox* FieldBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		FieldBox->SetWidthOverride(480.f);
-		FieldBox->SetHeightOverride(34.f);
-		FieldBox->SetContent(Field);
-		if (UHorizontalBoxSlot* S = SearchRow->AddChildToHorizontalBox(FieldBox))
-		{
-			S->SetVerticalAlignment(VAlign_Center);
-		}
-		if (!DiplomacySearchText.IsEmpty())
-		{
-			if (UHorizontalBoxSlot* S = SearchRow->AddChildToHorizontalBox(
-				MakeActionButton(WidgetTree, this, TEXT("dipsearchclear"), TEXT("LIMPIAR"), GovTabIdle, 80.f, 10)))
+			const bool bActive = Count > 0;
+			if (UHorizontalBoxSlot* S = Badges->AddChildToHorizontalBox(MakeBadge(WidgetTree,
+				FString::Printf(TEXT("%s  %d"), *Label, Count),
+				bActive ? ActiveBg : GovTabIdle,
+				bActive ? GovDarkInk : GovMuted)))
 			{
+				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
 				S->SetVerticalAlignment(VAlign_Center);
-				S->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
 			}
-		}
-		AddColumnChild(CenterBox, SearchRow, 8.f);
+		};
+		AddSummaryBadge(TEXT("EN GUERRA"), WarCount, GovBad);
+		AddSummaryBadge(TEXT("ALIANZAS"), AllyCount, GovGood);
+		AddSummaryBadge(TEXT("EMBARGOS"), EmbargoCount, GovGold);
+		AddSummaryBadge(TEXT("TRATADOS"), TreatyCount, GovGold);
+		AddColumnChild(CenterBox, Badges, 6.f);
 	}
 
-	// Filtros de estado + orden.
+	// Barra de herramientas unificada: buscador + filtros + orden dentro de UNA tarjeta,
+	// con etiquetas alineadas en columna. Antes eran tres filas sueltas flotando.
 	{
-		const struct { int32 Value; const TCHAR* Label; } Filters[] = {
-			{ 0, TEXT("TODOS") }, { 1, TEXT("GUERRA") }, { 2, TEXT("TENSION") }, { 3, TEXT("PAZ") },
-			{ 4, TEXT("ALIADOS") }, { 5, TEXT("CON TRATADO") }, { 6, TEXT("EMBARGO") } };
-		UWrapBox* FilterChips = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
-		for (const auto& Def : Filters)
-		{
-			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(FilterChips->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
-				FString::Printf(TEXT("dipfilter:%d"), Def.Value), Def.Label,
-				DiplomacyStatusFilter == Def.Value ? GovGoldDim : GovTabIdle, 0.f, 10))))
-			{
-				S->SetPadding(FMargin(0.f, 0.f, 4.f, 4.f));
-			}
-		}
-		AddColumnChild(CenterBox, FilterChips, 6.f);
+		UBorder* Toolbar = MakeCard(WidgetTree, GovHeaderStrip, FMargin(12.f, 10.f));
+		UVerticalBox* TVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 
-		const struct { int32 Value; const TCHAR* Label; } Sorts[] = {
-			{ 0, TEXT("A-Z") }, { 1, TEXT("OPINION +") }, { 2, TEXT("OPINION -") },
-			{ 3, TEXT("TESORO") }, { 4, TEXT("PROVINCIAS") }, { 5, TEXT("ESTADO") } };
-		UWrapBox* SortChips = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
-		if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(SortChips->AddChildToWrapBox(MakeText(WidgetTree, TEXT("ORDENAR:"), 10, GovMuted))))
+		// Etiqueta de columna fija para que BUSCAR / FILTRO / ORDEN queden alineados.
+		auto MakeRowLabel = [&](const TCHAR* Label) -> UWidget*
 		{
-			S->SetPadding(FMargin(0.f, 6.f, 6.f, 0.f));
-		}
-		for (const auto& Def : Sorts)
+			USizeBox* Box = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			Box->SetWidthOverride(76.f);
+			Box->SetContent(MakeText(WidgetTree, Label, 11, GovGold));
+			return Box;
+		};
+
+		// Fila 1: buscador a lo ancho, campo hundido oscuro.
 		{
-			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(SortChips->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
-				FString::Printf(TEXT("dipsort:%d"), Def.Value), Def.Label,
-				DiplomacySortMode == Def.Value ? GovGoldDim : GovTabIdle, 0.f, 10))))
+			UHorizontalBox* SearchRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = SearchRow->AddChildToHorizontalBox(MakeRowLabel(TEXT("BUSCAR"))))
 			{
-				S->SetPadding(FMargin(0.f, 0.f, 4.f, 4.f));
+				S->SetVerticalAlignment(VAlign_Center);
 			}
+			UBorder* Field = MakeRoundedSurface(WidgetTree, GovBarTrack, FMargin(10.f, 5.f), 6.f);
+			UEditableTextBox* SearchBox = WidgetTree->ConstructWidget<UEditableTextBox>(UEditableTextBox::StaticClass());
+			SearchBox->SetText(FText::FromString(DiplomacySearchText));
+			SearchBox->SetHintText(FText::FromString(TEXT("Escribe el nombre o ISO del pais y pulsa Enter...")));
+			SearchBox->WidgetStyle.TextStyle.Font.Size = 13;
+			SearchBox->OnTextCommitted.AddDynamic(this, &UWLGovernmentWidget::OnDiplomacySearchCommitted);
+			Field->SetContent(SearchBox);
+			if (UHorizontalBoxSlot* S = SearchRow->AddChildToHorizontalBox(Field))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			if (!DiplomacySearchText.IsEmpty())
+			{
+				if (UHorizontalBoxSlot* S = SearchRow->AddChildToHorizontalBox(
+					MakeActionButton(WidgetTree, this, TEXT("dipsearchclear"), TEXT("LIMPIAR"), GovTabIdle, 84.f, 10)))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+					S->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+				}
+			}
+			TVB->AddChildToVerticalBox(SearchRow);
 		}
-		AddColumnChild(CenterBox, SortChips, 2.f);
+
+		// Filas 2 y 3: chips de filtro y orden con etiqueta alineada; el activo va en dorado.
+		auto AddChipRow = [&](const TCHAR* Label, const TCHAR* Verb,
+			std::initializer_list<TPair<int32, const TCHAR*>> Defs, int32 Active)
+		{
+			UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(MakeRowLabel(Label)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			UWrapBox* Chips = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
+			for (const auto& Def : Defs)
+			{
+				if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Chips->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
+					FString::Printf(TEXT("%s:%d"), Verb, Def.Key), Def.Value,
+					Active == Def.Key ? GovGoldDim : GovTabIdle, 0.f, 10))))
+				{
+					S->SetPadding(FMargin(0.f, 0.f, 4.f, 4.f));
+				}
+			}
+			if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(Chips))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			UBorder* RowPad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f, 8.f, 0.f, 0.f));
+			RowPad->SetContent(Row);
+			TVB->AddChildToVerticalBox(RowPad);
+		};
+		AddChipRow(TEXT("FILTRO"), TEXT("dipfilter"), {
+			{ 0, TEXT("TODOS") }, { 1, TEXT("GUERRA") }, { 2, TEXT("TENSION") }, { 3, TEXT("PAZ") },
+			{ 4, TEXT("ALIADOS") }, { 5, TEXT("CON TRATADO") }, { 6, TEXT("EMBARGO") } }, DiplomacyStatusFilter);
+		AddChipRow(TEXT("ORDEN"), TEXT("dipsort"), {
+			{ 0, TEXT("A-Z") }, { 1, TEXT("OPINION +") }, { 2, TEXT("OPINION -") },
+			{ 3, TEXT("TESORO") }, { 4, TEXT("PROVINCIAS") }, { 5, TEXT("ESTADO") } }, DiplomacySortMode);
+
+		Toolbar->SetContent(TVB);
+		AddColumnChild(CenterBox, Toolbar, 6.f);
 	}
 
 	// Aplica busqueda + filtro.
@@ -2240,7 +2341,7 @@ void UWLGovernmentWidget::SetActiveTab(EWLGovernmentTab Tab)
 	BattleDefenderId.Reset();
 	bDraftAgendaLoaded = false;  // AGENDA vuelve a leer las prioridades reales del backend
 	RefreshTabButtonStyles();
-	RebuildCenter();
+	RebuildCenter(false);
 }
 
 void UWLGovernmentWidget::RefreshTabButtonStyles()

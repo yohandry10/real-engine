@@ -476,7 +476,7 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 	if (PendingCount == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
-			TEXT("Sin eventos pendientes. Se disparan al avanzar el mes segun la situacion interna."),
+			TEXT("Sin eventos pendientes. Se disparan al cierre mensual segun la situacion interna."),
 			13, GovMuted, ETextJustify::Left, true), 8.f);
 	}
 	for (const FWLPoliticalEventInstance& Event : Events)
@@ -1709,19 +1709,42 @@ void UWLGovernmentWidget::BuildCabinetDynamicsCard()
 	Title->SetToolTipText(FText::FromString(
 		TEXT("Tu gabinete tiene vida propia: rivalidades y ambicion generan escandalos, sabotajes y renuncias.")));
 	VB->AddChildToVerticalBox(Title);
-	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-		TEXT("Rivalidad %d · Faccionalismo %d · Riesgo de escandalo %d · Sabotaje %d · Renuncia %d"),
-		Dynamics.RivalryPressure, Dynamics.Factionalism, Dynamics.ScandalRisk,
-		Dynamics.SabotageRisk, Dynamics.ResignationRisk),
-		12, (Dynamics.ScandalRisk >= 50 || Dynamics.SabotageRisk >= 50) ? GovBad : GovMuted,
-		ETextJustify::Left, true)))
+
+	// Cada tension como mini-medidor (etiqueta + valor + barra de color), no una linea de texto corrido.
 	{
-		S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
-	}
-	const int32 MaxRisk = FMath::Max3(Dynamics.ScandalRisk, Dynamics.SabotageRisk, Dynamics.ResignationRisk);
-	if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeBar(WidgetTree, MaxRisk / 100.f, RiskColor(MaxRisk), 7.f)))
-	{
-		S->SetPadding(FMargin(0.f, 5.f, 0.f, 0.f));
+		UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		Grid->SetSlotPadding(FMargin(6.f, 4.f));
+		int32 Cell = 0;
+		auto AddRiskGauge = [&](const TCHAR* Label, int32 Value)
+		{
+			UVerticalBox* GaugeVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+			UHorizontalBox* Line = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = Line->AddChildToHorizontalBox(MakeText(WidgetTree, Label, 11, GovMuted)))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			}
+			Line->AddChildToHorizontalBox(MakeText(WidgetTree,
+				FString::Printf(TEXT("%d"), Value), 11, RiskColor(Value), ETextJustify::Right));
+			GaugeVB->AddChildToVerticalBox(Line);
+			if (UVerticalBoxSlot* S = GaugeVB->AddChildToVerticalBox(MakeBar(WidgetTree, Value / 100.f, RiskColor(Value), 6.f)))
+			{
+				S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+			}
+			if (UUniformGridSlot* S = Grid->AddChildToUniformGrid(GaugeVB, Cell / 3, Cell % 3))
+			{
+				S->SetHorizontalAlignment(HAlign_Fill);
+			}
+			++Cell;
+		};
+		AddRiskGauge(TEXT("Rivalidad"), Dynamics.RivalryPressure);
+		AddRiskGauge(TEXT("Faccionalismo"), Dynamics.Factionalism);
+		AddRiskGauge(TEXT("Escandalo"), Dynamics.ScandalRisk);
+		AddRiskGauge(TEXT("Sabotaje"), Dynamics.SabotageRisk);
+		AddRiskGauge(TEXT("Renuncia"), Dynamics.ResignationRisk);
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(Grid))
+		{
+			S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+		}
 	}
 	if (!Dynamics.LastIncident.IsEmpty())
 	{
@@ -1901,8 +1924,8 @@ void UWLGovernmentWidget::BuildPoliticalProfilesSection()
 		return Characters->GetCharacter(CharacterId, Character) ? Character.Loyalty : 0;
 	};
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("PERFILES POLITICOS  (%d)"), Profiles.Num()), 15, GovGold), 18.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("PERFILES POLITICOS  (%d)"), Profiles.Num())), 18.f);
 
 	// Chips de ordenamiento.
 	const struct { int32 Mode; const TCHAR* Label; } SortModes[] = {
@@ -2149,8 +2172,8 @@ void UWLGovernmentWidget::BuildArmiesSection()
 		return !Army.OwnerIso.Equals(Iso, ESearchCase::IgnoreCase);
 	});
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("EJERCITOS  (%d)"), Armies.Num()), 15, GovGold), 18.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("EJERCITOS  (%d)"), Armies.Num())), 18.f);
 	if (Armies.Num() == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
