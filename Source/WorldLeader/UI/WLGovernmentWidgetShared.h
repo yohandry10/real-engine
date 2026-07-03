@@ -190,15 +190,71 @@ namespace WLGovUI
 		return B;
 	}
 
+	inline uint32 PortraitSeedHash(const FString& Seed)
+	{
+		uint32 H = 2166136261u;
+		for (const TCHAR C : Seed)
+		{
+			H ^= static_cast<uint32>(C);
+			H *= 16777619u;
+		}
+		return H;
+	}
+
+	inline UTexture2D* LoadPortraitFromPool(const FString& Seed, const TCHAR* Prefix, int32 PoolSize)
+	{
+		if (PoolSize <= 0)
+		{
+			return nullptr;
+		}
+		const int32 PoolIndex = static_cast<int32>(PortraitSeedHash(Seed) % PoolSize) + 1;
+		return WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Portraits/%s_%02d.png"), Prefix, PoolIndex));
+	}
+
+	inline UTexture2D* LoadPortraitForSeed(const FString& Seed)
+	{
+		if (UTexture2D* Exact = WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Portraits/%s.png"), *Seed)))
+		{
+			return Exact;
+		}
+
+		// Personajes dinamicos tienen IDs por rol (US-LEADER-GEN01, CO-MIN-ECO-GEN02, etc.).
+		// Si no existe retrato exacto, rotan por pools genericos estables.
+		if (Seed.Contains(TEXT("-LEADER-"), ESearchCase::IgnoreCase))
+		{
+			return LoadPortraitFromPool(Seed, TEXT("leader"), 20);
+		}
+		if (Seed.Contains(TEXT("-MIN-"), ESearchCase::IgnoreCase))
+		{
+			return LoadPortraitFromPool(Seed, TEXT("minister"), 150);
+		}
+		if (Seed.Contains(TEXT("-GEN-"), ESearchCase::IgnoreCase))
+		{
+			return LoadPortraitFromPool(Seed, TEXT("general"), 19);
+		}
+		if (Seed.Contains(TEXT("-OPP-"), ESearchCase::IgnoreCase))
+		{
+			return LoadPortraitFromPool(Seed, TEXT("opposition"), 15);
+		}
+		if (Seed.Contains(TEXT("-SPY-"), ESearchCase::IgnoreCase))
+		{
+			return LoadPortraitFromPool(Seed, TEXT("spy"), 5);
+		}
+
+		return nullptr;
+	}
+
 	/**
-	 * Retrato de personaje ENMARCADO: UI/Portraits/<Seed>.png si existe, si no un busto estilizado
+	 * Retrato de personaje ENMARCADO: UI/Portraits/<Seed>.png si existe; si no, pools por rol
+	 * (leader_01..20, minister_01..150, general_01..19, opposition_01..15, spy_01..05);
+	 * si no, un busto estilizado
 	 * generado en runtime (cara+pelo+hombros con el color de la cartera). Marco redondeado con acento.
 	 */
 	inline UWidget* MakePortrait(UWidgetTree* Tree, const FString& Seed, const FLinearColor& Accent, float W, float H)
 	{
 		UBorder* Frame = MakeCard(Tree, GovDarkInk, FMargin(2.f), 6.f, Accent * 0.7f + FLinearColor(0.10f, 0.11f, 0.13f), 1.4f);
 		UImage* Img = Tree->ConstructWidget<UImage>(UImage::StaticClass());
-		UTexture2D* Tex = WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Portraits/%s.png"), *Seed));
+		UTexture2D* Tex = LoadPortraitForSeed(Seed);
 		if (!Tex)
 		{
 			Tex = WLGovIconsNS::GetPortraitTexture(Seed, Accent, static_cast<int32>(W), static_cast<int32>(H));
@@ -249,16 +305,25 @@ namespace WLGovUI
 		UBorder* Card = MakeCard(Tree, GovCard, FMargin(0.f));
 		UHorizontalBox* HB = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
-		// Barra de acento a la izquierda (color de categoria).
+		// Barra de acento a la izquierda (color de categoria), redondeada como el resto de cantos.
 		USizeBox* Bar = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 		Bar->SetWidthOverride(4.f);
-		Bar->SetContent(MakeBorder(Tree, Accent, FMargin(0.f)));
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Bar)) { S->SetVerticalAlignment(VAlign_Fill); }
+		Bar->SetContent(MakeRoundedSurface(Tree, Accent, FMargin(0.f), 2.f));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Bar))
+		{
+			S->SetVerticalAlignment(VAlign_Fill);
+			S->SetPadding(FMargin(4.f, 5.f, 0.f, 5.f));
+		}
 
-		// Icono en su badge.
-		UBorder* IconPad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(12.f, 10.f, 6.f, 10.f));
+		// Icono en chip translucido de su color de acento (profundidad sin ruido).
+		UBorder* IconChip = MakeRoundedSurface(Tree,
+			FLinearColor(Accent.R, Accent.G, Accent.B, 0.14f), FMargin(8.f), 9.f);
+		IconChip->SetVerticalAlignment(VAlign_Center);
+		IconChip->SetHorizontalAlignment(HAlign_Center);
+		IconChip->SetContent(MakeIcon(Tree, Icon, 26, Accent));
+		UBorder* IconPad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(10.f, 9.f, 6.f, 9.f));
 		IconPad->SetVerticalAlignment(VAlign_Center);
-		IconPad->SetContent(MakeIcon(Tree, Icon, 30, Accent));
+		IconPad->SetContent(IconChip);
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(IconPad)) { S->SetVerticalAlignment(VAlign_Center); }
 
 		// Etiqueta + valor.
@@ -361,31 +426,46 @@ namespace WLGovUI
 	inline UWidget* MakeSectionTitle(UWidgetTree* Tree, const FString& Title)
 	{
 		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-
-		UBorder* Strip = MakeRoundedSurface(Tree, FLinearColor(0.085f, 0.098f, 0.126f, 0.92f), FMargin(0.f), 5.f);
 		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
-		// Icono de la seccion.
-		UBorder* IconPad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(11.f, 6.f, 4.f, 6.f));
-		IconPad->SetVerticalAlignment(VAlign_Center);
-		IconPad->SetContent(MakeIcon(Tree, SectionIconFor(Title), 20, GovGold));
-		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(IconPad)) { S->SetVerticalAlignment(VAlign_Center); }
+		// Icono en chip dorado translucido: ancla visual clara de cada bloque.
+		UBorder* IconChip = MakeRoundedSurface(Tree, FLinearColor(1.f, 0.82f, 0.32f, 0.13f), FMargin(7.f), 8.f);
+		IconChip->SetVerticalAlignment(VAlign_Center);
+		IconChip->SetHorizontalAlignment(HAlign_Center);
+		IconChip->SetContent(MakeIcon(Tree, SectionIconFor(Title), 19, GovGold));
+		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(IconChip))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
+		}
 
-		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(4.f, 7.f, 10.f, 7.f));
-		Pad->SetContent(MakeText(Tree, Title.ToUpper(), 15, GovGold));
-		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(Pad))
+		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(MakeText(Tree, Title.ToUpper(), 16, GovGold)))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			S->SetVerticalAlignment(VAlign_Center);
 		}
-		Strip->SetContent(Row);
-		VB->AddChildToVerticalBox(Strip);
+		VB->AddChildToVerticalBox(Row);
 
-		// Linea divisoria dorada fina.
-		USizeBox* Line = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		Line->SetHeightOverride(2.f);
-		Line->SetContent(MakeRoundedSurface(Tree, GovGold, FMargin(0.f), 1.f));
-		VB->AddChildToVerticalBox(Line);
+		// Divisor asimetrico: tramo dorado corto + resto en linea tenue (menos "tabla", mas diseno).
+		UHorizontalBox* Divider = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		USizeBox* GoldSeg = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		GoldSeg->SetWidthOverride(86.f);
+		GoldSeg->SetHeightOverride(3.f);
+		GoldSeg->SetContent(MakeRoundedSurface(Tree, GovGold, FMargin(0.f), 1.5f));
+		if (UHorizontalBoxSlot* S = Divider->AddChildToHorizontalBox(GoldSeg)) { S->SetVerticalAlignment(VAlign_Center); }
+		USizeBox* RestSeg = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		RestSeg->SetHeightOverride(1.f);
+		RestSeg->SetContent(MakeRoundedSurface(Tree, FLinearColor(0.22f, 0.25f, 0.31f, 0.55f), FMargin(0.f), 0.5f));
+		if (UHorizontalBoxSlot* S = Divider->AddChildToHorizontalBox(RestSeg))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		}
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(Divider))
+		{
+			S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+		}
 		return VB;
 	}
 
@@ -413,11 +493,15 @@ namespace WLGovUI
 	inline UWidget* MakeBar(UWidgetTree* Tree, float Frac, const FLinearColor& FillColor, float Height = 10.f)
 	{
 		Frac = FMath::Clamp(Frac, 0.f, 1.f);
-		UBorder* Track = MakeBorder(Tree, GovBarTrack, FMargin(0.f));
+		// Pildora redondeada: track oscuro con borde sutil y relleno redondeado del color del valor.
+		UBorder* Track = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		Track->SetBrush(FSlateRoundedBoxBrush(GovBarTrack, Height * 0.5f,
+			FLinearColor(0.16f, 0.18f, 0.23f, 1.f), 1.f));
+		Track->SetPadding(FMargin(1.5f));
 		USizeBox* TrackBox = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 		TrackBox->SetHeightOverride(Height);
 		UHorizontalBox* FillRow = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		UBorder* Fill = MakeBorder(Tree, FillColor, FMargin(0.f));
+		UBorder* Fill = MakeRoundedSurface(Tree, FillColor, FMargin(0.f), (Height - 3.f) * 0.5f);
 		if (UHorizontalBoxSlot* S = FillRow->AddChildToHorizontalBox(Fill))
 		{
 			FSlateChildSize Size(ESlateSizeRule::Fill);
@@ -440,7 +524,18 @@ namespace WLGovUI
 	inline UBorder* MakeGaugeRow(UWidgetTree* Tree, const FString& Label, int32 Value,
 		const FLinearColor& ValueColor, const FLinearColor& RowColor, const FString& ToolTip = FString())
 	{
-		UBorder* Row = MakeCard(Tree, RowColor, FMargin(12.f, 7.f));
+		// Canto de color a la izquierda (el estado de la metrica se ve antes de leerla).
+		UBorder* Row = MakeCard(Tree, RowColor, FMargin(0.f));
+		UHorizontalBox* Outer = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		USizeBox* Edge = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Edge->SetWidthOverride(4.f);
+		Edge->SetContent(MakeRoundedSurface(Tree, ValueColor, FMargin(0.f), 2.f));
+		if (UHorizontalBoxSlot* S = Outer->AddChildToHorizontalBox(Edge))
+		{
+			S->SetVerticalAlignment(VAlign_Fill);
+			S->SetPadding(FMargin(4.f, 5.f, 0.f, 5.f));
+		}
+
 		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UTextBlock* LabelText = MakeText(Tree, Label, 13, GovText);
@@ -453,13 +548,30 @@ namespace WLGovUI
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			S->SetVerticalAlignment(VAlign_Center);
 		}
-		Head->AddChildToHorizontalBox(MakeText(Tree, FString::Printf(TEXT("%d / 100"), Value), 13, ValueColor, ETextJustify::Right));
+		// Valor grande + "/100" pequeno y apagado: jerarquia tipografica, no una fraccion plana.
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(
+			MakeText(Tree, FString::Printf(TEXT("%d"), Value), 16, ValueColor, ETextJustify::Right)))
+		{
+			S->SetVerticalAlignment(VAlign_Bottom);
+		}
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(Tree, TEXT("/100"), 10, GovMuted)))
+		{
+			S->SetVerticalAlignment(VAlign_Bottom);
+			S->SetPadding(FMargin(2.f, 0.f, 0.f, 2.f));
+		}
 		VB->AddChildToVerticalBox(Head);
-		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeBar(Tree, Value / 100.f, ValueColor, 8.f)))
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeBar(Tree, Value / 100.f, ValueColor, 9.f)))
 		{
 			S->SetPadding(FMargin(0.f, 5.f, 0.f, 0.f));
 		}
-		Row->SetContent(VB);
+		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 7.f, 12.f, 7.f));
+		Pad->SetContent(VB);
+		if (UHorizontalBoxSlot* S = Outer->AddChildToHorizontalBox(Pad))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Row->SetContent(Outer);
 		return Row;
 	}
 
@@ -525,13 +637,17 @@ namespace WLGovUI
 	// esta accion pendiente de confirmar, el boton se pinta naranja y pide el segundo clic.
 	inline UWLGovActionButton* MakeActionButton(UWidgetTree* Tree, UWLGovernmentWidget* Owner,
 		const FString& ActionId, const FString& Label, const FLinearColor& Bg,
-		float MinWidth = 0.f, int32 FontSize = 12)
+		float MinWidth = 0.f, int32 FontSize = 12, bool bEnabled = true)
 	{
 		const bool bPending = Owner && Owner->IsPendingConfirm(ActionId);
 		UWLGovActionButton* Button = Tree->ConstructWidget<UWLGovActionButton>(UWLGovActionButton::StaticClass());
 		StyleRoundedButton(Button, 5.f);
-		Button->SetBackgroundColor(bPending ? GovConfirm : Bg);
-		Button->BindAction(Owner, ActionId);
+		Button->SetBackgroundColor(bEnabled ? (bPending ? GovConfirm : Bg) : GovMuted);
+		Button->SetIsEnabled(bEnabled);
+		if (bEnabled)
+		{
+			Button->BindAction(Owner, ActionId);
+		}
 		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 5.f));
 		Pad->SetContent(MakeText(Tree, bPending ? TEXT("CONFIRMAR?") : Label, FontSize, GovText, ETextJustify::Center));
 		if (MinWidth > 0.f)
@@ -552,14 +668,30 @@ namespace WLGovUI
 	inline UBorder* MakeStatRow(UWidgetTree* Tree, const FString& Label, const FString& Value,
 		const FLinearColor& ValueColor, const FLinearColor& RowColor)
 	{
-		UBorder* Row = MakeCard(Tree, RowColor, FMargin(12.f, 7.f));
+		UBorder* Row = MakeCard(Tree, RowColor, FMargin(0.f));
 		UHorizontalBox* HB = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(Tree, Label, 13, GovText)))
+		// Canto de color a la izquierda, como en los medidores: una sola familia visual.
+		USizeBox* Edge = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Edge->SetWidthOverride(4.f);
+		Edge->SetContent(MakeRoundedSurface(Tree, ValueColor, FMargin(0.f), 2.f));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Edge))
+		{
+			S->SetVerticalAlignment(VAlign_Fill);
+			S->SetPadding(FMargin(4.f, 5.f, 0.f, 5.f));
+		}
+		UBorder* LabelPad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 8.f, 0.f, 8.f));
+		LabelPad->SetContent(MakeText(Tree, Label, 13, GovText));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(LabelPad))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			S->SetVerticalAlignment(VAlign_Center);
 		}
-		HB->AddChildToHorizontalBox(MakeText(Tree, Value, 13, ValueColor, ETextJustify::Right));
+		UBorder* ValuePad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f, 8.f, 12.f, 8.f));
+		ValuePad->SetContent(MakeText(Tree, Value, 14, ValueColor, ETextJustify::Right));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(ValuePad))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+		}
 		Row->SetContent(HB);
 		return Row;
 	}
