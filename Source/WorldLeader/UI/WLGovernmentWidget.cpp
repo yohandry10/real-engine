@@ -81,6 +81,27 @@ namespace
 		default:                            return TEXT("Unknown");
 		}
 	}
+
+	int64 SuggestedDebtPrincipal(int64 AvailableCredit, int32 Divisor)
+	{
+		if (AvailableCredit <= 0)
+		{
+			return 0;
+		}
+		const int64 Suggested = FMath::Max<int64>(10000, AvailableCredit / FMath::Max(1, Divisor));
+		return FMath::Clamp<int64>(Suggested, 1, AvailableCredit);
+	}
+
+	int64 EstimateDebtPayment(int64 Principal, int32 TermMonths, double MonthlyInterestRate)
+	{
+		if (Principal <= 0 || TermMonths <= 0)
+		{
+			return 0;
+		}
+		return static_cast<int64>(FMath::RoundToDouble(
+			static_cast<double>(Principal) / static_cast<double>(TermMonths)
+			+ static_cast<double>(Principal) * FMath::Max(0.0, MonthlyInterestRate)));
+	}
 }
 
 void UWLGovActionButton::BindAction(UWLGovernmentWidget* InOwner, const FString& InActionId)
@@ -564,21 +585,14 @@ double UWLGovernmentWidget::GetCachedNationInflationRate(const FWLBalanceRules& 
 	if (!DataSnapshot.bNationInflationRateValid)
 	{
 		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationInflationRate miss"), 0.10, DataSnapshot.NationIso);
-		double Pressure = 0.0;
-		double Weight = 0.0;
-		for (const FWLGoodMarketBalance& Balance : GetCachedNationGoodMarketBalance())
+		DataSnapshot.NationInflationRate = 0.0;
+		if (const UWLStrategicTickSubsystem* Tick = GetTick())
 		{
-			const double GoodWeight = static_cast<double>(FMath::Max<int64>(Balance.Demand, 1))
-				* FMath::Max(0.0, Balance.UnitPrice);
-			Pressure += (Balance.PriceMultiplier - 1.0) * GoodWeight;
-			Weight += GoodWeight;
+			if (!DataSnapshot.NationIso.IsEmpty())
+			{
+				DataSnapshot.NationInflationRate = Tick->GetNationInflationRate(DataSnapshot.NationIso);
+			}
 		}
-		DataSnapshot.NationInflationRate = Weight > 0.0
-			? FMath::Clamp(
-				(Pressure / Weight) * Rules.InflationPressureToMonthlyRate,
-				Rules.MinMonthlyInflationRate,
-				Rules.MaxMonthlyInflationRate)
-			: 0.0;
 		DataSnapshot.bNationInflationRateValid = true;
 	}
 	return DataSnapshot.NationInflationRate;
@@ -609,23 +623,14 @@ const FString& UWLGovernmentWidget::GetCachedNationEconomicCycleLabel(const FWLB
 	if (!DataSnapshot.bNationEconomicCycleLabelValid)
 	{
 		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationEconomicCycleLabel miss"), 0.10, DataSnapshot.NationIso);
-		int64 TradeBalance = 0;
-		for (const FWLGoodMarketBalance& Balance : GetCachedNationGoodMarketBalance())
+		DataSnapshot.NationEconomicCycleLabel = TEXT("Estable");
+		if (const UWLStrategicTickSubsystem* Tick = GetTick())
 		{
-			TradeBalance += Balance.ExportRevenue - Balance.ImportCost;
+			if (!DataSnapshot.NationIso.IsEmpty())
+			{
+				DataSnapshot.NationEconomicCycleLabel = Tick->GetNationEconomicCycleLabel(DataSnapshot.NationIso);
+			}
 		}
-		const int64 GDP = FMath::Max<int64>(1, GetCachedNationGDP());
-		const double TradeRatio = static_cast<double>(TradeBalance) / static_cast<double>(GDP);
-		const double Inflation = FMath::Max(0.0, GetCachedNationInflationRate(Rules));
-		const FWLNationLaborStats& Labor = GetCachedNationLaborStats();
-		const double Score = GetCachedNationGDPGrowth()
-			+ TradeRatio * Rules.CycleTradeBalanceWeight
-			- Labor.UnemploymentRate * Rules.CycleUnemploymentWeight
-			- Inflation * Rules.CycleInflationWeight;
-
-		DataSnapshot.NationEconomicCycleLabel = Score > 0.01
-			? TEXT("Expansion")
-			: (Score < -0.01 ? TEXT("Recesion") : TEXT("Estable"));
 		DataSnapshot.bNationEconomicCycleLabelValid = true;
 	}
 	return DataSnapshot.NationEconomicCycleLabel;
@@ -1092,20 +1097,58 @@ void UWLGovernmentWidget::BuildEconomyTab()
 			FString::Printf(TEXT("%.0f%%%s"), Profile.DefaultRisk * 100.0, Profile.bIMFEligible ? TEXT(" · elegible para FMI") : TEXT("")),
 			Profile.DefaultRisk > 0.4 ? GovBad : GovMuted, GovCardAlt), 4.f);
 
+		constexpr int32 BondTermMonths = 24;
+		constexpr int32 IMFTermMonths = 36;
+		const int64 BondPrincipal = SuggestedDebtPrincipal(Profile.AvailableCredit, 4);
+		const double BondRate = Tick->GetInterestRateForInstrument(Iso, EWLFinancialInstrumentType::Bond);
+		const int64 BondPayment = EstimateDebtPayment(BondPrincipal, BondTermMonths, BondRate);
+		const bool bBondEnabled = !Profile.bInDefault && BondPrincipal > 0;
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Bono previsto"),
+			bBondEnabled
+				? FString::Printf(TEXT("%s a %d meses · tasa %.2f%%/mes · pago %s/mes"),
+					*GovGroupThousands(BondPrincipal), BondTermMonths, BondRate * 100.0, *GovGroupThousands(BondPayment))
+				: (Profile.bInDefault ? TEXT("Bloqueado: pais en default") : TEXT("Bloqueado: sin credito disponible")),
+			bBondEnabled ? GovText : GovBad, GovCard), 4.f);
+
+		int64 IMFPrincipal = 0;
+		double IMFRate = 0.0;
+		int64 IMFPayment = 0;
+		bool bIMFEnabled = false;
+		if (Profile.bIMFEligible)
+		{
+			IMFPrincipal = SuggestedDebtPrincipal(Profile.AvailableCredit, 3);
+			IMFRate = Tick->GetInterestRateForInstrument(Iso, EWLFinancialInstrumentType::IMFProgram);
+			IMFPayment = EstimateDebtPayment(IMFPrincipal, IMFTermMonths, IMFRate);
+			bIMFEnabled = IMFPrincipal > 0;
+			AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Programa FMI previsto"),
+				bIMFEnabled
+					? FString::Printf(TEXT("%s a %d meses · tasa %.2f%%/mes · pago %s/mes · orden -2"),
+						*GovGroupThousands(IMFPrincipal), IMFTermMonths, IMFRate * 100.0, *GovGroupThousands(IMFPayment))
+					: TEXT("Bloqueado: sin credito disponible"),
+				bIMFEnabled ? GovText : GovBad, GovCardAlt), 4.f);
+		}
+		if (Profile.OutstandingDebt > 0 && !Profile.bInDefault)
+		{
+			AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Default previsto"),
+				FString::Printf(TEXT("Elimina %s de deuda · orden publico -%d · rating Default"),
+					*GovGroupThousands(Profile.OutstandingDebt), Tick->GetBalanceRules().DefaultPublicOrderPenalty),
+				GovBad, GovCardAlt), 4.f);
+		}
+
 		UHorizontalBox* FinActions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		auto AddFinAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg)
+		auto AddFinAction = [&](const FString& ActionId, const FString& Label, const FLinearColor& Bg, bool bEnabled = true)
 		{
 			if (UHorizontalBoxSlot* S = FinActions->AddChildToHorizontalBox(
-				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 130.f)))
+				MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 130.f, 12, bEnabled)))
 			{
 				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
 				S->SetVerticalAlignment(VAlign_Center);
 			}
 		};
-		AddFinAction(TEXT("bond"), TEXT("EMITIR BONO"), GovGoldDim);
+		AddFinAction(TEXT("bond"), bBondEnabled ? TEXT("EMITIR BONO") : TEXT("BONO BLOQUEADO"), GovGoldDim, bBondEnabled);
 		if (Profile.bIMFEligible)
 		{
-			AddFinAction(TEXT("imf"), TEXT("PROGRAMA FMI"), GovTabIdle);
+			AddFinAction(TEXT("imf"), bIMFEnabled ? TEXT("PROGRAMA FMI") : TEXT("FMI BLOQUEADO"), GovTabIdle, bIMFEnabled);
 		}
 		if (Profile.OutstandingDebt > 0 && !Profile.bInDefault)
 		{
@@ -1113,7 +1156,7 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		}
 		AddColumnChild(CenterBox, FinActions, 10.f);
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
-			TEXT("El bono emite deuda a 24 meses segun tu rating. El FMI presta barato con condiciones. El default borra deuda pero hunde rating y orden."),
+			TEXT("El bono y el FMI usan el monto previsto arriba. El default elimina deuda viva, pero hunde rating y orden publico."),
 			12, GovMuted, ETextJustify::Left, true), 4.f);
 
 		const TArray<FWLFinancialInstrumentState> Instruments = Tick->GetFinancialInstrumentsForNation(Iso);
@@ -1800,60 +1843,87 @@ void UWLGovernmentWidget::BuildDiplomacyDetailPanel(const FWLNationData& Other)
 			11, bAtWar ? GovBad : GovMuted, ETextJustify::Left, true), 5.f);
 	}
 
-	// Lambda para agrupar botones de accion con separacion consistente.
-	auto MakeActionWrap = [&](UWrapBox*& OutWrap)
+	// Fila de accion con el MISMO lenguaje visual que MakeStatRow: nombre + descripcion
+	// a la izquierda y el boton a la derecha. Todo el panel queda uniforme y legible.
+	int32 ActionRowIndex = 0;
+	auto AddActionRow = [&](const FString& Title, const FString& Desc,
+		const FString& ActionId, const FString& ButtonLabel, const FLinearColor& ButtonBg)
 	{
-		OutWrap = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
-	};
-	auto AddWrapAction = [&](UWrapBox* Wrap, const FString& ActionId, const FString& Label, const FLinearColor& Bg)
-	{
-		if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Wrap->AddChildToWrapBox(
-			MakeActionButton(WidgetTree, this, ActionId, Label, Bg, 0.f, 12))))
+		UBorder* Row = MakeCard(WidgetTree, (ActionRowIndex++ % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
+		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		Info->AddChildToVerticalBox(MakeText(WidgetTree, Title, 13, GovText));
+		if (!Desc.IsEmpty())
 		{
-			S->SetPadding(FMargin(0.f, 0.f, 6.f, 6.f));
+			Info->AddChildToVerticalBox(MakeText(WidgetTree, Desc, 10, GovMuted, ETextJustify::Left, true));
 		}
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Info))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(
+			MakeActionButton(WidgetTree, this, ActionId, ButtonLabel, ButtonBg, 190.f, 11)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
+		}
+		Row->SetContent(HB);
+		AddColumnChild(CenterBox, Row, 3.f);
 	};
 	auto HasTreaty = [&Relation](EWLTreatyType Type) { return Relation.Treaties.Contains(Type); };
 
 	// ===== DIPLOMACIA: guerra/paz + tratados. =====
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("DIPLOMACIA")), 10.f);
+	ActionRowIndex = 0;
+	if (bAtWar)
 	{
-		UWrapBox* Wrap; MakeActionWrap(Wrap);
-		if (bAtWar)
-		{
-			AddWrapAction(Wrap, FString::Printf(TEXT("peace:%s"), *Other.Iso), TEXT("NEGOCIAR PAZ"), GovGoldDim);
-		}
-		else
-		{
-			AddWrapAction(Wrap, FString::Printf(TEXT("war:%s"), *Other.Iso), TEXT("DECLARAR GUERRA"), GovDanger);
-		}
-		const struct { EWLTreatyType Type; const TCHAR* Label; } TreatyDefs[] = {
-			{ EWLTreatyType::TradeAgreement, TEXT("COMERCIO") },
-			{ EWLTreatyType::NonAggression,  TEXT("NO AGRESION") },
-			{ EWLTreatyType::Alliance,       TEXT("ALIANZA") },
-			{ EWLTreatyType::Embargo,        TEXT("EMBARGO") },
+		AddActionRow(TEXT("Negociar la paz"),
+			TEXT("Termina la guerra; se reabren las rutas comerciales mutuas."),
+			FString::Printf(TEXT("peace:%s"), *Other.Iso), TEXT("NEGOCIAR PAZ"), GovGoldDim);
+	}
+	else
+	{
+		AddActionRow(TEXT("Declarar la guerra"),
+			TEXT("Habilita atacar con tus ejercitos; corta rutas y hunde la opinion."),
+			FString::Printf(TEXT("war:%s"), *Other.Iso), TEXT("DECLARAR GUERRA"), GovDanger);
+	}
+	{
+		const struct { EWLTreatyType Type; const TCHAR* Title; const TCHAR* Label; const TCHAR* Desc; } TreatyDefs[] = {
+			{ EWLTreatyType::TradeAgreement, TEXT("Tratado de comercio"), TEXT("COMERCIO"),
+				TEXT("Mejora el acceso comercial mutuo y los ingresos de ruta.") },
+			{ EWLTreatyType::NonAggression,  TEXT("Pacto de no agresion"), TEXT("NO AGRESION"),
+				TEXT("Compromiso de no atacar; estabiliza la relacion.") },
+			{ EWLTreatyType::Alliance,       TEXT("Alianza"), TEXT("ALIANZA"),
+				TEXT("Defensa mutua; el mejor tratado, requiere buena opinion.") },
+			{ EWLTreatyType::Embargo,        TEXT("Embargo"), TEXT("EMBARGO"),
+				TEXT("Corta el comercio con este pais; lo presiona y lo enemista.") },
 		};
 		for (const auto& Def : TreatyDefs)
 		{
 			if (HasTreaty(Def.Type))
 			{
-				AddWrapAction(Wrap, FString::Printf(TEXT("breaktreaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
+				AddActionRow(FString::Printf(TEXT("%s  —  VIGENTE"), Def.Title), Def.Desc,
+					FString::Printf(TEXT("breaktreaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
 					FString::Printf(TEXT("ROMPER %s"), Def.Label), GovTabIdle);
 			}
 			else
 			{
-				AddWrapAction(Wrap, FString::Printf(TEXT("treaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
+				AddActionRow(Def.Title, Def.Desc,
+					FString::Printf(TEXT("treaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
 					FString::Printf(TEXT("FIRMAR %s"), Def.Label), GovGoldDim);
 			}
 		}
-		AddColumnChild(CenterBox, Wrap, 4.f);
 	}
 
 	// ===== ECONOMIA: ayuda financiera + inversion extranjera. =====
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ECONOMIA")), 10.f);
+	ActionRowIndex = 0;
+	AddActionRow(TEXT("Ayuda financiera"),
+		TEXT("Envia fondos de tu tesoro para mejorar la opinion de este pais."),
+		FString::Printf(TEXT("aid:%s"), *Other.Iso), TEXT("ENVIAR AYUDA"), GovGoldDim);
 	{
-		UWrapBox* Wrap; MakeActionWrap(Wrap);
-		AddWrapAction(Wrap, FString::Printf(TEXT("aid:%s"), *Other.Iso), TEXT("ENVIAR AYUDA"), GovTabIdle);
 		int32 FdiShown = 0;
 		for (const FWLProvinceData& TargetProvince : Registry->GetProvincesByNation(Other.Iso))
 		{
@@ -1865,46 +1935,59 @@ void UWLGovernmentWidget::BuildDiplomacyDetailPanel(const FWLNationData& Other)
 				{
 					continue;
 				}
-				AddWrapAction(Wrap, FString::Printf(TEXT("fdi:%s:%s:%s"), *Other.Iso, *TargetProvince.Id, *Candidate.Id),
-					FString::Printf(TEXT("INVERTIR: %s en %s"), *Candidate.Name, *TargetProvince.Name), GovFuture);
+				AddActionRow(FString::Printf(TEXT("Inversion: %s"), *Candidate.Name),
+					FString::Printf(TEXT("Construye en %s; genera influencia y retorno economico."), *TargetProvince.Name),
+					FString::Printf(TEXT("fdi:%s:%s:%s"), *Other.Iso, *TargetProvince.Id, *Candidate.Id),
+					TEXT("INVERTIR"), GovFuture);
 				++FdiShown;
 				break;   // un candidato por provincia
 			}
 		}
-		AddColumnChild(CenterBox, Wrap, 4.f);
 	}
 
 	// ===== INTELIGENCIA: red de espias + operaciones de intriga. =====
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("INTELIGENCIA")), 10.f);
+	AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Red de espionaje"),
+		FString::Printf(TEXT("Fuerza %d  ·  Exposicion %d"), Network.NetworkStrength, Network.Exposure),
+		Network.Exposure >= 60 ? GovBad : GovText, GovCard), 3.f);
+	if (!Network.LastOperationReport.IsEmpty())
 	{
-		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Red de espionaje"),
-			FString::Printf(TEXT("Fuerza %d  ·  Exposicion %d"), Network.NetworkStrength, Network.Exposure),
-			Network.Exposure >= 60 ? GovBad : GovText, GovCard), 3.f);
-		if (!Network.LastOperationReport.IsEmpty())
+		AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Ultima operacion"),
+			Network.LastOperationReport, GovMuted, GovCardAlt), 3.f);
+	}
+	if (SpyId.IsEmpty())
+	{
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("Sin espias activos disponibles. Recluta un espia para operar aqui."), 12, GovMuted,
+			ETextJustify::Left, true), 5.f);
+	}
+	else
+	{
+		ActionRowIndex = 1;
+		AddActionRow(TEXT("Ampliar la red"),
+			TEXT("Refuerza tu red local: mas fuerza = mas exito en operaciones."),
+			FString::Printf(TEXT("spynet:%s"), *Other.Iso), TEXT("AMPLIAR RED"), GovGoldDim);
+		const struct { EWLSpyOperationType Type; const TCHAR* Title; const TCHAR* Label; const TCHAR* Desc; } SpyDefs[] = {
+			{ EWLSpyOperationType::SabotageEconomy, TEXT("Sabotear la economia"), TEXT("SABOTEAR ECO"),
+				TEXT("Dana los ingresos del pais objetivo durante un tiempo.") },
+			{ EWLSpyOperationType::SabotageArmy, TEXT("Sabotear el ejercito"), TEXT("SABOTEAR EJERCITO"),
+				TEXT("Reduce la moral y la fuerza de sus tropas.") },
+			{ EWLSpyOperationType::FundCoup, TEXT("Financiar un golpe"), TEXT("FINANCIAR GOLPE"),
+				TEXT("Arriesgado: intenta derribar a su gobierno desde dentro.") },
+			{ EWLSpyOperationType::Propaganda, TEXT("Propaganda"), TEXT("PROPAGANDA"),
+				TEXT("Mueve la opinion publica del objetivo a tu favor.") },
+			{ EWLSpyOperationType::CounterIntelligence, TEXT("Contraespionaje"), TEXT("CONTRAESPIONAJE"),
+				TEXT("Caza espias enemigos y baja tu exposicion.") },
+		};
+		for (const auto& Def : SpyDefs)
 		{
-			AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Ultima operacion"),
-				Network.LastOperationReport, GovMuted, GovCardAlt), 3.f);
+			AddActionRow(Def.Title, Def.Desc,
+				FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
+				Def.Label, GovFuture);
 		}
-		if (SpyId.IsEmpty())
-		{
-			AddColumnChild(CenterBox, MakeText(WidgetTree,
-				TEXT("Sin espias activos disponibles. Recluta un espia para operar aqui."), 12, GovMuted,
-				ETextJustify::Left, true), 5.f);
-		}
-		else
-		{
-			UWrapBox* Wrap; MakeActionWrap(Wrap);
-			AddWrapAction(Wrap, FString::Printf(TEXT("spynet:%s"), *Other.Iso), TEXT("AMPLIAR RED"), GovGoldDim);
-			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::SabotageEconomy), *Other.Iso), TEXT("SABOTEAR ECO"), GovFuture);
-			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::SabotageArmy), *Other.Iso), TEXT("SABOTEAR EJERCITO"), GovFuture);
-			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::FundCoup), *Other.Iso), TEXT("FINANCIAR GOLPE"), GovFuture);
-			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::Propaganda), *Other.Iso), TEXT("PROPAGANDA"), GovFuture);
-			AddWrapAction(Wrap, FString::Printf(TEXT("spy:%d:%s"), static_cast<int32>(EWLSpyOperationType::CounterIntelligence), *Other.Iso), TEXT("CONTRAESPIONAJE"), GovFuture);
-			AddColumnChild(CenterBox, Wrap, 4.f);
-			AddColumnChild(CenterBox, MakeText(WidgetTree,
-				TEXT("La intriga sube tu exposicion; si te descubren, la relacion se hunde y hay incidente diplomatico."),
-				11, GovMuted, ETextJustify::Left, true), 5.f);
-		}
+		AddColumnChild(CenterBox, MakeText(WidgetTree,
+			TEXT("La intriga sube tu exposicion; si te descubren, la relacion se hunde y hay incidente diplomatico."),
+			11, GovMuted, ETextJustify::Left, true), 5.f);
 	}
 }
 
@@ -2452,16 +2535,34 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 	{
 		if (Tick)
 		{
-			const int64 Principal = FMath::Max<int64>(10000, Tick->GetFinancialProfile(Iso).AvailableCredit / 4);
-			bOk = Tick->IssueBond(Iso, Principal, 24, Message);
+			const FWLFinancialProfile Profile = Tick->GetFinancialProfile(Iso);
+			const int64 Principal = SuggestedDebtPrincipal(Profile.AvailableCredit, 4);
+			if (Principal <= 0 || Profile.bInDefault)
+			{
+				Message = Profile.bInDefault
+					? TEXT("No se puede emitir bono: pais en default.")
+					: TEXT("No se puede emitir bono: sin credito disponible.");
+			}
+			else
+			{
+				bOk = Tick->IssueBond(Iso, Principal, 24, Message);
+			}
 		}
 	}
 	else if (Verb == TEXT("imf"))
 	{
 		if (Tick)
 		{
-			const int64 Principal = FMath::Max<int64>(10000, Tick->GetFinancialProfile(Iso).AvailableCredit / 3);
-			bOk = Tick->RequestIMFProgram(Iso, Principal, 36, Message);
+			const FWLFinancialProfile Profile = Tick->GetFinancialProfile(Iso);
+			const int64 Principal = SuggestedDebtPrincipal(Profile.AvailableCredit, 3);
+			if (Principal <= 0)
+			{
+				Message = TEXT("No se puede firmar FMI: sin credito disponible.");
+			}
+			else
+			{
+				bOk = Tick->RequestIMFProgram(Iso, Principal, 36, Message);
+			}
 		}
 	}
 	else if (Verb == TEXT("default"))
