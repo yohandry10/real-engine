@@ -13,6 +13,7 @@
 #include "Core/WLPoliticalTypes.h"
 #include "UI/WLGovernmentWidget.h"
 #include "UI/WLGovIcons.h"
+#include "UI/WLGovAssets.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
@@ -141,6 +142,52 @@ namespace WLGovUI
 		Style.NormalPadding = FMargin(0.f);
 		Style.PressedPadding = FMargin(0.f);
 		Button->SetStyle(Style);
+	}
+
+	/**
+	 * Emblema de nacion: BANDERA real (UI/Flags/<ISO>.png cargada en runtime) si el usuario la dejo;
+	 * si no, un chip de color redondeado con el ISO. Asi el juego usa arte real en cuanto exista.
+	 */
+	inline UWidget* MakeFlag(UWidgetTree* Tree, const FString& Iso, const FLinearColor& FallbackColor,
+		float W, float H, const FString& FallbackLabel = FString())
+	{
+		USizeBox* Box = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Box->SetWidthOverride(W);
+		Box->SetHeightOverride(H);
+		if (UTexture2D* Flag = WLGovAssetsNS::GetFlag(Iso))
+		{
+			UImage* Img = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+			Img->SetBrushFromTexture(Flag, false);
+			Box->SetContent(Img);
+		}
+		else
+		{
+			UBorder* Chip = MakeRoundedSurface(Tree, FallbackColor, FMargin(0.f), 4.f);
+			Chip->SetHorizontalAlignment(HAlign_Center);
+			Chip->SetVerticalAlignment(VAlign_Center);
+			if (!FallbackLabel.IsEmpty())
+			{
+				Chip->SetContent(MakeText(Tree, FallbackLabel, FMath::Max(9, static_cast<int32>(H * 0.35f)), GovDarkInk, ETextJustify::Center));
+			}
+			Box->SetContent(Chip);
+		}
+		return Box;
+	}
+
+	/** Fondo de panel TEXTURIZADO (gradiente+viñeta runtime, o UI/gov_panel_bg.png). Profundidad vs relleno plano. */
+	inline UBorder* MakeTexturedPanel(UWidgetTree* Tree, const FMargin& Pad)
+	{
+		UBorder* B = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		if (UTexture2D* Bg = WLGovAssetsNS::GetPanelBackground())
+		{
+			B->SetBrushFromTexture(Bg);
+		}
+		else
+		{
+			B->SetBrushColor(GovPanel);
+		}
+		B->SetPadding(Pad);
+		return B;
 	}
 
 	/** Icono vectorial generado en runtime (moneda, poblacion, escudo...) mostrado a SizePx y tintado. */

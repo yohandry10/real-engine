@@ -164,7 +164,8 @@ void UWLGovernmentWidget::BuildShell()
 		S->SetSize(FVector2D(1180.f, 900.f));
 	}
 
-	UBorder* Panel = MakeRoundedSurface(WidgetTree, GovPanel, FMargin(16.f), 12.f);
+	// Panel con fondo TEXTURIZADO (gradiente+viñeta): profundidad frente al relleno plano.
+	UBorder* Panel = MakeTexturedPanel(WidgetTree, FMargin(16.f));
 	Frame->SetContent(Panel);
 
 	UVerticalBox* Main = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("GovMain"));
@@ -187,16 +188,10 @@ void UWLGovernmentWidget::BuildHeader(UVerticalBox* Root)
 	UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	Strip->SetContent(HB);
 
-	// Emblema (color de la nacion + ISO).
-	USizeBox* EmblemBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	EmblemBox->SetWidthOverride(56.f);
-	EmblemBox->SetHeightOverride(56.f);
-	UBorder* Emblem = MakeBorder(WidgetTree, bHasNation ? Nation.MapColor : FLinearColor::Gray, FMargin(0.f));
-	Emblem->SetHorizontalAlignment(HAlign_Center);
-	Emblem->SetVerticalAlignment(VAlign_Center);
-	Emblem->SetContent(MakeText(WidgetTree, bHasNation ? Nation.Iso : TEXT("--"), 20, GovDarkInk, ETextJustify::Center));
-	EmblemBox->SetContent(Emblem);
-	if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(EmblemBox))
+	// Emblema: bandera real del pais (UI/Flags/<ISO>.png) o chip de color con ISO de fallback.
+	if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeFlag(WidgetTree,
+		bHasNation ? Nation.Iso : FString(), bHasNation ? Nation.MapColor : FLinearColor::Gray,
+		66.f, 46.f, bHasNation ? Nation.Iso : TEXT("--"))))
 	{
 		S->SetVerticalAlignment(VAlign_Center);
 	}
@@ -1614,11 +1609,8 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 		UBorder* Card = MakeBorder(WidgetTree, bSelected ? GovHeaderStrip : ((Index % 2 == 0) ? GovCard : GovCardAlt), FMargin(10.f, 6.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
-		USizeBox* EmblemBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		EmblemBox->SetWidthOverride(20.f);
-		EmblemBox->SetHeightOverride(20.f);
-		EmblemBox->SetContent(MakeBorder(WidgetTree, Row.Nation.MapColor, FMargin(0.f)));
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(EmblemBox)) { S->SetVerticalAlignment(VAlign_Center); }
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeFlag(WidgetTree,
+			Row.Nation.Iso, Row.Nation.MapColor, 30.f, 20.f))) { S->SetVerticalAlignment(VAlign_Center); }
 
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Info->AddChildToVerticalBox(MakeText(WidgetTree,
@@ -1695,11 +1687,8 @@ void UWLGovernmentWidget::BuildDiplomacyDetailPanel(const FWLNationData& Other)
 
 	// Cabecera: nombre + estado + opinion.
 	UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	USizeBox* EmblemBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	EmblemBox->SetWidthOverride(26.f);
-	EmblemBox->SetHeightOverride(26.f);
-	EmblemBox->SetContent(MakeBorder(WidgetTree, Other.MapColor, FMargin(0.f)));
-	if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(EmblemBox)) { S->SetVerticalAlignment(VAlign_Center); }
+	if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeFlag(WidgetTree,
+		Other.Iso, Other.MapColor, 38.f, 26.f))) { S->SetVerticalAlignment(VAlign_Center); }
 	UBorder* NamePad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 0.f, 0.f, 0.f));
 	NamePad->SetContent(MakeText(WidgetTree, Other.Name.ToUpper(), 15, GovText));
 	if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(NamePad))
