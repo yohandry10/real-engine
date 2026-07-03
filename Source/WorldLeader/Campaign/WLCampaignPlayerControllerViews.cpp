@@ -261,6 +261,7 @@ void AWLCampaignPlayerController::SetGovernmentWindowOpen(bool bOpen)
 	{
 		return;
 	}
+	const double PerfStartSeconds = FPlatformTime::Seconds();
 	bGovernmentWindowOpen = bOpen;
 
 	if (bOpen)
@@ -291,6 +292,12 @@ void AWLCampaignPlayerController::SetGovernmentWindowOpen(bool bOpen)
 		// Restauramos el input de campania (el mapa vuelve a ser navegable).
 		EnterCampaignInputMode();
 		SetLastActionMessage(TEXT("Gobierno: consejo presidencial cerrado."), true);
+	}
+	const double PerfElapsedMs = (FPlatformTime::Seconds() - PerfStartSeconds) * 1000.0;
+	if (PerfElapsedMs >= 0.10)
+	{
+		UE_LOG(LogWorldLeader, Log, TEXT("WLPerf Gobierno UI: SetGovernmentWindowOpen [%s] %.2f ms"),
+			bOpen ? TEXT("open") : TEXT("close"), PerfElapsedMs);
 	}
 }
 

@@ -12,14 +12,17 @@
 #include "Core/WLCharacterTypes.h"
 #include "Core/WLPoliticalTypes.h"
 #include "UI/WLGovernmentWidget.h"
+#include "UI/WLGovIcons.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/Texture2D.h"
 
 namespace WLGovUI
 {
@@ -97,6 +100,18 @@ namespace WLGovUI
 		return B;
 	}
 
+	/** Icono vectorial generado en runtime (moneda, poblacion, escudo...) mostrado a SizePx y tintado. */
+	inline UImage* MakeIcon(UWidgetTree* Tree, EWLGovIcon Icon, int32 SizePx, const FLinearColor& Color)
+	{
+		UImage* Img = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+		if (UTexture2D* Tex = WLGovIconsNS::GetIconTexture(Icon, SizePx, Color))
+		{
+			Img->SetBrushFromTexture(Tex, false);
+		}
+		Img->SetDesiredSizeOverride(FVector2D(SizePx, SizePx));
+		return Img;
+	}
+
 	// Tarjeta de metrica: etiqueta pequena + valor grande. Rellena la celda del grid.
 	inline UBorder* MakeMetricCard(UWidgetTree* Tree, const FString& Label, const FString& Value, const FLinearColor& ValueColor)
 	{
@@ -108,6 +123,44 @@ namespace WLGovUI
 			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 		}
 		Card->SetContent(VB);
+		return Card;
+	}
+
+	// Tarjeta de metrica con icono: barra de acento de color + icono en badge + etiqueta/valor.
+	// Reemplaza a las tarjetas planas de solo texto (etiqueta minuscula + numero flotando en vacio).
+	inline UBorder* MakeMetricCardIcon(UWidgetTree* Tree, EWLGovIcon Icon, const FLinearColor& Accent,
+		const FString& Label, const FString& Value, const FLinearColor& ValueColor)
+	{
+		UBorder* Card = MakeBorder(Tree, GovCard, FMargin(0.f));
+		UHorizontalBox* HB = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+		// Barra de acento a la izquierda (color de categoria).
+		USizeBox* Bar = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Bar->SetWidthOverride(4.f);
+		Bar->SetContent(MakeBorder(Tree, Accent, FMargin(0.f)));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Bar)) { S->SetVerticalAlignment(VAlign_Fill); }
+
+		// Icono en su badge.
+		UBorder* IconPad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(12.f, 10.f, 6.f, 10.f));
+		IconPad->SetVerticalAlignment(VAlign_Center);
+		IconPad->SetContent(MakeIcon(Tree, Icon, 30, Accent));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(IconPad)) { S->SetVerticalAlignment(VAlign_Center); }
+
+		// Etiqueta + valor.
+		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		VB->AddChildToVerticalBox(MakeText(Tree, Label.ToUpper(), 11, GovMuted));
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(Tree, Value, 23, ValueColor)))
+		{
+			S->SetPadding(FMargin(0.f, 2.f, 0.f, 0.f));
+		}
+		UBorder* TextPad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(2.f, 11.f, 12.f, 11.f));
+		TextPad->SetContent(VB);
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(TextPad))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Card->SetContent(HB);
 		return Card;
 	}
 

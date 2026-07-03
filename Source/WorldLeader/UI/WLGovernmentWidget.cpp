@@ -32,8 +32,56 @@
 #include "Components/EditableTextBox.h"
 
 #include "UI/WLGovernmentWidgetShared.h"
+#include "WorldLeader.h"
 
 using namespace WLGovUI;
+
+namespace
+{
+	struct FWLScopedGovernmentPerfLog
+	{
+		FWLScopedGovernmentPerfLog(const TCHAR* InLabel, double InThresholdMs, const FString& InContext = FString())
+			: Label(InLabel)
+			, Context(InContext)
+			, ThresholdMs(InThresholdMs)
+			, StartSeconds(FPlatformTime::Seconds())
+		{
+		}
+
+		~FWLScopedGovernmentPerfLog()
+		{
+			const double ElapsedMs = (FPlatformTime::Seconds() - StartSeconds) * 1000.0;
+			if (ElapsedMs >= ThresholdMs)
+			{
+				const FString ContextText = Context.IsEmpty() ? FString() : FString::Printf(TEXT(" [%s]"), *Context);
+				UE_LOG(LogWorldLeader, Log, TEXT("WLPerf Gobierno UI: %s%s %.2f ms"),
+					Label,
+					*ContextText,
+					ElapsedMs);
+			}
+		}
+
+		const TCHAR* Label = TEXT("");
+		FString Context;
+		double ThresholdMs = 0.0;
+		double StartSeconds = 0.0;
+	};
+
+	FString GovernmentTabPerfName(EWLGovernmentTab Tab)
+	{
+		switch (Tab)
+		{
+		case EWLGovernmentTab::Overview:    return TEXT("Overview");
+		case EWLGovernmentTab::Economy:     return TEXT("Economy");
+		case EWLGovernmentTab::HighCommand: return TEXT("HighCommand");
+		case EWLGovernmentTab::Politics:    return TEXT("Politics");
+		case EWLGovernmentTab::Diplomacy:   return TEXT("Diplomacy");
+		case EWLGovernmentTab::Records:     return TEXT("Records");
+		case EWLGovernmentTab::Province:    return TEXT("Province");
+		default:                            return TEXT("Unknown");
+		}
+	}
+}
 
 void UWLGovActionButton::BindAction(UWLGovernmentWidget* InOwner, const FString& InActionId)
 {
@@ -52,6 +100,7 @@ void UWLGovActionButton::HandleClicked()
 
 TSharedRef<SWidget> UWLGovernmentWidget::RebuildWidget()
 {
+	FWLScopedGovernmentPerfLog Perf(TEXT("RebuildWidget"), 0.10);
 	// Widget 100% C++: hay que poblar el WidgetTree ANTES de que Slate lo tome aqui. Si se
 	// construye en NativeConstruct (mas tarde), Slate ya se armo con un arbol vacio y no pinta nada.
 	if (WidgetTree && !WidgetTree->RootWidget)
@@ -93,6 +142,7 @@ FReply UWLGovernmentWidget::NativeOnKeyDown(const FGeometry& InGeometry, const F
 
 void UWLGovernmentWidget::BuildShell()
 {
+	FWLScopedGovernmentPerfLog Perf(TEXT("BuildShell"), 0.10);
 	UCanvasPanel* Root = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("GovRoot"));
 	WidgetTree->RootWidget = Root;
 
@@ -265,13 +315,13 @@ void UWLGovernmentWidget::BuildBody(UVerticalBox* Root)
 
 void UWLGovernmentWidget::BuildFooter(UVerticalBox* Root)
 {
+	FWLScopedGovernmentPerfLog Perf(TEXT("BuildFooter"), 0.10);
 	// Barra de estado inferior: vitales nacionales de un vistazo (estandar en juegos de estrategia).
 	// Ya NO repite al presidente (eso vive en la cabecera): aqui van tesoro, balance, orden y capital politico.
-	const UWLStrategicTickSubsystem* Tick = GetTick();
 	const UWLCharacterSubsystem* Characters = GetCharacters();
 	const FString Iso = PlayerIso();
-	const int64 Treasury = (Tick && !Iso.IsEmpty()) ? Tick->GetTreasury(Iso) : 0;
-	const int64 Balance = (Tick && !Iso.IsEmpty()) ? Tick->GetMonthlyBalance(Iso) : 0;
+	const int64 Treasury = !Iso.IsEmpty() ? GetCachedTreasury() : 0;
+	const int64 Balance = !Iso.IsEmpty() ? GetCachedMonthlyBalance() : 0;
 	const FSummary Sum = BuildSummary();
 	const int32 PolCapital = (Characters && !Iso.IsEmpty()) ? Characters->GetGovernmentStats(Iso).PoliticalCapital : 0;
 
@@ -309,6 +359,7 @@ void UWLGovernmentWidget::BuildFooter(UVerticalBox* Root)
 
 void UWLGovernmentWidget::RebuildCenter()
 {
+	FWLScopedGovernmentPerfLog Perf(TEXT("RebuildCenter"), 0.10, GovernmentTabPerfName(ActiveTab));
 	if (!CenterBox)
 	{
 		return;
@@ -339,13 +390,283 @@ void UWLGovernmentWidget::RebuildCenter()
 	}
 }
 
-void UWLGovernmentWidget::BuildOverviewTab()
+void UWLGovernmentWidget::InvalidateDataSnapshot() const
+{
+	DataSnapshot = FDataSnapshot();
+}
+
+void UWLGovernmentWidget::EnsureDataSnapshotContext() const
 {
 	const UWLStrategicTickSubsystem* Tick = GetTick();
 	const FString Iso = PlayerIso();
+	const int32 Day = Tick ? Tick->GetCurrentDay() : 0;
+	const int32 Month = Tick ? Tick->GetCurrentMonth() : 0;
+	const int32 Year = Tick ? Tick->GetCurrentYear() : 0;
+
+	if (!DataSnapshot.bContextValid
+		|| !DataSnapshot.NationIso.Equals(Iso, ESearchCase::IgnoreCase)
+		|| DataSnapshot.Day != Day
+		|| DataSnapshot.Month != Month
+		|| DataSnapshot.Year != Year)
+	{
+		DataSnapshot = FDataSnapshot();
+		DataSnapshot.bContextValid = true;
+		DataSnapshot.NationIso = Iso;
+		DataSnapshot.Day = Day;
+		DataSnapshot.Month = Month;
+		DataSnapshot.Year = Year;
+	}
+}
+
+const UWLGovernmentWidget::FSummary& UWLGovernmentWidget::GetCachedSummary() const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bSummaryValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedSummary miss"), 0.10, DataSnapshot.NationIso);
+		FSummary S;
+		const UWLDataRegistry* Registry = GetRegistry();
+		const UWLStrategicTickSubsystem* Tick = GetTick();
+		if (Registry && Tick && !DataSnapshot.NationIso.IsEmpty())
+		{
+			const int32 InitOrder = Tick->GetBalanceRules().InitialPublicOrder;
+			int64 OrderSum = 0;
+			for (const FWLProvinceData& P : Registry->GetAllProvinces())
+			{
+				if (!Tick->GetProvinceControllerIso(P.Id).Equals(DataSnapshot.NationIso, ESearchCase::IgnoreCase))
+				{
+					continue;
+				}
+				S.ProvinceCount++;
+				FWLProvinceRuntimeState State;
+				const bool bHasState = Tick->GetProvinceState(P.Id, State);
+				S.Population += bHasState ? State.Population : P.Population;
+				OrderSum += bHasState ? State.PublicOrder : InitOrder;
+				S.Controlled.Add(P);
+			}
+			const FWLNationBudget& Budget = GetCachedNationBudget();
+			S.MonthlyIncome = Budget.TotalIncome();
+			S.MonthlyUpkeep = Budget.TotalSpending();
+			S.AveragePublicOrder = S.ProvinceCount > 0 ? static_cast<int32>(OrderSum / S.ProvinceCount) : 0;
+			S.Controlled.Sort([](const FWLProvinceData& A, const FWLProvinceData& B) { return A.Population > B.Population; });
+		}
+		DataSnapshot.Summary = MoveTemp(S);
+		DataSnapshot.bSummaryValid = true;
+	}
+	return DataSnapshot.Summary;
+}
+
+const FWLNationBudget& UWLGovernmentWidget::GetCachedNationBudget() const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bBudgetValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationBudget miss"), 0.10, DataSnapshot.NationIso);
+		DataSnapshot.Budget = FWLNationBudget();
+		if (const UWLStrategicTickSubsystem* Tick = GetTick())
+		{
+			if (!DataSnapshot.NationIso.IsEmpty())
+			{
+				DataSnapshot.Budget = Tick->GetNationBudget(DataSnapshot.NationIso);
+			}
+		}
+		DataSnapshot.bBudgetValid = true;
+	}
+	return DataSnapshot.Budget;
+}
+
+const TArray<FWLGoodMarketBalance>& UWLGovernmentWidget::GetCachedNationGoodMarketBalance() const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bMarketValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationGoodMarketBalance miss"), 0.10, DataSnapshot.NationIso);
+		DataSnapshot.Market.Reset();
+		if (const UWLStrategicTickSubsystem* Tick = GetTick())
+		{
+			if (!DataSnapshot.NationIso.IsEmpty())
+			{
+				DataSnapshot.Market = Tick->GetNationGoodMarketBalance(DataSnapshot.NationIso);
+			}
+		}
+		DataSnapshot.bMarketValid = true;
+	}
+	return DataSnapshot.Market;
+}
+
+int64 UWLGovernmentWidget::GetCachedMonthlyBalance() const
+{
+	return GetCachedNationBudget().Net();
+}
+
+int64 UWLGovernmentWidget::GetCachedTreasury() const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bTreasuryValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedTreasury miss"), 0.10, DataSnapshot.NationIso);
+		DataSnapshot.Treasury = 0;
+		if (const UWLStrategicTickSubsystem* Tick = GetTick())
+		{
+			if (!DataSnapshot.NationIso.IsEmpty())
+			{
+				DataSnapshot.Treasury = Tick->GetTreasury(DataSnapshot.NationIso);
+			}
+		}
+		DataSnapshot.bTreasuryValid = true;
+	}
+	return DataSnapshot.Treasury;
+}
+
+int64 UWLGovernmentWidget::GetCachedNationGDP() const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bNationGDPValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationGDP miss"), 0.10, DataSnapshot.NationIso);
+		DataSnapshot.NationGDP = 0;
+		if (const UWLStrategicTickSubsystem* Tick = GetTick())
+		{
+			if (!DataSnapshot.NationIso.IsEmpty())
+			{
+				DataSnapshot.NationGDP = Tick->GetNationGDP(DataSnapshot.NationIso);
+			}
+		}
+		DataSnapshot.bNationGDPValid = true;
+	}
+	return DataSnapshot.NationGDP;
+}
+
+double UWLGovernmentWidget::GetCachedNationGDPGrowth() const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bNationGDPGrowthValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationGDPGrowth miss"), 0.10, DataSnapshot.NationIso);
+		DataSnapshot.NationGDPGrowth = 0.0;
+		if (const UWLStrategicTickSubsystem* Tick = GetTick())
+		{
+			if (!DataSnapshot.NationIso.IsEmpty())
+			{
+				DataSnapshot.NationGDPGrowth = Tick->GetNationGDPGrowth(DataSnapshot.NationIso);
+			}
+		}
+		DataSnapshot.bNationGDPGrowthValid = true;
+	}
+	return DataSnapshot.NationGDPGrowth;
+}
+
+double UWLGovernmentWidget::GetCachedNationInflationRate(const FWLBalanceRules& Rules) const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bNationInflationRateValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationInflationRate miss"), 0.10, DataSnapshot.NationIso);
+		double Pressure = 0.0;
+		double Weight = 0.0;
+		for (const FWLGoodMarketBalance& Balance : GetCachedNationGoodMarketBalance())
+		{
+			const double GoodWeight = static_cast<double>(FMath::Max<int64>(Balance.Demand, 1))
+				* FMath::Max(0.0, Balance.UnitPrice);
+			Pressure += (Balance.PriceMultiplier - 1.0) * GoodWeight;
+			Weight += GoodWeight;
+		}
+		DataSnapshot.NationInflationRate = Weight > 0.0
+			? FMath::Clamp(
+				(Pressure / Weight) * Rules.InflationPressureToMonthlyRate,
+				Rules.MinMonthlyInflationRate,
+				Rules.MaxMonthlyInflationRate)
+			: 0.0;
+		DataSnapshot.bNationInflationRateValid = true;
+	}
+	return DataSnapshot.NationInflationRate;
+}
+
+const FWLNationLaborStats& UWLGovernmentWidget::GetCachedNationLaborStats() const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bNationLaborStatsValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationLaborStats miss"), 0.10, DataSnapshot.NationIso);
+		DataSnapshot.NationLaborStats = FWLNationLaborStats();
+		if (const UWLStrategicTickSubsystem* Tick = GetTick())
+		{
+			if (!DataSnapshot.NationIso.IsEmpty())
+			{
+				DataSnapshot.NationLaborStats = Tick->GetNationLaborStats(DataSnapshot.NationIso);
+			}
+		}
+		DataSnapshot.bNationLaborStatsValid = true;
+	}
+	return DataSnapshot.NationLaborStats;
+}
+
+const FString& UWLGovernmentWidget::GetCachedNationEconomicCycleLabel(const FWLBalanceRules& Rules) const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bNationEconomicCycleLabelValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedNationEconomicCycleLabel miss"), 0.10, DataSnapshot.NationIso);
+		int64 TradeBalance = 0;
+		for (const FWLGoodMarketBalance& Balance : GetCachedNationGoodMarketBalance())
+		{
+			TradeBalance += Balance.ExportRevenue - Balance.ImportCost;
+		}
+		const int64 GDP = FMath::Max<int64>(1, GetCachedNationGDP());
+		const double TradeRatio = static_cast<double>(TradeBalance) / static_cast<double>(GDP);
+		const double Inflation = FMath::Max(0.0, GetCachedNationInflationRate(Rules));
+		const FWLNationLaborStats& Labor = GetCachedNationLaborStats();
+		const double Score = GetCachedNationGDPGrowth()
+			+ TradeRatio * Rules.CycleTradeBalanceWeight
+			- Labor.UnemploymentRate * Rules.CycleUnemploymentWeight
+			- Inflation * Rules.CycleInflationWeight;
+
+		DataSnapshot.NationEconomicCycleLabel = Score > 0.01
+			? TEXT("Expansion")
+			: (Score < -0.01 ? TEXT("Recesion") : TEXT("Estable"));
+		DataSnapshot.bNationEconomicCycleLabelValid = true;
+	}
+	return DataSnapshot.NationEconomicCycleLabel;
+}
+
+int64 UWLGovernmentWidget::GetCachedCreditLimit(const FWLBalanceRules& Rules) const
+{
+	EnsureDataSnapshotContext();
+	if (!DataSnapshot.bCreditLimitValid)
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedCreditLimit miss"), 0.10, DataSnapshot.NationIso);
+		DataSnapshot.CreditLimit = static_cast<int64>(FMath::RoundToDouble(
+			static_cast<double>(GetCachedNationBudget().TotalIncome()) * Rules.DebtCreditLimitIncomeMonths));
+		DataSnapshot.bCreditLimitValid = true;
+	}
+	return DataSnapshot.CreditLimit;
+}
+
+int64 UWLGovernmentWidget::GetCachedProvinceMonthlyBalance(const FString& ProvinceId) const
+{
+	EnsureDataSnapshotContext();
+	if (const int64* Found = DataSnapshot.ProvinceMonthlyBalanceById.Find(ProvinceId))
+	{
+		return *Found;
+	}
+
+	int64 Balance = 0;
+	if (const UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		FWLScopedGovernmentPerfLog Perf(TEXT("GetCachedProvinceMonthlyBalance miss"), 0.20, ProvinceId);
+		Balance = Tick->GetProvinceMonthlyBalance(ProvinceId);
+	}
+	DataSnapshot.ProvinceMonthlyBalanceById.Add(ProvinceId, Balance);
+	return Balance;
+}
+
+void UWLGovernmentWidget::BuildOverviewTab()
+{
+	FWLScopedGovernmentPerfLog Perf(TEXT("BuildOverviewTab"), 0.10);
+	const UWLStrategicTickSubsystem* Tick = GetTick();
+	const FString Iso = PlayerIso();
 	const FSummary Sum = BuildSummary();
-	const int64 Treasury = Tick ? Tick->GetTreasury(Iso) : 0;
-	const int64 Balance = Tick ? Tick->GetMonthlyBalance(Iso) : 0;
+	// Tesoro y balance ya viven en la barra de estado inferior (siempre visible); no se repiten en el grid.
 
 	// F5.3/F5.4: si la campania termino, el RESUMEN lo anuncia primero.
 	if (const UWLPoliticalSubsystem* Political = GetPolitical())
@@ -379,23 +700,23 @@ void UWLGovernmentWidget::BuildOverviewTab()
 			S->SetHorizontalAlignment(HAlign_Fill);
 		}
 	};
-	// A ancho completo caben 3 columnas: la rejilla respira en vez de estirar 2 tarjetas gigantes.
-	Place(0, 0, MakeMetricCard(WidgetTree, TEXT("Tesoro nacional"), GovGroupThousands(Treasury), GovText));
-	Place(0, 1, MakeMetricCard(WidgetTree, TEXT("Balance mensual"),
-		FString::Printf(TEXT("%s%s"), Balance >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Balance)), Balance >= 0 ? GovGood : GovBad));
-	Place(0, 2, MakeMetricCard(WidgetTree, TEXT("Provincias"), FString::Printf(TEXT("%d"), Sum.ProvinceCount), GovText));
-	Place(1, 0, MakeMetricCard(WidgetTree, TEXT("Poblacion"), GovGroupThousands(Sum.Population), GovText));
-	Place(1, 1, MakeMetricCard(WidgetTree, TEXT("Ingreso / mes"), GovGroupThousands(Sum.MonthlyIncome), GovGood));
-	Place(1, 2, MakeMetricCard(WidgetTree, TEXT("Mantenimiento / mes"), GovGroupThousands(Sum.MonthlyUpkeep), GovMuted));
-	// FE1.5: PIB y su crecimiento entre ticks economicos.
-	if (Tick)
-	{
-		const double Growth = Tick->GetNationGDPGrowth(Iso);
-		Place(2, 0, MakeMetricCard(WidgetTree, TEXT("PIB / mes"), GovGroupThousands(Tick->GetNationGDP(Iso)), GovText));
-		Place(2, 1, MakeMetricCard(WidgetTree, TEXT("Crecimiento"),
-			FString::Printf(TEXT("%+.2f%%"), Growth * 100.0),
-			Growth > 0.0 ? GovGood : (Growth < 0.0 ? GovBad : GovMuted)));
-	}
+	// Tiles con icono, barra de acento de color y buen contraste. Tesoro y Balance NO se repiten aqui:
+	// viven en la barra de estado inferior (siempre visible). 6 tiles = 2 filas de 3, sin celda huerfana.
+	const double Growth = Tick ? GetCachedNationGDPGrowth() : 0.0;
+	Place(0, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Provinces, GovGold,
+		TEXT("Provincias"), FString::Printf(TEXT("%d"), Sum.ProvinceCount), GovText));
+	Place(0, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Population, FLinearColor(0.45f, 0.68f, 0.95f),
+		TEXT("Poblacion"), GovGroupThousands(Sum.Population), GovText));
+	Place(0, 2, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Balance, GovGood,
+		TEXT("Ingreso / mes"), GovGroupThousands(Sum.MonthlyIncome), GovGood));
+	Place(1, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Order, FLinearColor(0.85f, 0.55f, 0.40f),
+		TEXT("Mantenimiento / mes"), GovGroupThousands(Sum.MonthlyUpkeep), GovMuted));
+	Place(1, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Treasury, GovGold,
+		TEXT("PIB / mes"), Tick ? GovGroupThousands(GetCachedNationGDP()) : TEXT("--"), GovText));
+	Place(1, 2, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Growth,
+		Growth > 0.0 ? GovGood : (Growth < 0.0 ? GovBad : GovMuted),
+		TEXT("Crecimiento"), Tick ? FString::Printf(TEXT("%+.2f%%"), Growth * 100.0) : TEXT("--"),
+		Growth > 0.0 ? GovGood : (Growth < 0.0 ? GovBad : GovMuted)));
 	AddColumnChild(CenterBox, Grid, 10.f);
 
 	// Gobierno P1/P2: pulso politico del gobierno (aprobacion, legitimidad, eleccion, coalicion...).
@@ -454,7 +775,7 @@ void UWLGovernmentWidget::BuildOverviewTab()
 	int32 Index = 0;
 	for (const FWLProvinceData& P : Sum.Controlled)
 	{
-		const int64 Bal = Tick ? Tick->GetProvinceMonthlyBalance(P.Id) : 0;
+		const int64 Bal = Tick ? GetCachedProvinceMonthlyBalance(P.Id) : 0;
 		AddColumnChild(CenterBox, MakeRow(P.Name, GovGroupThousands(P.Population),
 			FString::Printf(TEXT("%s%s"), Bal >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Bal)),
 			Bal >= 0 ? GovGood : GovBad, (Index % 2 == 0) ? GovCard : GovCardAlt, 15, GovText), 4.f);
@@ -465,6 +786,7 @@ void UWLGovernmentWidget::BuildOverviewTab()
 // FE1.3: panel ECONOMIA — presupuesto mensual desglosado por categorias + palanca de impuestos (FE1.2).
 void UWLGovernmentWidget::BuildEconomyTab()
 {
+	FWLScopedGovernmentPerfLog Perf(TEXT("BuildEconomyTab"), 0.10);
 	UWLStrategicTickSubsystem* Tick = GetTick();
 	const FString Iso = PlayerIso();
 	if (!Tick || Iso.IsEmpty())
@@ -474,7 +796,7 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	}
 
 	const FWLBalanceRules Rules = Tick->GetBalanceRules();
-	const FWLNationBudget Budget = Tick->GetNationBudget(Iso);
+	const FWLNationBudget Budget = GetCachedNationBudget();
 
 	// Fila de presupuesto: etiqueta (fill) + importe con signo a la derecha.
 	auto AddBudgetRow = [&](const FString& Label, int64 Amount, bool bIsIncome, bool bTotal, int32 Index)
@@ -497,13 +819,14 @@ void UWLGovernmentWidget::BuildEconomyTab()
 
 	// FE1.5: PIB y crecimiento arriba del presupuesto.
 	{
-		const double Growth = Tick->GetNationGDPGrowth(Iso);
-		const double Inflation = Tick->GetNationInflationRate(Iso);
-		const FWLNationLaborStats Labor = Tick->GetNationLaborStats(Iso);
+		const double Growth = GetCachedNationGDPGrowth();
+		const double Inflation = GetCachedNationInflationRate(Rules);
+		const FWLNationLaborStats& Labor = GetCachedNationLaborStats();
+		const FString& CycleLabel = GetCachedNationEconomicCycleLabel(Rules);
 		AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
 			TEXT("PIB: %s / mes   ·   Crecimiento: %+.2f%%   ·   Inflacion: %+.2f%%   ·   Ciclo: %s"),
-			*GovGroupThousands(Tick->GetNationGDP(Iso)), Growth * 100.0,
-			Inflation * 100.0, *Tick->GetNationEconomicCycleLabel(Iso)),
+			*GovGroupThousands(GetCachedNationGDP()), Growth * 100.0,
+			Inflation * 100.0, *CycleLabel),
 			14, Growth < 0.0 ? GovBad : GovText), 6.f);
 		AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
 			TEXT("Empleo: %s / %s   ·   Desempleo: %.1f%%   ·   Productividad: %.0f%%"),
@@ -576,8 +899,8 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	// FE1.4: deuda y linea de credito. Gastar por encima del tesoro endeuda (con interes mensual)
 	// hasta el limite de credito; el tesoro negativo ademas penaliza el orden publico cada mes.
 	{
-		const int64 Treasury = Tick->GetTreasury(Iso);
-		const int64 CreditLimit = Tick->GetCreditLimit(Iso);
+		const int64 Treasury = GetCachedTreasury();
+		const int64 CreditLimit = GetCachedCreditLimit(Rules);
 		if (Treasury < 0)
 		{
 			UBorder* DebtCard = MakeBorder(WidgetTree, GovCard, FMargin(12.f, 10.f));
@@ -614,7 +937,7 @@ void UWLGovernmentWidget::BuildEconomyTab()
 
 	// FE2.3-FE4.1: produccion nacional por bien con insumos, demanda, precios y comercio.
 	{
-		const TArray<FWLGoodMarketBalance> Market = Tick->GetNationGoodMarketBalance(Iso);
+		const TArray<FWLGoodMarketBalance>& Market = GetCachedNationGoodMarketBalance();
 		if (Market.Num() > 0)
 		{
 			AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("MERCADO NACIONAL / MES")), 20.f);
@@ -1559,7 +1882,7 @@ void UWLGovernmentWidget::BuildProvinceTab()
 	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
 		TEXT("Control: %s   ·   Poblacion: %s   ·   Orden publico: %d   ·   Balance: %+lld/mes"),
 		*ControllerIso, *GovGroupThousands(State.Population), State.PublicOrder,
-		static_cast<long long>(Tick->GetProvinceMonthlyBalance(Province.Id))),
+		static_cast<long long>(GetCachedProvinceMonthlyBalance(Province.Id))),
 		13, GovMuted, ETextJustify::Left, true), 4.f);
 	if (!bOwn)
 	{
@@ -1818,6 +2141,7 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 	UWLStrategicTickSubsystem* Tick = GetTick();
 	UWLCharacterSubsystem* Characters = GetCharacters();
 	UWLPoliticalSubsystem* Political = GetPolitical();
+	InvalidateDataSnapshot();
 
 	// --- Navegacion interna de la UI (sin backend y sin franja de feedback) ---
 	if (Verb == TEXT("polsec"))
@@ -2253,42 +2577,13 @@ void UWLGovernmentWidget::AdjustTaxRate(int32 DeltaPercent)
 		return;
 	}
 	Tick->SetTaxRate(Iso, Tick->GetTaxRate(Iso) + DeltaPercent);
+	InvalidateDataSnapshot();
 	RebuildCenter();   // refresca tasa, recaudacion y balance mensual en la misma pestana
 }
 
 UWLGovernmentWidget::FSummary UWLGovernmentWidget::BuildSummary() const
 {
-	FSummary S;
-	const UWLDataRegistry* Registry = GetRegistry();
-	const UWLStrategicTickSubsystem* Tick = GetTick();
-	const FString Iso = PlayerIso();
-	if (!Registry || !Tick || Iso.IsEmpty())
-	{
-		return S;
-	}
-
-	const int32 InitOrder = Tick->GetBalanceRules().InitialPublicOrder;
-	int64 OrderSum = 0;
-	for (const FWLProvinceData& P : Registry->GetAllProvinces())
-	{
-		if (!Tick->GetProvinceControllerIso(P.Id).Equals(Iso, ESearchCase::IgnoreCase))
-		{
-			continue;
-		}
-		S.ProvinceCount++;
-		FWLProvinceRuntimeState State;
-		const bool bHasState = Tick->GetProvinceState(P.Id, State);
-		S.Population += bHasState ? State.Population : P.Population;
-		OrderSum += bHasState ? State.PublicOrder : InitOrder;
-		S.Controlled.Add(P);
-	}
-	// FE1.3: ingreso y gasto desde el presupuesto por categorias (incluye militar, salarios y social).
-	const FWLNationBudget Budget = Tick->GetNationBudget(Iso);
-	S.MonthlyIncome = Budget.TotalIncome();
-	S.MonthlyUpkeep = Budget.TotalSpending();
-	S.AveragePublicOrder = S.ProvinceCount > 0 ? static_cast<int32>(OrderSum / S.ProvinceCount) : 0;
-	S.Controlled.Sort([](const FWLProvinceData& A, const FWLProvinceData& B) { return A.Population > B.Population; });
-	return S;
+	return GetCachedSummary();
 }
 
 FString UWLGovernmentWidget::PlayerIso() const

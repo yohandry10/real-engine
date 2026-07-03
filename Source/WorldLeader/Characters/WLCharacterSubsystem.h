@@ -9,6 +9,7 @@
 
 class UWLDataRegistry;
 class UWLMilitarySubsystem;
+class UWLStrategicTickSubsystem;
 
 USTRUCT(BlueprintType)
 struct FWLCabinetSeat
@@ -193,6 +194,7 @@ private:
 
 	UWLDataRegistry* GetRegistry() const;
 	UWLMilitarySubsystem* GetMilitary() const;
+	UWLStrategicTickSubsystem* GetTick() const;
 	FWLCharacter* FindMutableCharacter(const FString& CharacterId);
 	const FWLCharacter* FindCharacter(const FString& CharacterId) const;
 	bool ValidateNation(const FString& NationIso) const;

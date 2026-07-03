@@ -2582,6 +2582,10 @@ void UWLPoliticalSubsystem::ProcessPoliticalMonth()
 	{
 		const bool bIsAI = !PlayerIso.IsEmpty() && Nation.Iso != PlayerIso;
 		ProcessGovernmentMonthForNation(Nation.Iso, bIsAI);
+		if (UWLStrategicTickSubsystem* Tick = GetTick())
+		{
+			Tick->InvalidateEconomicQueryCache();
+		}
 		if (Characters)
 		{
 			Characters->AddMonthlyRenownToGenerals(Nation.Iso, 1);
@@ -2639,6 +2643,10 @@ void UWLPoliticalSubsystem::ProcessPoliticalMonth()
 	}
 
 	CheckCampaignOutcome();
+	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		Tick->InvalidateEconomicQueryCache();
+	}
 }
 
 void UWLPoliticalSubsystem::ProcessGovernmentMonthForNation(const FString& NationIso, bool bRunAI)
@@ -4459,6 +4467,10 @@ bool UWLPoliticalSubsystem::SetRelationOpinion(
 		Relation.Status = Relation.Opinion < -35 ? EWLDiplomaticStatus::Tension : EWLDiplomaticStatus::Peace;
 	}
 	OutMessage = FString::Printf(TEXT("Opinion %s-%s = %d."), *Relation.NationA, *Relation.NationB, Relation.Opinion);
+	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		Tick->InvalidateEconomicQueryCache();
+	}
 	return true;
 }
 
@@ -4498,6 +4510,10 @@ bool UWLPoliticalSubsystem::DeclareWar(
 	Relation.Treaties.Remove(EWLTreatyType::Alliance);
 	AddNews(Relation.CasusBelli);
 	OutMessage = Relation.CasusBelli;
+	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		Tick->InvalidateEconomicQueryCache();
+	}
 	return true;
 }
 
@@ -4524,6 +4540,10 @@ bool UWLPoliticalSubsystem::MakePeace(
 	OutMessage = FString::Printf(TEXT("Paz firmada entre %s y %s. La tension persiste."),
 		*Relation.NationA, *Relation.NationB);
 	AddNews(OutMessage);
+	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		Tick->InvalidateEconomicQueryCache();
+	}
 	return true;
 }
 
@@ -4571,6 +4591,10 @@ bool UWLPoliticalSubsystem::SignTreaty(
 	OutMessage = FString::Printf(TEXT("%s firmado entre %s y %s."),
 		*TreatyToString(Treaty), *Relation.NationA, *Relation.NationB);
 	AddNews(OutMessage);
+	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		Tick->InvalidateEconomicQueryCache();
+	}
 	return true;
 }
 
@@ -4598,6 +4622,10 @@ bool UWLPoliticalSubsystem::BreakTreaty(
 	OutMessage = FString::Printf(TEXT("%s roto entre %s y %s."),
 		*TreatyToString(Treaty), *Relation.NationA, *Relation.NationB);
 	AddNews(OutMessage);
+	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		Tick->InvalidateEconomicQueryCache();
+	}
 	return true;
 }
 

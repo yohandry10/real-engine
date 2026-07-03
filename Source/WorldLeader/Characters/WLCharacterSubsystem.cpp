@@ -2,6 +2,7 @@
 
 #include "Characters/WLCharacterSubsystem.h"
 #include "Campaign/WLDataRegistry.h"
+#include "Campaign/WLStrategicTickSubsystem.h"
 #include "Military/WLMilitarySubsystem.h"
 #include "WorldLeader.h"
 #include "Dom/JsonObject.h"
@@ -211,6 +212,12 @@ UWLMilitarySubsystem* UWLCharacterSubsystem::GetMilitary() const
 {
 	const UGameInstance* GI = GetGameInstance();
 	return GI ? GI->GetSubsystem<UWLMilitarySubsystem>() : nullptr;
+}
+
+UWLStrategicTickSubsystem* UWLCharacterSubsystem::GetTick() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	return GI ? GI->GetSubsystem<UWLStrategicTickSubsystem>() : nullptr;
 }
 
 FString UWLCharacterSubsystem::NormalizeCharacterId(const FString& In)
@@ -820,6 +827,10 @@ bool UWLCharacterSubsystem::AppointMinister(
 	PoliticalCapital = FMath::Max(0, PoliticalCapital - AppointMinisterPoliticalCost);
 	OutMessage = FString::Printf(TEXT("%s nombrado en %s. Capital politico: %d."),
 		*Character->Name, *MinisterOfficeToString(Office), PoliticalCapital);
+	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		Tick->InvalidateEconomicQueryCache();
+	}
 	return true;
 }
 
@@ -851,6 +862,10 @@ bool UWLCharacterSubsystem::DismissMinister(const FString& NationIso, EWLMiniste
 	PoliticalCapital = FMath::Max(0, PoliticalCapital - DismissMinisterPoliticalCost);
 	OutMessage = FString::Printf(TEXT("%s removido de %s. Capital politico: %d."),
 		*Current.Name, *MinisterOfficeToString(Office), PoliticalCapital);
+	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	{
+		Tick->InvalidateEconomicQueryCache();
+	}
 	return true;
 }
 
@@ -1106,6 +1121,7 @@ bool UWLCharacterSubsystem::RetireCharacter(const FString& CharacterId, FString&
 		return false;
 	}
 	const FString ArmyId = Character->AssignedArmyId;
+	const bool bWasMinister = Character->AssignedOffice != EWLMinisterOffice::None;
 	Character->bActive = false;
 	Character->AssignedOffice = EWLMinisterOffice::None;
 	Character->AssignedArmyId.Reset();
@@ -1118,6 +1134,13 @@ bool UWLCharacterSubsystem::RetireCharacter(const FString& CharacterId, FString&
 		}
 	}
 	OutMessage = FString::Printf(TEXT("%s retirado del servicio activo."), *Character->Name);
+	if (bWasMinister)
+	{
+		if (UWLStrategicTickSubsystem* Tick = GetTick())
+		{
+			Tick->InvalidateEconomicQueryCache();
+		}
+	}
 	return true;
 }
 

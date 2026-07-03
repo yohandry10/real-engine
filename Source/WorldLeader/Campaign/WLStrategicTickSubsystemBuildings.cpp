@@ -271,6 +271,7 @@ bool UWLStrategicTickSubsystem::BuildBuilding(const FString& ProvinceId, const F
 	*Treasury -= Building.Cost;
 	ProvinceBuildings.FindOrAdd(Province.Id).Add(Building.Id);
 	ProvinceBuildingLevels.FindOrAdd(Province.Id).Add(Building.Id, 1);
+	InvalidateEconomicQueryCache();
 
 	OutMessage = FString::Printf(TEXT("%s construido en %s (%s). Coste %lld. Tesoro %s: %lld"),
 		*Building.Name, *Province.Name, *Province.Id, Building.Cost, *Nation, *Treasury);
@@ -343,6 +344,7 @@ bool UWLStrategicTickSubsystem::UpgradeBuilding(
 
 	*Treasury -= UpgradeCost;
 	ProvinceBuildingLevels.FindOrAdd(Province.Id).Add(Building.Id, NextLevel);
+	InvalidateEconomicQueryCache();
 
 	OutMessage = FString::Printf(TEXT("%s mejorado a nivel %d en %s (%s). Coste %lld. Tesoro %s: %lld"),
 		*Building.Name, NextLevel, *Province.Name, *Province.Id, UpgradeCost, *Nation, *Treasury);

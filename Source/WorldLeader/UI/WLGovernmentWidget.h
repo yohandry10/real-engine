@@ -11,6 +11,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Campaign/WLStrategicTickSubsystem.h"
 #include "Core/WLGameTypes.h"
 #include "Core/WLCharacterTypes.h"
 #include "Core/WLPoliticalTypes.h"
@@ -116,6 +117,47 @@ private:
 		TArray<FWLProvinceData> Controlled;
 	};
 
+	struct FDataSnapshot
+	{
+		bool bContextValid = false;
+		FString NationIso;
+		int32 Day = 0;
+		int32 Month = 0;
+		int32 Year = 0;
+
+		bool bSummaryValid = false;
+		FSummary Summary;
+
+		bool bBudgetValid = false;
+		FWLNationBudget Budget;
+
+		bool bMarketValid = false;
+		TArray<FWLGoodMarketBalance> Market;
+
+		bool bTreasuryValid = false;
+		int64 Treasury = 0;
+
+		bool bNationGDPValid = false;
+		int64 NationGDP = 0;
+
+		bool bNationGDPGrowthValid = false;
+		double NationGDPGrowth = 0.0;
+
+		bool bNationInflationRateValid = false;
+		double NationInflationRate = 0.0;
+
+		bool bNationLaborStatsValid = false;
+		FWLNationLaborStats NationLaborStats;
+
+		bool bNationEconomicCycleLabelValid = false;
+		FString NationEconomicCycleLabel;
+
+		bool bCreditLimitValid = false;
+		int64 CreditLimit = 0;
+
+		TMap<FString, int64> ProvinceMonthlyBalanceById;
+	};
+
 	void BuildShell();
 	void BuildHeader(UVerticalBox* Root);
 	void BuildTabs(UVerticalBox* Root);
@@ -173,6 +215,20 @@ private:
 	void AdjustTaxRate(int32 DeltaPercent);   // FE1.2
 
 	FSummary BuildSummary() const;
+	void InvalidateDataSnapshot() const;
+	void EnsureDataSnapshotContext() const;
+	const FSummary& GetCachedSummary() const;
+	const FWLNationBudget& GetCachedNationBudget() const;
+	const TArray<FWLGoodMarketBalance>& GetCachedNationGoodMarketBalance() const;
+	int64 GetCachedMonthlyBalance() const;
+	int64 GetCachedTreasury() const;
+	int64 GetCachedNationGDP() const;
+	double GetCachedNationGDPGrowth() const;
+	double GetCachedNationInflationRate(const FWLBalanceRules& Rules) const;
+	const FWLNationLaborStats& GetCachedNationLaborStats() const;
+	const FString& GetCachedNationEconomicCycleLabel(const FWLBalanceRules& Rules) const;
+	int64 GetCachedCreditLimit(const FWLBalanceRules& Rules) const;
+	int64 GetCachedProvinceMonthlyBalance(const FString& ProvinceId) const;
 	FString PlayerIso() const;
 
 	UWLCampaignGameInstance* GetCampaignGI() const;
@@ -189,6 +245,8 @@ private:
 	UPROPERTY() UScrollBox* CenterScroll = nullptr;
 	UPROPERTY() UVerticalBox* CenterBox = nullptr;
 	UPROPERTY() TArray<UButton*> TabButtons;
+
+	mutable FDataSnapshot DataSnapshot;
 
 	EWLGovernmentTab ActiveTab = EWLGovernmentTab::Overview;
 

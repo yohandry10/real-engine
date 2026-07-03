@@ -451,6 +451,7 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 		}
 	}
 
+	InvalidateEconomicQueryCache();
 	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
 	OutMessage = FString::Printf(TEXT("Save restaurado: %02d/%d, %d tesoros, %d edificios, %d estados de provincia, %d shocks de mercado, %d instrumentos financieros, %d apoyos exteriores."),
 		CurrentMonth, CurrentYear, RestoredTreasuries, RestoredBuildings, RestoredProvinceStates, RestoredMarketShocks,

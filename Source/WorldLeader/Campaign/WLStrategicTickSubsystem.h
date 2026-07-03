@@ -600,6 +600,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|AI")
 	int32 GetLastEconomicAIBuildCount() const { return LastEconomicAIReports.Num(); }
 
+	void InvalidateEconomicQueryCache();
+
 	/** Reinicia fecha, tesoros y edificios al estado inicial de los datos. */
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
 	void ResetCampaignState();
@@ -703,6 +705,10 @@ private:
 	UPROPERTY()
 	TArray<FString> LastEconomicAIReports;
 
+	mutable TMap<FString, FWLProductionLedger> CachedNationProductionLedgers;
+	mutable TMap<FString, TMap<FString, int64>> CachedNationDemandMaps;
+	mutable TMap<FString, TArray<FWLGoodMarketBalance>> CachedNationMarketBalances;
+
 	void InitTreasuriesFromData();
 	void InitProvinceStatesFromData();
 	void ApplyMonthlyEconomy();
@@ -727,6 +733,8 @@ private:
 	FWLProductionLedger BuildProvinceProductionLedger(const FString& ProvinceId) const;
 	FWLProductionLedger BuildNationProductionLedger(const FString& NationIso) const;
 	TMap<FString, int64> BuildNationDemandMap(const FString& NationIso) const;
+	const FWLProductionLedger& GetCachedNationProductionLedger(const FString& NationIso) const;
+	const TMap<FString, int64>& GetCachedNationDemandMap(const FString& NationIso) const;
 	int64 GetNationPopulation(const FString& NationIso) const;
 	int64 GetNationMarketProductionValue(const FString& NationIso) const;
 	int64 GetNationTradeBalance(const FString& NationIso) const;

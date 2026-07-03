@@ -46,6 +46,35 @@ namespace
 		return (Normalized == TEXT("all") || Normalized == TEXT("*")) ? FString(TEXT("*")) : Normalized;
 	}
 
+	struct FWLScopedEconomyPerfLog
+	{
+		FWLScopedEconomyPerfLog(const TCHAR* InLabel, double InThresholdMs, const FString& InContext = FString())
+			: Label(InLabel)
+			, Context(InContext)
+			, ThresholdMs(InThresholdMs)
+			, StartSeconds(FPlatformTime::Seconds())
+		{
+		}
+
+		~FWLScopedEconomyPerfLog()
+		{
+			const double ElapsedMs = (FPlatformTime::Seconds() - StartSeconds) * 1000.0;
+			if (ElapsedMs >= ThresholdMs)
+			{
+				const FString ContextText = Context.IsEmpty() ? FString() : FString::Printf(TEXT(" [%s]"), *Context);
+				UE_LOG(LogWorldLeader, Log, TEXT("WLPerf Gobierno Backend: %s%s %.2f ms"),
+					Label,
+					*ContextText,
+					ElapsedMs);
+			}
+		}
+
+		const TCHAR* Label = TEXT("");
+		FString Context;
+		double ThresholdMs = 0.0;
+		double StartSeconds = 0.0;
+	};
+
 	bool ShockTargetsGood(const FWLMarketShockState& Shock, const FString& NormalizedGoodId)
 	{
 		const FString ShockGoodId = NormalizeGoodId(Shock.GoodId);
@@ -184,6 +213,7 @@ void UWLStrategicTickSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	CurrentYear = Rules.StartYear;
 	CurrentMonth = Rules.StartMonth;
 	CurrentDay = 1;
+	InvalidateEconomicQueryCache();
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
 }
@@ -198,6 +228,13 @@ UWLBalanceSubsystem* UWLStrategicTickSubsystem::GetBalanceSubsystem() const
 {
 	const UGameInstance* GI = GetGameInstance();
 	return GI ? GI->GetSubsystem<UWLBalanceSubsystem>() : nullptr;
+}
+
+void UWLStrategicTickSubsystem::InvalidateEconomicQueryCache()
+{
+	CachedNationProductionLedgers.Reset();
+	CachedNationDemandMaps.Reset();
+	CachedNationMarketBalances.Reset();
 }
 
 void UWLStrategicTickSubsystem::InitTreasuriesFromData()
@@ -251,6 +288,7 @@ void UWLStrategicTickSubsystem::ResetCampaignState()
 	ActiveMarketShocks.Reset();
 	NextMarketShockNumber = 1;
 	LastEconomicAIReports.Reset();
+	InvalidateEconomicQueryCache();
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
 	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
@@ -347,6 +385,8 @@ void UWLStrategicTickSubsystem::ApplyDailyEconomy()
 
 void UWLStrategicTickSubsystem::ApplyMonthlyProvinceState()
 {
+	InvalidateEconomicQueryCache();
+
 	const UWLDataRegistry* Registry = GetDataRegistry();
 	if (!Registry)
 	{
@@ -436,6 +476,7 @@ FWLNationBudget UWLStrategicTickSubsystem::GetNationBudget(const FString& Nation
 
 	const FWLBalanceRules Rules = GetBalanceRules();
 	const FString NormalizedIso = NormalizeIso(NationIso);
+	FWLScopedEconomyPerfLog Perf(TEXT("GetNationBudget"), 5.00, NormalizedIso);
 	int64 NationPopulation = 0;
 	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
 	{
@@ -1081,6 +1122,7 @@ int32 UWLStrategicTickSubsystem::GetNationTechnologyLevel(const FString& NationI
 	}
 
 	const FString NormalizedIso = NormalizeIso(NationIso);
+	FWLScopedEconomyPerfLog Perf(TEXT("GetNationTechnologyLevel"), 5.00, NormalizedIso);
 	int32 Technology = 50;
 	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
 	{
@@ -1096,6 +1138,7 @@ FWLEconomicGovernanceStats UWLStrategicTickSubsystem::GetEconomicGovernanceStats
 {
 	FWLEconomicGovernanceStats Stats;
 	Stats.NationIso = NormalizeIso(NationIso);
+	FWLScopedEconomyPerfLog Perf(TEXT("GetEconomicGovernanceStats"), 5.00, Stats.NationIso);
 	Stats.TechnologyLevel = GetNationTechnologyLevel(Stats.NationIso);
 
 	const FWLBalanceRules Rules = GetBalanceRules();
@@ -1373,6 +1416,7 @@ FWLProductionLedger UWLStrategicTickSubsystem::BuildNationProductionLedger(const
 	}
 
 	const FString NormalizedIso = NormalizeIso(NationIso);
+	FWLScopedEconomyPerfLog Perf(TEXT("BuildNationProductionLedger"), 10.00, NormalizedIso);
 	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
 	{
 		if (GetProvinceControllerIso(Province.Id) != NormalizedIso)
@@ -1394,6 +1438,30 @@ FWLProductionLedger UWLStrategicTickSubsystem::BuildNationProductionLedger(const
 		}
 	}
 	return Ledger;
+}
+
+const FWLProductionLedger& UWLStrategicTickSubsystem::GetCachedNationProductionLedger(const FString& NationIso) const
+{
+	const FString NormalizedIso = NormalizeIso(NationIso);
+	if (const FWLProductionLedger* Cached = CachedNationProductionLedgers.Find(NormalizedIso))
+	{
+		return *Cached;
+	}
+
+	FWLProductionLedger Built = BuildNationProductionLedger(NormalizedIso);
+	return CachedNationProductionLedgers.Add(NormalizedIso, MoveTemp(Built));
+}
+
+const TMap<FString, int64>& UWLStrategicTickSubsystem::GetCachedNationDemandMap(const FString& NationIso) const
+{
+	const FString NormalizedIso = NormalizeIso(NationIso);
+	if (const TMap<FString, int64>* Cached = CachedNationDemandMaps.Find(NormalizedIso))
+	{
+		return *Cached;
+	}
+
+	TMap<FString, int64> Built = BuildNationDemandMap(NormalizedIso);
+	return CachedNationDemandMaps.Add(NormalizedIso, MoveTemp(Built));
 }
 
 TArray<FWLGoodOutput> UWLStrategicTickSubsystem::GetProvinceProduction(const FString& ProvinceId) const
@@ -1440,6 +1508,8 @@ TMap<FString, int64> UWLStrategicTickSubsystem::BuildNationDemandMap(const FStri
 		return Demand;
 	}
 
+	const FString NormalizedIso = NormalizeIso(NationIso);
+	FWLScopedEconomyPerfLog Perf(TEXT("BuildNationDemandMap"), 5.00, NormalizedIso);
 	const double PopulationMillions = static_cast<double>(GetNationPopulation(NationIso)) / 1000000.0;
 	for (const FWLGoodData& Good : Registry->GetAllGoods())
 	{
@@ -1487,25 +1557,28 @@ FWLNationLaborStats UWLStrategicTickSubsystem::GetNationLaborStats(const FString
 
 TArray<FWLGoodMarketBalance> UWLStrategicTickSubsystem::GetNationGoodMarketBalance(const FString& NationIso) const
 {
-	TArray<FWLGoodMarketBalance> Balances;
 	const UWLDataRegistry* Registry = GetDataRegistry();
 	if (!Registry)
 	{
-		return Balances;
+		return TArray<FWLGoodMarketBalance>();
 	}
 
 	const FWLBalanceRules Rules = GetBalanceRules();
 	const FString NormalizedIso = NormalizeIso(NationIso);
-	const FWLProductionLedger Domestic = BuildNationProductionLedger(NormalizedIso);
-	const TMap<FString, int64> DomesticDemand = BuildNationDemandMap(NormalizedIso);
+	if (const TArray<FWLGoodMarketBalance>* Cached = CachedNationMarketBalances.Find(NormalizedIso))
+	{
+		return *Cached;
+	}
+
+	FWLScopedEconomyPerfLog Perf(TEXT("GetNationGoodMarketBalance"), 5.00, NormalizedIso);
+	const FWLProductionLedger& Domestic = GetCachedNationProductionLedger(NormalizedIso);
+	const TMap<FString, int64>& DomesticDemand = GetCachedNationDemandMap(NormalizedIso);
 	const double DomesticTariffImportMultiplier = GetTariffImportVolumeMultiplier(NormalizedIso);
 	const int32 DomesticTariffRate = GetTariffRate(NormalizedIso);
 
 	struct FWLPartnerMarketCache
 	{
 		FString Iso;
-		FWLProductionLedger Production;
-		TMap<FString, int64> Demand;
 		FWLTradeRouteState Route;
 		double ImportVolumeMultiplier = 1.0;
 	};
@@ -1519,13 +1592,14 @@ TArray<FWLGoodMarketBalance> UWLStrategicTickSubsystem::GetNationGoodMarketBalan
 
 		FWLPartnerMarketCache Partner;
 		Partner.Iso = Nation.Iso;
-		Partner.Production = BuildNationProductionLedger(Nation.Iso);
-		Partner.Demand = BuildNationDemandMap(Nation.Iso);
+		GetCachedNationProductionLedger(Nation.Iso);
+		GetCachedNationDemandMap(Nation.Iso);
 		Partner.Route = GetTradeRouteBetween(NormalizedIso, Nation.Iso);
 		Partner.ImportVolumeMultiplier = GetTariffImportVolumeMultiplier(Nation.Iso);
 		Partners.Add(MoveTemp(Partner));
 	}
 
+	TArray<FWLGoodMarketBalance> Balances;
 	for (const FWLGoodData& Good : Registry->GetAllGoods())
 	{
 		FWLGoodMarketBalance Balance;
@@ -1544,8 +1618,10 @@ TArray<FWLGoodMarketBalance> UWLStrategicTickSubsystem::GetNationGoodMarketBalan
 		double RouteMultiplierWeight = 0.0;
 		for (const FWLPartnerMarketCache& Partner : Partners)
 		{
-			const int64 PartnerSupply = ReadUnits(Partner.Production.FinalSupply, Good.Id);
-			const int64 PartnerNeed = ReadUnits(Partner.Demand, Good.Id);
+			const FWLProductionLedger& PartnerProduction = GetCachedNationProductionLedger(Partner.Iso);
+			const TMap<FString, int64>& PartnerDemand = GetCachedNationDemandMap(Partner.Iso);
+			const int64 PartnerSupply = ReadUnits(PartnerProduction.FinalSupply, Good.Id);
+			const int64 PartnerNeed = ReadUnits(PartnerDemand, Good.Id);
 			const int64 PartnerSurplus = FMath::Max<int64>(0, PartnerSupply - PartnerNeed);
 			const int64 PartnerDeficit = FMath::Max<int64>(0, PartnerNeed - PartnerSupply);
 			const double RouteAccess = FMath::Max(0.0, Partner.Route.AccessMultiplier);
@@ -1603,7 +1679,7 @@ TArray<FWLGoodMarketBalance> UWLStrategicTickSubsystem::GetNationGoodMarketBalan
 	{
 		return A.ProductionValue == B.ProductionValue ? A.GoodId < B.GoodId : A.ProductionValue > B.ProductionValue;
 	});
-	return Balances;
+	return CachedNationMarketBalances.Add(NormalizedIso, MoveTemp(Balances));
 }
 
 TArray<FWLMarketShockState> UWLStrategicTickSubsystem::GetActiveMarketShocks() const
@@ -1661,7 +1737,12 @@ int32 UWLStrategicTickSubsystem::SetTariffRate(const FString& NationIso, int32 R
 {
 	const FString NormalizedIso = NormalizeIso(NationIso);
 	const int32 Clamped = FMath::Clamp(RatePercent, 0, GetBalanceRules().TariffRateMaxPercent);
+	const int32 Previous = GetTariffRate(NormalizedIso);
 	TariffRates.Add(NormalizedIso, Clamped);
+	if (Previous != Clamped)
+	{
+		InvalidateEconomicQueryCache();
+	}
 	return Clamped;
 }
 
@@ -1804,6 +1885,7 @@ bool UWLStrategicTickSubsystem::ApplyMarketShock(
 	Shock.TotalMonths = FMath::Clamp(DurationMonths, 1, Rules.MaxMarketShockDurationMonths);
 	Shock.RemainingMonths = Shock.TotalMonths;
 	ActiveMarketShocks.Add(Shock);
+	InvalidateEconomicQueryCache();
 
 	OutMessage = FString::Printf(TEXT("%s aplicado a %s x%.2f por %d meses."),
 		*Shock.Title, *Shock.GoodId, Shock.PriceMultiplier, Shock.RemainingMonths);
@@ -1824,19 +1906,25 @@ bool UWLStrategicTickSubsystem::ClearMarketShock(const FString& ShockId, FString
 	}
 
 	OutMessage = FString::Printf(TEXT("Shock de mercado eliminado: %s"), *NormalizedShockId);
+	InvalidateEconomicQueryCache();
 	return true;
 }
 
 void UWLStrategicTickSubsystem::AdvanceMarketShocks()
 {
+	const int32 PreviousNum = ActiveMarketShocks.Num();
 	for (FWLMarketShockState& Shock : ActiveMarketShocks)
 	{
 		--Shock.RemainingMonths;
 	}
-	ActiveMarketShocks.RemoveAll([](const FWLMarketShockState& Shock)
+	const int32 Removed = ActiveMarketShocks.RemoveAll([](const FWLMarketShockState& Shock)
 	{
 		return !Shock.IsValid();
 	});
+	if (PreviousNum > 0 || Removed > 0)
+	{
+		InvalidateEconomicQueryCache();
+	}
 }
 
 bool UWLStrategicTickSubsystem::CompleteForeignInvestment(FWLForeignSupportState& Support, FString& OutMessage)
@@ -1883,6 +1971,7 @@ bool UWLStrategicTickSubsystem::CompleteForeignInvestment(FWLForeignSupportState
 	Built.Sort();
 	ProvinceBuildingLevels.FindOrAdd(Province.Id).Add(Building.Id, 1);
 	Support.bCompleted = true;
+	InvalidateEconomicQueryCache();
 	OutMessage = FString::Printf(TEXT("FDI %s completo: %s construido en %s para %s."),
 		*Support.SupportId, *Building.Name, *Province.Id, *Support.RecipientIso);
 	UE_LOG(LogWorldLeader, Log, TEXT("%s"), *OutMessage);
@@ -2211,6 +2300,7 @@ bool UWLStrategicTickSubsystem::SetProvinceController(
 	}
 
 	OutMessage = FString::Printf(TEXT("%s ahora esta controlada por %s."), *Province.Id, *Controller.Iso);
+	InvalidateEconomicQueryCache();
 	return true;
 }
 
@@ -2238,6 +2328,10 @@ bool UWLStrategicTickSubsystem::AdjustProvincePublicOrder(
 	const int32 Previous = ClampPublicOrder(State.PublicOrder);
 	State.PublicOrder = ClampPublicOrder(Previous + Delta);
 	OutMessage = FString::Printf(TEXT("%s orden publico %d -> %d."), *Province.Id, Previous, State.PublicOrder);
+	if (Previous != State.PublicOrder)
+	{
+		InvalidateEconomicQueryCache();
+	}
 	return true;
 }
 
@@ -2352,6 +2446,7 @@ int64 UWLStrategicTickSubsystem::GetProvinceMonthlyUpkeep(const FString& Provinc
 
 int64 UWLStrategicTickSubsystem::GetProvinceMonthlyBalance(const FString& ProvinceId) const
 {
+	FWLScopedEconomyPerfLog Perf(TEXT("GetProvinceMonthlyBalance"), 2.00, ProvinceId);
 	return GetProvinceMonthlyIncome(ProvinceId) - GetProvinceMonthlyUpkeep(ProvinceId);
 }
 
