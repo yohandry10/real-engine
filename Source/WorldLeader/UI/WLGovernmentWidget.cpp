@@ -154,8 +154,8 @@ void UWLGovernmentWidget::BuildShell()
 		S->SetOffsets(FMargin(0.f));
 	}
 
-	// Marco dorado + panel interior, centrado.
-	UBorder* Frame = MakeBorder(WidgetTree, GovFrame, FMargin(2.f));
+	// Marco dorado + panel interior, centrado. Esquinas redondeadas: la ventana deja de ser un ladrillo.
+	UBorder* Frame = MakeRoundedSurface(WidgetTree, GovFrame, FMargin(2.f), 14.f);
 	if (UCanvasPanelSlot* S = Root->AddChildToCanvas(Frame))
 	{
 		S->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
@@ -164,7 +164,7 @@ void UWLGovernmentWidget::BuildShell()
 		S->SetSize(FVector2D(1180.f, 900.f));
 	}
 
-	UBorder* Panel = MakeBorder(WidgetTree, GovPanel, FMargin(16.f));
+	UBorder* Panel = MakeRoundedSurface(WidgetTree, GovPanel, FMargin(16.f), 12.f);
 	Frame->SetContent(Panel);
 
 	UVerticalBox* Main = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("GovMain"));
@@ -266,6 +266,7 @@ void UWLGovernmentWidget::BuildTabs(UVerticalBox* Root)
 	for (int32 i = 0; i < UE_ARRAY_COUNT(Labels); ++i)
 	{
 		UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+		StyleRoundedButton(Button, 6.f);
 		Button->SetBackgroundColor(GovTabIdle);
 		switch (i)
 		{
@@ -903,7 +904,7 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		const int64 CreditLimit = GetCachedCreditLimit(Rules);
 		if (Treasury < 0)
 		{
-			UBorder* DebtCard = MakeBorder(WidgetTree, GovCard, FMargin(12.f, 10.f));
+			UBorder* DebtCard = MakeCard(WidgetTree, GovCard, FMargin(12.f, 10.f));
 			UVerticalBox* DebtVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 			UHorizontalBox* DebtHB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 			if (UHorizontalBoxSlot* S = DebtHB->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("DEUDA"), 15, GovBad)))
@@ -950,7 +951,7 @@ void UWLGovernmentWidget::BuildEconomyTab()
 				const FString GoodName = bHasGood ? Good.Name : Balance.GoodId;
 				const bool bManufactured = bHasGood && Good.Category == EWLGoodCategory::Manufactured;
 
-				UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
+				UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
 				UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, GoodName, 14, GovText)))
 				{
@@ -1020,7 +1021,7 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		const int32 Tariff = Tick->GetTariffRate(Iso);
 		AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("COMERCIO EXTERIOR")), 20.f);
 
-		UBorder* TariffCard = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
+		UBorder* TariffCard = MakeCard(WidgetTree, GovCard, FMargin(14.f, 11.f));
 		UHorizontalBox* TariffRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UVerticalBox* TariffInfo = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		TariffInfo->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("ARANCEL A IMPORTACIONES"), 12, GovMuted));
@@ -1170,7 +1171,7 @@ void UWLGovernmentWidget::BuildEconomyTab()
 
 		AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("IMPUESTOS")), 20.f);
 
-		UBorder* TaxCard = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
+		UBorder* TaxCard = MakeCard(WidgetTree, GovCard, FMargin(14.f, 11.f));
 		UHorizontalBox* TaxRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
 		UVerticalBox* TaxInfo = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -1279,7 +1280,7 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 	{
 		const bool bFilled = Seat.Minister.IsValid();
 		const double Factor = Characters->GetMinisterEffectFactor(Iso, Seat.Office);
-		UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
+		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Info->AddChildToVerticalBox(MakeText(WidgetTree,
@@ -1369,7 +1370,7 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 		{
 			continue;
 		}
-		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* GVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
@@ -1476,7 +1477,7 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 	{
 		UHorizontalBox* SearchRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
-		UBorder* Field = MakeBorder(WidgetTree, GovCard, FMargin(10.f, 3.f));
+		UBorder* Field = MakeCard(WidgetTree, GovCard, FMargin(10.f, 3.f));
 		UHorizontalBox* FieldRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = FieldRow->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("BUSCAR"), 11, GovGold)))
 		{
@@ -1951,7 +1952,7 @@ void UWLGovernmentWidget::BuildProvinceTab()
 			}
 		}
 
-		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* SVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 
 		if (bHasBuilt)
@@ -2057,7 +2058,7 @@ void UWLGovernmentWidget::BuildRecordsTab()
 			{
 				break;
 			}
-			UBorder* Row = MakeBorder(WidgetTree, (NewsIndex % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
+			UBorder* Row = MakeCard(WidgetTree, (NewsIndex % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
 			Row->SetContent(MakeText(WidgetTree, Item, 13, GovText, ETextJustify::Left, true));
 			AddColumnChild(CenterBox, Row, 4.f);
 			++NewsIndex;
@@ -2073,7 +2074,7 @@ void UWLGovernmentWidget::BuildRecordsTab()
 		int32 Index = 0;
 		for (const FString& R : Reports)
 		{
-			UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
+			UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 			Row->SetContent(MakeText(WidgetTree, R, 14, GovText, ETextJustify::Left, true));
 			AddColumnChild(CenterBox, Row, 5.f);
 			++Index;

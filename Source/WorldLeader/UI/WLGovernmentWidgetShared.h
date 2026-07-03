@@ -23,30 +23,32 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Engine/Texture2D.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
 
 namespace WLGovUI
 {
-	// Paleta calida oscura con acentos dorados (mas cercana al panel de faccion de Total War
-	// que el teal frio del overlay anterior).
-	inline const FLinearColor GovFrame       (0.62f, 0.48f, 0.18f, 1.00f);   // marco dorado
-	inline const FLinearColor GovBackdrop     (0.010f, 0.012f, 0.014f, 0.72f);
-	inline const FLinearColor GovPanel        (0.070f, 0.066f, 0.056f, 0.99f);
-	inline const FLinearColor GovPanelSoft    (0.098f, 0.092f, 0.078f, 1.00f);
-	inline const FLinearColor GovHeaderStrip  (0.140f, 0.115f, 0.060f, 1.00f);
-	inline const FLinearColor GovCard         (0.125f, 0.118f, 0.100f, 1.00f);
-	inline const FLinearColor GovCardAlt      (0.150f, 0.140f, 0.115f, 1.00f);
-	inline const FLinearColor GovFuture       (0.085f, 0.082f, 0.075f, 1.00f);
-	inline const FLinearColor GovGold         (1.00f, 0.84f, 0.34f, 1.00f);
-	inline const FLinearColor GovGoldDim      (0.72f, 0.58f, 0.24f, 1.00f);
-	inline const FLinearColor GovText         (0.94f, 0.93f, 0.88f, 1.00f);
-	inline const FLinearColor GovMuted        (0.64f, 0.62f, 0.55f, 1.00f);
-	inline const FLinearColor GovGood         (0.55f, 0.86f, 0.52f, 1.00f);
-	inline const FLinearColor GovBad          (0.94f, 0.52f, 0.42f, 1.00f);
-	inline const FLinearColor GovDarkInk      (0.06f, 0.05f, 0.03f, 1.00f);
-	inline const FLinearColor GovTabIdle      (0.14f, 0.135f, 0.115f, 1.00f);
-	inline const FLinearColor GovDanger       (0.40f, 0.12f, 0.10f, 1.00f);   // fondo de acciones destructivas
-	inline const FLinearColor GovConfirm      (0.78f, 0.30f, 0.12f, 1.00f);   // boton en espera de confirmacion
-	inline const FLinearColor GovBarTrack     (0.04f, 0.045f, 0.05f, 1.00f);
+	// Paleta de ALTO CONTRASTE: base carbon-pizarra casi negra, acento dorado nitido y texto blanco.
+	// Antes era un marron monocromo lavado (bajo contraste) que hacia que todo pareciese "de debug".
+	inline const FLinearColor GovFrame       (0.68f, 0.54f, 0.22f, 1.00f);   // marco dorado
+	inline const FLinearColor GovBackdrop     (0.006f, 0.008f, 0.012f, 0.82f);
+	inline const FLinearColor GovPanel        (0.030f, 0.036f, 0.048f, 0.995f); // pizarra casi negra
+	inline const FLinearColor GovPanelSoft    (0.050f, 0.058f, 0.074f, 1.00f);
+	inline const FLinearColor GovHeaderStrip  (0.105f, 0.090f, 0.045f, 1.00f);  // franja gold-brown para identidad
+	inline const FLinearColor GovCard         (0.082f, 0.092f, 0.116f, 1.00f);  // tarjeta pizarra
+	inline const FLinearColor GovCardAlt      (0.102f, 0.114f, 0.142f, 1.00f);
+	inline const FLinearColor GovCardEdge     (0.22f, 0.25f, 0.31f, 1.00f);     // borde de tarjeta (contraste)
+	inline const FLinearColor GovFuture       (0.070f, 0.078f, 0.098f, 1.00f);
+	inline const FLinearColor GovGold         (1.00f, 0.82f, 0.32f, 1.00f);
+	inline const FLinearColor GovGoldDim      (0.74f, 0.58f, 0.22f, 1.00f);
+	inline const FLinearColor GovText         (0.94f, 0.96f, 0.99f, 1.00f);     // casi blanco
+	inline const FLinearColor GovMuted        (0.58f, 0.63f, 0.72f, 1.00f);     // gris frio
+	inline const FLinearColor GovGood         (0.42f, 0.87f, 0.55f, 1.00f);
+	inline const FLinearColor GovBad          (0.98f, 0.46f, 0.42f, 1.00f);
+	inline const FLinearColor GovDarkInk      (0.04f, 0.045f, 0.06f, 1.00f);
+	inline const FLinearColor GovTabIdle      (0.095f, 0.106f, 0.132f, 1.00f);
+	inline const FLinearColor GovDanger       (0.44f, 0.13f, 0.12f, 1.00f);   // fondo de acciones destructivas
+	inline const FLinearColor GovConfirm      (0.82f, 0.32f, 0.12f, 1.00f);   // boton en espera de confirmacion
+	inline const FLinearColor GovBarTrack     (0.035f, 0.040f, 0.052f, 1.00f);
 
 	inline FString GovGroupThousands(int64 Value)
 	{
@@ -100,6 +102,47 @@ namespace WLGovUI
 		return B;
 	}
 
+	/**
+	 * Tarjeta con ESQUINAS REDONDEADAS y BORDE (brush redondeado de Slate). Da profundidad y
+	 * definicion que un rectangulo relleno plano no tiene — es lo que separa "UI de programador"
+	 * de una tarjeta de juego. Firma compatible con MakeBorder para poder intercambiarlas.
+	 */
+	inline UBorder* MakeCard(UWidgetTree* Tree, const FLinearColor& Fill, const FMargin& Pad,
+		float Radius = 7.f, const FLinearColor& Outline = GovCardEdge, float OutlineWidth = 1.2f)
+	{
+		UBorder* B = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		B->SetBrush(FSlateRoundedBoxBrush(Fill, Radius, Outline, OutlineWidth));
+		B->SetPadding(Pad);
+		return B;
+	}
+
+	/** Panel/superficie redondeada SIN borde visible (para fondos suaves). */
+	inline UBorder* MakeRoundedSurface(UWidgetTree* Tree, const FLinearColor& Fill, const FMargin& Pad, float Radius = 10.f)
+	{
+		UBorder* B = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		B->SetBrush(FSlateRoundedBoxBrush(Fill, Radius));
+		B->SetPadding(Pad);
+		return B;
+	}
+
+	/**
+	 * Da al boton un estilo de PILDORA REDONDEADA con borde y feedback de hover/pressed. Los brushes
+	 * base son blancos: SetBackgroundColor(Bg) los tinta, asi que el boton sale del color deseado pero
+	 * redondeado. Sin esto los botones son rectangulos planos (sello de "UI de programador").
+	 */
+	inline void StyleRoundedButton(UButton* Button, float Radius = 5.f)
+	{
+		FButtonStyle Style;
+		const FLinearColor Edge(0.30f, 0.34f, 0.42f, 0.85f);
+		Style.Normal   = FSlateRoundedBoxBrush(FLinearColor::White, Radius, Edge, 1.0f);
+		Style.Hovered  = FSlateRoundedBoxBrush(FLinearColor(1.18f, 1.18f, 1.18f, 1.f), Radius, GovGold, 1.4f);
+		Style.Pressed  = FSlateRoundedBoxBrush(FLinearColor(0.78f, 0.78f, 0.78f, 1.f), Radius, Edge, 1.0f);
+		Style.Disabled = FSlateRoundedBoxBrush(FLinearColor(0.55f, 0.55f, 0.55f, 1.f), Radius);
+		Style.NormalPadding = FMargin(0.f);
+		Style.PressedPadding = FMargin(0.f);
+		Button->SetStyle(Style);
+	}
+
 	/** Icono vectorial generado en runtime (moneda, poblacion, escudo...) mostrado a SizePx y tintado. */
 	inline UImage* MakeIcon(UWidgetTree* Tree, EWLGovIcon Icon, int32 SizePx, const FLinearColor& Color)
 	{
@@ -115,7 +158,7 @@ namespace WLGovUI
 	// Tarjeta de metrica: etiqueta pequena + valor grande. Rellena la celda del grid.
 	inline UBorder* MakeMetricCard(UWidgetTree* Tree, const FString& Label, const FString& Value, const FLinearColor& ValueColor)
 	{
-		UBorder* Card = MakeBorder(Tree, GovCard, FMargin(14.f, 11.f));
+		UBorder* Card = MakeCard(Tree, GovCard, FMargin(14.f, 11.f));
 		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		VB->AddChildToVerticalBox(MakeText(Tree, Label.ToUpper(), 12, GovMuted));
 		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(Tree, Value, 27, ValueColor)))
@@ -131,7 +174,7 @@ namespace WLGovUI
 	inline UBorder* MakeMetricCardIcon(UWidgetTree* Tree, EWLGovIcon Icon, const FLinearColor& Accent,
 		const FString& Label, const FString& Value, const FLinearColor& ValueColor)
 	{
-		UBorder* Card = MakeBorder(Tree, GovCard, FMargin(0.f));
+		UBorder* Card = MakeCard(Tree, GovCard, FMargin(0.f));
 		UHorizontalBox* HB = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
 		// Barra de acento a la izquierda (color de categoria).
@@ -168,7 +211,7 @@ namespace WLGovUI
 	inline UBorder* MakeListCard(UWidgetTree* Tree, const FLinearColor& Accent, const FString& Title, const FString& Sub,
 		const FString& Status, const FLinearColor& StatusColor)
 	{
-		UBorder* Card = MakeBorder(Tree, GovCard, FMargin(0.f));
+		UBorder* Card = MakeCard(Tree, GovCard, FMargin(0.f));
 		UHorizontalBox* HB = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
 		// Franja de color a la izquierda.
@@ -214,7 +257,7 @@ namespace WLGovUI
 
 	inline UBorder* MakeTag(UWidgetTree* Tree, const FString& S)
 	{
-		UBorder* Tag = MakeBorder(Tree, GovCardAlt, FMargin(11.f, 5.f));
+		UBorder* Tag = MakeCard(Tree, GovCardAlt, FMargin(11.f, 5.f));
 		Tag->SetContent(MakeText(Tree, S, 13, GovText));
 		return Tag;
 	}
@@ -258,11 +301,11 @@ namespace WLGovUI
 		return VB;
 	}
 
-	/** Insignia compacta de estado (riesgo, rol, area...) con color propio. */
+	/** Insignia compacta de estado (riesgo, rol, area...) con color propio. Pildora redondeada. */
 	inline UBorder* MakeBadge(UWidgetTree* Tree, const FString& S, const FLinearColor& Bg,
 		const FLinearColor& TextColor = FLinearColor(0.94f, 0.93f, 0.88f, 1.f))
 	{
-		UBorder* Badge = MakeBorder(Tree, Bg, FMargin(8.f, 3.f));
+		UBorder* Badge = MakeRoundedSurface(Tree, Bg, FMargin(9.f, 3.f), 9.f);
 		Badge->SetContent(MakeText(Tree, S, 10, TextColor, ETextJustify::Center));
 		return Badge;
 	}
@@ -309,7 +352,7 @@ namespace WLGovUI
 	inline UBorder* MakeGaugeRow(UWidgetTree* Tree, const FString& Label, int32 Value,
 		const FLinearColor& ValueColor, const FLinearColor& RowColor, const FString& ToolTip = FString())
 	{
-		UBorder* Row = MakeBorder(Tree, RowColor, FMargin(12.f, 7.f));
+		UBorder* Row = MakeCard(Tree, RowColor, FMargin(12.f, 7.f));
 		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UTextBlock* LabelText = MakeText(Tree, Label, 13, GovText);
@@ -335,7 +378,7 @@ namespace WLGovUI
 	/** Franja de alerta (crisis, secesion, ruptura de coalicion...). */
 	inline UBorder* MakeAlert(UWidgetTree* Tree, const FString& S, const FLinearColor& Accent)
 	{
-		UBorder* Strip = MakeBorder(Tree, GovCard, FMargin(0.f));
+		UBorder* Strip = MakeCard(Tree, GovCard, FMargin(0.f));
 		UHorizontalBox* HB = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		USizeBox* Bar = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 		Bar->SetWidthOverride(4.f);
@@ -398,6 +441,7 @@ namespace WLGovUI
 	{
 		const bool bPending = Owner && Owner->IsPendingConfirm(ActionId);
 		UWLGovActionButton* Button = Tree->ConstructWidget<UWLGovActionButton>(UWLGovActionButton::StaticClass());
+		StyleRoundedButton(Button, 5.f);
 		Button->SetBackgroundColor(bPending ? GovConfirm : Bg);
 		Button->BindAction(Owner, ActionId);
 		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 5.f));
@@ -420,7 +464,7 @@ namespace WLGovUI
 	inline UBorder* MakeStatRow(UWidgetTree* Tree, const FString& Label, const FString& Value,
 		const FLinearColor& ValueColor, const FLinearColor& RowColor)
 	{
-		UBorder* Row = MakeBorder(Tree, RowColor, FMargin(12.f, 7.f));
+		UBorder* Row = MakeCard(Tree, RowColor, FMargin(12.f, 7.f));
 		UHorizontalBox* HB = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(Tree, Label, 13, GovText)))
 		{

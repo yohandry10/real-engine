@@ -340,7 +340,7 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 
 	// F2: riesgo de golpe con desglose de oposicion.
 	const FWLInternalPowerState Power = Political->GetInternalPower(Iso);
-	UBorder* CoupCard = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 12.f));
+	UBorder* CoupCard = MakeCard(WidgetTree, GovCard, FMargin(14.f, 12.f));
 	UVerticalBox* CVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UHorizontalBox* CHead = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	if (UHorizontalBoxSlot* S = CHead->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("Riesgo de golpe de estado"), 15, GovText)))
@@ -407,7 +407,7 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 		int32 Index = 0;
 		for (const FWLPublicGroupSupportState& Group : Groups)
 		{
-			UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
+			UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 			UVerticalBox* GVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, PublicGroupToText(Group.Group), 14, GovText)))
@@ -485,7 +485,7 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 		{
 			continue;
 		}
-		UBorder* Card = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 12.f));
+		UBorder* Card = MakeCard(WidgetTree, GovCard, FMargin(14.f, 12.f));
 		UVerticalBox* EVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		EVB->AddChildToVerticalBox(MakeText(WidgetTree, Event.Title, 16, GovGold, ETextJustify::Left, true));
 		if (UVerticalBoxSlot* S = EVB->AddChildToVerticalBox(MakeText(WidgetTree, Event.Body, 13, GovText, ETextJustify::Left, true)))
@@ -570,7 +570,7 @@ void UWLGovernmentWidget::BuildPoliticsAgendaSection()
 	for (const EWLGovernmentPriority AvailablePriority : AllPriorities)
 	{
 		const bool bSelected = DraftAgenda.Contains(AvailablePriority);
-		UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
+		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Info->AddChildToVerticalBox(MakeText(WidgetTree, PriorityToText(AvailablePriority), 14, bSelected ? GovGold : GovText));
@@ -663,7 +663,7 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 		{
 			continue;
 		}
-		UBorder* Card = MakeBorder(WidgetTree, (ShownActive % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UBorder* Card = MakeCard(WidgetTree, (ShownActive % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* PVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
@@ -709,7 +709,7 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 		{
 			continue;
 		}
-		UBorder* Card = MakeBorder(WidgetTree, (ShownCatalog % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UBorder* Card = MakeCard(WidgetTree, (ShownCatalog % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* DVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Definition.Name, 14, GovText, ETextJustify::Left, true)))
@@ -878,7 +878,7 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 		{
 			AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("EN IMPLEMENTACION"), 15, GovGold), 12.f);
 		}
-		UBorder* Card = MakeBorder(WidgetTree, (ShownActive % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UBorder* Card = MakeCard(WidgetTree, (ShownActive % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* RVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Reform.Name, 14, GovText, ETextJustify::Left, true)))
@@ -923,7 +923,7 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 		}
 		const bool bEnacted = EnactedIds.Contains(Definition.ReformId);
 
-		UBorder* Card = MakeBorder(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UBorder* Card = MakeCard(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* DVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Definition.Name, 14,
@@ -1121,7 +1121,7 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 				AddColumnChild(CenterBox, MakeText(WidgetTree, PartyRoleToText(Role).ToUpper(), 15, PartyRoleColor(Role)), 16.f);
 				bHeader = true;
 			}
-			UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+			UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 			UVerticalBox* PVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Party.Name, 14, GovText, ETextJustify::Left, true)))
@@ -1204,7 +1204,7 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 	int32 PatronageIndex = 0;
 	for (const FPatronageActionUI& Def : PatronageActions)
 	{
-		UBorder* Row = MakeBorder(WidgetTree, (PatronageIndex % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
+		UBorder* Row = MakeCard(WidgetTree, (PatronageIndex % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, Def.Preview, 11, GovMuted, ETextJustify::Left, true)))
 		{
@@ -1402,7 +1402,7 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 	int32 Index = 0;
 	for (const FMediaActionUI& Def : MediaActions)
 	{
-		UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
+		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, Def.Preview, 11, GovMuted, ETextJustify::Left, true)))
 		{
@@ -1449,7 +1449,7 @@ void UWLGovernmentWidget::BuildPoliticsRegionsSection()
 	int32 Index = 0;
 	for (const FWLRegionGovernorState& Region : Regions)
 	{
-		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 10.f));
+		UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 10.f));
 		UVerticalBox* RVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
@@ -1550,7 +1550,7 @@ void UWLGovernmentWidget::BuildPoliticsCrisisSection()
 		{
 			continue;
 		}
-		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 10.f));
+		UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 10.f));
 		UVerticalBox* CVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
@@ -1703,7 +1703,7 @@ void UWLGovernmentWidget::BuildCabinetDynamicsCard()
 	}
 	const FWLCabinetDynamicsState Dynamics = Political->GetCabinetDynamics(Iso);
 
-	UBorder* Card = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
+	UBorder* Card = MakeCard(WidgetTree, GovCard, FMargin(14.f, 11.f));
 	UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UTextBlock* Title = MakeText(WidgetTree, TEXT("GABINETE VIVO"), 13, GovGold);
 	Title->SetToolTipText(FText::FromString(
@@ -1814,7 +1814,7 @@ void UWLGovernmentWidget::BuildMinisterComparator(EWLMinisterOffice Office)
 		{
 			break;
 		}
-		UBorder* Row = MakeBorder(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(11.f, 8.f));
+		UBorder* Row = MakeCard(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(11.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* NameRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
@@ -1937,7 +1937,7 @@ void UWLGovernmentWidget::BuildPoliticalProfilesSection()
 		{
 			continue;
 		}
-		UBorder* Card = MakeBorder(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		UBorder* Card = MakeCard(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* PVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Character.Name, 14, GovText)))
@@ -2082,7 +2082,7 @@ void UWLGovernmentWidget::BuildAIPlansPanel()
 	for (const FAIPlanRow& Entry : Notable)
 	{
 		const FWLPoliticalAIPlanState& Plan = Entry.Plan;
-		UBorder* Row = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
+		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Entry.Name, 13, GovText)))
@@ -2153,7 +2153,7 @@ void UWLGovernmentWidget::BuildArmiesSection()
 	int32 Index = 0;
 	for (const FWLArmy& Army : Armies)
 	{
-		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 10.f));
+		UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 10.f));
 		UVerticalBox* AVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 
 		// Cabecera: id + ataque/defensa + provincia.
@@ -2414,7 +2414,7 @@ void UWLGovernmentWidget::BuildDifficultyPanel()
 
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("DIFICULTAD")), 20.f);
 
-	UBorder* Card = MakeBorder(WidgetTree, GovCard, FMargin(14.f, 11.f));
+	UBorder* Card = MakeCard(WidgetTree, GovCard, FMargin(14.f, 11.f));
 	UVerticalBox* VB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
