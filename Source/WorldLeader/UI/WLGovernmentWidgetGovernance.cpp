@@ -281,16 +281,27 @@ void UWLGovernmentWidget::BuildPoliticsHeader()
 			}
 		}
 
-		UBorder* Pulse = MakeBorder(WidgetTree, GovHeaderStrip, FMargin(12.f, 8.f));
-		UTextBlock* PulseText = MakeText(WidgetTree, FString::Printf(
-			TEXT("Capital politico %d   ·   Aprobacion %d%%   ·   Legitimidad %d   ·   Eleccion en %d meses (%s)   ·   Crisis activas %d"),
-			Stats.PoliticalCapital, Media.PresidentialApproval, Election.Legitimacy,
-			Election.MonthsToElection, *ElectionPhaseToText(Election.Phase), ActiveCrises),
-			13, ActiveCrises > 0 ? GovGold : GovText, ETextJustify::Left, true);
-		PulseText->SetToolTipText(FText::FromString(
-			TEXT("Capital politico: moneda de nombramientos, reformas y programas. Legitimidad: cuanto acepta el pais tu mandato.")));
-		Pulse->SetContent(PulseText);
-		AddColumnChild(CenterBox, Pulse, 4.f);
+		// Pulso politico como tarjetas de metrica con icono (mismo lenguaje que RESUMEN y ALTO MANDO).
+		UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		Grid->SetSlotPadding(FMargin(4.f));
+		auto Place = [&](int32 C, UBorder* Card)
+		{
+			if (UUniformGridSlot* S = Grid->AddChildToUniformGrid(Card, 0, C)) { S->SetHorizontalAlignment(HAlign_Fill); }
+		};
+		Place(0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Capital, GovGold,
+			TEXT("Capital politico"), FString::Printf(TEXT("%d"), Stats.PoliticalCapital), GovText));
+		Place(1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Approval, Media.PresidentialApproval < 40 ? GovBad : GovGood,
+			TEXT("Aprobacion"), FString::Printf(TEXT("%d%%"), Media.PresidentialApproval),
+			Media.PresidentialApproval < 40 ? GovBad : GovGood));
+		Place(2, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Order, Election.Legitimacy < 40 ? GovBad : GovGoldDim,
+			TEXT("Legitimidad"), FString::Printf(TEXT("%d"), Election.Legitimacy),
+			Election.Legitimacy < 40 ? GovBad : GovText));
+		Place(3, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Politics, FLinearColor(0.55f, 0.68f, 0.95f),
+			TEXT("Eleccion"), FString::Printf(TEXT("%d meses"), Election.MonthsToElection), GovText));
+		Place(4, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Crisis, ActiveCrises > 0 ? GovBad : GovMuted,
+			TEXT("Crisis activas"), FString::Printf(TEXT("%d"), ActiveCrises),
+			ActiveCrises > 0 ? GovBad : GovText));
+		AddColumnChild(CenterBox, Grid, 4.f);
 	}
 
 	// Chips de subseccion (WrapBox: en 1600x900 caben en una fila; en menos se parten sin solaparse).
@@ -371,28 +382,57 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 			Power.bLastCoupSucceeded ? GovBad : GovMuted), 6.f);
 	}
 
-	// F2.4: reprimir (confirmacion en dos clics via dispatcher).
+	// F2.4: reprimir como fila de accion (titulo + consecuencias + boton), no un boton suelto.
 	{
-		UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = Actions->AddChildToHorizontalBox(
-			MakeActionButton(WidgetTree, this, TEXT("repress"), TEXT("REPRIMIR OPOSICION"), GovDanger, 170.f, 13)))
+		UBorder* Row = MakeCard(WidgetTree, GovCardAlt, FMargin(12.f, 8.f));
+		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		Info->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("Reprimir a la oposicion"), 13, GovText));
+		Info->AddChildToVerticalBox(MakeText(WidgetTree,
+			TEXT("Baja su fuerza a costa de orden publico, tesoro y memoria politica. Generales: en ALTO MANDO."),
+			10, GovMuted, ETextJustify::Left, true));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Info))
 		{
-			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
 		}
-		AddColumnChild(CenterBox, Actions, 10.f);
-		AddColumnChild(CenterBox, MakeText(WidgetTree,
-			TEXT("Reprimir baja la fuerza de la oposicion a costa de orden publico, tesoro y memoria politica. Recompensar o purgar generales: en ALTO MANDO."),
-			12, GovMuted, ETextJustify::Left, true), 4.f);
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(
+			MakeActionButton(WidgetTree, this, TEXT("repress"), TEXT("REPRIMIR"), GovDanger, 170.f, 12)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
+		}
+		Row->SetContent(HB);
+		AddColumnChild(CenterBox, Row, 8.f);
 	}
 
-	// F5.5: agenda de rasgos del lider (los rasgos alteran opciones de eventos).
+	// F5.5: agenda de rasgos del lider como insignias (alteran opciones de eventos).
 	{
 		const TArray<FString> Agenda = Political->GetLeaderAgendaTraits(Iso);
 		if (Agenda.Num() > 0)
 		{
-			AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-				TEXT("Rasgos del lider: %s — alteran las opciones de los eventos."),
-				*FString::Join(Agenda, TEXT(" · "))), 12, GovGoldDim, ETextJustify::Left, true), 8.f);
+			UHorizontalBox* TraitRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = TraitRow->AddChildToHorizontalBox(
+				MakeText(WidgetTree, TEXT("Rasgos del lider:"), 12, GovMuted)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+			}
+			for (const FString& Trait : Agenda)
+			{
+				if (UHorizontalBoxSlot* S = TraitRow->AddChildToHorizontalBox(
+					MakeBadge(WidgetTree, Trait.ToUpper(), GovHeaderStrip, GovGold)))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+					S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
+				}
+			}
+			if (UHorizontalBoxSlot* S = TraitRow->AddChildToHorizontalBox(
+				MakeText(WidgetTree, TEXT("— alteran las opciones de los eventos"), 11, GovMuted)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			AddColumnChild(CenterBox, TraitRow, 8.f);
 		}
 	}
 
@@ -416,12 +456,31 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 				S->SetVerticalAlignment(VAlign_Center);
 			}
 			Head->AddChildToHorizontalBox(MakeText(WidgetTree,
-				FString::Printf(TEXT("Apoyo %d · Presion %d"), Group.Support, Group.Pressure),
-				12, Group.Pressure >= 60 ? GovBad : SupportColor(Group.Support), ETextJustify::Right));
+				FString::Printf(TEXT("Apoyo %d"), Group.Support),
+				12, SupportColor(Group.Support), ETextJustify::Right));
+			if (Group.Pressure > 0)
+			{
+				if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeBadge(WidgetTree,
+					FString::Printf(TEXT("PRESION %d"), Group.Pressure),
+					Group.Pressure >= 60 ? GovBad : GovTabIdle,
+					Group.Pressure >= 60 ? GovDarkInk : GovMuted)))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+					S->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+				}
+			}
 			GVB->AddChildToVerticalBox(Head);
 			if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(MakeBar(WidgetTree, Group.Support / 100.f, SupportColor(Group.Support), 7.f)))
 			{
 				S->SetPadding(FMargin(0.f, 5.f, 0.f, 0.f));
+			}
+			// La presion del grupo empuja contra ti: barra roja fina debajo del apoyo.
+			if (Group.Pressure > 0)
+			{
+				if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(MakeBar(WidgetTree, Group.Pressure / 100.f, GovBad, 4.f)))
+				{
+					S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+				}
 			}
 			if (!Group.LastShiftReason.IsEmpty())
 			{
