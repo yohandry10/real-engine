@@ -620,8 +620,8 @@ void UWLGovernmentWidget::BuildPoliticsAgendaSection()
 	}
 
 	// Selector: cada prioridad es un toggle; el backend valida duplicados y limite al confirmar.
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("NUEVA AGENDA  (%d/3 seleccionadas)"), DraftAgenda.Num()), 15, GovGold), 18.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("NUEVA AGENDA  (%d/3 seleccionadas)"), DraftAgenda.Num())), 18.f);
 	const EWLGovernmentPriority AllPriorities[] = {
 		EWLGovernmentPriority::Security, EWLGovernmentPriority::Growth, EWLGovernmentPriority::Austerity,
 		EWLGovernmentPriority::Industrialization, EWLGovernmentPriority::Diplomacy, EWLGovernmentPriority::Control };
@@ -629,7 +629,10 @@ void UWLGovernmentWidget::BuildPoliticsAgendaSection()
 	for (const EWLGovernmentPriority AvailablePriority : AllPriorities)
 	{
 		const bool bSelected = DraftAgenda.Contains(AvailablePriority);
-		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
+		// Prioridad elegida = borde dorado; se distingue de un vistazo sin leer el boton.
+		UBorder* Row = bSelected
+			? MakeCard(WidgetTree, GovHeaderStrip, FMargin(12.f, 8.f), 7.f, GovGold, 1.6f)
+			: MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Info->AddChildToVerticalBox(MakeText(WidgetTree, PriorityToText(AvailablePriority), 14, bSelected ? GovGold : GovText));
@@ -678,10 +681,24 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 	const TArray<FWLMinistryProgramDefinition> Catalog = Political->GetAvailableMinistryPrograms(Iso);
 
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PROGRAMAS MINISTERIALES")), 6.f);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-		TEXT("Capital politico %d · Tesoro %s · Riesgo de fallo de politicas %d%% (capacidad estatal)"),
-		Stats.PoliticalCapital, *GovGroupThousands(Treasury), Capacity.PolicyFailureRisk),
-		13, Capacity.PolicyFailureRisk >= 40 ? GovBad : GovMuted, ETextJustify::Left, true), 4.f);
+	// Recursos disponibles como insignias (lo que te limita, visible de un vistazo).
+	{
+		UHorizontalBox* Badges = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		auto AddResBadge = [&](const FString& Text, const FLinearColor& Bg, const FLinearColor& Fg)
+		{
+			if (UHorizontalBoxSlot* S = Badges->AddChildToHorizontalBox(MakeBadge(WidgetTree, Text, Bg, Fg)))
+			{
+				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+		};
+		AddResBadge(FString::Printf(TEXT("CAPITAL %d"), Stats.PoliticalCapital), GovGoldDim, GovDarkInk);
+		AddResBadge(FString::Printf(TEXT("TESORO %s"), *GovGroupThousands(Treasury)), GovHeaderStrip, GovGold);
+		AddResBadge(FString::Printf(TEXT("RIESGO DE FALLO %d%%"), Capacity.PolicyFailureRisk),
+			Capacity.PolicyFailureRisk >= 40 ? GovBad : GovTabIdle,
+			Capacity.PolicyFailureRisk >= 40 ? GovDarkInk : GovMuted);
+		AddColumnChild(CenterBox, Badges, 4.f);
+	}
 
 	// Filtro por cartera.
 	UWrapBox* Filters = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
@@ -714,7 +731,7 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 	}
 
 	// --- Programas en curso ---
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("EN CURSO"), 15, GovGold), 12.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PROGRAMAS EN CURSO")), 12.f);
 	int32 ShownActive = 0;
 	for (const FWLMinistryProgramState& Program : Active)
 	{
@@ -759,8 +776,8 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 	}
 
 	// --- Catalogo ---
-	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		FString::Printf(TEXT("CATALOGO  (%d programas)"), Catalog.Num()), 15, GovGold), 16.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
+		FString::Printf(TEXT("CATALOGO DE PROGRAMAS  (%d)"), Catalog.Num())), 16.f);
 	int32 ShownCatalog = 0;
 	for (const FWLMinistryProgramDefinition& Definition : Catalog)
 	{
@@ -891,11 +908,25 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 	}
 
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ARBOL DE LEYES Y REFORMAS")), 6.f);
-	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-		TEXT("Coalicion %d · Capacidad estatal %d · Capital politico %d · Tesoro %s"),
-		Institutions.RulingCoalitionSupport, Capacity.AdministrativeEfficiency,
-		Stats.PoliticalCapital, *GovGroupThousands(Treasury)),
-		13, GovMuted, ETextJustify::Left, true), 4.f);
+	// Lo que exigen las reformas, como insignias: coalicion, capacidad, capital y tesoro.
+	{
+		UHorizontalBox* Badges = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		auto AddResBadge = [&](const FString& Text, const FLinearColor& Bg, const FLinearColor& Fg)
+		{
+			if (UHorizontalBoxSlot* S = Badges->AddChildToHorizontalBox(MakeBadge(WidgetTree, Text, Bg, Fg)))
+			{
+				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+		};
+		AddResBadge(FString::Printf(TEXT("COALICION %d"), Institutions.RulingCoalitionSupport),
+			Institutions.RulingCoalitionSupport < 40 ? GovBad : GovGoldDim,
+			GovDarkInk);
+		AddResBadge(FString::Printf(TEXT("CAPACIDAD %d"), Capacity.AdministrativeEfficiency), GovHeaderStrip, GovGold);
+		AddResBadge(FString::Printf(TEXT("CAPITAL %d"), Stats.PoliticalCapital), GovGoldDim, GovDarkInk);
+		AddResBadge(FString::Printf(TEXT("TESORO %s"), *GovGroupThousands(Treasury)), GovHeaderStrip, GovGold);
+		AddColumnChild(CenterBox, Badges, 4.f);
+	}
 
 	// Filtro por area.
 	UWrapBox* Filters = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
@@ -935,7 +966,7 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 		}
 		if (ShownActive == 0)
 		{
-			AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("EN IMPLEMENTACION"), 15, GovGold), 12.f);
+			AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("REFORMAS EN IMPLEMENTACION")), 12.f);
 		}
 		UBorder* Card = MakeCard(WidgetTree, (ShownActive % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UVerticalBox* RVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -972,7 +1003,7 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 	}
 
 	// --- Reformas disponibles ---
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("DISPONIBLES"), 15, GovGold), 16.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("REFORMAS DISPONIBLES")), 16.f);
 	int32 Shown = 0;
 	for (const FWLPolicyReformDefinition& Definition : Definitions)
 	{
@@ -1177,7 +1208,16 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 			}
 			if (!bHeader)
 			{
-				AddColumnChild(CenterBox, MakeText(WidgetTree, PartyRoleToText(Role).ToUpper(), 15, PartyRoleColor(Role)), 16.f);
+				// Franja con el color del rol parlamentario + linea fina del mismo color.
+				UVerticalBox* HeaderVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+				UBorder* Strip = MakeRoundedSurface(WidgetTree, FLinearColor(0.085f, 0.098f, 0.126f, 0.92f), FMargin(11.f, 7.f), 5.f);
+				Strip->SetContent(MakeText(WidgetTree, PartyRoleToText(Role).ToUpper(), 14, PartyRoleColor(Role)));
+				HeaderVB->AddChildToVerticalBox(Strip);
+				USizeBox* Line = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+				Line->SetHeightOverride(2.f);
+				Line->SetContent(MakeRoundedSurface(WidgetTree, PartyRoleColor(Role), FMargin(0.f), 1.f));
+				HeaderVB->AddChildToVerticalBox(Line);
+				AddColumnChild(CenterBox, HeaderVB, 16.f);
 				bHeader = true;
 			}
 			UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
@@ -1188,15 +1228,24 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 				S->SetVerticalAlignment(VAlign_Center);
 			}
+			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeBadge(WidgetTree,
+				FString::Printf(TEXT("%d ESCANOS"), Party.Seats), GovGoldDim, GovDarkInk)))
+			{
+				S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
+			}
 			if (Party.bInCoalition)
 			{
-				Head->AddChildToHorizontalBox(MakeBadge(WidgetTree, TEXT("COALICION"), GovGoldDim, GovDarkInk));
+				if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeBadge(WidgetTree,
+					TEXT("COALICION"), GovGood, GovDarkInk)))
+				{
+					S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
+				}
 			}
 			Head->AddChildToHorizontalBox(MakeBadge(WidgetTree, IdeologyToText(Party.Ideology).ToUpper(), GovHeaderStrip, GovGold));
 			PVB->AddChildToVerticalBox(Head);
 			if (UVerticalBoxSlot* S = PVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-				TEXT("Escanos %d · Disciplina %d · Lealtad al gobierno %d · Corrupcion %d"),
-				Party.Seats, Party.Discipline, Party.LoyaltyToGovernment, Party.Corruption),
+				TEXT("Disciplina %d · Lealtad al gobierno %d · Corrupcion %d"),
+				Party.Discipline, Party.LoyaltyToGovernment, Party.Corruption),
 				11, Party.LoyaltyToGovernment < 35 ? GovBad : GovMuted, ETextJustify::Left, true)))
 			{
 				S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
@@ -1305,14 +1354,19 @@ void UWLGovernmentWidget::BuildPoliticsElectionsSection()
 			S->SetHorizontalAlignment(HAlign_Fill);
 		}
 	};
-	Place(0, 0, MakeMetricCard(WidgetTree, TEXT("Meses a la eleccion"),
-		FString::Printf(TEXT("%d"), Election.MonthsToElection),
+	Place(0, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Politics,
+		Election.MonthsToElection <= 6 ? GovGold : FLinearColor(0.55f, 0.68f, 0.95f),
+		TEXT("Meses a la eleccion"), FString::Printf(TEXT("%d"), Election.MonthsToElection),
 		Election.MonthsToElection <= 6 ? GovGold : GovText));
-	Place(0, 1, MakeMetricCard(WidgetTree, TEXT("Fase"), ElectionPhaseToText(Election.Phase),
+	Place(0, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Crisis,
+		Election.Phase == EWLElectionPhase::Crisis ? GovBad : GovGoldDim,
+		TEXT("Fase"), ElectionPhaseToText(Election.Phase),
 		Election.Phase == EWLElectionPhase::Crisis ? GovBad : GovText));
-	Place(1, 0, MakeMetricCard(WidgetTree, TEXT("Aprobacion presidencial"),
+	Place(1, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Approval, SupportColor(Election.IncumbentApproval),
+		TEXT("Aprobacion presidencial"),
 		FString::Printf(TEXT("%d%%"), Election.IncumbentApproval), SupportColor(Election.IncumbentApproval)));
-	Place(1, 1, MakeMetricCard(WidgetTree, TEXT("Legitimidad"),
+	Place(1, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Order, SupportColor(Election.Legitimacy),
+		TEXT("Legitimidad"),
 		FString::Printf(TEXT("%d"), Election.Legitimacy), SupportColor(Election.Legitimacy)));
 	AddColumnChild(CenterBox, Grid, 10.f);
 
@@ -1338,7 +1392,7 @@ void UWLGovernmentWidget::BuildPoliticsElectionsSection()
 	}
 
 	// Promesa de campania ligada a una reforma real del arbol de leyes.
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("PROMESA DE CAMPANIA"), 15, GovGold), 16.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PROMESA DE CAMPANIA")), 16.f);
 	const TArray<FWLPolicyReformDefinition> Definitions = Political->GetAvailablePolicyReforms(Iso);
 	const TArray<FWLActiveReformState> ActiveReforms = Political->GetActivePolicyReforms(Iso);
 	TSet<FString> EnactedIds;
@@ -1408,7 +1462,7 @@ void UWLGovernmentWidget::BuildPoliticsElectionsSection()
 
 	if (!Election.LastElectionReport.IsEmpty())
 	{
-		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("ULTIMA ELECCION"), 15, GovGold), 16.f);
+		AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ULTIMA ELECCION")), 16.f);
 		AddColumnChild(CenterBox, MakeAlert(WidgetTree, Election.LastElectionReport,
 			Election.bLastElectionWon ? GovGood : GovBad), 6.f);
 	}
@@ -1457,7 +1511,7 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 			FString::Printf(TEXT("Narrativa del momento: %s"), *Media.LastNarrative), GovGoldDim), 6.f);
 	}
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("ACCIONES DE PRENSA"), 15, GovGold), 16.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ACCIONES DE MEDIOS")), 16.f);
 	int32 Index = 0;
 	for (const FMediaActionUI& Def : MediaActions)
 	{
@@ -1523,12 +1577,41 @@ void UWLGovernmentWidget::BuildPoliticsRegionsSection()
 			GovHeaderStrip, PartyRoleColor(Region.Alignment)));
 		RVB->AddChildToVerticalBox(Head);
 
-		if (UVerticalBoxSlot* S = RVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-			TEXT("Obediencia %d · Autonomia %d · Protesta %d · Control central %d · Inversion Nv %d"),
-			Region.Obedience, Region.Autonomy, Region.ProtestRisk, Region.CenterControl, Region.InvestmentLevel),
-			11, Region.Obedience < 40 ? GovBad : GovMuted, ETextJustify::Left, true)))
 		{
-			S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+			UHorizontalBox* Badges = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			auto AddRegionBadge = [&](const FString& Text, bool bDanger)
+			{
+				if (UHorizontalBoxSlot* S = Badges->AddChildToHorizontalBox(MakeBadge(WidgetTree, Text,
+					bDanger ? GovBad : GovTabIdle, bDanger ? GovDarkInk : GovMuted)))
+				{
+					S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
+					S->SetVerticalAlignment(VAlign_Center);
+				}
+			};
+			AddRegionBadge(FString::Printf(TEXT("AUTONOMIA %d"), Region.Autonomy), false);
+			AddRegionBadge(FString::Printf(TEXT("PROTESTA %d"), Region.ProtestRisk), Region.ProtestRisk >= 50);
+			AddRegionBadge(FString::Printf(TEXT("CONTROL %d"), Region.CenterControl), false);
+			AddRegionBadge(FString::Printf(TEXT("INVERSION NV %d"), Region.InvestmentLevel), false);
+			if (UVerticalBoxSlot* S = RVB->AddChildToVerticalBox(Badges))
+			{
+				S->SetPadding(FMargin(0.f, 5.f, 0.f, 0.f));
+			}
+		}
+		// Obediencia: la cifra que decide si la region te hace caso, con su barra.
+		{
+			UHorizontalBox* ObedienceRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = ObedienceRow->AddChildToHorizontalBox(MakeText(WidgetTree,
+				FString::Printf(TEXT("Obediencia %d"), Region.Obedience), 11,
+				SupportColor(Region.Obedience))))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+			}
+			// La barra vive en el slot fill de abajo.
+			if (UVerticalBoxSlot* S = RVB->AddChildToVerticalBox(ObedienceRow))
+			{
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			}
 		}
 		if (UVerticalBoxSlot* S = RVB->AddChildToVerticalBox(MakeBar(WidgetTree, Region.Obedience / 100.f,
 			SupportColor(Region.Obedience), 7.f)))
