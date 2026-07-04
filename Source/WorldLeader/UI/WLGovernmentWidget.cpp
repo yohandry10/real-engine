@@ -192,15 +192,15 @@ void UWLGovernmentWidget::BuildShell()
 		S->SetOffsets(FMargin(0.f));
 	}
 
-	// Marco dorado + panel interior, centrado. Ventana grande estilo Football Manager: mas ancho
-	// para layouts de 2 columnas y menos scroll (el contenido de GOBIERNO es denso).
+	// Marco dorado + panel interior. RESPONSIVE: anclas proporcionales (porcentaje del viewport),
+	// asi la ventana ocupa ~93% x 94% de CUALQUIER resolucion (1080p, 1440p, 4K...) sin quedar
+	// pequena ni desbordar. Estilo Football Manager: casi pantalla completa, dejando ver el mapa
+	// atenuado en los bordes.
 	UBorder* Frame = MakeRoundedSurface(WidgetTree, GovFrame, FMargin(2.f), 14.f);
 	if (UCanvasPanelSlot* S = Root->AddChildToCanvas(Frame))
 	{
-		S->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
-		S->SetAlignment(FVector2D(0.5f, 0.5f));
-		S->SetPosition(FVector2D(0.f, 0.f));
-		S->SetSize(FVector2D(1560.f, 948.f));
+		S->SetAnchors(FAnchors(0.035f, 0.03f, 0.965f, 0.97f));
+		S->SetOffsets(FMargin(0.f));
 	}
 
 	// Panel con fondo TEXTURIZADO (gradiente+viñeta): profundidad frente al relleno plano.
