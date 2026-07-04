@@ -403,6 +403,12 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 		if (Agenda.Num() > 0)
 		{
 			UHorizontalBox* TraitRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = TraitRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
+				FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 40.f, 50.f)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 9.f, 0.f));
+			}
 			if (UHorizontalBoxSlot* S = TraitRow->AddChildToHorizontalBox(
 				MakeText(WidgetTree, TEXT("Rasgos del lider:"), 12, GovMuted)))
 			{
@@ -630,6 +636,24 @@ void UWLGovernmentWidget::BuildPoliticsAgendaSection()
 				: MakeCard(WidgetTree, GovCard, FMargin(12.f, 10.f), 8.f);
 			UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			// Icono de la prioridad: cada linea de gobierno tiene su simbolo.
+			const EWLGovIcon PriorityIcon =
+				AvailablePriority == EWLGovernmentPriority::Security          ? EWLGovIcon::Order :
+				AvailablePriority == EWLGovernmentPriority::Growth            ? EWLGovIcon::Growth :
+				AvailablePriority == EWLGovernmentPriority::Austerity         ? EWLGovIcon::Treasury :
+				AvailablePriority == EWLGovernmentPriority::Industrialization ? EWLGovIcon::Provinces :
+				AvailablePriority == EWLGovernmentPriority::Diplomacy         ? EWLGovIcon::Diplomacy :
+				                                                                EWLGovIcon::Politics;
+			UBorder* IconChip = MakeRoundedSurface(WidgetTree,
+				FLinearColor(GovGold.R, GovGold.G, GovGold.B, bSelected ? 0.22f : 0.10f), FMargin(6.f), 8.f);
+			IconChip->SetVerticalAlignment(VAlign_Center);
+			IconChip->SetHorizontalAlignment(HAlign_Center);
+			IconChip->SetContent(MakeIcon(WidgetTree, PriorityIcon, 20, bSelected ? GovGold : GovMuted));
+			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(IconChip))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+			}
 			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
 				PriorityToText(AvailablePriority), 14, bSelected ? GovGold : GovText)))
 			{
@@ -812,6 +836,19 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 			continue;
 		}
 		UBorder* Card = MakeCard(WidgetTree, (ShownCatalog % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+		// El programa lo ejecuta UNA persona: el ministro de la cartera, con su retrato.
+		UHorizontalBox* CardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		{
+			FWLCharacter Minister;
+			const bool bHasMinister = Characters->GetCabinetMinister(Iso, Definition.Office, Minister) && Minister.IsValid();
+			if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
+				bHasMinister ? Minister.Id : FString::Printf(TEXT("%s-MIN-VAC-%d"), *Iso, static_cast<int32>(Definition.Office)),
+				GovGoldDim, 48.f, 58.f)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 11.f, 0.f));
+			}
+		}
 		UVerticalBox* DVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Definition.Name, 14, GovText, ETextJustify::Left, true)))
@@ -883,7 +920,12 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 				S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
 			}
 		}
-		Card->SetContent(DVB);
+		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(DVB))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Card->SetContent(CardRow);
 		AddColumnChild(CenterBox, Card, 4.f);
 		++ShownCatalog;
 	}
@@ -1240,7 +1282,7 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 			{
 				// Franja con el color del rol parlamentario + linea fina del mismo color.
 				UVerticalBox* HeaderVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-				UBorder* Strip = MakeRoundedSurface(WidgetTree, FLinearColor(0.085f, 0.098f, 0.126f, 0.92f), FMargin(11.f, 7.f), 5.f);
+				UBorder* Strip = MakeRoundedSurface(WidgetTree, GovHeaderStrip, FMargin(11.f, 7.f), 5.f);
 				Strip->SetContent(MakeText(WidgetTree, PartyRoleToText(Role).ToUpper(), 14, PartyRoleColor(Role)));
 				HeaderVB->AddChildToVerticalBox(Strip);
 				USizeBox* Line = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
@@ -1251,6 +1293,16 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 				bHeader = true;
 			}
 			UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
+			// Cara del jefe de bancada (pool de retratos por rol): el Congreso son PERSONAS, no filas.
+			UHorizontalBox* CardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			const FString PartySeed = FString::Printf(TEXT("%s-%s-%s"), *Iso,
+				Role == EWLPartyRole::Ruling ? TEXT("LEADER") : TEXT("OPP"), *Party.PartyId);
+			if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
+				PartySeed, PartyRoleColor(Role), 52.f, 64.f)))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 11.f, 0.f));
+			}
 			UVerticalBox* PVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Party.Name, 14, GovText, ETextJustify::Left, true)))
@@ -1330,7 +1382,12 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 			{
 				S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
 			}
-			Card->SetContent(PVB);
+			if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(PVB))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			Card->SetContent(CardRow);
 			AddColumnChild(CenterBox, Card, 4.f);
 			++Index;
 		}
@@ -1482,7 +1539,26 @@ void UWLGovernmentWidget::BuildPoliticsElectionsSection()
 		DVB->AddChildToVerticalBox(MakeText(WidgetTree,
 			TEXT("El hueco central son los indecisos: se los lleva quien gobierna mejor los ultimos meses."),
 			10, GovMuted, ETextJustify::Left, true));
-		Duel->SetContent(DVB);
+		// Duelo con CARAS: presidente vs rival de la oposicion, como una portada de noche electoral.
+		UHorizontalBox* DuelRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = DuelRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
+			FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 58.f, 72.f)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
+		}
+		if (UHorizontalBoxSlot* S = DuelRow->AddChildToHorizontalBox(DVB))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		if (UHorizontalBoxSlot* S = DuelRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
+			FString::Printf(TEXT("%s-OPP-RIVAL"), *Iso), GovBad, 58.f, 72.f)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(12.f, 0.f, 0.f, 0.f));
+		}
+		Duel->SetContent(DuelRow);
 		AddColumnChild(CenterBox, Duel, 10.f);
 	}
 	AddColumnChild(CenterBox, MakeGaugePanel(WidgetTree, {
@@ -1602,11 +1678,26 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 
 	const FWLMediaPublicOpinionState Media = Political->GetMediaPublicOpinion(Iso);
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("MEDIOS Y OPINION PUBLICA")), 6.f);
-	// Heroe: la aprobacion es EL numero de esta pantalla; el resto es tablero compacto.
-	AddColumnChild(CenterBox, MakeHeroGauge(WidgetTree, TEXT("Aprobacion presidencial"),
-		Media.PresidentialApproval, SupportColor(Media.PresidentialApproval),
-		Media.LastNarrative.IsEmpty() ? TEXT("Lo que el pais opina de ti este mes.")
-		                              : FString::Printf(TEXT("Narrativa del momento: %s"), *Media.LastNarrative)), 8.f);
+	// Heroe: la aprobacion es EL numero de esta pantalla — con la cara del presidente al lado.
+	{
+		UHorizontalBox* HeroRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = HeroRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
+			FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso),
+			SupportColor(Media.PresidentialApproval), 74.f, 92.f)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		}
+		if (UHorizontalBoxSlot* S = HeroRow->AddChildToHorizontalBox(MakeHeroGauge(WidgetTree,
+			TEXT("Aprobacion presidencial"), Media.PresidentialApproval, SupportColor(Media.PresidentialApproval),
+			Media.LastNarrative.IsEmpty() ? TEXT("Lo que el pais opina de ti este mes.")
+			                              : FString::Printf(TEXT("Narrativa del momento: %s"), *Media.LastNarrative))))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		AddColumnChild(CenterBox, HeroRow, 8.f);
+	}
 	AddColumnChild(CenterBox, MakeGaugePanel(WidgetTree, {
 		{ TEXT("Libertad de prensa"), Media.PressFreedom, SupportColor(Media.PressFreedom, 50, 25),
 			TEXT("Prensa libre critica pero legitima. Censurarla da control y quita legitimidad.") },
@@ -1689,6 +1780,15 @@ void UWLGovernmentWidget::BuildPoliticsRegionsSection()
 	for (const FWLRegionGovernorState& Region : Regions)
 	{
 		UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 10.f));
+		// Cara del gobernador (pool de retratos): cada region tiene un rostro que rendir cuentas.
+		UHorizontalBox* CardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
+			FString::Printf(TEXT("%s-MIN-GOV-%s"), *Iso, *Region.RegionId),
+			PartyRoleColor(Region.Alignment), 52.f, 64.f)))
+		{
+			S->SetVerticalAlignment(VAlign_Top);
+			S->SetPadding(FMargin(0.f, 0.f, 11.f, 0.f));
+		}
 		UVerticalBox* RVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 
 		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
@@ -1788,7 +1888,11 @@ void UWLGovernmentWidget::BuildPoliticsRegionsSection()
 		{
 			S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
 		}
-		Card->SetContent(RVB);
+		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(RVB))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		}
+		Card->SetContent(CardRow);
 		AddColumnChild(CenterBox, Card, 5.f);
 		++Index;
 	}

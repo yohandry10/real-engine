@@ -31,28 +31,30 @@
 
 namespace WLGovUI
 {
-	// Paleta de ALTO CONTRASTE: base carbon-pizarra casi negra, acento dorado nitido y texto blanco.
-	// Antes era un marron monocromo lavado (bajo contraste) que hacia que todo pareciese "de debug".
-	inline const FLinearColor GovFrame       (0.68f, 0.54f, 0.22f, 1.00f);   // marco dorado
+	// IDENTIDAD "DESPACHO PRESIDENCIAL": papel calido + tinta oscura + azul marino institucional.
+	// Rompe con la pizarra oscura anterior: la ventana es un documento de Estado, no un HUD.
+	// GovGold conserva el NOMBRE por compatibilidad pero ahora es el acento NAVY institucional.
+	inline const FLinearColor GovFrame       (0.10f, 0.14f, 0.22f, 1.00f);     // marco azul marino
 	inline const FLinearColor GovBackdrop     (0.006f, 0.008f, 0.012f, 0.82f);
-	inline const FLinearColor GovPanel        (0.030f, 0.036f, 0.048f, 0.995f); // pizarra casi negra
-	inline const FLinearColor GovPanelSoft    (0.050f, 0.058f, 0.074f, 1.00f);
-	inline const FLinearColor GovHeaderStrip  (0.058f, 0.068f, 0.090f, 1.00f);  // franja pizarra limpia (antes gold-brown muddy)
-	inline const FLinearColor GovCard         (0.082f, 0.092f, 0.116f, 1.00f);  // tarjeta pizarra
-	inline const FLinearColor GovCardAlt      (0.102f, 0.114f, 0.142f, 1.00f);
-	inline const FLinearColor GovCardEdge     (0.22f, 0.25f, 0.31f, 1.00f);     // borde de tarjeta (contraste)
-	inline const FLinearColor GovFuture       (0.070f, 0.078f, 0.098f, 1.00f);
-	inline const FLinearColor GovGold         (1.00f, 0.82f, 0.32f, 1.00f);
-	inline const FLinearColor GovGoldDim      (0.74f, 0.58f, 0.22f, 1.00f);
-	inline const FLinearColor GovText         (0.94f, 0.96f, 0.99f, 1.00f);     // casi blanco
-	inline const FLinearColor GovMuted        (0.58f, 0.63f, 0.72f, 1.00f);     // gris frio
-	inline const FLinearColor GovGood         (0.42f, 0.87f, 0.55f, 1.00f);
-	inline const FLinearColor GovBad          (0.98f, 0.46f, 0.42f, 1.00f);
-	inline const FLinearColor GovDarkInk      (0.04f, 0.045f, 0.06f, 1.00f);
-	inline const FLinearColor GovTabIdle      (0.095f, 0.106f, 0.132f, 1.00f);
-	inline const FLinearColor GovDanger       (0.44f, 0.13f, 0.12f, 1.00f);   // fondo de acciones destructivas
-	inline const FLinearColor GovConfirm      (0.82f, 0.32f, 0.12f, 1.00f);   // boton en espera de confirmacion
-	inline const FLinearColor GovBarTrack     (0.035f, 0.040f, 0.052f, 1.00f);
+	inline const FLinearColor GovPanel        (0.870f, 0.845f, 0.775f, 1.00f); // papel calido
+	inline const FLinearColor GovPanelSoft    (0.815f, 0.785f, 0.705f, 1.00f);
+	inline const FLinearColor GovHeaderStrip  (0.780f, 0.740f, 0.645f, 1.00f); // banda pergamino
+	inline const FLinearColor GovCard         (0.935f, 0.915f, 0.865f, 1.00f); // ficha casi blanca
+	inline const FLinearColor GovCardAlt      (0.885f, 0.860f, 0.800f, 1.00f);
+	inline const FLinearColor GovCardEdge     (0.60f, 0.55f, 0.45f, 1.00f);    // borde tinta suave
+	inline const FLinearColor GovFuture       (0.855f, 0.830f, 0.770f, 1.00f);
+	inline const FLinearColor GovGold         (0.13f, 0.20f, 0.38f, 1.00f);    // NAVY institucional (acento primario)
+	inline const FLinearColor GovGoldDim      (0.72f, 0.60f, 0.38f, 1.00f);    // laton (acciones primarias, tinta encima)
+	inline const FLinearColor GovText         (0.140f, 0.130f, 0.115f, 1.00f); // tinta
+	inline const FLinearColor GovMuted        (0.42f, 0.39f, 0.34f, 1.00f);    // tinta desvanecida
+	inline const FLinearColor GovGood         (0.15f, 0.44f, 0.21f, 1.00f);    // verde sello
+	inline const FLinearColor GovBad          (0.70f, 0.15f, 0.13f, 1.00f);    // carmesi
+	inline const FLinearColor GovDarkInk      (0.97f, 0.95f, 0.90f, 1.00f);    // crema: texto SOBRE acento
+	inline const FLinearColor GovTabIdle      (0.820f, 0.790f, 0.720f, 1.00f);
+	inline const FLinearColor GovDanger       (0.80f, 0.34f, 0.28f, 1.00f);    // accion destructiva (tinta encima)
+	inline const FLinearColor GovConfirm      (0.93f, 0.55f, 0.22f, 1.00f);    // boton en espera de confirmacion
+	inline const FLinearColor GovBarTrack     (0.710f, 0.675f, 0.595f, 1.00f);
+	inline const FLinearColor GovWarn         (0.72f, 0.48f, 0.08f, 1.00f);    // ambar: riesgo medio
 
 	inline FString GovGroupThousands(int64 Value)
 	{
@@ -75,13 +77,13 @@ namespace WLGovUI
 	/** Color de riesgo: valores ALTOS son malos (riesgo, presion, corrupcion...). */
 	inline FLinearColor RiskColor(int32 Value, int32 WarnAt = 30, int32 DangerAt = 60)
 	{
-		return Value >= DangerAt ? GovBad : (Value >= WarnAt ? GovGold : GovGood);
+		return Value >= DangerAt ? GovBad : (Value >= WarnAt ? GovWarn : GovGood);
 	}
 
 	/** Color de apoyo: valores BAJOS son malos (apoyo, lealtad, legitimidad...). */
 	inline FLinearColor SupportColor(int32 Value, int32 WarnAt = 60, int32 DangerAt = 35)
 	{
-		return Value >= WarnAt ? GovGood : (Value >= DangerAt ? GovGold : GovBad);
+		return Value >= WarnAt ? GovGood : (Value >= DangerAt ? GovWarn : GovBad);
 	}
 
 	inline UTextBlock* MakeText(UWidgetTree* Tree, const FString& S, int32 Size, const FLinearColor& C,
@@ -180,16 +182,9 @@ namespace WLGovUI
 	/** Fondo de panel TEXTURIZADO (gradiente+viñeta runtime, o UI/gov_panel_bg.png). Profundidad vs relleno plano. */
 	inline UBorder* MakeTexturedPanel(UWidgetTree* Tree, const FMargin& Pad)
 	{
-		UBorder* B = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
-		if (UTexture2D* Bg = WLGovAssetsNS::GetPanelBackground())
-		{
-			B->SetBrushFromTexture(Bg);
-		}
-		else
-		{
-			B->SetBrushColor(GovPanel);
-		}
-		B->SetPadding(Pad);
+		// Identidad "documento": superficie de papel lisa y redondeada. La textura oscura
+		// pertenecia a la identidad pizarra anterior y pelearia con la paleta clara.
+		UBorder* B = MakeRoundedSurface(Tree, GovPanel, Pad, 12.f);
 		return B;
 	}
 
@@ -431,8 +426,8 @@ namespace WLGovUI
 		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
-		// Icono en chip dorado translucido: ancla visual clara de cada bloque.
-		UBorder* IconChip = MakeRoundedSurface(Tree, FLinearColor(1.f, 0.82f, 0.32f, 0.13f), FMargin(7.f), 8.f);
+		// Icono en chip translucido del acento: ancla visual clara de cada bloque.
+		UBorder* IconChip = MakeRoundedSurface(Tree, FLinearColor(GovGold.R, GovGold.G, GovGold.B, 0.14f), FMargin(7.f), 8.f);
 		IconChip->SetVerticalAlignment(VAlign_Center);
 		IconChip->SetHorizontalAlignment(HAlign_Center);
 		IconChip->SetContent(MakeIcon(Tree, SectionIconFor(Title), 19, GovGold));
