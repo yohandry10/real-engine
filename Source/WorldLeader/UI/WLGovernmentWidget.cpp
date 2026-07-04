@@ -2343,9 +2343,11 @@ void UWLGovernmentWidget::BuildRecordsTab()
 		UWrapBox* FilterRow = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
 		for (const auto& Filter : Filters)
 		{
+			const bool bActive = RecordsCategoryFilter == Filter.Value;
 			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(FilterRow->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
 				FString::Printf(TEXT("recordsfilter:%d"), Filter.Value), Filter.Label,
-				RecordsCategoryFilter == Filter.Value ? GovGoldDim : GovTabIdle, 0.f, 10))))
+				bActive ? GovGold : GovTabIdle, 0.f, 10, true,
+				bActive ? GovDarkInk : GovMuted))))
 			{
 				S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
 			}

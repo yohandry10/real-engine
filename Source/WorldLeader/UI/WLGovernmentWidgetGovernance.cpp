@@ -714,9 +714,11 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 	UWrapBox* Filters = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
 	auto AddFilterChip = [&](int32 Value, const FString& Label)
 	{
+		const bool bActive = ProgramOfficeFilter == Value;
 		if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Filters->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
 			FString::Printf(TEXT("progoffice:%d"), Value), Label,
-			ProgramOfficeFilter == Value ? GovGoldDim : GovTabIdle, 96.f, 11))))
+			bActive ? GovGold : GovTabIdle, 96.f, 11, true,
+			bActive ? GovDarkInk : GovMuted))))
 		{
 			S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
 		}
@@ -946,9 +948,11 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 	UWrapBox* Filters = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
 	auto AddAreaChip = [&](int32 Value, const FString& Label)
 	{
+		const bool bActive = ReformAreaFilter == Value;
 		if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Filters->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
 			FString::Printf(TEXT("reformarea:%d"), Value), Label,
-			ReformAreaFilter == Value ? GovGoldDim : GovTabIdle, 0.f, 10))))
+			bActive ? GovGold : GovTabIdle, 0.f, 10, true,
+			bActive ? GovDarkInk : GovMuted))))
 		{
 			S->SetPadding(FMargin(0.f, 0.f, 4.f, 4.f));
 		}
@@ -2157,9 +2161,11 @@ void UWLGovernmentWidget::BuildPoliticalProfilesSection()
 	UHorizontalBox* SortChips = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	for (const auto& Def : SortModes)
 	{
+		const bool bActive = ProfileSortMode == Def.Mode;
 		if (UHorizontalBoxSlot* S = SortChips->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
 			FString::Printf(TEXT("profsort:%d"), Def.Mode), Def.Label,
-			ProfileSortMode == Def.Mode ? GovGoldDim : GovTabIdle, 96.f, 10)))
+			bActive ? GovGold : GovTabIdle, 96.f, 10, true,
+			bActive ? GovDarkInk : GovMuted)))
 		{
 			S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
 		}
@@ -2726,9 +2732,11 @@ void UWLGovernmentWidget::BuildDifficultyPanel()
 	const EWLAIDifficulty Levels[] = { EWLAIDifficulty::Easy, EWLAIDifficulty::Medium, EWLAIDifficulty::Hard };
 	for (const EWLAIDifficulty Level : Levels)
 	{
+		const bool bLevelActive = Level == Active;
 		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
 			FString::Printf(TEXT("difficulty:%d"), static_cast<int32>(Level)),
-			DifficultyLabel(Level), Level == Active ? GovGoldDim : GovTabIdle, 84.f, 12)))
+			DifficultyLabel(Level), bLevelActive ? GovGold : GovTabIdle, 84.f, 12, true,
+			bLevelActive ? GovDarkInk : GovMuted)))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(5.f, 0.f, 0.f, 0.f));
