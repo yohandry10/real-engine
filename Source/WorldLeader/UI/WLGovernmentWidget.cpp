@@ -352,7 +352,11 @@ void UWLGovernmentWidget::BuildBody(UVerticalBox* Root)
 	// OTRAS POTENCIAS) que se dibujaban en TODOS los tabs, apretujando el centro y repitiendo info
 	// que ya vive en ALTO MANDO (gabinete) y DIPLOMACIA (otras potencias). Cada tab ahora es duenno
 	// de su ancho: mas aire, mejor lectura, sin duplicacion.
-	UBorder* Col = MakeRoundedSurface(WidgetTree, GovPanelSoft, FMargin(18.f, 14.f), 10.f);
+	// Cuerpo TRANSLUCIDO: la imagen de fondo (mapa nocturno) asoma entre las tarjetas y detras de
+	// los titulos, como en el menu. Las tarjetas siguen opacas, asi el texto denso se lee bien.
+	// Si no hay imagen, el translucido sobre el fondo plano oscuro se ve igual de oscuro.
+	UBorder* Col = MakeRoundedSurface(WidgetTree,
+		FLinearColor(GovPanelSoft.R, GovPanelSoft.G, GovPanelSoft.B, 0.55f), FMargin(18.f, 14.f), 10.f);
 	CenterScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
 	CenterBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	CenterScroll->AddChild(CenterBox);
