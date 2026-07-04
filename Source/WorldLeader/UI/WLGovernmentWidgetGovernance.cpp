@@ -345,36 +345,26 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PODER INTERNO")), 6.f);
 
-	// Orden publico nacional (media real de provincias controladas).
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Orden publico nacional"), Sum.AveragePublicOrder,
-		SupportColor(Sum.AveragePublicOrder), GovCard,
-		TEXT("Media de las provincias que controlas. Bajo 35 el pais entra en zona de revuelta.")), 8.f);
-
-	// F2: riesgo de golpe con desglose de oposicion.
+	// Los DOS numeros que deciden si sigues en el poder, como heroes lado a lado.
 	const FWLInternalPowerState Power = Political->GetInternalPower(Iso);
-	UBorder* CoupCard = MakeCard(WidgetTree, GovCard, FMargin(14.f, 12.f));
-	UVerticalBox* CVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	UHorizontalBox* CHead = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	if (UHorizontalBoxSlot* S = CHead->AddChildToHorizontalBox(MakeText(WidgetTree, TEXT("Riesgo de golpe de estado"), 15, GovText)))
 	{
-		S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		UUniformGridPanel* HeroGrid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		HeroGrid->SetSlotPadding(FMargin(5.f, 0.f));
+		if (UUniformGridSlot* S = HeroGrid->AddChildToUniformGrid(MakeHeroGauge(WidgetTree,
+			TEXT("Orden publico nacional"), Sum.AveragePublicOrder, SupportColor(Sum.AveragePublicOrder),
+			TEXT("Media de tus provincias. Bajo 35 el pais entra en zona de revuelta.")), 0, 0))
+		{
+			S->SetHorizontalAlignment(HAlign_Fill);
+		}
+		if (UUniformGridSlot* S = HeroGrid->AddChildToUniformGrid(MakeHeroGauge(WidgetTree,
+			TEXT("Riesgo de golpe de estado"), Power.CoupRisk, RiskColor(Power.CoupRisk),
+			FString::Printf(TEXT("Oposicion: fuerza %d · popularidad %d · financiacion externa %d"),
+				Power.OppositionStrength, Power.OppositionPopularity, Power.ExternalCoupFunding)), 0, 1))
+		{
+			S->SetHorizontalAlignment(HAlign_Fill);
+		}
+		AddColumnChild(CenterBox, HeroGrid, 8.f);
 	}
-	const FLinearColor CoupColor = RiskColor(Power.CoupRisk);
-	CHead->AddChildToHorizontalBox(MakeText(WidgetTree, FString::Printf(TEXT("%d / 100"), Power.CoupRisk), 15, CoupColor, ETextJustify::Right));
-	CVB->AddChildToVerticalBox(CHead);
-	if (UVerticalBoxSlot* S = CVB->AddChildToVerticalBox(MakeBar(WidgetTree, Power.CoupRisk / 100.f, CoupColor, 12.f)))
-	{
-		S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
-	}
-	if (UVerticalBoxSlot* S = CVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-		TEXT("Oposicion: fuerza %d · popularidad %d   ·   Financiacion externa de golpe: %d"),
-		Power.OppositionStrength, Power.OppositionPopularity, Power.ExternalCoupFunding),
-		13, Power.OppositionStrength >= 50 ? GovBad : GovMuted, ETextJustify::Left, true)))
-	{
-		S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
-	}
-	CoupCard->SetContent(CVB);
-	AddColumnChild(CenterBox, CoupCard, 8.f);
 
 	if (!Power.LastCoupReport.IsEmpty())
 	{
@@ -445,20 +435,26 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 		{
 			AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin datos de grupos sociales."), 13, GovMuted), 8.f);
 		}
-		int32 Index = 0;
+		// Tablero 2 columnas: cada grupo es una celda compacta (nombre + apoyo + barras).
+		// El motivo del ultimo cambio va en tooltip: la pantalla respira y el detalle sigue ahi.
+		UBorder* Panel = MakeCard(WidgetTree, GovCard, FMargin(14.f, 11.f));
+		UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		Grid->SetSlotPadding(FMargin(12.f, 8.f));
+		int32 Cell = 0;
 		for (const FWLPublicGroupSupportState& Group : Groups)
 		{
-			UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 			UVerticalBox* GVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, PublicGroupToText(Group.Group), 14, GovText)))
+			UTextBlock* Name = MakeText(WidgetTree, PublicGroupToText(Group.Group), 12, GovText);
+			if (!Group.LastShiftReason.IsEmpty())
+			{
+				Name->SetToolTipText(FText::FromString(Group.LastShiftReason));
+			}
+			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(Name))
 			{
 				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 				S->SetVerticalAlignment(VAlign_Center);
 			}
-			Head->AddChildToHorizontalBox(MakeText(WidgetTree,
-				FString::Printf(TEXT("Apoyo %d"), Group.Support),
-				12, SupportColor(Group.Support), ETextJustify::Right));
 			if (Group.Pressure > 0)
 			{
 				if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeBadge(WidgetTree,
@@ -467,15 +463,16 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 					Group.Pressure >= 60 ? GovDarkInk : GovMuted)))
 				{
 					S->SetVerticalAlignment(VAlign_Center);
-					S->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+					S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
 				}
 			}
+			Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+				FString::Printf(TEXT("%d"), Group.Support), 15, SupportColor(Group.Support), ETextJustify::Right));
 			GVB->AddChildToVerticalBox(Head);
-			if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(MakeBar(WidgetTree, Group.Support / 100.f, SupportColor(Group.Support), 7.f)))
+			if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(MakeBar(WidgetTree, Group.Support / 100.f, SupportColor(Group.Support), 8.f)))
 			{
-				S->SetPadding(FMargin(0.f, 5.f, 0.f, 0.f));
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 			}
-			// La presion del grupo empuja contra ti: barra roja fina debajo del apoyo.
 			if (Group.Pressure > 0)
 			{
 				if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(MakeBar(WidgetTree, Group.Pressure / 100.f, GovBad, 4.f)))
@@ -483,38 +480,31 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 					S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
 				}
 			}
-			if (!Group.LastShiftReason.IsEmpty())
+			if (UUniformGridSlot* S = Grid->AddChildToUniformGrid(GVB, Cell / 2, Cell % 2))
 			{
-				if (UVerticalBoxSlot* S = GVB->AddChildToVerticalBox(MakeText(WidgetTree, Group.LastShiftReason, 11, GovMuted, ETextJustify::Left, true)))
-				{
-					S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
-				}
+				S->SetHorizontalAlignment(HAlign_Fill);
 			}
-			Row->SetContent(GVB);
-			AddColumnChild(CenterBox, Row, 4.f);
-			++Index;
+			++Cell;
 		}
+		Panel->SetContent(Grid);
+		AddColumnChild(CenterBox, Panel, 8.f);
 	}
 
 	// Gobierno P1: capacidad estatal (burocracia, corrupcion, eficiencia, autoridad, riesgo de fallo).
 	{
 		const FWLStateCapacityState Capacity = Political->GetStateCapacity(Iso);
 		AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("CAPACIDAD ESTATAL")), 20.f);
-		AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Burocracia"), Capacity.Bureaucracy,
-			SupportColor(Capacity.Bureaucracy), GovCard,
-			TEXT("Cuanto Estado tienes para ejecutar. Bajo: los programas fallan.")), 8.f);
-		AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Corrupcion"), Capacity.Corruption,
-			RiskColor(Capacity.Corruption), GovCardAlt,
-			TEXT("Se roba parte de lo que gastas y pudre la capacidad estatal.")), 4.f);
-		AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Eficiencia administrativa"), Capacity.AdministrativeEfficiency,
-			SupportColor(Capacity.AdministrativeEfficiency), GovCard,
-			TEXT("Requisito de muchas reformas P2. Sube con burocracia sana y baja corrupcion.")), 4.f);
-		AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Autoridad central"), Capacity.CentralAuthority,
-			SupportColor(Capacity.CentralAuthority), GovCardAlt,
-			TEXT("Cuanto obedecen las regiones al gobierno central.")), 4.f);
-		AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Riesgo de fallo de politicas"), Capacity.PolicyFailureRisk,
-			RiskColor(Capacity.PolicyFailureRisk), GovCard,
-			TEXT("Probabilidad de que programas y reformas se ejecuten mal.")), 4.f);
+		AddColumnChild(CenterBox, MakeGaugePanel(WidgetTree, {
+			{ TEXT("Burocracia"), Capacity.Bureaucracy, SupportColor(Capacity.Bureaucracy),
+				TEXT("Cuanto Estado tienes para ejecutar. Bajo: los programas fallan.") },
+			{ TEXT("Corrupcion"), Capacity.Corruption, RiskColor(Capacity.Corruption),
+				TEXT("Se roba parte de lo que gastas y pudre la capacidad estatal.") },
+			{ TEXT("Eficiencia administrativa"), Capacity.AdministrativeEfficiency, SupportColor(Capacity.AdministrativeEfficiency),
+				TEXT("Requisito de muchas reformas P2. Sube con burocracia sana y baja corrupcion.") },
+			{ TEXT("Autoridad central"), Capacity.CentralAuthority, SupportColor(Capacity.CentralAuthority),
+				TEXT("Cuanto obedecen las regiones al gobierno central.") },
+			{ TEXT("Riesgo de fallo de politicas"), Capacity.PolicyFailureRisk, RiskColor(Capacity.PolicyFailureRisk),
+				TEXT("Probabilidad de que programas y reformas se ejecuten mal.") } }), 8.f);
 		if (!Capacity.LastReport.IsEmpty())
 		{
 			AddColumnChild(CenterBox, MakeText(WidgetTree, Capacity.LastReport, 12, GovMuted, ETextJustify::Left, true), 6.f);
@@ -623,36 +613,60 @@ void UWLGovernmentWidget::BuildPoliticsAgendaSection()
 	// Selector: cada prioridad es un toggle; el backend valida duplicados y limite al confirmar.
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
 		FString::Printf(TEXT("NUEVA AGENDA  (%d/3 seleccionadas)"), DraftAgenda.Num())), 18.f);
+	// Rejilla 2x3 de tarjetas seleccionables: la agenda se ELIGE mirando un tablero, no leyendo una lista.
 	const EWLGovernmentPriority AllPriorities[] = {
 		EWLGovernmentPriority::Security, EWLGovernmentPriority::Growth, EWLGovernmentPriority::Austerity,
 		EWLGovernmentPriority::Industrialization, EWLGovernmentPriority::Diplomacy, EWLGovernmentPriority::Control };
-	int32 Index = 0;
-	for (const EWLGovernmentPriority AvailablePriority : AllPriorities)
 	{
-		const bool bSelected = DraftAgenda.Contains(AvailablePriority);
-		// Prioridad elegida = borde dorado; se distingue de un vistazo sin leer el boton.
-		UBorder* Row = bSelected
-			? MakeCard(WidgetTree, GovHeaderStrip, FMargin(12.f, 8.f), 7.f, GovGold, 1.6f)
-			: MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
-		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		Info->AddChildToVerticalBox(MakeText(WidgetTree, PriorityToText(AvailablePriority), 14, bSelected ? GovGold : GovText));
-		Info->AddChildToVerticalBox(MakeText(WidgetTree, PriorityEffectText(AvailablePriority), 11, GovMuted, ETextJustify::Left, true));
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Info))
+		UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		Grid->SetSlotPadding(FMargin(4.f));
+		int32 Cell = 0;
+		for (const EWLGovernmentPriority AvailablePriority : AllPriorities)
 		{
-			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-			S->SetVerticalAlignment(VAlign_Center);
+			const bool bSelected = DraftAgenda.Contains(AvailablePriority);
+			// Elegida = borde dorado y fondo elevado; se distingue de un vistazo.
+			UBorder* Card = bSelected
+				? MakeCard(WidgetTree, GovHeaderStrip, FMargin(12.f, 10.f), 8.f, GovGold, 1.8f)
+				: MakeCard(WidgetTree, GovCard, FMargin(12.f, 10.f), 8.f);
+			UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
+				PriorityToText(AvailablePriority), 14, bSelected ? GovGold : GovText)))
+			{
+				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				S->SetVerticalAlignment(VAlign_Center);
+			}
+			if (bSelected)
+			{
+				if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(
+					MakeBadge(WidgetTree, TEXT("EN AGENDA"), GovGold, GovDarkInk)))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+				}
+			}
+			Info->AddChildToVerticalBox(Head);
+			if (UVerticalBoxSlot* S = Info->AddChildToVerticalBox(MakeText(WidgetTree,
+				PriorityEffectText(AvailablePriority), 11, GovMuted, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+			}
+			if (UVerticalBoxSlot* S = Info->AddChildToVerticalBox(MakeActionButton(WidgetTree, this,
+				FString::Printf(TEXT("agendatoggle:%d"), static_cast<int32>(AvailablePriority)),
+				bSelected ? TEXT("QUITAR") : TEXT("ANADIR"),
+				bSelected ? GovTabIdle : GovGoldDim, 0.f, 11)))
+			{
+				S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+				S->SetHorizontalAlignment(HAlign_Left);
+			}
+			Card->SetContent(Info);
+			if (UUniformGridSlot* S = Grid->AddChildToUniformGrid(Card, Cell / 2, Cell % 2))
+			{
+				S->SetHorizontalAlignment(HAlign_Fill);
+				S->SetVerticalAlignment(VAlign_Fill);
+			}
+			++Cell;
 		}
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
-			FString::Printf(TEXT("agendatoggle:%d"), static_cast<int32>(AvailablePriority)),
-			bSelected ? TEXT("QUITAR") : TEXT("ANADIR"),
-			bSelected ? GovGoldDim : GovTabIdle, 90.f, 11)))
-		{
-			S->SetVerticalAlignment(VAlign_Center);
-		}
-		Row->SetContent(HB);
-		AddColumnChild(CenterBox, Row, 4.f);
-		++Index;
+		AddColumnChild(CenterBox, Grid, 6.f);
 	}
 
 	FWLPoliticalActionRequest AgendaPreviewRequest;
@@ -1182,17 +1196,26 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 
 	const FWLInstitutionalPowerState Institutions = Political->GetInstitutionalPower(Iso);
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("CONGRESO Y BASE POLITICA")), 6.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Coalicion oficialista"), Institutions.RulingCoalitionSupport,
-		SupportColor(Institutions.RulingCoalitionSupport), GovCard,
-		TEXT("Apoyo legislativo del gobierno. Las reformas exigen un minimo de coalicion.")), 8.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Oposicion legislativa"), Institutions.LegislativeOpposition,
-		RiskColor(Institutions.LegislativeOpposition, 50, 70), GovCardAlt), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Riesgo de bloqueo institucional (gridlock)"), Institutions.GridlockRisk,
-		RiskColor(Institutions.GridlockRisk), GovCard,
-		TEXT("Con gridlock alto, votar reformas cuesta mas capital y los programas se traban.")), 4.f);
-	AddColumnChild(CenterBox, MakeStatRow(WidgetTree, TEXT("Coste de reforma (capital politico)"),
-		FString::Printf(TEXT("%d"), Institutions.ReformCost),
-		Institutions.ReformCost >= 20 ? GovBad : GovText, GovCardAlt), 4.f);
+	// Heroe: la coalicion es EL numero del Congreso (las reformas viven o mueren por el).
+	{
+		UUniformGridPanel* HeroGrid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		HeroGrid->SetSlotPadding(FMargin(5.f, 0.f));
+		if (UUniformGridSlot* S = HeroGrid->AddChildToUniformGrid(MakeHeroGauge(WidgetTree,
+			TEXT("Coalicion oficialista"), Institutions.RulingCoalitionSupport,
+			SupportColor(Institutions.RulingCoalitionSupport),
+			TEXT("Apoyo legislativo del gobierno. Las reformas exigen un minimo de coalicion.")), 0, 0))
+		{
+			S->SetHorizontalAlignment(HAlign_Fill);
+		}
+		if (UUniformGridSlot* S = HeroGrid->AddChildToUniformGrid(MakeHeroGauge(WidgetTree,
+			TEXT("Riesgo de gridlock"), Institutions.GridlockRisk, RiskColor(Institutions.GridlockRisk),
+			FString::Printf(TEXT("Oposicion legislativa %d · Coste de reforma: %d de capital"),
+				Institutions.LegislativeOpposition, Institutions.ReformCost)), 0, 1))
+		{
+			S->SetHorizontalAlignment(HAlign_Fill);
+		}
+		AddColumnChild(CenterBox, HeroGrid, 8.f);
+	}
 	if (!Institutions.LastVoteReport.IsEmpty())
 	{
 		AddColumnChild(CenterBox, MakeAlert(WidgetTree,
@@ -1319,17 +1342,13 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 	// Gobierno P2: red clientelar (patronazgo).
 	const FWLPatronageState Patronage = Political->GetPatronageState(Iso);
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("RED CLIENTELAR (PATRONAZGO)")), 20.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Poder de patronazgo"), Patronage.PatronagePower,
-		SupportColor(Patronage.PatronagePower, 50, 20), GovCard,
-		TEXT("Cuantos favores puedes repartir sin romper el Estado.")), 8.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Presion clientelista"), Patronage.ClientelistPressure,
-		RiskColor(Patronage.ClientelistPressure), GovCardAlt), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Corrupcion de contratos"), Patronage.ContractCorruption,
-		RiskColor(Patronage.ContractCorruption), GovCard), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Maquinaria regional"), Patronage.RegionalMachines,
-		GovGoldDim, GovCardAlt), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Backlash por concesiones"), Patronage.ConcessionBacklash,
-		RiskColor(Patronage.ConcessionBacklash), GovCard), 4.f);
+	AddColumnChild(CenterBox, MakeGaugePanel(WidgetTree, {
+		{ TEXT("Poder de patronazgo"), Patronage.PatronagePower, SupportColor(Patronage.PatronagePower, 50, 20),
+			TEXT("Cuantos favores puedes repartir sin romper el Estado.") },
+		{ TEXT("Presion clientelista"), Patronage.ClientelistPressure, RiskColor(Patronage.ClientelistPressure) },
+		{ TEXT("Corrupcion de contratos"), Patronage.ContractCorruption, RiskColor(Patronage.ContractCorruption) },
+		{ TEXT("Maquinaria regional"), Patronage.RegionalMachines, GovGoldDim },
+		{ TEXT("Backlash por concesiones"), Patronage.ConcessionBacklash, RiskColor(Patronage.ConcessionBacklash) } }), 8.f);
 	if (!Patronage.LastDeal.IsEmpty())
 	{
 		AddColumnChild(CenterBox, MakeAlert(WidgetTree,
@@ -1418,15 +1437,58 @@ void UWLGovernmentWidget::BuildPoliticsElectionsSection()
 		FString::Printf(TEXT("%d"), Election.Legitimacy), SupportColor(Election.Legitimacy)));
 	AddColumnChild(CenterBox, Grid, 10.f);
 
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Encuesta: gobierno"), Election.PollingGovernment,
-		SupportColor(Election.PollingGovernment, 50, 40), GovCard), 10.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Encuesta: oposicion"), Election.PollingOpposition,
-		RiskColor(Election.PollingOpposition, 45, 55), GovCardAlt), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Riesgo de abstencion"), Election.AbstentionRisk,
-		RiskColor(Election.AbstentionRisk, 35, 55), GovCard), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Riesgo de fraude percibido"), Election.FraudRisk,
-		RiskColor(Election.FraudRisk, 25, 50), GovCardAlt,
-		TEXT("Sube con censura, patronazgo y control mediatico. Erosiona la legitimidad del resultado.")), 4.f);
+	// Encuesta como DUELO: una sola barra gobierno (oro) contra oposicion (rojo), estilo noche electoral.
+	{
+		UBorder* Duel = MakeCard(WidgetTree, GovCard, FMargin(14.f, 11.f));
+		UVerticalBox* DVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		UHorizontalBox* Labels = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = Labels->AddChildToHorizontalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("GOBIERNO  %d%%"), Election.PollingGovernment), 13, GovGold)))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		}
+		Labels->AddChildToHorizontalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("%d%%  OPOSICION"), Election.PollingOpposition), 13, GovBad, ETextJustify::Right));
+		DVB->AddChildToVerticalBox(Labels);
+		// Barra partida: cada mitad pesa lo que su encuesta (el hueco central es indecisos).
+		UHorizontalBox* Split = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		const float GovFrac = FMath::Max(Election.PollingGovernment / 100.f, 0.02f);
+		const float OppFrac = FMath::Max(Election.PollingOpposition / 100.f, 0.02f);
+		const float RestFrac = FMath::Max(1.f - GovFrac - OppFrac, 0.001f);
+		UBorder* GovSeg = MakeRoundedSurface(WidgetTree, GovGold, FMargin(0.f), 5.f);
+		UBorder* Gap = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f));
+		UBorder* OppSeg = MakeRoundedSurface(WidgetTree, GovBad, FMargin(0.f), 5.f);
+		auto AddSeg = [&](UWidget* W, float Weight)
+		{
+			if (UHorizontalBoxSlot* S = Split->AddChildToHorizontalBox(W))
+			{
+				FSlateChildSize Size(ESlateSizeRule::Fill);
+				Size.Value = Weight;
+				S->SetSize(Size);
+			}
+		};
+		AddSeg(GovSeg, GovFrac);
+		AddSeg(Gap, RestFrac);
+		AddSeg(OppSeg, OppFrac);
+		USizeBox* SplitBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		SplitBox->SetHeightOverride(14.f);
+		SplitBox->SetContent(Split);
+		UBorder* SplitTrack = MakeRoundedSurface(WidgetTree, GovBarTrack, FMargin(2.f), 7.f);
+		SplitTrack->SetContent(SplitBox);
+		if (UVerticalBoxSlot* S = DVB->AddChildToVerticalBox(SplitTrack))
+		{
+			S->SetPadding(FMargin(0.f, 7.f, 0.f, 0.f));
+		}
+		DVB->AddChildToVerticalBox(MakeText(WidgetTree,
+			TEXT("El hueco central son los indecisos: se los lleva quien gobierna mejor los ultimos meses."),
+			10, GovMuted, ETextJustify::Left, true));
+		Duel->SetContent(DVB);
+		AddColumnChild(CenterBox, Duel, 10.f);
+	}
+	AddColumnChild(CenterBox, MakeGaugePanel(WidgetTree, {
+		{ TEXT("Riesgo de abstencion"), Election.AbstentionRisk, RiskColor(Election.AbstentionRisk, 35, 55) },
+		{ TEXT("Riesgo de fraude percibido"), Election.FraudRisk, RiskColor(Election.FraudRisk, 25, 50),
+			TEXT("Sube con censura, patronazgo y control mediatico. Erosiona la legitimidad del resultado.") } }), 6.f);
 
 	if (Election.FraudRisk >= 30)
 	{
@@ -1540,33 +1602,25 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 
 	const FWLMediaPublicOpinionState Media = Political->GetMediaPublicOpinion(Iso);
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("MEDIOS Y OPINION PUBLICA")), 6.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Aprobacion presidencial"), Media.PresidentialApproval,
-		SupportColor(Media.PresidentialApproval), GovCard), 8.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Libertad de prensa"), Media.PressFreedom,
-		SupportColor(Media.PressFreedom, 50, 25), GovCardAlt,
-		TEXT("Prensa libre critica pero legitima. Censurarla da control y quita legitimidad.")), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Control mediatico"), Media.MediaControl,
-		RiskColor(Media.MediaControl, 40, 70), GovCard), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Alcance propagandistico"), Media.PropagandaReach,
-		GovGoldDim, GovCardAlt), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Backlash de censura"), Media.CensorshipBacklash,
-		RiskColor(Media.CensorshipBacklash), GovCard), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Presion de fake news"), Media.FakeNewsPressure,
-		RiskColor(Media.FakeNewsPressure), GovCardAlt), 4.f);
-	AddColumnChild(CenterBox, MakeGaugeRow(WidgetTree, TEXT("Riesgo de crisis mediatica"), Media.MediaCrisisRisk,
-		RiskColor(Media.MediaCrisisRisk), GovCard), 4.f);
+	// Heroe: la aprobacion es EL numero de esta pantalla; el resto es tablero compacto.
+	AddColumnChild(CenterBox, MakeHeroGauge(WidgetTree, TEXT("Aprobacion presidencial"),
+		Media.PresidentialApproval, SupportColor(Media.PresidentialApproval),
+		Media.LastNarrative.IsEmpty() ? TEXT("Lo que el pais opina de ti este mes.")
+		                              : FString::Printf(TEXT("Narrativa del momento: %s"), *Media.LastNarrative)), 8.f);
+	AddColumnChild(CenterBox, MakeGaugePanel(WidgetTree, {
+		{ TEXT("Libertad de prensa"), Media.PressFreedom, SupportColor(Media.PressFreedom, 50, 25),
+			TEXT("Prensa libre critica pero legitima. Censurarla da control y quita legitimidad.") },
+		{ TEXT("Control mediatico"), Media.MediaControl, RiskColor(Media.MediaControl, 40, 70) },
+		{ TEXT("Alcance propagandistico"), Media.PropagandaReach, GovGoldDim },
+		{ TEXT("Backlash de censura"), Media.CensorshipBacklash, RiskColor(Media.CensorshipBacklash) },
+		{ TEXT("Presion de fake news"), Media.FakeNewsPressure, RiskColor(Media.FakeNewsPressure) },
+		{ TEXT("Riesgo de crisis mediatica"), Media.MediaCrisisRisk, RiskColor(Media.MediaCrisisRisk) } }), 6.f);
 
 	if (Media.MediaCrisisRisk >= 50)
 	{
 		AddColumnChild(CenterBox, MakeAlert(WidgetTree,
 			TEXT("Riesgo alto de crisis mediatica: censura y fake news pueden escalar a protesta nacional."), GovBad), 6.f);
 	}
-	if (!Media.LastNarrative.IsEmpty())
-	{
-		AddColumnChild(CenterBox, MakeAlert(WidgetTree,
-			FString::Printf(TEXT("Narrativa del momento: %s"), *Media.LastNarrative), GovGoldDim), 6.f);
-	}
-
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ACCIONES DE MEDIOS")), 16.f);
 	int32 Index = 0;
 	for (const FMediaActionUI& Def : MediaActions)

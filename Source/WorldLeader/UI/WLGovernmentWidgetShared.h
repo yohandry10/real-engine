@@ -23,8 +23,11 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "Engine/Texture2D.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
+#include <initializer_list>
 
 namespace WLGovUI
 {
@@ -573,6 +576,102 @@ namespace WLGovUI
 		}
 		Row->SetContent(Outer);
 		return Row;
+	}
+
+	/** Definicion de un medidor 0-100 para paneles de tablero. */
+	struct FWLGaugeDef
+	{
+		FString Label;
+		int32 Value = 0;
+		FLinearColor Color = FLinearColor::White;
+		FString Tip;
+	};
+
+	/** Celda compacta de medidor (sin tarjeta propia): para rejillas dentro de un panel. */
+	inline UWidget* MakeGaugeCell(UWidgetTree* Tree, const FWLGaugeDef& Def)
+	{
+		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UTextBlock* LabelText = MakeText(Tree, Def.Label, 12, GovText);
+		if (!Def.Tip.IsEmpty())
+		{
+			LabelText->SetToolTipText(FText::FromString(Def.Tip));
+		}
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(LabelText))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Bottom);
+		}
+		Head->AddChildToHorizontalBox(MakeText(Tree,
+			FString::Printf(TEXT("%d"), Def.Value), 15, Def.Color, ETextJustify::Right));
+		VB->AddChildToVerticalBox(Head);
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeBar(Tree, Def.Value / 100.f, Def.Color, 8.f)))
+		{
+			S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+		return VB;
+	}
+
+	/**
+	 * Panel de tablero: varias metricas 0-100 en rejilla de 2 columnas dentro de UNA tarjeta.
+	 * Sustituye a las pilas de filas a ancho completo (pared de cajas = sello de UI generica).
+	 */
+	inline UBorder* MakeGaugePanel(UWidgetTree* Tree, std::initializer_list<FWLGaugeDef> Defs)
+	{
+		UBorder* Panel = MakeCard(Tree, GovCard, FMargin(14.f, 11.f));
+		UUniformGridPanel* Grid = Tree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+		Grid->SetSlotPadding(FMargin(12.f, 7.f));
+		int32 Cell = 0;
+		for (const FWLGaugeDef& Def : Defs)
+		{
+			if (UUniformGridSlot* S = Grid->AddChildToUniformGrid(MakeGaugeCell(Tree, Def), Cell / 2, Cell % 2))
+			{
+				S->SetHorizontalAlignment(HAlign_Fill);
+			}
+			++Cell;
+		}
+		Panel->SetContent(Grid);
+		return Panel;
+	}
+
+	/**
+	 * Tarjeta HEROE: la cifra clave de una seccion en grande (numero 30pt + barra gruesa + subtexto).
+	 * Da un punto focal a cada pantalla en vez de una lista uniforme.
+	 */
+	inline UBorder* MakeHeroGauge(UWidgetTree* Tree, const FString& Label, int32 Value,
+		const FLinearColor& Color, const FString& SubText)
+	{
+		UBorder* Card = MakeCard(Tree, GovCard, FMargin(16.f, 13.f));
+		UVerticalBox* VB = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		VB->AddChildToVerticalBox(MakeText(Tree, Label.ToUpper(), 11, GovMuted));
+		UHorizontalBox* ValueRow = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = ValueRow->AddChildToHorizontalBox(
+			MakeText(Tree, FString::Printf(TEXT("%d"), Value), 30, Color)))
+		{
+			S->SetVerticalAlignment(VAlign_Bottom);
+		}
+		if (UHorizontalBoxSlot* S = ValueRow->AddChildToHorizontalBox(MakeText(Tree, TEXT("/100"), 12, GovMuted)))
+		{
+			S->SetVerticalAlignment(VAlign_Bottom);
+			S->SetPadding(FMargin(3.f, 0.f, 0.f, 4.f));
+		}
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(ValueRow))
+		{
+			S->SetPadding(FMargin(0.f, 2.f, 0.f, 0.f));
+		}
+		if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeBar(Tree, Value / 100.f, Color, 12.f)))
+		{
+			S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+		}
+		if (!SubText.IsEmpty())
+		{
+			if (UVerticalBoxSlot* S = VB->AddChildToVerticalBox(MakeText(Tree, SubText, 11, GovMuted, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+			}
+		}
+		Card->SetContent(VB);
+		return Card;
 	}
 
 	/** Franja de alerta (crisis, secesion, ruptura de coalicion...). */
