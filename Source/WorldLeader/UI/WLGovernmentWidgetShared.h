@@ -197,7 +197,7 @@ namespace WLGovUI
 			B->SetBrushFromTexture(Bg);
 			// Tinte suave: la imagen ya viene oscurecida para UI, solo se ampara un poco. Subir hacia
 			// 1.0 = mas brillante; bajar = mas oscura, si el texto de cabecera/pie cuesta leerse.
-			B->SetBrushColor(FLinearColor(0.88f, 0.90f, 0.94f, 1.f));
+			B->SetBrushColor(FLinearColor(1.00f, 1.00f, 1.00f, 1.f));
 			B->SetPadding(Pad);
 			return B;
 		}

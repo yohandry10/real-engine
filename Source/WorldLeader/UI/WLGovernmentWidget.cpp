@@ -225,7 +225,7 @@ void UWLGovernmentWidget::BuildHeader(UVerticalBox* Root)
 
 	// Franja translucida: si hay imagen de fondo (UI/gov_panel_bg.png) asoma tras el titulo (efecto banner).
 	UBorder* Strip = MakeRoundedSurface(WidgetTree,
-		FLinearColor(GovHeaderStrip.R, GovHeaderStrip.G, GovHeaderStrip.B, 0.78f), FMargin(16.f, 12.f), 10.f);
+		FLinearColor(GovHeaderStrip.R, GovHeaderStrip.G, GovHeaderStrip.B, 0.66f), FMargin(16.f, 12.f), 10.f);
 	UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	Strip->SetContent(HB);
 
@@ -356,7 +356,7 @@ void UWLGovernmentWidget::BuildBody(UVerticalBox* Root)
 	// los titulos, como en el menu. Las tarjetas siguen opacas, asi el texto denso se lee bien.
 	// Si no hay imagen, el translucido sobre el fondo plano oscuro se ve igual de oscuro.
 	UBorder* Col = MakeRoundedSurface(WidgetTree,
-		FLinearColor(GovPanelSoft.R, GovPanelSoft.G, GovPanelSoft.B, 0.55f), FMargin(18.f, 14.f), 10.f);
+		FLinearColor(GovPanelSoft.R, GovPanelSoft.G, GovPanelSoft.B, 0.40f), FMargin(18.f, 14.f), 10.f);
 	CenterScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
 	CenterBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	CenterScroll->AddChild(CenterBox);
@@ -382,7 +382,7 @@ void UWLGovernmentWidget::BuildFooter(UVerticalBox* Root)
 	const int32 PolCapital = (Characters && !Iso.IsEmpty()) ? Characters->GetGovernmentStats(Iso).PoliticalCapital : 0;
 
 	UBorder* Footer = MakeRoundedSurface(WidgetTree,
-		FLinearColor(GovHeaderStrip.R, GovHeaderStrip.G, GovHeaderStrip.B, 0.78f), FMargin(12.f, 9.f), 10.f);
+		FLinearColor(GovHeaderStrip.R, GovHeaderStrip.G, GovHeaderStrip.B, 0.66f), FMargin(12.f, 9.f), 10.f);
 	UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	Footer->SetContent(HB);
 
