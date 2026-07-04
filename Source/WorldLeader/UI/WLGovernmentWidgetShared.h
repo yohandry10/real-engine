@@ -36,9 +36,9 @@ namespace WLGovUI
 	// GovGold conserva el NOMBRE por compatibilidad pero ahora es el acento NAVY institucional.
 	inline const FLinearColor GovFrame       (0.10f, 0.14f, 0.22f, 1.00f);     // marco azul marino
 	inline const FLinearColor GovBackdrop     (0.006f, 0.008f, 0.012f, 0.82f);
-	inline const FLinearColor GovPanel        (0.870f, 0.845f, 0.775f, 1.00f); // papel calido
-	inline const FLinearColor GovPanelSoft    (0.815f, 0.785f, 0.705f, 1.00f);
-	inline const FLinearColor GovHeaderStrip  (0.780f, 0.740f, 0.645f, 1.00f); // banda pergamino
+	inline const FLinearColor GovPanel        (0.340f, 0.345f, 0.360f, 1.00f); // gris medio neutro (fondo ventana)
+	inline const FLinearColor GovPanelSoft    (0.295f, 0.300f, 0.315f, 1.00f);
+	inline const FLinearColor GovHeaderStrip  (0.400f, 0.405f, 0.420f, 1.00f); // banda gris clara (cabecera/pie)
 	inline const FLinearColor GovCard         (0.935f, 0.915f, 0.865f, 1.00f); // ficha casi blanca
 	inline const FLinearColor GovCardAlt      (0.885f, 0.860f, 0.800f, 1.00f);
 	inline const FLinearColor GovCardEdge     (0.60f, 0.55f, 0.45f, 1.00f);    // borde tinta suave
@@ -53,7 +53,7 @@ namespace WLGovUI
 	inline const FLinearColor GovTabIdle      (0.820f, 0.790f, 0.720f, 1.00f);
 	inline const FLinearColor GovDanger       (0.80f, 0.34f, 0.28f, 1.00f);    // accion destructiva (tinta encima)
 	inline const FLinearColor GovConfirm      (0.93f, 0.55f, 0.22f, 1.00f);    // boton en espera de confirmacion
-	inline const FLinearColor GovBarTrack     (0.710f, 0.675f, 0.595f, 1.00f);
+	inline const FLinearColor GovBarTrack     (0.245f, 0.250f, 0.262f, 1.00f); // riel/pista gris oscuro
 	inline const FLinearColor GovWarn         (0.72f, 0.48f, 0.08f, 1.00f);    // ambar: riesgo medio
 
 	inline FString GovGroupThousands(int64 Value)
@@ -114,8 +114,10 @@ namespace WLGovUI
 	 * de una tarjeta de juego. Firma compatible con MakeBorder para poder intercambiarlas.
 	 */
 	inline UBorder* MakeCard(UWidgetTree* Tree, const FLinearColor& Fill, const FMargin& Pad,
-		float Radius = 7.f, const FLinearColor& Outline = GovCardEdge, float OutlineWidth = 1.2f)
+		float Radius = 10.f, const FLinearColor& Outline = GovCardEdge, float OutlineWidth = 0.f)
 	{
+		// Moderno: la tarjeta se separa del fondo por CONTRASTE (clara sobre gris), sin borde
+		// dibujado. Solo lleva contorno quien lo pide explicito (seleccion, acento).
 		UBorder* B = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
 		B->SetBrush(FSlateRoundedBoxBrush(Fill, Radius, Outline, OutlineWidth));
 		B->SetPadding(Pad);
@@ -136,13 +138,13 @@ namespace WLGovUI
 	 * base son blancos: SetBackgroundColor(Bg) los tinta, asi que el boton sale del color deseado pero
 	 * redondeado. Sin esto los botones son rectangulos planos (sello de "UI de programador").
 	 */
-	inline void StyleRoundedButton(UButton* Button, float Radius = 5.f)
+	inline void StyleRoundedButton(UButton* Button, float Radius = 8.f)
 	{
+		// Moderno: pildora sin borde en reposo; el contorno de acento aparece solo al pasar el raton.
 		FButtonStyle Style;
-		const FLinearColor Edge(0.30f, 0.34f, 0.42f, 0.85f);
-		Style.Normal   = FSlateRoundedBoxBrush(FLinearColor::White, Radius, Edge, 1.0f);
-		Style.Hovered  = FSlateRoundedBoxBrush(FLinearColor(1.18f, 1.18f, 1.18f, 1.f), Radius, GovGold, 1.4f);
-		Style.Pressed  = FSlateRoundedBoxBrush(FLinearColor(0.78f, 0.78f, 0.78f, 1.f), Radius, Edge, 1.0f);
+		Style.Normal   = FSlateRoundedBoxBrush(FLinearColor::White, Radius);
+		Style.Hovered  = FSlateRoundedBoxBrush(FLinearColor(1.12f, 1.12f, 1.12f, 1.f), Radius, GovGold, 1.6f);
+		Style.Pressed  = FSlateRoundedBoxBrush(FLinearColor(0.82f, 0.82f, 0.82f, 1.f), Radius);
 		Style.Disabled = FSlateRoundedBoxBrush(FLinearColor(0.55f, 0.55f, 0.55f, 1.f), Radius);
 		Style.NormalPadding = FMargin(0.f);
 		Style.PressedPadding = FMargin(0.f);
