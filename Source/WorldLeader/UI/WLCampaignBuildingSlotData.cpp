@@ -117,7 +117,10 @@ namespace
 			Building.TypeLabel = ReadCampaignBuildingStringField(*ObjPtr, TEXT("type"));
 			Building.Level = FMath::Max(1, ReadCampaignBuildingIntField(*ObjPtr, TEXT("level"), 1));
 			Building.Description = ReadCampaignBuildingStringField(*ObjPtr, TEXT("description"));
-			Building.FutureCost = ReadCampaignBuildingStringField(*ObjPtr, TEXT("future_cost"), TEXT("Costo futuro: pendiente"));
+			Building.CostLabel = ReadCampaignBuildingStringField(*ObjPtr, TEXT("cost_label"), TEXT("Costo operativo: no especificado"));
+			Building.StrategicBuildingId = ReadCampaignBuildingStringField(*ObjPtr, TEXT("strategic_building_id"));
+			Building.ConstructionCost = FMath::Max<int64>(0, ReadCampaignBuildingIntField(*ObjPtr, TEXT("construction_cost")));
+			Building.MonthlyUpkeep = FMath::Max<int64>(0, ReadCampaignBuildingIntField(*ObjPtr, TEXT("monthly_upkeep")));
 			Building.bRequiresPort = ReadCampaignBuildingBoolField(*ObjPtr, TEXT("requires_port"));
 			Building.CompatibleSlots = ReadCampaignBuildingStringArray(*ObjPtr, TEXT("compatible_slots"));
 			Building.Effects = ReadCampaignBuildingStringArray(*ObjPtr, TEXT("effects"));
@@ -243,7 +246,7 @@ FString FWLCampaignBuildingSlotRules::GetSlotDescription(
 	{
 		return Slot->Description;
 	}
-	return TEXT("Slot placeholder preparado para futuras reglas.");
+	return TEXT("Slot sin definicion especifica; usa compatibilidad por categoria.");
 }
 
 bool FWLCampaignBuildingSlotRules::IsSlotLocked(
@@ -280,12 +283,6 @@ FString FWLCampaignBuildingSlotRules::GetInitialBuildingId(
 				? TEXT("city_civic_hall")
 				: TEXT("province_regional_administration");
 		}
-	}
-	if (SlotIndex == 0)
-	{
-		return Context == EWLCampaignBuildingPanelContext::City
-			? TEXT("city_civic_hall")
-			: TEXT("province_regional_administration");
 	}
 	return FString();
 }

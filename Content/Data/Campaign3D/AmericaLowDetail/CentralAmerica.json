@@ -12,8 +12,8 @@
                           "label_lon":  -90.3,
                           "label_lat":  15.6,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "BZ",
@@ -27,8 +27,8 @@
                           "label_lon":  -88.7,
                           "label_lat":  17.2,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "HN",
@@ -42,8 +42,8 @@
                           "label_lon":  -86.7,
                           "label_lat":  14.8,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "SV",
@@ -57,8 +57,8 @@
                           "label_lon":  -88.9,
                           "label_lat":  13.8,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "NI",
@@ -72,8 +72,8 @@
                           "label_lon":  -85.0,
                           "label_lat":  13.0,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "CR",
@@ -87,8 +87,8 @@
                           "label_lon":  -84.1,
                           "label_lat":  9.9,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "PA",
@@ -102,7 +102,7 @@
                           "label_lon":  -80.2,
                           "label_lat":  8.7,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       }
                   ],
@@ -120,9 +120,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en GT."
+                       "description":  "Lectura estrategica: capital nacional en GT."
                    },
                    {
                        "id":  "GT-QUETZALTENANGO",
@@ -137,9 +137,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad fronteriza en GT."
+                       "description":  "Lectura estrategica: ciudad fronteriza en GT."
                    },
                    {
                        "id":  "BZ-BELMOPAN",
@@ -154,9 +154,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en BZ."
+                       "description":  "Lectura estrategica: capital nacional en BZ."
                    },
                    {
                        "id":  "BZ-BELIZE-CITY",
@@ -171,9 +171,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto estrategico en BZ."
+                       "description":  "Lectura estrategica: puerto estrategico en BZ."
                    },
                    {
                        "id":  "HN-TEGUCIGALPA",
@@ -188,9 +188,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en HN."
+                       "description":  "Lectura estrategica: capital nacional en HN."
                    },
                    {
                        "id":  "HN-SAN-PEDRO-SULA",
@@ -205,9 +205,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en HN."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en HN."
                    },
                    {
                        "id":  "SV-SAN-SALVADOR",
@@ -222,9 +222,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en SV."
+                       "description":  "Lectura estrategica: capital nacional en SV."
                    },
                    {
                        "id":  "NI-MANAGUA",
@@ -239,9 +239,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en NI."
+                       "description":  "Lectura estrategica: capital nacional en NI."
                    },
                    {
                        "id":  "NI-LEON",
@@ -256,9 +256,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en NI."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en NI."
                    },
                    {
                        "id":  "CR-SAN-JOSE",
@@ -273,9 +273,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en CR."
+                       "description":  "Lectura estrategica: capital nacional en CR."
                    },
                    {
                        "id":  "CR-LIMON",
@@ -290,9 +290,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto estrategico en CR."
+                       "description":  "Lectura estrategica: puerto estrategico en CR."
                    },
                    {
                        "id":  "PA-CIUDAD-DE-PANAMA",
@@ -307,9 +307,9 @@
                        "visible_from_zoom":  "global",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: canal y hub regional en PA."
+                       "description":  "Lectura estrategica: canal y hub regional en PA."
                    },
                    {
                        "id":  "PA-COLON",
@@ -324,9 +324,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto canal caribe en PA."
+                       "description":  "Lectura estrategica: puerto canal caribe en PA."
                    }
                ]
 }

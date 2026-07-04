@@ -1,20 +1,496 @@
 [
-	{
-		"iso": "VE",
-		"name": "Venezuela",
-		"capital_province": "VE-DC",
-		"starting_treasury": 50000,
-		"government": "Republica Presidencial",
-		"leader": "Gral. A. Rivas",
-		"map_color": [0.80, 0.12, 0.12]
-	},
-	{
-		"iso": "CO",
-		"name": "Colombia",
-		"capital_province": "CO-DC",
-		"starting_treasury": 65000,
-		"government": "Republica Presidencial",
-		"leader": "Dr. M. Herrera",
-		"map_color": [0.98, 0.86, 0.05]
-	}
+  {
+    "iso": "VE",
+    "name": "Venezuela",
+    "capital_province": "VE-DC",
+    "starting_treasury": 50000,
+    "government": "Republica Presidencial",
+    "leader": "Gral. A. Rivas",
+    "map_color": [
+      0.8,
+      0.12,
+      0.12
+    ]
+  },
+  {
+    "iso": "CO",
+    "name": "Colombia",
+    "capital_province": "CO-DC",
+    "starting_treasury": 65000,
+    "government": "Republica Presidencial",
+    "leader": "Dr. M. Herrera",
+    "map_color": [
+      0.98,
+      0.86,
+      0.05
+    ]
+  },
+  {
+    "iso": "AG",
+    "name": "Antigua y Barbuda",
+    "capital_province": "AG-CAP",
+    "starting_treasury": 82401,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Antigua y Barbuda",
+    "map_color": [
+      0.824,
+      0.275,
+      0.52
+    ]
+  },
+  {
+    "iso": "AR",
+    "name": "Argentina",
+    "capital_province": "AR-CAP",
+    "starting_treasury": 57162,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Argentina",
+    "map_color": [
+      0.824,
+      0.365,
+      0.275
+    ]
+  },
+  {
+    "iso": "BB",
+    "name": "Barbados",
+    "capital_province": "BB-CAP",
+    "starting_treasury": 73045,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Barbados",
+    "map_color": [
+      0.275,
+      0.468,
+      0.824
+    ]
+  },
+  {
+    "iso": "BO",
+    "name": "Bolivia",
+    "capital_province": "BO-CAP",
+    "starting_treasury": 55902,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Bolivia",
+    "map_color": [
+      0.275,
+      0.824,
+      0.365
+    ]
+  },
+  {
+    "iso": "BR",
+    "name": "Brasil",
+    "capital_province": "BR-CAP",
+    "starting_treasury": 64949,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Brasil",
+    "map_color": [
+      0.824,
+      0.275,
+      0.417
+    ]
+  },
+  {
+    "iso": "BS",
+    "name": "Bahamas",
+    "capital_province": "BS-CAP",
+    "starting_treasury": 87330,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Bahamas",
+    "map_color": [
+      0.275,
+      0.824,
+      0.404
+    ]
+  },
+  {
+    "iso": "BZ",
+    "name": "Belice",
+    "capital_province": "BZ-CAP",
+    "starting_treasury": 85901,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Belice",
+    "map_color": [
+      0.275,
+      0.391,
+      0.824
+    ]
+  },
+  {
+    "iso": "CA",
+    "name": "Canada",
+    "capital_province": "CA-CAP",
+    "starting_treasury": 80873,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Canada",
+    "map_color": [
+      0.752,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "CL",
+    "name": "Chile",
+    "capital_province": "CL-CAP",
+    "starting_treasury": 84682,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Chile",
+    "map_color": [
+      0.275,
+      0.442,
+      0.824
+    ]
+  },
+  {
+    "iso": "CR",
+    "name": "Costa Rica",
+    "capital_province": "CR-CAP",
+    "starting_treasury": 56112,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Costa Rica",
+    "map_color": [
+      0.824,
+      0.559,
+      0.275
+    ]
+  },
+  {
+    "iso": "CU",
+    "name": "Cuba",
+    "capital_province": "CU-CAP",
+    "starting_treasury": 99445,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Cuba",
+    "map_color": [
+      0.791,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "DM",
+    "name": "Dominica",
+    "capital_province": "DM-CAP",
+    "starting_treasury": 59210,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Dominica",
+    "map_color": [
+      0.275,
+      0.533,
+      0.824
+    ]
+  },
+  {
+    "iso": "DO",
+    "name": "Republica Dominicana",
+    "capital_province": "DO-CAP",
+    "starting_treasury": 53972,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Republica Dominicana",
+    "map_color": [
+      0.275,
+      0.824,
+      0.559
+    ]
+  },
+  {
+    "iso": "EC",
+    "name": "Ecuador",
+    "capital_province": "EC-CAP",
+    "starting_treasury": 91641,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Ecuador",
+    "map_color": [
+      0.824,
+      0.275,
+      0.714
+    ]
+  },
+  {
+    "iso": "GD",
+    "name": "Granada",
+    "capital_province": "GD-CAP",
+    "starting_treasury": 91542,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Granada",
+    "map_color": [
+      0.824,
+      0.275,
+      0.701
+    ]
+  },
+  {
+    "iso": "GF",
+    "name": "Guayana Francesa",
+    "capital_province": "GF-CAP",
+    "starting_treasury": 86304,
+    "government": "Administracion territorial",
+    "leader": "Gobierno de Guayana Francesa",
+    "map_color": [
+      0.391,
+      0.275,
+      0.824
+    ]
+  },
+  {
+    "iso": "GL",
+    "name": "Groenlandia",
+    "capital_province": "GL-CAP",
+    "starting_treasury": 62494,
+    "government": "Administracion territorial",
+    "leader": "Gobierno de Groenlandia",
+    "map_color": [
+      0.275,
+      0.675,
+      0.824
+    ]
+  },
+  {
+    "iso": "GT",
+    "name": "Guatemala",
+    "capital_province": "GT-CAP",
+    "starting_treasury": 83446,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Guatemala",
+    "map_color": [
+      0.649,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "GY",
+    "name": "Guyana",
+    "capital_province": "GY-CAP",
+    "starting_treasury": 92493,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Guyana",
+    "map_color": [
+      0.765,
+      0.275,
+      0.824
+    ]
+  },
+  {
+    "iso": "HN",
+    "name": "Honduras",
+    "capital_province": "HN-CAP",
+    "starting_treasury": 67515,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Honduras",
+    "map_color": [
+      0.824,
+      0.597,
+      0.275
+    ]
+  },
+  {
+    "iso": "HT",
+    "name": "Haiti",
+    "capital_province": "HT-CAP",
+    "starting_treasury": 59897,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Haiti",
+    "map_color": [
+      0.572,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "JM",
+    "name": "Jamaica",
+    "capital_province": "JM-CAP",
+    "starting_treasury": 64400,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Jamaica",
+    "map_color": [
+      0.662,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "KN",
+    "name": "San Cristobal y Nieves",
+    "capital_province": "KN-CAP",
+    "starting_treasury": 61116,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de San Cristobal y Nieves",
+    "map_color": [
+      0.52,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "LC",
+    "name": "Santa Lucia",
+    "capital_province": "LC-CAP",
+    "starting_treasury": 78184,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Santa Lucia",
+    "map_color": [
+      0.649,
+      0.275,
+      0.824
+    ]
+  },
+  {
+    "iso": "MX",
+    "name": "Mexico",
+    "capital_province": "MX-CAP",
+    "starting_treasury": 51568,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Mexico",
+    "map_color": [
+      0.275,
+      0.824,
+      0.701
+    ]
+  },
+  {
+    "iso": "NI",
+    "name": "Nicaragua",
+    "capital_province": "NI-CAP",
+    "starting_treasury": 62376,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Nicaragua",
+    "map_color": [
+      0.824,
+      0.275,
+      0.52
+    ]
+  },
+  {
+    "iso": "PA",
+    "name": "Panama",
+    "capital_province": "PA-CAP",
+    "starting_treasury": 58234,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Panama",
+    "map_color": [
+      0.275,
+      0.804,
+      0.824
+    ]
+  },
+  {
+    "iso": "PE",
+    "name": "Peru",
+    "capital_province": "PE-CAP",
+    "starting_treasury": 97758,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Peru",
+    "map_color": [
+      0.817,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "PR",
+    "name": "Puerto Rico",
+    "capital_province": "PR-CAP",
+    "starting_treasury": 72519,
+    "government": "Administracion territorial",
+    "leader": "Gobierno de Puerto Rico",
+    "map_color": [
+      0.481,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "PY",
+    "name": "Paraguay",
+    "capital_province": "PY-CAP",
+    "starting_treasury": 79186,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Paraguay",
+    "map_color": [
+      0.778,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "SR",
+    "name": "Surinam",
+    "capital_province": "SR-CAP",
+    "starting_treasury": 69136,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Surinam",
+    "map_color": [
+      0.326,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "SV",
+    "name": "El Salvador",
+    "capital_province": "SV-CAP",
+    "starting_treasury": 79612,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de El Salvador",
+    "map_color": [
+      0.275,
+      0.313,
+      0.824
+    ]
+  },
+  {
+    "iso": "TT",
+    "name": "Trinidad y Tobago",
+    "capital_province": "TT-CAP",
+    "starting_treasury": 83829,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Trinidad y Tobago",
+    "map_color": [
+      0.714,
+      0.275,
+      0.824
+    ]
+  },
+  {
+    "iso": "US",
+    "name": "Estados Unidos",
+    "capital_province": "US-CAP",
+    "starting_treasury": 61017,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Estados Unidos",
+    "map_color": [
+      0.507,
+      0.824,
+      0.275
+    ]
+  },
+  {
+    "iso": "UY",
+    "name": "Uruguay",
+    "capital_province": "UY-CAP",
+    "starting_treasury": 76731,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de Uruguay",
+    "map_color": [
+      0.61,
+      0.275,
+      0.824
+    ]
+  },
+  {
+    "iso": "VC",
+    "name": "San Vicente",
+    "capital_province": "VC-CAP",
+    "starting_treasury": 52302,
+    "government": "Gobierno nacional",
+    "leader": "Gobierno de San Vicente",
+    "map_color": [
+      0.688,
+      0.275,
+      0.824
+    ]
+  }
 ]

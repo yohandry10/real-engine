@@ -17,6 +17,8 @@ namespace
 	constexpr int32 InitialPoliticalCapital = 100;
 	constexpr int32 AppointMinisterPoliticalCost = 10;
 	constexpr int32 DismissMinisterPoliticalCost = 6;
+	constexpr int32 CreateGeneralPoliticalCost = 8;
+	constexpr int64 CreateGeneralTreasuryCost = 1500;
 
 	TArray<EWLMinisterOffice> AllCabinetOffices()
 	{
@@ -953,6 +955,7 @@ bool UWLCharacterSubsystem::AssignGeneralToArmy(
 	}
 
 	const FString NormalizedArmyId = NormalizeCharacterId(ArmyId);
+	const FString PreviousArmyId = Character->AssignedArmyId;
 	if (const UWLMilitarySubsystem* Military = GetMilitary())
 	{
 		FWLArmy Army;
@@ -991,6 +994,10 @@ bool UWLCharacterSubsystem::AssignGeneralToArmy(
 	if (UWLMilitarySubsystem* Military = GetMilitary())
 	{
 		FString ArmyMessage;
+		if (!PreviousArmyId.IsEmpty() && PreviousArmyId != NormalizedArmyId)
+		{
+			Military->SetArmyGeneral(PreviousArmyId, TEXT("Comandante"), ArmyMessage);
+		}
 		Military->SetArmyGeneral(NormalizedArmyId, BuildGeneralDisplayName(*Character), ArmyMessage);
 	}
 	OutMessage = FString::Printf(TEXT("%s asignado al ejercito %s."), *Character->Name, *NormalizedArmyId);
@@ -1010,12 +1017,50 @@ bool UWLCharacterSubsystem::CreateGeneral(
 	}
 
 	int32 ExistingGenerals = 0;
+	int32 ActiveGenerals = 0;
 	for (const TPair<FString, FWLCharacter>& Pair : Characters)
 	{
 		if (Pair.Value.CountryIso == Iso && Pair.Value.Role == EWLCharacterRole::General)
 		{
 			++ExistingGenerals;
+			if (Pair.Value.bActive)
+			{
+				++ActiveGenerals;
+			}
 		}
+	}
+
+	int32 ArmyCount = 0;
+	if (const UWLMilitarySubsystem* Military = GetMilitary())
+	{
+		for (const FWLArmy& Army : Military->GetArmies())
+		{
+			if (Army.OwnerIso == Iso)
+			{
+				++ArmyCount;
+			}
+		}
+	}
+	const int32 MaxActiveGenerals = FMath::Max(2, ArmyCount + 2);
+	if (ActiveGenerals >= MaxActiveGenerals)
+	{
+		OutMessage = FString::Printf(TEXT("Limite de generales activos alcanzado (%d/%d). Despliega mas ejercitos o retira mandos antes de crear otro."),
+			ActiveGenerals, MaxActiveGenerals);
+		return false;
+	}
+
+	EnsureNationPoliticalCapital(Iso);
+	int32& PoliticalCapital = PoliticalCapitalByNation.FindOrAdd(Iso);
+	if (PoliticalCapital < CreateGeneralPoliticalCost)
+	{
+		OutMessage = TEXT("Capital politico insuficiente para crear un general.");
+		return false;
+	}
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	if (Tick && Tick->GetTreasury(Iso) < CreateGeneralTreasuryCost)
+	{
+		OutMessage = TEXT("Tesoro insuficiente para crear un general.");
+		return false;
 	}
 
 	FWLCharacter General;
@@ -1043,7 +1088,20 @@ bool UWLCharacterSubsystem::CreateGeneral(
 
 	OutGeneral = General;
 	Characters.Add(General.Id, MoveTemp(General));
-	OutMessage = FString::Printf(TEXT("General creado: %s (%s)."), *OutGeneral.Name, *OutGeneral.Id);
+	PoliticalCapital = FMath::Max(0, PoliticalCapital - CreateGeneralPoliticalCost);
+	FString TreasuryMessage;
+	if (Tick)
+	{
+		Tick->AdjustTreasury(Iso, -CreateGeneralTreasuryCost, TreasuryMessage);
+	}
+	const FString TreasurySuffix = TreasuryMessage.IsEmpty()
+		? FString(TEXT("."))
+		: FString::Printf(TEXT(" %s"), *TreasuryMessage);
+	OutMessage = FString::Printf(TEXT("General creado: %s (%s). Capital politico: %d%s"),
+		*OutGeneral.Name,
+		*OutGeneral.Id,
+		PoliticalCapital,
+		*TreasurySuffix);
 	return true;
 }
 
@@ -1177,7 +1235,10 @@ int32 UWLCharacterSubsystem::AddMonthlyRenownToGenerals(const FString& NationIso
 	for (TPair<FString, FWLCharacter>& Pair : Characters)
 	{
 		FWLCharacter& Character = Pair.Value;
-		if (Character.CountryIso == Iso && Character.Role == EWLCharacterRole::General && Character.bActive)
+		if (Character.CountryIso == Iso
+			&& Character.Role == EWLCharacterRole::General
+			&& Character.bActive
+			&& !Character.AssignedArmyId.IsEmpty())
 		{
 			const int32 PreviousRenown = Character.Renown;
 			Character.Renown = FMath::Max(0, Character.Renown + RenownDelta);

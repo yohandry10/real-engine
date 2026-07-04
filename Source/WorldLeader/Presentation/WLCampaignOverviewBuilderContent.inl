@@ -221,7 +221,7 @@ void AddCityMarkerShape(FMeshBuffers& Buffer, const FWLCampaignAmericaCitySpec& 
 		return true;
 	}
 
-	TArray<FVector2D> MakePlaceholderRing(const FWLCampaignAmericaCountrySpec& Country)
+	TArray<FVector2D> MakeFallbackCountryRing(const FWLCampaignAmericaCountrySpec& Country)
 	{
 		const float RadiusLon = Country.bSpecialTerritory ? 0.28f : 0.62f;
 		const float RadiusLat = Country.bSpecialTerritory ? 0.20f : 0.42f;
@@ -237,13 +237,13 @@ void AddCityMarkerShape(FMeshBuffers& Buffer, const FWLCampaignAmericaCitySpec& 
 		};
 	}
 
-	void AddCountryPlaceholder(
+	void AddFallbackCountryFootprint(
 		const FWLCampaignAmericaCountrySpec& Country,
 		const FWLCampaignOverviewBuildParams& Params,
 		FMeshBuffers& Buffer,
 		TFunctionRef<FVector(float Lon, float Lat)> ProjectLonLat)
 	{
-		const TArray<FVector2D> Ring = MakePlaceholderRing(Country);
+		const TArray<FVector2D> Ring = MakeFallbackCountryRing(Country);
 		const FLinearColor Fill = CountryFillColor(Country).Desaturate(0.18f);
 		const FLinearColor Border = FWLCampaignAmericaLowDetailDataLoader::IsCoreTheaterIso(Country.Iso)
 			? FLinearColor(0.760f, 0.620f, 0.250f, 0.92f)
@@ -352,7 +352,7 @@ void AddCityMarkerShape(FMeshBuffers& Buffer, const FWLCampaignAmericaCitySpec& 
 		}
 	}
 
-	void AddMissingCountryPlaceholders(
+	void AddMissingCountryFootprints(
 		const TArray<FWLCampaignAmericaCountrySpec>& Countries,
 		const TSet<FString>& RenderedIsos,
 		const FWLCampaignOverviewBuildParams& Params,
@@ -363,7 +363,7 @@ void AddCityMarkerShape(FMeshBuffers& Buffer, const FWLCampaignAmericaCitySpec& 
 		{
 			if (!RenderedIsos.Contains(Country.Iso))
 			{
-				AddCountryPlaceholder(Country, Params, Buffer, ProjectLonLat);
+				AddFallbackCountryFootprint(Country, Params, Buffer, ProjectLonLat);
 			}
 		}
 	}

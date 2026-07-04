@@ -197,7 +197,7 @@ bool AWLCampaignPlayerController::TryHandleViewToggleClick()
 		const float AdvY = ViewportY - AdvH - 28.f;
 		if (MouseX >= AdvX && MouseX <= AdvX + AdvW && MouseY >= AdvY && MouseY <= AdvY + AdvH)
 		{
-			OnAdvanceMonth();
+			OnAdvanceDay();
 			return true;
 		}
 	}
@@ -528,7 +528,7 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 			if (MouseX >= BuildX && MouseX <= BuildX + BuildW && MouseY >= BuildY && MouseY <= BuildY + BuildH)
 			{
 				FString Message;
-				if (TryBuildCampaignPlaceholderBuilding(CompatibleBuildings[Index].Id, Message))
+				if (TryBuildCampaignSlotBuilding(CompatibleBuildings[Index].Id, Message))
 				{
 					SetLastActionMessage(Message, true);
 				}

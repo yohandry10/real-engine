@@ -882,7 +882,7 @@ void AWLCampaign3DView::StartForceMovementAnimation(
 float AWLCampaign3DView::GetArmyMovementBudgetKm(const FWLCampaign3DForceView& Force) const
 {
 	// La velocidad la marca la unidad MAS LENTA: si lleva infanteria (a pie) o artilleria (remolcada) va
-	// lento; si es todo vehiculos/blindados, rapido. Asi un destino lejano tarda varios turnos [M].
+	// lento; si es todo vehiculos/blindados, rapido. Asi un destino lejano tarda varios dias [Space].
 	bool bHasSlow = false;
 	for (const FWLForceUnitGroup& Unit : Force.Composition)
 	{
@@ -893,7 +893,7 @@ float AWLCampaign3DView::GetArmyMovementBudgetKm(const FWLCampaign3DForceView& F
 			break;
 		}
 	}
-	return bHasSlow ? 100.f : 160.f;   // km por turno (tramo corto = avance NATURAL por turno; cruza el pais en varios [M])
+	return bHasSlow ? 100.f : 160.f;   // km por dia (tramo corto = avance NATURAL por dia; cruza el pais en varios dias)
 }
 
 float AWLCampaign3DView::ComputeDriveDurationSeconds(float DistanceWorld) const
@@ -987,7 +987,7 @@ bool AWLCampaign3DView::AdvanceForceAlongPath(int32 Index)
 
 void AWLCampaign3DView::AdvanceArmyMovements()
 {
-	// Una vez por turno [M]: cada ejercito en marcha avanza el equivalente a su cargador.
+	// Una vez por dia [Space]: cada ejercito en marcha avanza el equivalente a su cargador.
 	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
 	{
 		FWLCampaign3DForceView& Force = ForceViews[Index];
@@ -1046,11 +1046,11 @@ bool AWLCampaign3DView::AdvanceForceTowardTarget(int32 Index)
 	const FVector OldPos = Force.WorldLocation;
 	const float FullBudget = FMath::Max(1.f, GetArmyMovementBudgetKm(Force) * DetailWorldUnitsPerKm);
 	// Alcance que QUEDA este turno (-1 = aun no usado este turno -> lleno). Asi spamear clics no avanza mas
-	// de lo permitido por turno: cada paso descuenta del restante; al avanzar el mes se rellena.
+	// de lo permitido por dia: cada paso descuenta del restante; al avanzar el dia se rellena.
 	float BudgetWorld = (Force.MoveBudgetRemainingWorld < 0.f) ? FullBudget : Force.MoveBudgetRemainingWorld;
 	if (BudgetWorld < 1.f)
 	{
-		return false;   // sin alcance restante este turno; continuara al avanzar el mes [M]
+		return false;   // sin alcance restante este dia; continuara al avanzar el dia [Space]
 	}
 	FVector ToTarget = Force.MoveTargetWorld - OldPos;
 	ToTarget.Z = 0.f;
@@ -1125,7 +1125,7 @@ bool AWLCampaign3DView::AdvanceForcePolyline(int32 Index)
 	float Remaining = (Force.MoveBudgetRemainingWorld < 0.f) ? FullBudget : Force.MoveBudgetRemainingWorld;
 	if (Remaining < 1.f)
 	{
-		return false;   // sin alcance este turno; continuara al avanzar el mes
+		return false;   // sin alcance este dia; continuara al avanzar el dia
 	}
 
 	const FVector OldPos = Force.WorldLocation;

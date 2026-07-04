@@ -6,7 +6,7 @@
     },
     "TopBar": {
       "ProfileMini": {
-        "Avatar": "placeholder_commander",
+        "Avatar": "commander_default",
         "NameText": "profile.display_name",
         "StatusDot": "online"
       },

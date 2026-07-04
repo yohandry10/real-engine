@@ -12,7 +12,7 @@
                           "label_lon":  -64.5,
                           "label_lat":  -37.0,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       },
                       {
@@ -27,8 +27,8 @@
                           "label_lon":  -56.0,
                           "label_lat":  -32.7,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "PY",
@@ -42,8 +42,8 @@
                           "label_lon":  -58.3,
                           "label_lat":  -23.3,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       }
                   ],
     "cities":  [
@@ -60,9 +60,9 @@
                        "visible_from_zoom":  "global",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital metropoli puerto en AR."
+                       "description":  "Lectura estrategica: capital metropoli puerto en AR."
                    },
                    {
                        "id":  "AR-CORDOBA",
@@ -77,9 +77,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en AR."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en AR."
                    },
                    {
                        "id":  "AR-ROSARIO",
@@ -94,9 +94,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: fluvial logistica en AR."
+                       "description":  "Lectura estrategica: fluvial logistica en AR."
                    },
                    {
                        "id":  "AR-MENDOZA",
@@ -111,9 +111,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: andina en AR."
+                       "description":  "Lectura estrategica: andina en AR."
                    },
                    {
                        "id":  "AR-NEUQUEN",
@@ -128,9 +128,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: energia patagonia norte en AR."
+                       "description":  "Lectura estrategica: energia patagonia norte en AR."
                    },
                    {
                        "id":  "AR-USHUAIA",
@@ -145,9 +145,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: austral en AR."
+                       "description":  "Lectura estrategica: austral en AR."
                    },
                    {
                        "id":  "UY-MONTEVIDEO",
@@ -162,9 +162,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en UY."
+                       "description":  "Lectura estrategica: capital nacional en UY."
                    },
                    {
                        "id":  "UY-PUNTA-DEL-ESTE",
@@ -179,9 +179,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en UY."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en UY."
                    },
                    {
                        "id":  "PY-ASUNCION",
@@ -196,9 +196,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en PY."
+                       "description":  "Lectura estrategica: capital nacional en PY."
                    },
                    {
                        "id":  "PY-CIUDAD-DEL-ESTE",
@@ -213,9 +213,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad fronteriza en PY."
+                       "description":  "Lectura estrategica: ciudad fronteriza en PY."
                    }
                ]
 }

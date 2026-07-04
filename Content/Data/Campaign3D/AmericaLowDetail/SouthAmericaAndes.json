@@ -12,7 +12,7 @@
                           "label_lon":  -75.0,
                           "label_lat":  -9.1,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       },
                       {
@@ -27,8 +27,8 @@
                           "label_lon":  -64.7,
                           "label_lat":  -16.8,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "CL",
@@ -42,7 +42,7 @@
                           "label_lon":  -71.0,
                           "label_lat":  -30.0,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       }
                   ],
@@ -60,9 +60,9 @@
                        "visible_from_zoom":  "global",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital y puerto pacifico en PE."
+                       "description":  "Lectura estrategica: capital y puerto pacifico en PE."
                    },
                    {
                        "id":  "PE-AREQUIPA",
@@ -77,9 +77,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: sur andino en PE."
+                       "description":  "Lectura estrategica: sur andino en PE."
                    },
                    {
                        "id":  "PE-TRUJILLO",
@@ -94,9 +94,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: costa norte en PE."
+                       "description":  "Lectura estrategica: costa norte en PE."
                    },
                    {
                        "id":  "PE-CUSCO",
@@ -111,9 +111,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: andina historica en PE."
+                       "description":  "Lectura estrategica: andina historica en PE."
                    },
                    {
                        "id":  "PE-IQUITOS",
@@ -128,9 +128,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: amazonica en PE."
+                       "description":  "Lectura estrategica: amazonica en PE."
                    },
                    {
                        "id":  "BO-LA-PAZ",
@@ -145,9 +145,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital administrativa andina en BO."
+                       "description":  "Lectura estrategica: capital administrativa andina en BO."
                    },
                    {
                        "id":  "BO-SANTA-CRUZ",
@@ -162,9 +162,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: economia llanura en BO."
+                       "description":  "Lectura estrategica: economia llanura en BO."
                    },
                    {
                        "id":  "BO-COCHABAMBA",
@@ -179,9 +179,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: interior valle en BO."
+                       "description":  "Lectura estrategica: interior valle en BO."
                    },
                    {
                        "id":  "BO-SUCRE",
@@ -196,9 +196,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: capital constitucional en BO."
+                       "description":  "Lectura estrategica: capital constitucional en BO."
                    },
                    {
                        "id":  "CL-SANTIAGO",
@@ -213,9 +213,9 @@
                        "visible_from_zoom":  "global",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital andina en CL."
+                       "description":  "Lectura estrategica: capital andina en CL."
                    },
                    {
                        "id":  "CL-VALPARAISO",
@@ -230,9 +230,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto pacifico en CL."
+                       "description":  "Lectura estrategica: puerto pacifico en CL."
                    },
                    {
                        "id":  "CL-ANTOFAGASTA",
@@ -247,9 +247,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: mineria costera en CL."
+                       "description":  "Lectura estrategica: mineria costera en CL."
                    },
                    {
                        "id":  "CL-CONCEPCION",
@@ -264,9 +264,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto estrategico en CL."
+                       "description":  "Lectura estrategica: puerto estrategico en CL."
                    },
                    {
                        "id":  "CL-PUNTA-ARENAS",
@@ -281,9 +281,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: austral en CL."
+                       "description":  "Lectura estrategica: austral en CL."
                    }
                ]
 }

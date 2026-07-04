@@ -35,8 +35,11 @@ struct FWLCampaignBuildingDefinition
 	FString Context;
 	FString TypeLabel;
 	FString Description;
-	FString FutureCost;
+	FString CostLabel;
+	FString StrategicBuildingId;
 	int32 Level = 1;
+	int64 ConstructionCost = 0;
+	int64 MonthlyUpkeep = 0;
 	bool bRequiresPort = false;
 	TArray<FString> CompatibleSlots;
 	TArray<FString> Effects;

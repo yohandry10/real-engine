@@ -16,7 +16,7 @@ class UWLPoliticalSubsystem;
  * GameInstance de la campania. Punto de entrada del estado global del cliente
  * (regla del roadmap: GameInstance para estado global). Expone comandos de
  * consola para probar la vertical slice antes de tener UI:
- *   WLAdvanceMonth  -> avanza un tick (un mes)
+ *   WLAdvanceDay    -> avanza un dia
  *   WLPrintState    -> imprime fecha, provincias, naciones y tesoros
  */
 UCLASS()
@@ -61,9 +61,9 @@ public:
 	UFUNCTION(Exec)
 	void WLLoad();
 
-	/** Consola: avanza la campania un mes y registra el nuevo estado. */
+	/** Consola: avanza la campania un dia y registra el nuevo estado. */
 	UFUNCTION(Exec)
-	void WLAdvanceMonth();
+	void WLAdvanceDay();
 
 	/** Consola: imprime el estado actual de la campania al log. */
 	UFUNCTION(Exec)

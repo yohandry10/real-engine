@@ -64,7 +64,7 @@ struct FWLGovernmentStats
  *
  * Gestiona el roster mutable de personajes por nacion: gabinete, generales,
  * oposicion, lideres y espias. La UI de gobierno debe consumir este subsystem,
- * no inventar placeholders.
+ * no inventar datos temporales.
  */
 UCLASS()
 class WORLDLEADER_API UWLCharacterSubsystem : public UGameInstanceSubsystem

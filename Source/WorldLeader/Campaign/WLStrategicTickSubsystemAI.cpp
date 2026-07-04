@@ -6,6 +6,8 @@
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Politics/WLPoliticalSubsystem.h"
+#include "Engine/GameInstance.h"
 
 using WLStrategicTickPrivate::CalculateProvinceBuildingFit;
 using WLStrategicTickPrivate::NormalizeIso;
@@ -77,15 +79,27 @@ int32 UWLStrategicTickSubsystem::RunEconomicAIInternal(const FString& PlayerNati
 				: BuildBuilding(ProvinceId, BuildingId, BuildMessage);
 			if (!bApplied)
 			{
-				OutReports.Add(FString::Printf(TEXT("%s no pudo %s %s en %s: %s"),
+				const FString Report = FString::Printf(TEXT("%s no pudo %s %s en %s: %s"),
 					*Nation.Iso, bUpgrade ? TEXT("mejorar") : TEXT("construir"),
-					*BuildingId, *ProvinceId, *BuildMessage));
+					*BuildingId, *ProvinceId, *BuildMessage);
+				OutReports.Add(Report);
+				if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+				{
+					Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, Nation.Iso, TEXT(""),
+						TEXT("IA economica bloqueada"), Report, TEXT("economic_ai"), 2, false, true);
+				}
 				break;
 			}
 
-			OutReports.Add(FString::Printf(TEXT("%s %s %s en %s (+%lld/mes, retorno %lld meses, coste %lld)."),
+			const FString Report = FString::Printf(TEXT("%s %s %s en %s (+%lld/mes, retorno %lld meses, coste %lld)."),
 				*Nation.Iso, bUpgrade ? TEXT("mejora") : TEXT("construye"),
-				*BuildingId, *ProvinceId, MonthlyGain, PaybackMonths, Cost));
+				*BuildingId, *ProvinceId, MonthlyGain, PaybackMonths, Cost);
+			OutReports.Add(Report);
+			if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+			{
+				Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, Nation.Iso, TEXT(""),
+					TEXT("Movimiento economico IA"), Report, TEXT("economic_ai"), 2, false, true);
+			}
 			++BuiltForNation;
 			++TotalBuilt;
 		}

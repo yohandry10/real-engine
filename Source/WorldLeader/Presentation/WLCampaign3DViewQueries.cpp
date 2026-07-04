@@ -361,7 +361,7 @@ bool AWLCampaign3DView::UpdateForceMovementLocation(
 		}
 
 		// Guarda la RUTA COMPLETA como orden de marcha y avanza SOLO la primera etapa este turno (el "cargador"
-		// limita cuanto recorre). Los turnos [M] siguientes continuan via AdvanceArmyMovements: un destino
+		// limita cuanto recorre). Los dias [Space] siguientes continuan via AdvanceArmyMovements: un destino
 		// lejano tarda varios turnos, con animacion por la carretera. Ya NO se teletransporta al destino.
 		Force.bHasMoveTarget = false;   // el boton Mover (ruta por nodos) anula un movimiento libre en curso
 		Force.MovePathNodeIds.Reset();

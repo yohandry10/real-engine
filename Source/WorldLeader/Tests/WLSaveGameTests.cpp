@@ -36,6 +36,7 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	FWLNationTreasurySave Treasury;
 	Treasury.NationIso = TEXT("VE");
 	Treasury.Treasury = 61730;
+	Treasury.DailyTreasuryRemainder = 0.375;
 	Treasury.TariffRatePercent = 18;
 	Save->NationTreasuries.Add(Treasury);
 
@@ -264,6 +265,35 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	Calibration.ReformGridlockPressure = 29;
 	Save->GovernmentCalibration.Add(Calibration);
 
+	FWLPoliticalActionRecord ActionRecord;
+	ActionRecord.NationIso = TEXT("VE");
+	ActionRecord.ActionType = EWLPoliticalActionType::RunMediaAction;
+	ActionRecord.ActionKey = TEXT("medios");
+	ActionRecord.TargetKey = TEXT("1");
+	ActionRecord.Year = 2024;
+	ActionRecord.Month = 2;
+	ActionRecord.Day = 3;
+	ActionRecord.MonthKey = 2024 * 12 + 2;
+	ActionRecord.ActionPointCost = 1;
+	ActionRecord.CooldownMonths = 2;
+	ActionRecord.Result = TEXT("Cadena nacional ejecutada");
+	Save->PoliticalActionRecords.Add(ActionRecord);
+
+	FWLGovernmentLogEntry LogEntry;
+	LogEntry.EntryId = TEXT("LOG-00001");
+	LogEntry.NationIso = TEXT("VE");
+	LogEntry.Category = EWLGovernmentLogCategory::Economy;
+	LogEntry.Year = 2024;
+	LogEntry.Month = 2;
+	LogEntry.Day = 4;
+	LogEntry.MonthKey = 2024 * 12 + 2;
+	LogEntry.Title = TEXT("Registro economico");
+	LogEntry.Body = TEXT("VE emitio deuda de prueba.");
+	LogEntry.Source = TEXT("test");
+	LogEntry.bPublic = false;
+	LogEntry.bPlayerVisible = true;
+	Save->GovernmentLogEntries.Add(LogEntry);
+
 	TestTrue(TEXT("Guardar slot temporal"),
 		UGameplayStatics::SaveGameToSlot(Save, SlotName, UserIndex));
 
@@ -279,11 +309,12 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Nacion seleccionada"), Loaded->SelectedNationIso, FString(TEXT("VE")));
 	TestEqual(TEXT("Anio"), Loaded->CurrentYear, 2024);
 	TestEqual(TEXT("Mes"), Loaded->CurrentMonth, 2);
-	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 13);
+	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 17);
 	TestEqual(TEXT("Dificultad IA guardada"), static_cast<int32>(Loaded->AIDifficulty),
 		static_cast<int32>(EWLAIDifficulty::Hard));
 	TestEqual(TEXT("Tesoros guardados"), Loaded->NationTreasuries.Num(), 1);
 	TestEqual(TEXT("Tesoro VE"), Loaded->NationTreasuries[0].Treasury, static_cast<int64>(61730));
+	TestEqual(TEXT("Remanente diario guardado"), Loaded->NationTreasuries[0].DailyTreasuryRemainder, 0.375);
 	TestEqual(TEXT("Arancel VE guardado"), Loaded->NationTreasuries[0].TariffRatePercent, 18);
 	TestEqual(TEXT("Provincias con edificios"), Loaded->ProvinceBuildings.Num(), 1);
 	TestEqual(TEXT("Edificios en VE-ZU"), Loaded->ProvinceBuildings[0].BuildingIds.Num(), 2);
@@ -354,6 +385,11 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Intensidad crisis guardada"), Loaded->CrisisChains[0].Intensity, 66);
 	TestEqual(TEXT("Calibracion guardada"), Loaded->GovernmentCalibration.Num(), 1);
 	TestEqual(TEXT("Meses calibracion guardados"), Loaded->GovernmentCalibration[0].MonthsObserved, 7);
+	TestEqual(TEXT("Acciones politicas guardadas"), Loaded->PoliticalActionRecords.Num(), 1);
+	TestEqual(TEXT("Ledger politico guarda cooldown"), Loaded->PoliticalActionRecords[0].CooldownMonths, 2);
+	TestEqual(TEXT("Registros de gobierno guardados"), Loaded->GovernmentLogEntries.Num(), 1);
+	TestEqual(TEXT("Registro de gobierno guarda categoria"), static_cast<int32>(Loaded->GovernmentLogEntries[0].Category),
+		static_cast<int32>(EWLGovernmentLogCategory::Economy));
 
 	TestTrue(TEXT("Borrar slot temporal"),
 		UGameplayStatics::DeleteGameInSlot(SlotName, UserIndex));

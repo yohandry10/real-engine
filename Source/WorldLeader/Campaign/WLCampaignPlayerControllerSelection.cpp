@@ -280,12 +280,29 @@ FString AWLCampaignPlayerController::GetCampaignBuildingIdForSlot(
 	const FString ObjectId = GetCampaignSelectionId();
 	const EWLCampaignBuildingPanelContext Context = FWLCampaignBuildingSlotRules::ContextFromCityMode(bCityMode);
 	const FString SlotKey = FWLCampaignBuildingSlotRules::MakeSlotKey(ObjectId, Context, SlotLabel, SlotIndex);
-	if (const FString* BuiltBuilding = CampaignPlaceholderBuildingsBySlot.Find(SlotKey))
+	if (const FString* BuiltBuilding = CampaignBuiltBuildingsBySlot.Find(SlotKey))
 	{
 		return *BuiltBuilding;
 	}
 
 	const FWLCampaignBuildingSlotCatalog& Catalog = GetCampaignControllerBuildingCatalog();
+	const FString TargetProvinceId = bCityMode ? SelectedCityTerritoryId : ObjectId;
+	if (const UWLStrategicTickSubsystem* Tick = GetTick(); Tick && !TargetProvinceId.IsEmpty())
+	{
+		const TArray<FString> BuiltStrategicBuildings = Tick->GetProvinceBuildings(TargetProvinceId);
+		if (!BuiltStrategicBuildings.IsEmpty())
+		{
+			TArray<FWLCampaignBuildingDefinition> CompatibleBuildings;
+			FWLCampaignBuildingSlotRules::GetCompatibleBuildings(Catalog, Context, SlotLabel, CompatibleBuildings);
+			for (const FWLCampaignBuildingDefinition& Building : CompatibleBuildings)
+			{
+				if (!Building.StrategicBuildingId.IsEmpty() && BuiltStrategicBuildings.Contains(Building.StrategicBuildingId))
+				{
+					return Building.Id;
+				}
+			}
+		}
+	}
 	return FWLCampaignBuildingSlotRules::GetInitialBuildingId(Catalog, Context, SlotLabel, SlotIndex);
 }
 
@@ -310,7 +327,7 @@ void AWLCampaignPlayerController::SelectCampaignBuildingSlot(const FString& Slot
 		: FString();
 }
 
-bool AWLCampaignPlayerController::TryBuildCampaignPlaceholderBuilding(const FString& BuildingId, FString& OutMessage)
+bool AWLCampaignPlayerController::TryBuildCampaignSlotBuilding(const FString& BuildingId, FString& OutMessage)
 {
 	if (!HasSelectedBuildingSlot() || SelectedBuildingSlotIndex == INDEX_NONE)
 	{
@@ -341,7 +358,7 @@ bool AWLCampaignPlayerController::TryBuildCampaignPlaceholderBuilding(const FStr
 	const FWLCampaignBuildingDefinition* Building = Catalog.FindBuilding(BuildingId);
 	if (!Building)
 	{
-		OutMessage = FString::Printf(TEXT("Edificio placeholder desconocido: %s."), *BuildingId);
+		OutMessage = FString::Printf(TEXT("Edificio desconocido: %s."), *BuildingId);
 		return false;
 	}
 	if (!FWLCampaignBuildingSlotRules::IsBuildingCompatible(*Building, Context, SelectedBuildingSlotLabel))
@@ -349,11 +366,38 @@ bool AWLCampaignPlayerController::TryBuildCampaignPlaceholderBuilding(const FStr
 		OutMessage = FString::Printf(TEXT("%s no es compatible con este slot."), *Building->Name);
 		return false;
 	}
+	if (Building->StrategicBuildingId.IsEmpty())
+	{
+		OutMessage = FString::Printf(TEXT("%s no tiene edificio estrategico vinculado."), *Building->Name);
+		return false;
+	}
 
-	CampaignPlaceholderBuildingsBySlot.Add(SelectedBuildingSlotKey, Building->Id);
+	const FString TargetProvinceId = bCityMode ? SelectedCityTerritoryId : GetCampaignSelectionId();
+	UWLStrategicTickSubsystem* Tick = GetTick();
+	UWLDataRegistry* Registry = GetRegistry();
+	FWLProvinceData TargetProvince;
+	FWLBuildingData StrategicBuilding;
+	if (!Tick || !Registry || TargetProvinceId.IsEmpty() || !Registry->GetProvince(TargetProvinceId, TargetProvince))
+	{
+		OutMessage = TEXT("No hay provincia jugable conectada a este slot.");
+		return false;
+	}
+	if (!Registry->GetBuilding(Building->StrategicBuildingId, StrategicBuilding))
+	{
+		OutMessage = FString::Printf(TEXT("Edificio estrategico invalido: %s."), *Building->StrategicBuildingId);
+		return false;
+	}
+
+	FString BuildMessage;
+	if (!Tick->BuildBuilding(TargetProvince.Id, StrategicBuilding.Id, BuildMessage))
+	{
+		OutMessage = BuildMessage;
+		return false;
+	}
+	CampaignBuiltBuildingsBySlot.Add(SelectedBuildingSlotKey, Building->Id);
 	SelectedCampaignBuildingId = Building->Id;
 	bSelectedCampaignBuildingCandidate = false;
-	OutMessage = FString::Printf(TEXT("Construccion placeholder completada: %s."), *Building->Name);
+	OutMessage = FString::Printf(TEXT("%s construido en %s. %s"), *Building->Name, *TargetProvince.Name, *BuildMessage);
 	return true;
 }
 
@@ -588,7 +632,7 @@ FString AWLCampaignPlayerController::GetSelectedForceRecruitStatus() const
 	const TArray<FWLRecruitOrder> Queue = Tick->GetRecruitQueue(SelectedForceId);
 	if (Queue.Num() == 0)
 	{
-		return TEXT("Cola vacia. Pulsa Reclutar y avanza el mes [M].");
+		return TEXT("Cola vacia. Pulsa Reclutar y avanza dias con [Space].");
 	}
 	const FWLRecruitOrder& Front = Queue[0];
 	return FString::Printf(TEXT("Reclutando: %s  faltan %d turno(s)  ·  en cola: %d"), *Front.Label, Front.TurnsRemaining, Queue.Num());

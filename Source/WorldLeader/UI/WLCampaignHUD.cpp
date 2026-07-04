@@ -222,7 +222,7 @@ void AWLCampaignHUD::DrawHUD()
 		DrawRect(FLinearColor(0.62f, 0.48f, 0.16f, 0.97f), AdvX, AdvY, AdvW, AdvH);
 		DrawRect(FLinearColor(0.88f, 0.70f, 0.26f, 1.f), AdvX, AdvY, AdvW, 3.f);
 		DrawText(TEXT("AVANZAR DIA"), FLinearColor(0.06f, 0.06f, 0.05f, 1.f), AdvX + 22.f, AdvY + 9.f, Font, 1.0f);
-		DrawText(TEXT("[M] o clic aqui"), FLinearColor(0.14f, 0.11f, 0.05f, 1.f), AdvX + 22.f, AdvY + 32.f, SmallFont, 0.72f);
+		DrawText(TEXT("[Space] o clic aqui"), FLinearColor(0.14f, 0.11f, 0.05f, 1.f), AdvX + 22.f, AdvY + 32.f, SmallFont, 0.72f);
 	}
 
 	float X = 36.f;
@@ -379,7 +379,7 @@ void AWLCampaignHUD::DrawHUD()
 	}
 
 	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
-	DrawText(TEXT("[D] Vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [G] America   [C] Gobierno   [E] Eventos   [M] Avanzar dia   [F5] Guardar   [B] Construir"),
+	DrawText(TEXT("[D] Vista   Rueda/+/- Zoom   Flechas Pan   [R] Reset   [F] Teatro   [G] America   [C] Gobierno   [E] Eventos   [Space] Avanzar dia   [F5] Guardar   [B] Construir"),
 		Muted, 36.f, H - 24.f, SmallFont, 0.88f);
 
 	// F5.3/F5.4: fin de partida REAL — banner central por encima de todo; el avance de tiempo ya esta

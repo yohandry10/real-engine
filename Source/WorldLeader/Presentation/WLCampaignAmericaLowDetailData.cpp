@@ -125,7 +125,7 @@ namespace
 			City.DetailLevel = ReadStringFieldOrDefault(*ObjPtr, TEXT("detail_level"),
 				FWLCampaignAmericaLowDetailDataLoader::IsCoreTheaterIso(City.CountryIso) ? TEXT("high") : TEXT("low"));
 			City.VisibleFromZoom = ReadStringFieldOrDefault(*ObjPtr, TEXT("visible_from_zoom"), TEXT("regional"));
-			City.Description = ReadStringFieldOrDefault(*ObjPtr, TEXT("description"), TEXT("Lectura estrategica placeholder."));
+			City.Description = ReadStringFieldOrDefault(*ObjPtr, TEXT("description"), TEXT("Lectura estrategica."));
 			City.Lon = ReadFloatField(*ObjPtr, TEXT("lon"));
 			City.Lat = ReadFloatField(*ObjPtr, TEXT("lat"));
 			City.bMajor = ReadBoolField(*ObjPtr, TEXT("major"));

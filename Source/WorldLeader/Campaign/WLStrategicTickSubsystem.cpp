@@ -240,12 +240,14 @@ void UWLStrategicTickSubsystem::InvalidateEconomicQueryCache()
 void UWLStrategicTickSubsystem::InitTreasuriesFromData()
 {
 	Treasuries.Reset();
+	DailyTreasuryRemainders.Reset();
 	const UWLDataRegistry* Registry = GetDataRegistry();
 	if (!Registry) return;
 
 	for (const FWLNationData& Nation : Registry->GetAllNations())
 	{
 		Treasuries.Add(Nation.Iso, Nation.StartingTreasury);
+		DailyTreasuryRemainders.Add(Nation.Iso, 0.0);
 	}
 }
 
@@ -279,6 +281,7 @@ void UWLStrategicTickSubsystem::ResetCampaignState()
 	GarrisonRecruited.Reset();
 	TaxRates.Reset();
 	TariffRates.Reset();
+	DailyTreasuryRemainders.Reset();
 	FinancialInstruments.Reset();
 	ForeignSupportStates.Reset();
 	NextFinancialInstrumentNumber = 1;
@@ -291,39 +294,7 @@ void UWLStrategicTickSubsystem::ResetCampaignState()
 	InvalidateEconomicQueryCache();
 	InitTreasuriesFromData();
 	InitProvinceStatesFromData();
-	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
-}
-
-void UWLStrategicTickSubsystem::AdvanceMonth()
-{
-	const FWLBalanceRules Rules = GetBalanceRules();
-	if (++CurrentMonth > Rules.MonthsPerYear)
-	{
-		CurrentMonth = 1;
-		++CurrentYear;
-	}
-
-	ApplyMonthlyEconomy();
-	AdvanceFinancialMonth();
-	ApplyMonthlyProvinceState();
-	AdvanceRecruitment();
-	UpdateGDPHistory();   // FE1.5: mide el PIB tras aplicar el mes
-	AdvanceMarketShocks();
-
-	LastEconomicAIReports.Reset();
-	const FString PlayerNationIso = GetActivePlayerNationIsoForAI();
-	if (!PlayerNationIso.IsEmpty())
-	{
-		RunEconomicAIInternal(PlayerNationIso, LastEconomicAIReports);
-		for (const FString& Report : LastEconomicAIReports)
-		{
-			UE_LOG(LogWorldLeader, Log, TEXT("IA economica: %s"), *Report);
-		}
-	}
-
-	UE_LOG(LogWorldLeader, Log, TEXT("Tick estrategico -> %02d/%d | IA economica: %d construcciones"),
-		CurrentMonth, CurrentYear, LastEconomicAIReports.Num());
-	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
+	OnDayAdvanced.Broadcast(CurrentYear, CurrentMonth, CurrentDay);
 }
 
 void UWLStrategicTickSubsystem::AdvanceDay()
@@ -350,36 +321,49 @@ void UWLStrategicTickSubsystem::AdvanceDay()
 
 	if (bMonthRolled)
 	{
-		AdvanceFinancialMonth();
-		ApplyMonthlyProvinceState();
-		UpdateGDPHistory();
-		AdvanceMarketShocks();
-		LastEconomicAIReports.Reset();
-		const FString PlayerNationIso = GetActivePlayerNationIsoForAI();
-		if (!PlayerNationIso.IsEmpty())
-		{
-			RunEconomicAIInternal(PlayerNationIso, LastEconomicAIReports);
-		}
+		ProcessMonthRollover();
+		OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
 	}
 
 	UE_LOG(LogWorldLeader, Log, TEXT("Avanzar dia -> %02d/%02d/%d"), CurrentDay, CurrentMonth, CurrentYear);
-	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
+	OnDayAdvanced.Broadcast(CurrentYear, CurrentMonth, CurrentDay);
 }
 
-void UWLStrategicTickSubsystem::ApplyMonthlyEconomy()
+void UWLStrategicTickSubsystem::ProcessMonthRollover()
 {
-	for (TPair<FString, int64>& Pair : Treasuries)
+	AdvanceFinancialMonth();
+	ApplyMonthlyProvinceState();
+	UpdateGDPHistory();
+	AdvanceMarketShocks();
+
+	LastEconomicAIReports.Reset();
+	const FString PlayerNationIso = GetActivePlayerNationIsoForAI();
+	if (!PlayerNationIso.IsEmpty())
 	{
-		Pair.Value += GetMonthlyBalance(Pair.Key);
+		RunEconomicAIInternal(PlayerNationIso, LastEconomicAIReports);
+		for (const FString& Report : LastEconomicAIReports)
+		{
+			UE_LOG(LogWorldLeader, Log, TEXT("IA economica: %s"), *Report);
+		}
 	}
+
+	UE_LOG(LogWorldLeader, Log, TEXT("Cierre mensual -> %02d/%d | IA economica: %d construcciones"),
+		CurrentMonth, CurrentYear, LastEconomicAIReports.Num());
 }
 
 void UWLStrategicTickSubsystem::ApplyDailyEconomy()
 {
 	for (TPair<FString, int64>& Pair : Treasuries)
 	{
-		Pair.Value += static_cast<int64>(FMath::RoundToDouble(
-			static_cast<double>(GetMonthlyBalance(Pair.Key)) / 30.0));
+		double& Remainder = DailyTreasuryRemainders.FindOrAdd(Pair.Key);
+		const double Accrued = static_cast<double>(GetMonthlyBalance(Pair.Key)) / 30.0 + Remainder;
+		const int64 WholeCredits = static_cast<int64>(Accrued);   // trunca hacia cero; la fraccion queda acumulada
+		Pair.Value += WholeCredits;
+		Remainder = Accrued - static_cast<double>(WholeCredits);
+		if (FMath::Abs(Remainder) < 0.000001)
+		{
+			Remainder = 0.0;
+		}
 	}
 }
 
@@ -576,7 +560,7 @@ int64 UWLStrategicTickSubsystem::GetNationOutstandingDebt(const FString& NationI
 	}
 	for (const FWLFinancialInstrumentState& Instrument : FinancialInstruments)
 	{
-		if (Instrument.NationIso == NormalizedIso && Instrument.PrincipalRemaining > 0)
+		if (Instrument.NationIso == NormalizedIso && !Instrument.bDefaulted && Instrument.PrincipalRemaining > 0)
 		{
 			Outstanding += Instrument.PrincipalRemaining;
 		}
@@ -795,6 +779,12 @@ bool UWLStrategicTickSubsystem::IssueBond(const FString& NationIso, int64 Princi
 		*Instrument.InstrumentId,
 		static_cast<long long>(Principal),
 		Rate * 100.0);
+	if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+	{
+		const bool bPlayerVisible = Nation.Iso == GetActivePlayerNationIsoForAI();
+		Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, Nation.Iso, TEXT(""),
+			TEXT("Bono soberano emitido"), OutMessage, TEXT("finance"), 4, false, bPlayerVisible);
+	}
 	return true;
 }
 
@@ -881,6 +871,12 @@ bool UWLStrategicTickSubsystem::RequestIMFProgram(const FString& NationIso, int6
 		*Nation.Iso,
 		*Instrument.InstrumentId,
 		static_cast<long long>(Principal));
+	if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+	{
+		const bool bPlayerVisible = Nation.Iso == GetActivePlayerNationIsoForAI();
+		Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, Nation.Iso, TEXT(""),
+			TEXT("Programa FMI firmado"), OutMessage, TEXT("finance"), 7, true, bPlayerVisible);
+	}
 	return true;
 }
 
@@ -888,17 +884,58 @@ bool UWLStrategicTickSubsystem::MarkDebtDefault(const FString& NationIso, FStrin
 {
 	const FString NormalizedIso = NormalizeIso(NationIso);
 	int32 Affected = 0;
+	int64 DebtCleared = 0;
 	for (FWLFinancialInstrumentState& Instrument : FinancialInstruments)
 	{
 		if (Instrument.NationIso == NormalizedIso && Instrument.PrincipalRemaining > 0 && !Instrument.bDefaulted)
 		{
+			DebtCleared += Instrument.PrincipalRemaining;
 			Instrument.bDefaulted = true;
+			Instrument.PrincipalRemaining = 0;
+			Instrument.MonthlyPayment = 0;
+			Instrument.RemainingMonths = 0;
 			++Affected;
 		}
 	}
+
+	if (int64* Treasury = Treasuries.Find(NormalizedIso); Treasury && *Treasury < 0)
+	{
+		DebtCleared += -*Treasury;
+		*Treasury = 0;
+		DailyTreasuryRemainders.FindOrAdd(NormalizedIso) = 0.0;
+	}
+
+	if (DebtCleared <= 0)
+	{
+		OutMessage = FString::Printf(TEXT("%s no tiene deuda que declarar en default."), *NormalizedIso);
+		return false;
+	}
+
+	if (Affected == 0)
+	{
+		FWLFinancialInstrumentState DefaultMarker;
+		DefaultMarker.InstrumentId = FString::Printf(TEXT("DEF-%04d"), NextFinancialInstrumentNumber++);
+		DefaultMarker.NationIso = NormalizedIso;
+		DefaultMarker.CreditorIso = TEXT("MARKET");
+		DefaultMarker.Type = EWLFinancialInstrumentType::Bond;
+		DefaultMarker.bDefaulted = true;
+		DefaultMarker.Title = TEXT("Default soberano");
+		FinancialInstruments.Add(DefaultMarker);
+	}
+
 	AdjustNationPublicOrder(NormalizedIso, -GetBalanceRules().DefaultPublicOrderPenalty);
-	OutMessage = FString::Printf(TEXT("%s entra en default (%d instrumentos)."), *NormalizedIso, Affected);
-	return Affected > 0;
+	InvalidateEconomicQueryCache();
+	OutMessage = FString::Printf(TEXT("%s declara default: elimina %lld de deuda (%d instrumentos) y hunde rating/orden."),
+		*NormalizedIso,
+		static_cast<long long>(DebtCleared),
+		Affected);
+	if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+	{
+		const bool bPlayerVisible = NormalizedIso == GetActivePlayerNationIsoForAI();
+		Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, NormalizedIso, TEXT(""),
+			TEXT("Default soberano"), OutMessage, TEXT("finance"), 10, true, bPlayerVisible);
+	}
+	return true;
 }
 
 TArray<FWLForeignSupportState> UWLStrategicTickSubsystem::GetForeignSupportForNation(const FString& NationIso) const
@@ -983,6 +1020,13 @@ bool UWLStrategicTickSubsystem::GrantForeignAid(
 		*Recipient.Iso,
 		static_cast<long long>(Support.MonthlyAmount),
 		Support.TotalMonths);
+	if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+	{
+		const FString PlayerIso = GetActivePlayerNationIsoForAI();
+		const bool bPlayerVisible = Sponsor.Iso == PlayerIso || Recipient.Iso == PlayerIso;
+		Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, Sponsor.Iso, Recipient.Iso,
+			TEXT("Ayuda exterior concedida"), OutMessage, TEXT("foreign_support"), 5, true, bPlayerVisible);
+	}
 	return true;
 }
 
@@ -1066,6 +1110,13 @@ bool UWLStrategicTickSubsystem::StartForeignInvestment(
 	ForeignSupportStates.Add(Support);
 	OutMessage = FString::Printf(TEXT("%s inicia FDI %s para construir %s en %s."),
 		*Sponsor.Iso, *Support.SupportId, *Building.Name, *Province.Id);
+	if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+	{
+		const FString PlayerIso = GetActivePlayerNationIsoForAI();
+		const bool bPlayerVisible = Sponsor.Iso == PlayerIso || Recipient.Iso == PlayerIso;
+		Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, Sponsor.Iso, Recipient.Iso,
+			TEXT("Inversion extranjera directa"), OutMessage, TEXT("foreign_support"), 5, true, bPlayerVisible);
+	}
 	return true;
 }
 
@@ -2066,6 +2117,38 @@ int64 UWLStrategicTickSubsystem::GetNationMarketProductionValue(const FString& N
 	return Value;
 }
 
+int64 UWLStrategicTickSubsystem::GetProvinceMarketProductionIncome(const FString& ProvinceId, const FString& ControllerIso) const
+{
+	const FString NormalizedIso = NormalizeIso(ControllerIso);
+	if (NormalizedIso.IsEmpty())
+	{
+		return 0;
+	}
+
+	TMap<FString, double> UnitPriceByGood;
+	for (const FWLGoodMarketBalance& Balance : GetNationGoodMarketBalance(NormalizedIso))
+	{
+		UnitPriceByGood.Add(Balance.GoodId, FMath::Max(0.0, Balance.UnitPrice));
+	}
+
+	double MarketValue = 0.0;
+	const FWLProductionLedger ProvinceLedger = BuildProvinceProductionLedger(ProvinceId);
+	for (const TPair<FString, int64>& Pair : ProvinceLedger.FinalSupply)
+	{
+		if (Pair.Value <= 0)
+		{
+			continue;
+		}
+		const double* UnitPrice = UnitPriceByGood.Find(Pair.Key);
+		if (!UnitPrice || *UnitPrice <= 0.0)
+		{
+			continue;
+		}
+		MarketValue += static_cast<double>(Pair.Value) * *UnitPrice;
+	}
+	return static_cast<int64>(FMath::RoundToDouble(MarketValue));
+}
+
 int64 UWLStrategicTickSubsystem::GetNationTradeBalance(const FString& NationIso) const
 {
 	int64 TradeBalance = 0;
@@ -2151,7 +2234,13 @@ int32 UWLStrategicTickSubsystem::SetTaxRate(const FString& NationIso, int32 Rate
 {
 	const FWLBalanceRules Rules = GetBalanceRules();
 	const int32 Clamped = FMath::Clamp(RatePercent, Rules.TaxRateMinPercent, Rules.TaxRateMaxPercent);
-	TaxRates.Add(NormalizeIso(NationIso), Clamped);
+	const FString NormalizedIso = NormalizeIso(NationIso);
+	const int32 Previous = GetTaxRate(NormalizedIso);
+	TaxRates.Add(NormalizedIso, Clamped);
+	if (Previous != Clamped)
+	{
+		InvalidateEconomicQueryCache();
+	}
 	return Clamped;
 }
 
@@ -2403,12 +2492,11 @@ int64 UWLStrategicTickSubsystem::GetProvinceMonthlyIncomeSplit(const FString& Pr
 	const int64 GrossTax = static_cast<int64>(
 		FMath::RoundToDouble(static_cast<double>(BasePopulationTax) * TaxMultiplier));
 
-	const int64 GrossResourceIncome = static_cast<int64>(FMath::RoundToDouble(
-		static_cast<double>(
-			UWLEconomyLibrary::CalculateProvinceIncomeWithRules(EffectiveProvince, Rules)
-			- BasePopulationTax
-			+ GetProvinceBuildingIncome(Province.Id, Rules))
+	const int64 MarketProductionIncome = GetProvinceMarketProductionIncome(Province.Id, ControllerIso);
+	const int64 FinancialIncome = static_cast<int64>(FMath::RoundToDouble(
+		static_cast<double>(GetProvinceBuildingEffects(Province.Id).BonusFinancialIncome)
 		* Governance.ProductivityMultiplier));
+	const int64 GrossResourceIncome = FMath::Max<int64>(0, MarketProductionIncome + FinancialIncome);
 	const int64 GrossIncome =
 		GrossResourceIncome
 		+ GrossTax;

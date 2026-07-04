@@ -1,50 +1,1377 @@
 [
-	{
-		"event_id": "internal_coup_tension",
-		"title": "Rumores de golpe",
-		"body": "Altos mandos desleales y oposicion organizada presionan al gobierno.",
-		"trigger": "coup_risk",
-		"min_coup_risk": 60,
-		"min_opposition_strength": 25,
-		"max_public_order": 100,
-		"options": [
-			{
-				"option_id": "negotiate",
-				"label": "Negociar con los mandos",
-				"political_capital_delta": -8,
-				"opposition_delta": -6,
-				"public_order_delta": 1
-			},
-			{
-				"option_id": "crackdown",
-				"label": "Ordenar una redada preventiva",
-				"opposition_delta": -12,
-				"public_order_delta": -3
-			}
-		]
-	},
-	{
-		"event_id": "street_protests",
-		"title": "Protestas nacionales",
-		"body": "La oposicion capitaliza el deterioro del orden publico.",
-		"trigger": "opposition",
-		"min_coup_risk": 0,
-		"min_opposition_strength": 35,
-		"max_public_order": 55,
-		"options": [
-			{
-				"option_id": "concede",
-				"label": "Conceder reformas limitadas",
-				"political_capital_delta": -6,
-				"opposition_delta": -10,
-				"public_order_delta": 2
-			},
-			{
-				"option_id": "ignore",
-				"label": "Ignorar las marchas",
-				"opposition_delta": 7,
-				"public_order_delta": -2
-			}
-		]
-	}
+  {
+    "event_id": "internal_coup_tension",
+    "title": "Rumores de golpe",
+    "body": "Altos mandos desleales y oposicion organizada presionan al gobierno.",
+    "trigger": "coup_risk",
+    "min_coup_risk": 60,
+    "min_opposition_strength": 25,
+    "max_public_order": 100,
+    "options": [
+      {
+        "option_id": "negotiate",
+        "label": "Negociar con los mandos",
+        "political_capital_delta": -8,
+        "treasury_delta": -1500,
+        "opposition_delta": -6,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "crackdown",
+        "label": "Redada preventiva",
+        "treasury_delta": -2500,
+        "opposition_delta": -12,
+        "public_order_delta": -4
+      },
+      {
+        "option_id": "appease",
+        "label": "Conceder presupuesto militar",
+        "political_capital_delta": -3,
+        "treasury_delta": -3200,
+        "opposition_delta": 2,
+        "public_order_delta": 2
+      }
+    ]
+  },
+  {
+    "event_id": "officers_public_letter",
+    "title": "Carta publica de oficiales",
+    "body": "Un grupo de oficiales retirados exige un cambio de rumbo y legitima el malestar en los cuarteles.",
+    "trigger": "coup_risk",
+    "min_coup_risk": 45,
+    "min_opposition_strength": 15,
+    "max_public_order": 75,
+    "options": [
+      {
+        "option_id": "rotate_commanders",
+        "label": "Rotar mandos sensibles",
+        "political_capital_delta": -5,
+        "treasury_delta": -800,
+        "opposition_delta": -2,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "public_rebuke",
+        "label": "Responder en cadena nacional",
+        "political_capital_delta": -2,
+        "opposition_delta": 4,
+        "public_order_delta": -1
+      },
+      {
+        "option_id": "procurement_audit",
+        "label": "Auditar contratos militares",
+        "political_capital_delta": -3,
+        "treasury_delta": -1600,
+        "opposition_delta": -4,
+        "public_order_delta": 1
+      }
+    ]
+  },
+  {
+    "event_id": "security_service_warning",
+    "title": "Alerta de inteligencia interna",
+    "body": "Los servicios reportan reuniones entre operadores opositores y oficiales indecisos.",
+    "trigger": "coup_risk",
+    "min_coup_risk": 35,
+    "min_opposition_strength": 20,
+    "max_public_order": 85,
+    "options": [
+      {
+        "option_id": "expand_counterintel",
+        "label": "Expandir contrainteligencia",
+        "political_capital_delta": -2,
+        "treasury_delta": -1200,
+        "opposition_delta": -3,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "loyalist_council",
+        "label": "Convocar consejo leal",
+        "political_capital_delta": -4,
+        "opposition_delta": -2,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "dismiss_warning",
+        "label": "Descartar la alerta",
+        "opposition_delta": 3,
+        "public_order_delta": -1
+      }
+    ]
+  },
+  {
+    "event_id": "street_protests",
+    "title": "Protestas nacionales",
+    "body": "La oposicion capitaliza el deterioro del orden publico y convoca marchas simultaneas.",
+    "trigger": "opposition",
+    "min_coup_risk": 0,
+    "min_opposition_strength": 35,
+    "max_public_order": 55,
+    "options": [
+      {
+        "option_id": "concede",
+        "label": "Conceder reformas limitadas",
+        "political_capital_delta": -6,
+        "opposition_delta": -10,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "contain",
+        "label": "Contener con policia local",
+        "treasury_delta": -900,
+        "opposition_delta": -4,
+        "public_order_delta": -2
+      },
+      {
+        "option_id": "ignore",
+        "label": "Ignorar las marchas",
+        "opposition_delta": 7,
+        "public_order_delta": -2
+      }
+    ]
+  },
+  {
+    "event_id": "transport_blockades",
+    "title": "Bloqueos de transporte",
+    "body": "Sindicatos y transportistas cortan rutas clave y encarecen la distribucion nacional.",
+    "trigger": "opposition",
+    "min_opposition_strength": 45,
+    "max_public_order": 60,
+    "options": [
+      {
+        "option_id": "negotiate_routes",
+        "label": "Negociar corredores seguros",
+        "political_capital_delta": -4,
+        "treasury_delta": -1400,
+        "opposition_delta": -7,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "clear_roads",
+        "label": "Despejar carreteras",
+        "treasury_delta": -1000,
+        "opposition_delta": -5,
+        "public_order_delta": -3
+      },
+      {
+        "option_id": "wait_out",
+        "label": "Esperar desgaste",
+        "opposition_delta": 5,
+        "public_order_delta": -3,
+        "market_shock_good_id": "consumer_goods",
+        "market_shock_title": "Logistica paralizada",
+        "market_shock_price_multiplier": 1.08,
+        "market_shock_duration_months": 1
+      }
+    ]
+  },
+  {
+    "event_id": "union_general_assembly",
+    "title": "Asamblea sindical nacional",
+    "body": "La central sindical debate una huelga amplia si el gobierno no ofrece garantias.",
+    "trigger": "opposition",
+    "min_opposition_strength": 40,
+    "max_public_order": 70,
+    "options": [
+      {
+        "option_id": "wage_council",
+        "label": "Mesa salarial tripartita",
+        "political_capital_delta": -3,
+        "treasury_delta": -1800,
+        "opposition_delta": -8,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "limited_subsidies",
+        "label": "Subsidios temporales",
+        "treasury_delta": -3200,
+        "opposition_delta": -10,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "denounce_unions",
+        "label": "Denunciar a los sindicatos",
+        "opposition_delta": 6,
+        "public_order_delta": -1
+      }
+    ]
+  },
+  {
+    "event_id": "food_price_shock",
+    "title": "Alza de alimentos",
+    "body": "El costo de la canasta basica golpea a barrios urbanos y acelera el malestar.",
+    "trigger": "public_order",
+    "min_opposition_strength": 25,
+    "max_public_order": 65,
+    "options": [
+      {
+        "option_id": "food_subsidy",
+        "label": "Subsidio alimentario",
+        "treasury_delta": -2500,
+        "opposition_delta": -5,
+        "public_order_delta": 4,
+        "market_shock_good_id": "food",
+        "market_shock_title": "Subsidio de alimentos",
+        "market_shock_price_multiplier": 0.94,
+        "market_shock_duration_months": 1
+      },
+      {
+        "option_id": "rationing",
+        "label": "Racionamiento focalizado",
+        "political_capital_delta": -3,
+        "opposition_delta": -2,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "market_pass_through",
+        "label": "Dejar pasar el ajuste",
+        "opposition_delta": 5,
+        "public_order_delta": -3,
+        "market_shock_good_id": "food",
+        "market_shock_title": "Alimentos caros",
+        "market_shock_price_multiplier": 1.12,
+        "market_shock_duration_months": 1
+      }
+    ]
+  },
+  {
+    "event_id": "media_leak_campaign",
+    "title": "Filtraciones coordinadas",
+    "body": "Medios y operadores opositores publican documentos incompletos contra el gabinete.",
+    "trigger": "opposition",
+    "min_opposition_strength": 30,
+    "max_public_order": 80,
+    "options": [
+      {
+        "option_id": "publish_documents",
+        "label": "Publicar expedientes completos",
+        "political_capital_delta": -4,
+        "opposition_delta": -4,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "legal_action",
+        "label": "Accion legal inmediata",
+        "political_capital_delta": -2,
+        "treasury_delta": -1000,
+        "opposition_delta": -3
+      },
+      {
+        "option_id": "deny",
+        "label": "Negarlo todo",
+        "opposition_delta": 5,
+        "public_order_delta": -2
+      }
+    ]
+  },
+  {
+    "event_id": "tax_revolt",
+    "title": "Revuelta fiscal local",
+    "body": "Comerciantes y alcaldes denuncian carga fiscal excesiva y amenazan con desconocer pagos.",
+    "trigger": "opposition",
+    "min_opposition_strength": 45,
+    "max_public_order": 68,
+    "options": [
+      {
+        "option_id": "rebate",
+        "label": "Rebaja temporal",
+        "political_capital_delta": -2,
+        "treasury_delta": -2200,
+        "opposition_delta": -6,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "local_talks",
+        "label": "Negociar con alcaldes",
+        "political_capital_delta": -3,
+        "opposition_delta": -4,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "enforce_collection",
+        "label": "Forzar recaudacion",
+        "treasury_delta": 1200,
+        "opposition_delta": 4,
+        "public_order_delta": -3
+      }
+    ]
+  },
+  {
+    "event_id": "provincial_mayors_warning",
+    "title": "Advertencia de alcaldes",
+    "body": "Gobiernos locales piden fondos y proteccion antes de que la protesta se convierta en rebelion regional.",
+    "trigger": "opposition",
+    "min_opposition_strength": 35,
+    "max_public_order": 75,
+    "options": [
+      {
+        "option_id": "development_package",
+        "label": "Paquete de obras locales",
+        "treasury_delta": -2800,
+        "opposition_delta": -5,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "autonomy_dialogue",
+        "label": "Mesa de autonomia",
+        "political_capital_delta": -5,
+        "opposition_delta": -6,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "threaten_audits",
+        "label": "Amenazar auditorias",
+        "political_capital_delta": -2,
+        "opposition_delta": 3,
+        "public_order_delta": -1
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_national_protest_march",
+    "title": "Marcha nacional en organizacion",
+    "body": "Comites civiles coordinan una marcha nacional mientras la crisis de protesta gana forma.",
+    "trigger": "crisis",
+    "crisis_type": "national_protest",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "dialogue",
+        "label": "Abrir dialogo publico",
+        "political_capital_delta": -3,
+        "opposition_delta": -5,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "permit_march",
+        "label": "Autorizar recorrido",
+        "opposition_delta": -2,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "restrict_march",
+        "label": "Restringir permisos",
+        "opposition_delta": 4,
+        "public_order_delta": -2
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_national_protest_general_strike",
+    "title": "Amenaza de paro general",
+    "body": "La protesta nacional se articula con sindicatos y transportistas para paralizar el pais.",
+    "trigger": "crisis",
+    "crisis_type": "national_protest",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "national_pact",
+        "label": "Pacto social de emergencia",
+        "political_capital_delta": -7,
+        "treasury_delta": -2600,
+        "opposition_delta": -10,
+        "public_order_delta": 3
+      },
+      {
+        "option_id": "police_corridors",
+        "label": "Corredores policiales",
+        "treasury_delta": -1600,
+        "opposition_delta": -5,
+        "public_order_delta": -2
+      },
+      {
+        "option_id": "wait_for_split",
+        "label": "Esperar division interna",
+        "opposition_delta": 6,
+        "public_order_delta": -3
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_national_protest_capital_square",
+    "title": "La capital queda tomada",
+    "body": "La crisis de protesta llega a su punto maximo y amenaza con bloquear ministerios.",
+    "trigger": "crisis",
+    "crisis_type": "national_protest",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "unity_address",
+        "label": "Discurso de unidad y concesiones",
+        "political_capital_delta": -10,
+        "treasury_delta": -3500,
+        "opposition_delta": -13,
+        "public_order_delta": 4
+      },
+      {
+        "option_id": "emergency_policing",
+        "label": "Operacion de control",
+        "treasury_delta": -2200,
+        "opposition_delta": -9,
+        "public_order_delta": -5
+      },
+      {
+        "option_id": "let_it_burn",
+        "label": "No ceder",
+        "opposition_delta": 10,
+        "public_order_delta": -5
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_corruption_documents",
+    "title": "Facturas filtradas",
+    "body": "Documentos de contratacion irregular circulan entre periodistas y fiscales.",
+    "trigger": "crisis",
+    "crisis_type": "corruption_scandal",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "audit",
+        "label": "Auditoria independiente",
+        "political_capital_delta": -4,
+        "treasury_delta": -1200,
+        "opposition_delta": -5,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "sacrifice_aide",
+        "label": "Separar a un asesor",
+        "political_capital_delta": -2,
+        "opposition_delta": -3
+      },
+      {
+        "option_id": "deny_documents",
+        "label": "Denunciar falsificacion",
+        "opposition_delta": 4,
+        "public_order_delta": -1
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_corruption_witness",
+    "title": "Testigo protegido",
+    "body": "Un operador del gabinete ofrece declarar contra altos funcionarios.",
+    "trigger": "crisis",
+    "crisis_type": "corruption_scandal",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "cooperate",
+        "label": "Cooperar con fiscales",
+        "political_capital_delta": -6,
+        "opposition_delta": -8,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "internal_probe",
+        "label": "Investigacion interna",
+        "political_capital_delta": -3,
+        "treasury_delta": -900,
+        "opposition_delta": -4
+      },
+      {
+        "option_id": "pressure_witness",
+        "label": "Presionar al testigo",
+        "opposition_delta": -6,
+        "public_order_delta": -4
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_corruption_ministers_collapse",
+    "title": "Gabinete bajo sospecha",
+    "body": "La crisis de corrupcion alcanza a ministros clave y erosiona la legitimidad del gobierno.",
+    "trigger": "crisis",
+    "crisis_type": "corruption_scandal",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "reshuffle",
+        "label": "Remodelacion profunda",
+        "political_capital_delta": -9,
+        "treasury_delta": -1800,
+        "opposition_delta": -11,
+        "public_order_delta": 3
+      },
+      {
+        "option_id": "special_prosecutor",
+        "label": "Fiscal especial",
+        "political_capital_delta": -7,
+        "opposition_delta": -9,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "shield_cabinet",
+        "label": "Cerrar filas",
+        "opposition_delta": 8,
+        "public_order_delta": -3
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_military_manifesto",
+    "title": "Manifiesto de cuarteles",
+    "body": "Oficiales de rango medio cuestionan la conduccion civil y piden rectificacion.",
+    "trigger": "crisis",
+    "crisis_type": "military_crisis",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "inspect_barracks",
+        "label": "Inspecciones sorpresa",
+        "political_capital_delta": -3,
+        "treasury_delta": -700,
+        "opposition_delta": -3,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "pay_bonus",
+        "label": "Bono operativo",
+        "treasury_delta": -2400,
+        "opposition_delta": -2,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "public_warning",
+        "label": "Advertencia publica",
+        "opposition_delta": 3,
+        "public_order_delta": -1
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_military_command_split",
+    "title": "Cadena de mando dividida",
+    "body": "Generales compiten por influencia y las unidades dudan ante ordenes del ejecutivo.",
+    "trigger": "crisis",
+    "crisis_type": "military_crisis",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "joint_staff_meeting",
+        "label": "Consejo de estado mayor",
+        "political_capital_delta": -6,
+        "treasury_delta": -1000,
+        "opposition_delta": -7,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "purge_cells",
+        "label": "Purgar celulas sediciosas",
+        "treasury_delta": -1800,
+        "opposition_delta": -8,
+        "public_order_delta": -5
+      },
+      {
+        "option_id": "delay_orders",
+        "label": "Dilatar decisiones",
+        "opposition_delta": 5,
+        "public_order_delta": -2
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_military_armored_column",
+    "title": "Rumor de columna blindada",
+    "body": "La crisis militar alcanza etapa critica y circulan informes de unidades moviendose sin autorizacion.",
+    "trigger": "crisis",
+    "crisis_type": "military_crisis",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "loyalist_deployment",
+        "label": "Desplegar unidades leales",
+        "political_capital_delta": -7,
+        "treasury_delta": -2600,
+        "opposition_delta": -10,
+        "public_order_delta": -2
+      },
+      {
+        "option_id": "amnesty_offer",
+        "label": "Oferta de amnistia",
+        "political_capital_delta": -9,
+        "opposition_delta": -8,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "deny_coup",
+        "label": "Negar los rumores",
+        "opposition_delta": 9,
+        "public_order_delta": -4
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_debt_bond_selloff",
+    "title": "Venta masiva de bonos",
+    "body": "El mercado descuenta riesgo fiscal y exige mayores primas para financiar al Estado.",
+    "trigger": "crisis",
+    "crisis_type": "debt_crisis",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "liquidity_plan",
+        "label": "Plan de liquidez",
+        "political_capital_delta": -3,
+        "treasury_delta": -1800,
+        "opposition_delta": -3,
+        "public_order_delta": 1,
+        "market_shock_good_id": "*",
+        "market_shock_title": "Calma fiscal temporal",
+        "market_shock_price_multiplier": 0.98,
+        "market_shock_duration_months": 1
+      },
+      {
+        "option_id": "transparent_accounts",
+        "label": "Publicar cuentas fiscales",
+        "political_capital_delta": -4,
+        "opposition_delta": -4
+      },
+      {
+        "option_id": "minimize_selloff",
+        "label": "Minimizar la venta",
+        "opposition_delta": 3,
+        "public_order_delta": -1,
+        "market_shock_good_id": "*",
+        "market_shock_title": "Riesgo fiscal",
+        "market_shock_price_multiplier": 1.03,
+        "market_shock_duration_months": 1
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_debt_creditor_conditions",
+    "title": "Condiciones de acreedores",
+    "body": "Acreedores exigen recortes y garantias antes de refinanciar vencimientos criticos.",
+    "trigger": "crisis",
+    "crisis_type": "debt_crisis",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "accept_conditions",
+        "label": "Aceptar condiciones duras",
+        "political_capital_delta": -6,
+        "opposition_delta": 4,
+        "public_order_delta": -2,
+        "market_shock_good_id": "*",
+        "market_shock_title": "Refinanciacion creible",
+        "market_shock_price_multiplier": 0.96,
+        "market_shock_duration_months": 2
+      },
+      {
+        "option_id": "bridge_loan",
+        "label": "Credito puente",
+        "political_capital_delta": -5,
+        "treasury_delta": -3000,
+        "opposition_delta": -6,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "blame_speculators",
+        "label": "Culpar especuladores",
+        "opposition_delta": 6,
+        "public_order_delta": -2
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_debt_missed_payment",
+    "title": "Pago de deuda en duda",
+    "body": "El tesoro no logra convencer al mercado de que cumplira el proximo vencimiento.",
+    "trigger": "crisis",
+    "crisis_type": "debt_crisis",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "emergency_reserve",
+        "label": "Usar reservas de emergencia",
+        "political_capital_delta": -8,
+        "treasury_delta": -4200,
+        "opposition_delta": -9,
+        "public_order_delta": 2,
+        "market_shock_good_id": "*",
+        "market_shock_title": "Pago de emergencia",
+        "market_shock_price_multiplier": 0.95,
+        "market_shock_duration_months": 2
+      },
+      {
+        "option_id": "restructure",
+        "label": "Reestructuracion ordenada",
+        "political_capital_delta": -10,
+        "opposition_delta": -6,
+        "public_order_delta": -2,
+        "market_shock_good_id": "*",
+        "market_shock_title": "Reestructuracion",
+        "market_shock_price_multiplier": 1.05,
+        "market_shock_duration_months": 2
+      },
+      {
+        "option_id": "default_risk",
+        "label": "Postergar decision",
+        "opposition_delta": 10,
+        "public_order_delta": -5,
+        "market_shock_good_id": "*",
+        "market_shock_title": "Riesgo de default",
+        "market_shock_price_multiplier": 1.12,
+        "market_shock_duration_months": 2
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_student_campus_occupation",
+    "title": "Campus ocupados",
+    "body": "Federaciones estudiantiles toman sedes universitarias y exigen cambios presupuestarios.",
+    "trigger": "crisis",
+    "crisis_type": "student_protest",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "education_dialogue",
+        "label": "Mesa educativa",
+        "political_capital_delta": -3,
+        "treasury_delta": -900,
+        "opposition_delta": -5,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "grant_scholarships",
+        "label": "Becas temporales",
+        "treasury_delta": -1800,
+        "opposition_delta": -6,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "close_semester",
+        "label": "Suspender semestre",
+        "opposition_delta": 4,
+        "public_order_delta": -2
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_student_police_incident",
+    "title": "Incidente policial en universidad",
+    "body": "Un operativo desordenado deja heridos y amplifica la protesta estudiantil.",
+    "trigger": "crisis",
+    "crisis_type": "student_protest",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "discipline_police",
+        "label": "Sancionar responsables",
+        "political_capital_delta": -5,
+        "opposition_delta": -8,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "campus_security",
+        "label": "Seguridad concertada",
+        "political_capital_delta": -4,
+        "treasury_delta": -1000,
+        "opposition_delta": -6,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "blame_radicals",
+        "label": "Culpar radicales",
+        "opposition_delta": 6,
+        "public_order_delta": -2
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_student_national_strike",
+    "title": "Huelga estudiantil nacional",
+    "body": "La protesta estudiantil escala a paro nacional y contagia a otros movimientos sociales.",
+    "trigger": "crisis",
+    "crisis_type": "student_protest",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "education_package",
+        "label": "Paquete educativo urgente",
+        "political_capital_delta": -8,
+        "treasury_delta": -3600,
+        "opposition_delta": -11,
+        "public_order_delta": 3
+      },
+      {
+        "option_id": "student_election",
+        "label": "Reconocer voceros",
+        "political_capital_delta": -6,
+        "opposition_delta": -8,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "force_reopening",
+        "label": "Forzar reapertura",
+        "treasury_delta": -1200,
+        "opposition_delta": -5,
+        "public_order_delta": -5
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_oil_refinery_slowdown",
+    "title": "Refinerias a media marcha",
+    "body": "Trabajadores petroleros reducen turnos y presionan por salarios y seguridad industrial.",
+    "trigger": "crisis",
+    "crisis_type": "oil_strike",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "safety_committee",
+        "label": "Comite de seguridad",
+        "political_capital_delta": -3,
+        "treasury_delta": -1200,
+        "opposition_delta": -5,
+        "public_order_delta": 1,
+        "market_shock_good_id": "fuel",
+        "market_shock_title": "Refinerias estabilizadas",
+        "market_shock_price_multiplier": 0.97,
+        "market_shock_duration_months": 1
+      },
+      {
+        "option_id": "wage_advance",
+        "label": "Adelanto salarial",
+        "treasury_delta": -2600,
+        "opposition_delta": -7,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "ignore_slowdown",
+        "label": "Ignorar la medida",
+        "opposition_delta": 4,
+        "public_order_delta": -2,
+        "market_shock_good_id": "fuel",
+        "market_shock_title": "Combustible caro",
+        "market_shock_price_multiplier": 1.06,
+        "market_shock_duration_months": 1
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_oil_export_terminal",
+    "title": "Terminal de exportacion bloqueada",
+    "body": "La huelga petrolera corta exportaciones y amenaza ingresos fiscales.",
+    "trigger": "crisis",
+    "crisis_type": "oil_strike",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "union_contract",
+        "label": "Contrato de emergencia",
+        "political_capital_delta": -5,
+        "treasury_delta": -3200,
+        "opposition_delta": -10,
+        "public_order_delta": 2,
+        "market_shock_good_id": "oil",
+        "market_shock_title": "Exportacion estabilizada",
+        "market_shock_price_multiplier": 0.96,
+        "market_shock_duration_months": 1
+      },
+      {
+        "option_id": "security_perimeter",
+        "label": "Perimetro de seguridad",
+        "treasury_delta": -1800,
+        "opposition_delta": -6,
+        "public_order_delta": -3,
+        "market_shock_good_id": "oil",
+        "market_shock_title": "Terminal militarizada",
+        "market_shock_price_multiplier": 1.03,
+        "market_shock_duration_months": 1
+      },
+      {
+        "option_id": "wait_for_shortage",
+        "label": "Esperar agotamiento",
+        "opposition_delta": 7,
+        "public_order_delta": -4,
+        "market_shock_good_id": "fuel",
+        "market_shock_title": "Escasez de combustible",
+        "market_shock_price_multiplier": 1.12,
+        "market_shock_duration_months": 2
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_oil_sector_shutdown",
+    "title": "Cierre del sector petrolero",
+    "body": "La crisis petrolera paraliza produccion, transporte y refinacion.",
+    "trigger": "crisis",
+    "crisis_type": "oil_strike",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "national_energy_deal",
+        "label": "Acuerdo energetico nacional",
+        "political_capital_delta": -9,
+        "treasury_delta": -4500,
+        "opposition_delta": -13,
+        "public_order_delta": 3,
+        "market_shock_good_id": "fuel",
+        "market_shock_title": "Acuerdo energetico",
+        "market_shock_price_multiplier": 0.93,
+        "market_shock_duration_months": 2
+      },
+      {
+        "option_id": "emergency_imports",
+        "label": "Importar combustible",
+        "treasury_delta": -5200,
+        "opposition_delta": -8,
+        "public_order_delta": 2,
+        "market_shock_good_id": "fuel",
+        "market_shock_title": "Importaciones de emergencia",
+        "market_shock_price_multiplier": 0.98,
+        "market_shock_duration_months": 1
+      },
+      {
+        "option_id": "seize_facilities",
+        "label": "Tomar instalaciones",
+        "treasury_delta": -2600,
+        "opposition_delta": -10,
+        "public_order_delta": -6
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_border_patrol_clash",
+    "title": "Choque de patrullas",
+    "body": "Un incidente en frontera eleva el tono militar y presiona al gabinete.",
+    "trigger": "crisis",
+    "crisis_type": "border_crisis",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "joint_inquiry",
+        "label": "Investigacion conjunta",
+        "political_capital_delta": -3,
+        "opposition_delta": -4,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "reinforce_posts",
+        "label": "Reforzar puestos",
+        "treasury_delta": -1400,
+        "opposition_delta": -2,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "nationalist_speech",
+        "label": "Discurso nacionalista",
+        "opposition_delta": 3,
+        "public_order_delta": -1
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_border_refugee_flow",
+    "title": "Flujo fronterizo inesperado",
+    "body": "La crisis fronteriza trae desplazados, tension local y costos humanitarios.",
+    "trigger": "crisis",
+    "crisis_type": "border_crisis",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "humanitarian_corridor",
+        "label": "Corredor humanitario",
+        "political_capital_delta": -4,
+        "treasury_delta": -2200,
+        "opposition_delta": -6,
+        "public_order_delta": 2,
+        "market_shock_good_id": "food",
+        "market_shock_title": "Asistencia humanitaria",
+        "market_shock_price_multiplier": 1.02,
+        "market_shock_duration_months": 1
+      },
+      {
+        "option_id": "border_screening",
+        "label": "Control fronterizo reforzado",
+        "treasury_delta": -1600,
+        "opposition_delta": -4,
+        "public_order_delta": -1
+      },
+      {
+        "option_id": "close_crossings",
+        "label": "Cerrar pasos",
+        "opposition_delta": 6,
+        "public_order_delta": -3
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_border_mobilization",
+    "title": "Ultimatum de frontera",
+    "body": "La crisis fronteriza entra en fase critica y exige decidir entre diplomacia y fuerza.",
+    "trigger": "crisis",
+    "crisis_type": "border_crisis",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "summit",
+        "label": "Cumbre urgente",
+        "political_capital_delta": -8,
+        "treasury_delta": -1800,
+        "opposition_delta": -10,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "limited_mobilization",
+        "label": "Movilizacion limitada",
+        "political_capital_delta": -4,
+        "treasury_delta": -3600,
+        "opposition_delta": -7,
+        "public_order_delta": -2,
+        "market_shock_good_id": "fuel",
+        "market_shock_title": "Movilizacion fronteriza",
+        "market_shock_price_multiplier": 1.05,
+        "market_shock_duration_months": 1
+      },
+      {
+        "option_id": "escalate",
+        "label": "Escalar la presion",
+        "treasury_delta": -2200,
+        "opposition_delta": 8,
+        "public_order_delta": -4
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_impeachment_committee",
+    "title": "Comision de juicio politico",
+    "body": "La oposicion instala una comision parlamentaria para investigar al presidente.",
+    "trigger": "crisis",
+    "crisis_type": "impeachment",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "legal_defense",
+        "label": "Defensa juridica",
+        "political_capital_delta": -4,
+        "treasury_delta": -1200,
+        "opposition_delta": -4
+      },
+      {
+        "option_id": "coalition_lunches",
+        "label": "Reunir coalicion",
+        "political_capital_delta": -5,
+        "opposition_delta": -5,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "attack_committee",
+        "label": "Atacar a la comision",
+        "opposition_delta": 4,
+        "public_order_delta": -1
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_impeachment_swing_votes",
+    "title": "Votos bisagra en duda",
+    "body": "Partidos aliados negocian su apoyo mientras el juicio politico avanza.",
+    "trigger": "crisis",
+    "crisis_type": "impeachment",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "coalition_deal",
+        "label": "Pacto de coalicion",
+        "political_capital_delta": -8,
+        "treasury_delta": -1800,
+        "opposition_delta": -9,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "public_testimony",
+        "label": "Testimonio publico",
+        "political_capital_delta": -5,
+        "opposition_delta": -6,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "pressure_legislators",
+        "label": "Presionar legisladores",
+        "opposition_delta": -5,
+        "public_order_delta": -4
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_impeachment_floor_vote",
+    "title": "Votacion de destitucion",
+    "body": "La crisis de juicio politico llega al pleno y amenaza la continuidad presidencial.",
+    "trigger": "crisis",
+    "crisis_type": "impeachment",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "grand_bargain",
+        "label": "Gran acuerdo legislativo",
+        "political_capital_delta": -12,
+        "treasury_delta": -3000,
+        "opposition_delta": -13,
+        "public_order_delta": 3
+      },
+      {
+        "option_id": "national_address",
+        "label": "Mensaje a la nacion",
+        "political_capital_delta": -7,
+        "opposition_delta": -8,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "procedural_war",
+        "label": "Guerra procedimental",
+        "political_capital_delta": -5,
+        "opposition_delta": 7,
+        "public_order_delta": -3
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_soft_coup_court_order",
+    "title": "Orden judicial hostil",
+    "body": "Tribunales y organismos de control limitan decisiones del ejecutivo.",
+    "trigger": "crisis",
+    "crisis_type": "soft_coup",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "comply_and_appeal",
+        "label": "Cumplir y apelar",
+        "political_capital_delta": -4,
+        "opposition_delta": -4,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "legal_taskforce",
+        "label": "Equipo constitucional",
+        "political_capital_delta": -3,
+        "treasury_delta": -1000,
+        "opposition_delta": -3
+      },
+      {
+        "option_id": "defy_order",
+        "label": "Desafiar la orden",
+        "opposition_delta": 5,
+        "public_order_delta": -2
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_soft_coup_media_blackout",
+    "title": "Bloqueo mediatico institucional",
+    "body": "Actores judiciales, empresariales y mediaticos coordinan un cerco al gobierno.",
+    "trigger": "crisis",
+    "crisis_type": "soft_coup",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "institutional_roundtable",
+        "label": "Mesa institucional",
+        "political_capital_delta": -7,
+        "opposition_delta": -8,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "public_files",
+        "label": "Abrir expedientes",
+        "political_capital_delta": -4,
+        "treasury_delta": -800,
+        "opposition_delta": -5
+      },
+      {
+        "option_id": "counteroffensive",
+        "label": "Contraofensiva comunicacional",
+        "treasury_delta": -1600,
+        "opposition_delta": -4,
+        "public_order_delta": -3
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_soft_coup_parallel_authority",
+    "title": "Autoridad paralela",
+    "body": "La crisis de golpe blando genera llamados a desconocer al ejecutivo.",
+    "trigger": "crisis",
+    "crisis_type": "soft_coup",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "constitutional_pact",
+        "label": "Pacto constitucional",
+        "political_capital_delta": -11,
+        "treasury_delta": -2200,
+        "opposition_delta": -12,
+        "public_order_delta": 3
+      },
+      {
+        "option_id": "mobilize_supporters",
+        "label": "Movilizar base social",
+        "political_capital_delta": -6,
+        "opposition_delta": -8,
+        "public_order_delta": -2
+      },
+      {
+        "option_id": "rule_by_decree",
+        "label": "Gobernar por decreto",
+        "opposition_delta": 9,
+        "public_order_delta": -5
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_state_exception_security_decree",
+    "title": "Decreto de seguridad",
+    "body": "El estado de excepcion requiere medidas concretas y expone al gobierno a abusos.",
+    "trigger": "crisis",
+    "crisis_type": "state_of_exception",
+    "min_crisis_stage": 1,
+    "max_crisis_stage": 2,
+    "min_crisis_intensity": 10,
+    "options": [
+      {
+        "option_id": "oversight_panel",
+        "label": "Panel de supervision",
+        "political_capital_delta": -4,
+        "treasury_delta": -700,
+        "opposition_delta": -4,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "targeted_decree",
+        "label": "Decreto focalizado",
+        "political_capital_delta": -2,
+        "opposition_delta": -3,
+        "public_order_delta": 1
+      },
+      {
+        "option_id": "broad_decree",
+        "label": "Decreto amplio",
+        "opposition_delta": -5,
+        "public_order_delta": -3
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_state_exception_abuse_reports",
+    "title": "Denuncias de abusos",
+    "body": "Organizaciones civiles reportan excesos durante el estado de excepcion.",
+    "trigger": "crisis",
+    "crisis_type": "state_of_exception",
+    "min_crisis_stage": 3,
+    "max_crisis_stage": 4,
+    "min_crisis_intensity": 45,
+    "options": [
+      {
+        "option_id": "investigate_forces",
+        "label": "Investigar unidades",
+        "political_capital_delta": -5,
+        "treasury_delta": -1000,
+        "opposition_delta": -7,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "compensation_fund",
+        "label": "Fondo de compensacion",
+        "treasury_delta": -2200,
+        "opposition_delta": -8,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "deny_abuses",
+        "label": "Negar abusos",
+        "opposition_delta": 6,
+        "public_order_delta": -3
+      }
+    ]
+  },
+  {
+    "event_id": "crisis_state_exception_permanent_emergency",
+    "title": "Estado de excepcion permanente",
+    "body": "La excepcion amenaza con convertirse en regimen normal y dispara resistencia institucional.",
+    "trigger": "crisis",
+    "crisis_type": "state_of_exception",
+    "min_crisis_stage": 5,
+    "max_crisis_stage": 5,
+    "min_crisis_intensity": 65,
+    "options": [
+      {
+        "option_id": "exit_timetable",
+        "label": "Calendario de salida",
+        "political_capital_delta": -9,
+        "opposition_delta": -12,
+        "public_order_delta": 3
+      },
+      {
+        "option_id": "legislative_review",
+        "label": "Revision legislativa",
+        "political_capital_delta": -7,
+        "treasury_delta": -900,
+        "opposition_delta": -9,
+        "public_order_delta": 2
+      },
+      {
+        "option_id": "extend_exception",
+        "label": "Prorrogar sin fecha",
+        "opposition_delta": 10,
+        "public_order_delta": -5
+      }
+    ]
+  }
 ]

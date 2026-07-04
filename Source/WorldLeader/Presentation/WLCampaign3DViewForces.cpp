@@ -287,27 +287,26 @@ namespace
 			Force.Lat = ReadCampaignMilitaryForceNumberField(*ObjPtr, TEXT("lat"));
 			Force.EstimatedStrength = FMath::Max(0, ReadCampaignMilitaryForceIntField(*ObjPtr, TEXT("strength")));
 			Force.Mobility = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("mobility"), TEXT("media"));
-			Force.OperationalState = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("operational_state"), TEXT("placeholder"));
+			Force.OperationalState = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("operational_state"), TEXT("estado no especificado"));
 			Force.Supply = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("supply"), TEXT("sin datos"));
 			Force.Morale = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("morale"), TEXT("sin datos"));
 			Force.Posture = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("posture"), TEXT("observacion"));
-			Force.StrategicRole = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("strategic_role"), TEXT("presencia militar placeholder"));
-			Force.DetailLevel = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("detail_level"), TEXT("placeholder force marker"));
+			Force.StrategicRole = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("strategic_role"), TEXT("presencia militar regional"));
+			Force.DetailLevel = ReadCampaignMilitaryForceStringField(*ObjPtr, TEXT("detail_level"), TEXT("marcador militar operativo"));
 			Force.DisabledActions = ReadCampaignMilitaryForceStringArray(*ObjPtr, TEXT("disabled_actions"));
-			if (Force.DisabledActions.IsEmpty())
+			const FString Category = Force.MarkerCategory.ToLower();
+			const bool bDefaultMovable = !Category.Contains(TEXT("air"));
+			if (Force.DisabledActions.IsEmpty() && !ReadCampaignMilitaryForceBoolField(*ObjPtr, TEXT("movable"), bDefaultMovable))
 			{
 				Force.DisabledActions = {
-					TEXT("Mover"),
 					TEXT("Atacar"),
 					TEXT("Reorganizar"),
 					TEXT("Reforzar"),
-					TEXT("Ver composicion"),
 					TEXT("Abrir logistica"),
 					TEXT("Auto-resolve")
 				};
 			}
 
-			const FString Category = Force.MarkerCategory.ToLower();
 			Force.bAir = Category.Contains(TEXT("air"));
 			Force.bNaval = Category.Contains(TEXT("naval"));
 			Force.bMovable = ReadCampaignMilitaryForceBoolField(*ObjPtr, TEXT("movable"), !Force.bAir);
@@ -356,12 +355,8 @@ void AWLCampaign3DView::AddMilitaryForceMarker(const FWLCampaign3DForceView& For
 		return;
 	}
 
-	// Marcadores de fuerza OCULTOS por ahora: son placeholder (sin gameplay activo) y ensuciaban las
-	// ciudades con conos dorados ("triangulos amarillos") + una etiqueta que repetia el nombre de la
-	// ciudad (el segundo "Caracas"). Registramos los datos en ForceViews (paneles/reactivacion) pero
-	// NO creamos geometria ni hitbox (que ademas se tragaba el click de la ciudad). Para reactivarlos
-	// cuando las fuerzas sean jugables: bShowMilitaryForceMarkers = true. Es todo-o-nada, asi que las
-	// arrays paralelas de marcadores quedan vacias de forma consistente (Queries usa IsValidIndex).
+	// Marcadores de fuerza opcionales: con la flag apagada mantenemos los datos para paneles y logica,
+	// pero no creamos geometria ni hitbox para no competir con clicks de ciudades/fuertes.
 	if (!bShowMilitaryForceMarkers)
 	{
 		ForceViews.Add(Force);

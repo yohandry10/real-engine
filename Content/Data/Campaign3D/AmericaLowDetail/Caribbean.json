@@ -12,7 +12,7 @@
                           "label_lon":  -79.3,
                           "label_lat":  21.8,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       },
                       {
@@ -27,7 +27,7 @@
                           "label_lon":  -70.5,
                           "label_lat":  18.9,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       },
                       {
@@ -42,8 +42,8 @@
                           "label_lon":  -72.3,
                           "label_lat":  19.0,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "JM",
@@ -57,8 +57,8 @@
                           "label_lon":  -77.3,
                           "label_lat":  18.1,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "PR",
@@ -72,8 +72,8 @@
                           "label_lon":  -66.4,
                           "label_lat":  18.2,
                           "special_territory":  true,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "BS",
@@ -87,8 +87,8 @@
                           "label_lon":  -76.5,
                           "label_lat":  24.5,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "TT",
@@ -102,8 +102,8 @@
                           "label_lon":  -61.2,
                           "label_lat":  10.6,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "BB",
@@ -117,8 +117,8 @@
                           "label_lon":  -59.55,
                           "label_lat":  13.18,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "DM",
@@ -132,8 +132,8 @@
                           "label_lon":  -61.35,
                           "label_lat":  15.42,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "LC",
@@ -147,8 +147,8 @@
                           "label_lon":  -60.98,
                           "label_lat":  13.91,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "VC",
@@ -162,8 +162,8 @@
                           "label_lon":  -61.22,
                           "label_lat":  13.16,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "GD",
@@ -177,8 +177,8 @@
                           "label_lon":  -61.68,
                           "label_lat":  12.12,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "AG",
@@ -192,8 +192,8 @@
                           "label_lon":  -61.79,
                           "label_lat":  17.2,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "KN",
@@ -207,8 +207,8 @@
                           "label_lon":  -62.72,
                           "label_lat":  17.28,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       }
                   ],
     "cities":  [
@@ -225,9 +225,9 @@
                        "visible_from_zoom":  "global",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital y puerto mayor en CU."
+                       "description":  "Lectura estrategica: capital y puerto mayor en CU."
                    },
                    {
                        "id":  "CU-SANTIAGO-DE-CUBA",
@@ -242,9 +242,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto estrategico en CU."
+                       "description":  "Lectura estrategica: puerto estrategico en CU."
                    },
                    {
                        "id":  "DO-SANTO-DOMINGO",
@@ -259,9 +259,9 @@
                        "visible_from_zoom":  "global",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en DO."
+                       "description":  "Lectura estrategica: capital nacional en DO."
                    },
                    {
                        "id":  "DO-SANTIAGO-DE-LOS-CABALLEROS",
@@ -276,9 +276,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: capital o puerto insular en DO."
+                       "description":  "Lectura estrategica: capital o puerto insular en DO."
                    },
                    {
                        "id":  "HT-PUERTO-PRINCIPE",
@@ -293,9 +293,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en HT."
+                       "description":  "Lectura estrategica: capital nacional en HT."
                    },
                    {
                        "id":  "HT-CAP-HAITIEN",
@@ -310,9 +310,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto estrategico en HT."
+                       "description":  "Lectura estrategica: puerto estrategico en HT."
                    },
                    {
                        "id":  "JM-KINGSTON",
@@ -327,9 +327,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital y puerto en JM."
+                       "description":  "Lectura estrategica: capital y puerto en JM."
                    },
                    {
                        "id":  "JM-MONTEGO-BAY",
@@ -344,9 +344,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto estrategico en JM."
+                       "description":  "Lectura estrategica: puerto estrategico en JM."
                    },
                    {
                        "id":  "PR-SAN-JUAN",
@@ -361,9 +361,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en PR."
+                       "description":  "Lectura estrategica: capital nacional en PR."
                    },
                    {
                        "id":  "BS-NASSAU",
@@ -378,9 +378,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en BS."
+                       "description":  "Lectura estrategica: capital nacional en BS."
                    },
                    {
                        "id":  "TT-PORT-OF-SPAIN",
@@ -395,9 +395,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: puerto energetico en TT."
+                       "description":  "Lectura estrategica: puerto energetico en TT."
                    },
                    {
                        "id":  "BB-BRIDGETOWN",
@@ -412,9 +412,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en BB."
+                       "description":  "Lectura estrategica: capital nacional en BB."
                    },
                    {
                        "id":  "DM-ROSEAU",
@@ -429,9 +429,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en DM."
+                       "description":  "Lectura estrategica: capital nacional en DM."
                    },
                    {
                        "id":  "LC-CASTRIES",
@@ -446,9 +446,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en LC."
+                       "description":  "Lectura estrategica: capital nacional en LC."
                    },
                    {
                        "id":  "VC-KINGSTOWN",
@@ -463,9 +463,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en VC."
+                       "description":  "Lectura estrategica: capital nacional en VC."
                    },
                    {
                        "id":  "GD-ST-GEORGE-S",
@@ -480,9 +480,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en GD."
+                       "description":  "Lectura estrategica: capital nacional en GD."
                    },
                    {
                        "id":  "AG-ST-JOHN-S",
@@ -497,9 +497,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en AG."
+                       "description":  "Lectura estrategica: capital nacional en AG."
                    },
                    {
                        "id":  "KN-BASSETERRE",
@@ -514,9 +514,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en KN."
+                       "description":  "Lectura estrategica: capital nacional en KN."
                    }
                ]
 }

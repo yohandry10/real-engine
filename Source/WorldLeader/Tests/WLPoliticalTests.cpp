@@ -71,6 +71,226 @@ bool FWLPoliticalF1GeneralLifecycleTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLPoliticalCoupRiskIgnoresFreshIdleGeneralsTest,
+	"WorldLeader.Politics.F2.CoupRiskIgnoresFreshIdleGenerals",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLPoliticalCoupRiskIgnoresFreshIdleGeneralsTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLCharacterSubsystem* Characters = GameInstance->GetSubsystem<UWLCharacterSubsystem>();
+	UWLMilitarySubsystem* Military = GameInstance->GetSubsystem<UWLMilitarySubsystem>();
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	TestNotNull(TEXT("Character subsystem"), Characters);
+	TestNotNull(TEXT("Military subsystem"), Military);
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	if (!Characters || !Military || !Politics)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLArmy CommandArmy;
+	CommandArmy.Id = TEXT("A-CO-DANGER");
+	CommandArmy.OwnerIso = TEXT("CO");
+	CommandArmy.ProvinceId = TEXT("CO-DC");
+	CommandArmy.General = TEXT("General Riesgo");
+	CommandArmy.Units = { TEXT("infantry"), TEXT("infantry"), TEXT("tank") };
+
+	FString Message;
+	TestTrue(TEXT("Restaurar ejercito con mando politico"),
+		Military->RestoreSaveSnapshot({ CommandArmy }, 2, Message));
+
+	FWLCharacter Dangerous;
+	Dangerous.Id = TEXT("CO-GEN-DANGER");
+	Dangerous.Name = TEXT("General Riesgo");
+	Dangerous.CountryIso = TEXT("CO");
+	Dangerous.Role = EWLCharacterRole::General;
+	Dangerous.Rank = EWLMilitaryRank::FieldMarshal;
+	Dangerous.Skill = 75;
+	Dangerous.Loyalty = 10;
+	Dangerous.Ambition = 90;
+	Dangerous.Popularity = 80;
+	Dangerous.Renown = 120;
+	Dangerous.AssignedArmyId = CommandArmy.Id;
+	Dangerous.bActive = true;
+
+	TArray<FWLCharacter> BaselineCharacters = { Dangerous };
+	TestTrue(TEXT("Restaurar general peligroso"),
+		Characters->RestoreSaveSnapshot(BaselineCharacters, {}, Message));
+	FString Report;
+	Politics->AttemptCoup(TEXT("CO"), Report);
+	const int32 BaselineRisk = Politics->GetInternalPower(TEXT("CO")).CoupRisk;
+	TestTrue(TEXT("El general peligroso genera riesgo real"), BaselineRisk > 0);
+
+	Politics->ResetPoliticalState();
+	TArray<FWLCharacter> WithIdleGenerals = { Dangerous };
+	for (int32 Index = 0; Index < 6; ++Index)
+	{
+		FWLCharacter Idle = Dangerous;
+		Idle.Id = FString::Printf(TEXT("CO-GEN-IDLE-%02d"), Index);
+		Idle.Name = FString::Printf(TEXT("Coronel Nuevo %02d"), Index);
+		Idle.Rank = EWLMilitaryRank::Colonel;
+		Idle.Skill = 50;
+		Idle.Loyalty = 90;
+		Idle.Ambition = 10;
+		Idle.Popularity = 30;
+		Idle.Renown = 0;
+		Idle.AssignedArmyId.Reset();
+		WithIdleGenerals.Add(Idle);
+	}
+	TestTrue(TEXT("Restaurar general peligroso con coroneles sin mando"),
+		Characters->RestoreSaveSnapshot(WithIdleGenerals, {}, Message));
+	Politics->AttemptCoup(TEXT("CO"), Report);
+	const int32 RiskWithIdleGenerals = Politics->GetInternalPower(TEXT("CO")).CoupRisk;
+	TestEqual(TEXT("Coroneles nuevos sin mando no diluyen el riesgo de golpe"),
+		RiskWithIdleGenerals, BaselineRisk);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLPoliticalRewardInactiveGeneralDoesNotChargeTest,
+	"WorldLeader.Politics.F2.RewardInactiveGeneralDoesNotCharge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLPoliticalRewardInactiveGeneralDoesNotChargeTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLCharacterSubsystem* Characters = GameInstance->GetSubsystem<UWLCharacterSubsystem>();
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Character subsystem"), Characters);
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	TestNotNull(TEXT("Tick subsystem"), Tick);
+	if (!Characters || !Politics || !Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLCharacter InactiveGeneral;
+	InactiveGeneral.Id = TEXT("CO-GEN-INACTIVE-TEST");
+	InactiveGeneral.Name = TEXT("General Retirado");
+	InactiveGeneral.CountryIso = TEXT("CO");
+	InactiveGeneral.Role = EWLCharacterRole::General;
+	InactiveGeneral.Rank = EWLMilitaryRank::BrigadeGeneral;
+	InactiveGeneral.Skill = 65;
+	InactiveGeneral.Loyalty = 40;
+	InactiveGeneral.Ambition = 80;
+	InactiveGeneral.bActive = false;
+
+	FString Message;
+	TestTrue(TEXT("Restaurar general inactivo"),
+		Characters->RestoreSaveSnapshot({ InactiveGeneral }, {}, Message));
+	TestTrue(TEXT("Dar tesoro para detectar cobro indebido"),
+		Tick->AdjustTreasury(TEXT("CO"), 10000, Message));
+	const int64 TreasuryBefore = Tick->GetTreasury(TEXT("CO"));
+	TestFalse(TEXT("No se recompensa general inactivo"),
+		Politics->RewardGeneral(TEXT("CO"), InactiveGeneral.Id, Message));
+	TestEqual(TEXT("RewardGeneral no cobra si falla validacion"),
+		Tick->GetTreasury(TEXT("CO")), TreasuryBefore);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLPoliticalPurgeGeneralScaresMilitaryTest,
+	"WorldLeader.Politics.F2.PurgeGeneralScaresMilitary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLPoliticalPurgeGeneralScaresMilitaryTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLCharacterSubsystem* Characters = GameInstance->GetSubsystem<UWLCharacterSubsystem>();
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	TestNotNull(TEXT("Character subsystem"), Characters);
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	if (!Characters || !Politics)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLCharacter Purged;
+	Purged.Id = TEXT("CO-GEN-PURGED-TEST");
+	Purged.Name = TEXT("General Purgado");
+	Purged.CountryIso = TEXT("CO");
+	Purged.Role = EWLCharacterRole::General;
+	Purged.Rank = EWLMilitaryRank::BrigadeGeneral;
+	Purged.Skill = 60;
+	Purged.Loyalty = 50;
+	Purged.Ambition = 70;
+	Purged.bActive = true;
+
+	FWLCharacter Survivor = Purged;
+	Survivor.Id = TEXT("CO-GEN-SURVIVOR-TEST");
+	Survivor.Name = TEXT("General Superviviente");
+	Survivor.Loyalty = 64;
+
+	FString Message;
+	TestTrue(TEXT("Restaurar generales para purga"),
+		Characters->RestoreSaveSnapshot({ Purged, Survivor }, {}, Message));
+
+	int32 MilitarySupportBefore = INDEX_NONE;
+	for (const FWLPublicGroupSupportState& Group : Politics->GetPublicGroups(TEXT("CO")))
+	{
+		if (Group.Group == EWLPublicGroup::Military)
+		{
+			MilitarySupportBefore = Group.Support;
+			break;
+		}
+	}
+	TestTrue(TEXT("Grupo militar existe"), MilitarySupportBefore != INDEX_NONE);
+
+	TestTrue(TEXT("Purgar general activo"),
+		Politics->PurgeCharacter(TEXT("CO"), Purged.Id, Message));
+	FWLCharacter SurvivorAfter;
+	TestTrue(TEXT("General superviviente consultable"),
+		Characters->GetCharacter(Survivor.Id, SurvivorAfter));
+	TestEqual(TEXT("La purga baja lealtad del resto de generales"),
+		SurvivorAfter.Loyalty, Survivor.Loyalty - 4);
+
+	int32 MilitarySupportAfter = INDEX_NONE;
+	for (const FWLPublicGroupSupportState& Group : Politics->GetPublicGroups(TEXT("CO")))
+	{
+		if (Group.Group == EWLPublicGroup::Military)
+		{
+			MilitarySupportAfter = Group.Support;
+			break;
+		}
+	}
+	TestEqual(TEXT("La purga reduce apoyo militar"),
+		MilitarySupportAfter, MilitarySupportBefore - 2);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLPoliticalDiplomacyTreatyWarTest,
 	"WorldLeader.Politics.F3.DiplomacyTreatyWar",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -519,15 +739,14 @@ bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Negociar soporte partidista"),
 		Politics->NegotiatePartySupport(TEXT("CO"), NegotiatedPartyId, Message));
 
-	TestTrue(TEXT("Promesa electoral valida"),
+	TestFalse(TEXT("Promesa electoral bloqueada fuera de ventana"),
 		Politics->MakeCampaignPromise(TEXT("CO"), TEXT("edu_public_schools"), Message));
-	const FWLElectionState Election = Politics->GetElectionState(TEXT("CO"));
-	TestEqual(TEXT("Promesa queda registrada"), Election.CampaignPromiseReformId, FString(TEXT("edu_public_schools")));
 
 	const TArray<FWLCharacterPoliticalProfile> Profiles = Politics->GetCharacterPoliticalProfiles(TEXT("CO"));
 	TestTrue(TEXT("Personajes tienen perfil politico"), Profiles.Num() > 0);
 	TestFalse(TEXT("Perfil tiene biografia"), Profiles[0].Biography.IsEmpty());
 
+	Politics->ProcessPoliticalMonth();
 	TestTrue(TEXT("Usar patronazgo"),
 		Politics->UsePatronage(TEXT("CO"), EWLPatronageActionType::AwardContract, Message));
 	TestTrue(TEXT("Patronazgo eleva corrupcion de contratos"),
@@ -563,6 +782,7 @@ bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
 			Politics->GetRegionGovernors(TEXT("CO")),
 			{ Crisis },
 			{ Politics->GetGovernmentCalibration(TEXT("CO")) },
+			TArray<FWLPoliticalActionRecord>(),
 			Message));
 	TestTrue(TEXT("Crisis P2 activa restaurada"), Politics->GetActiveCrisisChains(TEXT("CO")).Num() > 0);
 
@@ -580,6 +800,7 @@ bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
 	TArray<FWLRegionGovernorState> SavedRegions;
 	TArray<FWLCrisisChainState> SavedCrises;
 	TArray<FWLGovernmentCalibrationState> SavedCalibration;
+	TArray<FWLPoliticalActionRecord> SavedActionRecords;
 	Politics->WriteGovernmentP2SaveSnapshot(
 		SavedReforms,
 		SavedEnactedReforms,
@@ -590,7 +811,8 @@ bool FWLGovernmentP2RealPoliticsSystemsTest::RunTest(const FString& Parameters)
 		SavedMedia,
 		SavedRegions,
 		SavedCrises,
-		SavedCalibration);
+		SavedCalibration,
+		SavedActionRecords);
 	TestTrue(TEXT("Snapshot P2 guarda reformas"), SavedReforms.Num() > 0);
 	TestTrue(TEXT("Snapshot P2 expone reformas consolidadas"), SavedEnactedReforms.Num() >= 0);
 	TestTrue(TEXT("Snapshot P2 guarda partidos"), SavedParties.Num() >= 5);
@@ -649,6 +871,25 @@ bool FWLGovernmentP2InvariantsAndPersistenceTest::RunTest(const FString& Paramet
 	}
 
 	Tick->AdjustTreasury(TEXT("CO"), 100000, Message);
+	FWLElectionState CampaignWindow;
+	CampaignWindow.NationIso = TEXT("CO");
+	CampaignWindow.MonthsToElection = 6;
+	CampaignWindow.CampaignIntensity = 20;
+	CampaignWindow.Legitimacy = 70;
+	TestTrue(TEXT("Restaurar ventana electoral para promesa"),
+		Politics->RestoreGovernmentP2SaveSnapshot(
+			TArray<FWLActiveReformState>(),
+			TArray<FWLEnactedPolicyReformState>(),
+			TArray<FWLPartyState>(),
+			{ CampaignWindow },
+			TArray<FWLCharacterPoliticalProfile>(),
+			TArray<FWLPatronageState>(),
+			TArray<FWLMediaPublicOpinionState>(),
+			TArray<FWLRegionGovernorState>(),
+			TArray<FWLCrisisChainState>(),
+			TArray<FWLGovernmentCalibrationState>(),
+			TArray<FWLPoliticalActionRecord>(),
+			Message));
 	TestTrue(TEXT("Promesa electoral tax_broad_base"),
 		Politics->MakeCampaignPromise(TEXT("CO"), TEXT("tax_broad_base"), Message));
 	TestTrue(TEXT("Aprobar reforma prometida"),
@@ -703,6 +944,7 @@ bool FWLGovernmentP2InvariantsAndPersistenceTest::RunTest(const FString& Paramet
 			TArray<FWLRegionGovernorState>(),
 			TArray<FWLCrisisChainState>(),
 			TArray<FWLGovernmentCalibrationState>(),
+			TArray<FWLPoliticalActionRecord>(),
 			Message));
 	TestTrue(TEXT("Partidos VE faltantes se resembran"),
 		Politics->GetPoliticalParties(TEXT("VE")).Num() >= 5);
@@ -749,6 +991,7 @@ bool FWLGovernmentP2InvariantsAndPersistenceTest::RunTest(const FString& Paramet
 			TArray<FWLRegionGovernorState>(),
 			TArray<FWLCrisisChainState>(),
 			TArray<FWLGovernmentCalibrationState>(),
+			TArray<FWLPoliticalActionRecord>(),
 			Message));
 	Politics->ProcessPoliticalMonth();
 	const FWLElectionState TermElection = Politics->GetElectionState(TEXT("CO"));
@@ -774,10 +1017,178 @@ bool FWLGovernmentP2InvariantsAndPersistenceTest::RunTest(const FString& Paramet
 			TArray<FWLRegionGovernorState>(),
 			TArray<FWLCrisisChainState>(),
 			TArray<FWLGovernmentCalibrationState>(),
+			TArray<FWLPoliticalActionRecord>(),
 			Message));
 	Politics->ProcessPoliticalMonth();
 	TestTrue(TEXT("Promesa incumplida deja reporte electoral"),
 		Politics->GetElectionState(TEXT("CO")).LastElectionReport.Contains(TEXT("Promesa incumplida")));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLPoliticalActionExecutorInvariantsTest,
+	"WorldLeader.Government.PoliticalAction.ExecutorInvariants",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLPoliticalActionExecutorInvariantsTest::RunTest(const FString& Parameters)
+{
+	UWLCampaignGameInstance* GameInstance = NewObject<UWLCampaignGameInstance>();
+	TestNotNull(TEXT("Campaign GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+	TestTrue(TEXT("Campania CO"), GameInstance->StartNewCampaign(TEXT("CO")));
+
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	UWLCharacterSubsystem* Characters = GameInstance->GetSubsystem<UWLCharacterSubsystem>();
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	TestNotNull(TEXT("Tick subsystem"), Tick);
+	TestNotNull(TEXT("Character subsystem"), Characters);
+	if (!Politics || !Tick || !Characters)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString Message;
+	Tick->AdjustTreasury(TEXT("CO"), -Tick->GetTreasury(TEXT("CO")), Message);
+	const int32 CapitalBeforeEvent = Characters->GetPoliticalCapital(TEXT("CO"));
+
+	FWLPoliticalEventOption CostlyOption;
+	CostlyOption.OptionId = TEXT("pay");
+	CostlyOption.Label = TEXT("Pagar salida politica");
+	CostlyOption.PoliticalCapitalDelta = -10;
+	CostlyOption.TreasuryDelta = -5000;
+	CostlyOption.OppositionDelta = -10;
+	CostlyOption.PublicOrderDelta = 2;
+
+	FWLPoliticalEventInstance CostlyEvent;
+	CostlyEvent.InstanceId = TEXT("EV-7777");
+	CostlyEvent.EventId = TEXT("costly_event_test");
+	CostlyEvent.NationIso = TEXT("CO");
+	CostlyEvent.Title = TEXT("Evento caro");
+	CostlyEvent.Body = TEXT("Opcion cara para probar no mutation on failure.");
+	CostlyEvent.Options.Add(CostlyOption);
+	FWLCampaignOutcomeState Outcome;
+	TestTrue(TEXT("Restaurar evento caro"),
+		Politics->RestoreSaveSnapshot(
+			TArray<FWLInternalPowerState>(),
+			TArray<FWLDiplomaticRelationState>(),
+			TArray<FWLIntelligenceNetworkState>(),
+			{ CostlyEvent },
+			Outcome,
+			Message));
+	TestFalse(TEXT("Evento caro falla sin recursos"),
+		Politics->ResolveEvent(TEXT("EV-7777"), TEXT("pay"), Message));
+	TestEqual(TEXT("Evento caro no cobra capital al fallar"),
+		Characters->GetPoliticalCapital(TEXT("CO")),
+		CapitalBeforeEvent);
+	TestEqual(TEXT("Evento caro no baja tesoro al fallar"),
+		Tick->GetTreasury(TEXT("CO")),
+		static_cast<int64>(0));
+
+	const int32 CapitalBeforeReform = Characters->GetPoliticalCapital(TEXT("CO"));
+	TestFalse(TEXT("Reforma con coste de tesoro falla sin cobrar capital"),
+		Politics->EnactPolicyReform(TEXT("CO"), TEXT("tax_broad_base"), Message));
+	TestEqual(TEXT("Capital intacto tras reforma sin tesoro"),
+		Characters->GetPoliticalCapital(TEXT("CO")),
+		CapitalBeforeReform);
+
+	Tick->AdjustTreasury(TEXT("CO"), 100000, Message);
+	TestTrue(TEXT("Censura ejecuta una vez"),
+		Politics->RunMediaAction(TEXT("CO"), EWLMediaActionType::Censorship, Message));
+	TestFalse(TEXT("Censura bloqueada por cooldown"),
+		Politics->RunMediaAction(TEXT("CO"), EWLMediaActionType::Censorship, Message));
+
+	const TArray<FWLRegionGovernorState> Regions = Politics->GetRegionGovernors(TEXT("CO"));
+	TestTrue(TEXT("Hay region para cooldown"), Regions.Num() > 0);
+	if (Regions.Num() > 0)
+	{
+		TestTrue(TEXT("Inversion regional ejecuta una vez"),
+			Politics->RunRegionPolicy(TEXT("CO"), Regions[0].RegionId, EWLRegionPolicyActionType::RegionalInvestment, Message));
+		TestFalse(TEXT("Inversion regional bloqueada por cooldown"),
+			Politics->RunRegionPolicy(TEXT("CO"), Regions[0].RegionId, EWLRegionPolicyActionType::RegionalInvestment, Message));
+	}
+
+	TArray<FWLActiveReformState> SavedReforms;
+	TArray<FWLEnactedPolicyReformState> SavedEnactedReforms;
+	TArray<FWLPartyState> SavedParties;
+	TArray<FWLElectionState> SavedElections;
+	TArray<FWLCharacterPoliticalProfile> SavedProfiles;
+	TArray<FWLPatronageState> SavedPatronage;
+	TArray<FWLMediaPublicOpinionState> SavedMedia;
+	TArray<FWLRegionGovernorState> SavedRegions;
+	TArray<FWLCrisisChainState> SavedCrises;
+	TArray<FWLGovernmentCalibrationState> SavedCalibration;
+	TArray<FWLPoliticalActionRecord> SavedActionRecords;
+	Politics->WriteGovernmentP2SaveSnapshot(
+		SavedReforms,
+		SavedEnactedReforms,
+		SavedParties,
+		SavedElections,
+		SavedProfiles,
+		SavedPatronage,
+		SavedMedia,
+		SavedRegions,
+		SavedCrises,
+		SavedCalibration,
+		SavedActionRecords);
+	TestTrue(TEXT("Ledger guarda acciones politicas"), SavedActionRecords.Num() > 0);
+	TestTrue(TEXT("Restaurar ledger de acciones politicas"),
+		Politics->RestoreGovernmentP2SaveSnapshot(
+			SavedReforms,
+			SavedEnactedReforms,
+			SavedParties,
+			SavedElections,
+			SavedProfiles,
+			SavedPatronage,
+			SavedMedia,
+			SavedRegions,
+			SavedCrises,
+			SavedCalibration,
+			SavedActionRecords,
+			Message));
+	FWLPoliticalActionRequest MediaPreviewRequest;
+	MediaPreviewRequest.NationIso = TEXT("CO");
+	MediaPreviewRequest.ActionType = EWLPoliticalActionType::RunMediaAction;
+	MediaPreviewRequest.NumericValue = static_cast<int32>(EWLMediaActionType::Censorship);
+	const FWLPoliticalActionPreview RestoredPreview = Politics->GetPoliticalActionPreview(MediaPreviewRequest);
+	TestFalse(TEXT("Cooldown restaurado bloquea accion"), RestoredPreview.bCanExecute);
+	TestTrue(TEXT("Cooldown restaurado informa meses"), RestoredPreview.CooldownRemainingMonths > 0);
+
+	FWLCrisisChainState StageFourCrisis;
+	StageFourCrisis.NationIso = TEXT("CO");
+	StageFourCrisis.CrisisId = TEXT("CO|STAGE5");
+	StageFourCrisis.Type = EWLCrisisChainType::SoftCoup;
+	StageFourCrisis.Stage = 4;
+	StageFourCrisis.Intensity = 90;
+	StageFourCrisis.MonthsActive = 2;
+	TestTrue(TEXT("Restaurar crisis etapa cuatro"),
+		Politics->RestoreGovernmentP2SaveSnapshot(
+			TArray<FWLActiveReformState>(),
+			TArray<FWLEnactedPolicyReformState>(),
+			TArray<FWLPartyState>(),
+			TArray<FWLElectionState>(),
+			TArray<FWLCharacterPoliticalProfile>(),
+			TArray<FWLPatronageState>(),
+			TArray<FWLMediaPublicOpinionState>(),
+			TArray<FWLRegionGovernorState>(),
+			{ StageFourCrisis },
+			TArray<FWLGovernmentCalibrationState>(),
+			TArray<FWLPoliticalActionRecord>(),
+			Message));
+	Politics->ProcessPoliticalMonth();
+	const TArray<FWLCrisisChainState> Crises = Politics->GetActiveCrisisChains(TEXT("CO"));
+	TestTrue(TEXT("Crisis puede alcanzar etapa cinco"),
+		Crises.ContainsByPredicate([](const FWLCrisisChainState& Crisis)
+		{
+			return Crisis.CrisisId == TEXT("CO|STAGE5") && Crisis.Stage == 5;
+		}));
 
 	GameInstance->Shutdown();
 	return true;
@@ -835,6 +1246,12 @@ bool FWLGovernmentMemoryChainsAndAITest::RunTest(const FString& Parameters)
 		Politics->ResolveEvent(TEXT("EV-0888"), TEXT("repress"), Message));
 	TestTrue(TEXT("Memoria politica registrada"),
 		Politics->GetPoliticalMemory(TEXT("CO")).Num() > 0);
+	TestTrue(TEXT("Resolver evento crea registro visible"),
+		Politics->GetGovernmentLog(TEXT("CO")).ContainsByPredicate([](const FWLGovernmentLogEntry& Entry)
+		{
+			return Entry.Category == EWLGovernmentLogCategory::Event
+				&& Entry.Title.Contains(TEXT("Evento resuelto"));
+		}));
 
 	FWLPoliticalMemoryRecord Unrest;
 	Unrest.NationIso = TEXT("CO");

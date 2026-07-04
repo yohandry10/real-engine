@@ -34,6 +34,7 @@ Desktop.ini
 *.pdb
 *.so
 *.dylib
+**/target/
 
 # Local build/install logs
 *.log

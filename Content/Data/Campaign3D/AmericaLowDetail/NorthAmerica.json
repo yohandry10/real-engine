@@ -12,8 +12,8 @@
                           "label_lon":  -102.0,
                           "label_lat":  58.0,
                           "special_territory":  false,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       },
                       {
                           "iso":  "US",
@@ -27,7 +27,7 @@
                           "label_lon":  -98.0,
                           "label_lat":  39.0,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       },
                       {
@@ -42,7 +42,7 @@
                           "label_lon":  -102.0,
                           "label_lat":  23.0,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       },
                       {
@@ -57,8 +57,8 @@
                           "label_lon":  -42.0,
                           "label_lat":  72.0,
                           "special_territory":  true,
-                          "administrable":  false,
-                          "status":  "low-detail visual context"
+                          "administrable":  true,
+                          "status":  "playable strategic context"
                       }
                   ],
     "cities":  [
@@ -75,9 +75,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en CA."
+                       "description":  "Lectura estrategica: capital nacional en CA."
                    },
                    {
                        "id":  "CA-TORONTO",
@@ -92,9 +92,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: hub economico en CA."
+                       "description":  "Lectura estrategica: hub economico en CA."
                    },
                    {
                        "id":  "CA-MONTREAL",
@@ -109,9 +109,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: hub economico en CA."
+                       "description":  "Lectura estrategica: hub economico en CA."
                    },
                    {
                        "id":  "CA-VANCOUVER",
@@ -126,9 +126,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto estrategico en CA."
+                       "description":  "Lectura estrategica: puerto estrategico en CA."
                    },
                    {
                        "id":  "CA-CALGARY",
@@ -143,9 +143,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en CA."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en CA."
                    },
                    {
                        "id":  "CA-EDMONTON",
@@ -160,9 +160,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en CA."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en CA."
                    },
                    {
                        "id":  "CA-QUEBEC",
@@ -177,9 +177,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en CA."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en CA."
                    },
                    {
                        "id":  "CA-WINNIPEG",
@@ -194,9 +194,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en CA."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en CA."
                    },
                    {
                        "id":  "US-WASHINGTON-D-C",
@@ -211,9 +211,9 @@
                        "visible_from_zoom":  "global",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en US."
+                       "description":  "Lectura estrategica: capital nacional en US."
                    },
                    {
                        "id":  "US-NEW-YORK",
@@ -228,9 +228,9 @@
                        "visible_from_zoom":  "global",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: hub economico global en US."
+                       "description":  "Lectura estrategica: hub economico global en US."
                    },
                    {
                        "id":  "US-LOS-ANGELES",
@@ -245,9 +245,9 @@
                        "visible_from_zoom":  "global",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: metropoli y puerto pacifico en US."
+                       "description":  "Lectura estrategica: metropoli y puerto pacifico en US."
                    },
                    {
                        "id":  "US-CHICAGO",
@@ -262,9 +262,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: hub economico en US."
+                       "description":  "Lectura estrategica: hub economico en US."
                    },
                    {
                        "id":  "US-HOUSTON",
@@ -279,9 +279,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: energia y puerto en US."
+                       "description":  "Lectura estrategica: energia y puerto en US."
                    },
                    {
                        "id":  "US-MIAMI",
@@ -296,9 +296,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: puente caribeno en US."
+                       "description":  "Lectura estrategica: puente caribeno en US."
                    },
                    {
                        "id":  "US-SAN-FRANCISCO",
@@ -313,9 +313,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: tecnologia y puerto en US."
+                       "description":  "Lectura estrategica: tecnologia y puerto en US."
                    },
                    {
                        "id":  "US-SEATTLE",
@@ -330,9 +330,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: puerto pacifico en US."
+                       "description":  "Lectura estrategica: puerto pacifico en US."
                    },
                    {
                        "id":  "US-DALLAS",
@@ -347,9 +347,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: hub economico en US."
+                       "description":  "Lectura estrategica: hub economico en US."
                    },
                    {
                        "id":  "US-ATLANTA",
@@ -364,9 +364,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: logistica en US."
+                       "description":  "Lectura estrategica: logistica en US."
                    },
                    {
                        "id":  "US-BOSTON",
@@ -381,9 +381,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: hub economico en US."
+                       "description":  "Lectura estrategica: hub economico en US."
                    },
                    {
                        "id":  "US-DENVER",
@@ -398,9 +398,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: interior montana en US."
+                       "description":  "Lectura estrategica: interior montana en US."
                    },
                    {
                        "id":  "MX-CIUDAD-DE-MEXICO",
@@ -415,9 +415,9 @@
                        "visible_from_zoom":  "global",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital y metropoli altiplano en MX."
+                       "description":  "Lectura estrategica: capital y metropoli altiplano en MX."
                    },
                    {
                        "id":  "MX-GUADALAJARA",
@@ -432,9 +432,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: hub economico en MX."
+                       "description":  "Lectura estrategica: hub economico en MX."
                    },
                    {
                        "id":  "MX-MONTERREY",
@@ -449,9 +449,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: industria norte en MX."
+                       "description":  "Lectura estrategica: industria norte en MX."
                    },
                    {
                        "id":  "MX-TIJUANA",
@@ -466,9 +466,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: frontera norte en MX."
+                       "description":  "Lectura estrategica: frontera norte en MX."
                    },
                    {
                        "id":  "MX-PUEBLA",
@@ -483,9 +483,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en MX."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en MX."
                    },
                    {
                        "id":  "MX-VERACRUZ",
@@ -500,9 +500,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto golfo en MX."
+                       "description":  "Lectura estrategica: puerto golfo en MX."
                    },
                    {
                        "id":  "MX-MERIDA",
@@ -517,9 +517,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: peninsula yucatan en MX."
+                       "description":  "Lectura estrategica: peninsula yucatan en MX."
                    },
                    {
                        "id":  "MX-CANCUN",
@@ -534,9 +534,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: caribe turistico en MX."
+                       "description":  "Lectura estrategica: caribe turistico en MX."
                    },
                    {
                        "id":  "MX-CIUDAD-JUAREZ",
@@ -551,9 +551,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: frontera norte en MX."
+                       "description":  "Lectura estrategica: frontera norte en MX."
                    },
                    {
                        "id":  "GL-NUUK",
@@ -568,9 +568,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital nacional en GL."
+                       "description":  "Lectura estrategica: capital nacional en GL."
                    }
                ]
 }

@@ -375,8 +375,24 @@ FString UWLMilitarySubsystem::SyncArmyFromGarrison(
 	const FString NormalizedBase = BaseId.TrimStartAndEnd().ToUpper();
 	if (FWLArmy* Existing = FindArmy(FindArmyIdByBase(NormalizedBase)))
 	{
-		Existing->Units = MoveTemp(Units);   // la guarnicion crecio: el ejercito real refleja la nueva tropa
-		Existing->RecoveringUnits.Reset();
+		TMap<FString, int32> RecoveringByType;
+		for (const FString& UnitId : Existing->RecoveringUnits)
+		{
+			++RecoveringByType.FindOrAdd(UnitId);
+		}
+
+		TArray<FString> EffectiveUnits;
+		for (const FString& UnitId : Units)
+		{
+			int32& RecoveringCount = RecoveringByType.FindOrAdd(UnitId);
+			if (RecoveringCount > 0)
+			{
+				--RecoveringCount;
+				continue;
+			}
+			EffectiveUnits.Add(UnitId);
+		}
+		Existing->Units = MoveTemp(EffectiveUnits);   // la guarnicion crecio: conserva bajas/desorganizacion tactica
 		return Existing->Id;
 	}
 

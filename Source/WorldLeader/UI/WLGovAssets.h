@@ -8,6 +8,7 @@
 //
 // Carpetas esperadas (relativas a la carpeta Content del proyecto):
 //   UI/Flags/<ISO>.png     -> bandera de cada pais (BR.png, AR.png, US.png...)
+//   UI/Portraits/<ID>.png   -> retrato exacto; pools leader/min/general/opposition/spy para dinamicos
 //   UI/gov_panel_bg.png    -> textura de fondo del panel de gobierno (opcional)
 //   UI/Icons/<nombre>.png  -> icono que sustituye al procedural (opcional)
 

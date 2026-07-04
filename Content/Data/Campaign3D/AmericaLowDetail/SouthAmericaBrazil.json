@@ -12,7 +12,7 @@
                           "label_lon":  -52.0,
                           "label_lat":  -10.0,
                           "special_territory":  false,
-                          "administrable":  false,
+                          "administrable":  true,
                           "status":  "mid-detail visual context"
                       }
                   ],
@@ -30,9 +30,9 @@
                        "visible_from_zoom":  "global",
                        "port":  false,
                        "capital":  true,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: capital interior en BR."
+                       "description":  "Lectura estrategica: capital interior en BR."
                    },
                    {
                        "id":  "BR-SAO-PAULO",
@@ -47,9 +47,9 @@
                        "visible_from_zoom":  "global",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: metropoli economica en BR."
+                       "description":  "Lectura estrategica: metropoli economica en BR."
                    },
                    {
                        "id":  "BR-RIO-DE-JANEIRO",
@@ -64,9 +64,9 @@
                        "visible_from_zoom":  "global",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: ciudad costera global en BR."
+                       "description":  "Lectura estrategica: ciudad costera global en BR."
                    },
                    {
                        "id":  "BR-SALVADOR",
@@ -81,9 +81,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: atlantica noreste en BR."
+                       "description":  "Lectura estrategica: atlantica noreste en BR."
                    },
                    {
                        "id":  "BR-RECIFE",
@@ -98,9 +98,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: costa noreste en BR."
+                       "description":  "Lectura estrategica: costa noreste en BR."
                    },
                    {
                        "id":  "BR-FORTALEZA",
@@ -115,9 +115,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: costa noreste en BR."
+                       "description":  "Lectura estrategica: costa noreste en BR."
                    },
                    {
                        "id":  "BR-MANAUS",
@@ -132,9 +132,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: amazonica en BR."
+                       "description":  "Lectura estrategica: amazonica en BR."
                    },
                    {
                        "id":  "BR-BELEM",
@@ -149,9 +149,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: amazonica atlantica en BR."
+                       "description":  "Lectura estrategica: amazonica atlantica en BR."
                    },
                    {
                        "id":  "BR-PORTO-ALEGRE",
@@ -166,9 +166,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  true,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: puerto estrategico en BR."
+                       "description":  "Lectura estrategica: puerto estrategico en BR."
                    },
                    {
                        "id":  "BR-BELO-HORIZONTE",
@@ -183,9 +183,9 @@
                        "visible_from_zoom":  "continental",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  true,
-                       "description":  "Lectura estrategica placeholder: hub economico en BR."
+                       "description":  "Lectura estrategica: hub economico en BR."
                    },
                    {
                        "id":  "BR-CURITIBA",
@@ -200,9 +200,9 @@
                        "visible_from_zoom":  "regional",
                        "port":  false,
                        "capital":  false,
-                       "administrable":  false,
+                       "administrable":  true,
                        "major":  false,
-                       "description":  "Lectura estrategica placeholder: ciudad interior estrategica en BR."
+                       "description":  "Lectura estrategica: ciudad interior estrategica en BR."
                    }
                ]
 }

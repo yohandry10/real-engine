@@ -94,6 +94,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Events")
 	bool ResolveEvent(const FString& InstanceId, const FString& OptionId, FString& OutMessage);
 
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	FWLPoliticalActionBudget GetPoliticalActionBudget(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	FWLPoliticalActionPreview GetPoliticalActionPreview(const FWLPoliticalActionRequest& Request) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
+	bool ExecutePoliticalAction(const FWLPoliticalActionRequest& Request, FString& OutMessage);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	FWLGovernmentActionPreview GetGovernmentActionPreview(const FWLGovernmentActionRequest& Request) const;
+
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
+	bool ExecuteGovernmentAction(const FWLGovernmentActionRequest& Request, FString& OutMessage);
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Campaign")
 	FWLCampaignOutcomeState GetCampaignOutcome() const { return CampaignOutcome; }
 
@@ -135,6 +150,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Government")
 	bool PassGovernmentReform(const FString& NationIso, const FString& ReformId, int32 PoliticalCapitalCost, FString& OutMessage);
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	int32 GetEffectiveReformCost(const FString& NationIso, int32 BaseCost) const;
 
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
 	TArray<FWLPolicyReformDefinition> GetAvailablePolicyReforms(const FString& NationIso) const;
@@ -197,6 +215,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Politics")
 	TArray<FString> GetNewsLog() const { return NewsLog; }
 
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Government")
+	TArray<FWLGovernmentLogEntry> GetGovernmentLog(const FString& ViewerNationIso) const;
+
+	void AddGovernmentLogEntry(
+		EWLGovernmentLogCategory Category,
+		const FString& NationIso,
+		const FString& TargetIso,
+		const FString& Title,
+		const FString& Body,
+		const FString& Source,
+		int32 Severity,
+		bool bPublic,
+		bool bPlayerVisible);
+
 	void WriteSaveSnapshot(
 		TArray<FWLInternalPowerState>& OutInternalPower,
 		TArray<FWLDiplomaticRelationState>& OutRelations,
@@ -224,7 +256,9 @@ public:
 		TArray<FWLMediaPublicOpinionState>& OutMedia,
 		TArray<FWLRegionGovernorState>& OutRegions,
 		TArray<FWLCrisisChainState>& OutCrisisChains,
-		TArray<FWLGovernmentCalibrationState>& OutCalibration) const;
+		TArray<FWLGovernmentCalibrationState>& OutCalibration,
+		TArray<FWLPoliticalActionRecord>& OutPoliticalActionRecords,
+		TArray<FWLGovernmentLogEntry>* OutGovernmentLogEntries = nullptr) const;
 
 	bool RestoreSaveSnapshot(
 		const TArray<FWLInternalPowerState>& SavedInternalPower,
@@ -256,7 +290,9 @@ public:
 		const TArray<FWLRegionGovernorState>& SavedRegions,
 		const TArray<FWLCrisisChainState>& SavedCrisisChains,
 		const TArray<FWLGovernmentCalibrationState>& SavedCalibration,
-		FString& OutMessage);
+		const TArray<FWLPoliticalActionRecord>& SavedPoliticalActionRecords,
+		FString& OutMessage,
+		const TArray<FWLGovernmentLogEntry>* SavedGovernmentLogEntries = nullptr);
 
 private:
 	UPROPERTY()
@@ -331,7 +367,14 @@ private:
 	UPROPERTY()
 	TMap<FString, FWLGovernmentCalibrationState> GovernmentCalibrationByNation;
 
+	UPROPERTY()
+	TArray<FWLPoliticalActionRecord> PoliticalActionRecords;
+
+	UPROPERTY()
+	TArray<FWLGovernmentLogEntry> GovernmentLogEntries;
+
 	int32 NextEventInstanceNumber = 1;
+	int32 NextGovernmentLogNumber = 1;
 
 	UWLDataRegistry* GetRegistry() const;
 	UWLStrategicTickSubsystem* GetTick() const;
@@ -427,13 +470,39 @@ private:
 	FString SelectGovernmentAITarget(const FString& NationIso) const;
 	/** Fase 3: skill extra que aporta el ministro de Inteligencia a los espias de una nacion. */
 	int32 GetIntelligenceMinisterSkillBonus(const FString& OwnerIso) const;
-	/** Anota una noticia (con fecha de juego) en el feed; REGISTROS y el HUD la muestran. */
+	/** Anota una noticia publica (con fecha de juego) en el feed; REGISTROS y el HUD la muestran. */
 	void AddNews(const FString& Item);
+	void RebuildNewsLogFromGovernmentLog();
 
-	/** Noticias del mundo (nuevas primero, tope 40). No se persiste: es cronica de la sesion. */
+	/** Noticias del mundo (nuevas primero, tope 40). Se deriva del GovernmentLog persistente. */
 	TArray<FString> NewsLog;
 	bool ValidateSpy(const FString& OwnerIso, const FString& SpyCharacterId, int32& OutSkill, FString& OutMessage) const;
 	int32 GetAveragePublicOrder(const FString& NationIso) const;
 	int32 GetLeaderAgendaPressure(const FString& NationIso) const;
 	bool HasQueuedUnresolvedEvent(const FString& NationIso, const FString& EventId) const;
+	int32 GetCurrentPoliticalMonthKey() const;
+	int32 GetPoliticalActionUsedThisMonth(const FString& NationIso) const;
+	FString PoliticalActionKey(EWLPoliticalActionType ActionType) const;
+	FString PoliticalActionTargetKey(const FWLPoliticalActionRequest& Request) const;
+	int32 GetPoliticalActionCooldownRemaining(const FString& NationIso, EWLPoliticalActionType ActionType, const FString& TargetKey) const;
+	void RecordPoliticalAction(const FWLPoliticalActionRequest& Request, const FWLPoliticalActionPreview& Preview, const FString& Result);
+	void RecordGovernmentAction(const FWLGovernmentActionPreview& Preview, const FString& Result);
+	bool SpendPoliticalActionCosts(const FWLPoliticalActionPreview& Preview, FString& OutMessage);
+	void RefundPoliticalActionCosts(const FWLPoliticalActionPreview& Preview);
+	FString GovernmentActionTargetKey(const FWLGovernmentActionRequest& Request) const;
+	int32 GetGovernmentActionCooldownRemaining(const FString& NationIso, const FString& ActionKey, const FString& TargetKey) const;
+	bool BuildPoliticalActionRequest(const FWLGovernmentActionRequest& Request, FWLPoliticalActionRequest& OutRequest) const;
+	bool ExecuteGovernmentActionDirect(const FWLGovernmentActionRequest& Request, FString& OutMessage);
+	bool ApplyGovernmentAgendaDirect(const FString& NationIso, const TArray<EWLGovernmentPriority>& Priorities, FString& OutMessage);
+	bool StartMinistryProgramDirect(const FString& NationIso, const FString& ProgramId, FString& OutMessage);
+	bool PassGovernmentReformDirect(const FString& NationIso, const FString& ReformId, int32 EffectiveCost, bool bSpendCapital, FString& OutMessage);
+	bool EnactPolicyReformDirect(const FString& NationIso, const FString& ReformId, FString& OutMessage);
+	bool NegotiatePartySupportDirect(const FString& NationIso, const FString& PartyId, FString& OutMessage);
+	bool HoldPartyInternalElectionDirect(const FString& NationIso, const FString& PartyId, FString& OutMessage);
+	bool MakeCampaignPromiseDirect(const FString& NationIso, const FString& ReformId, FString& OutMessage);
+	bool UsePatronageDirect(const FString& NationIso, EWLPatronageActionType Action, FString& OutMessage);
+	bool RunMediaActionDirect(const FString& NationIso, EWLMediaActionType Action, FString& OutMessage);
+	bool RunRegionPolicyDirect(const FString& NationIso, const FString& RegionId, EWLRegionPolicyActionType Action, FString& OutMessage);
+	bool RepressOppositionDirect(const FString& NationIso, FString& OutMessage);
+	bool ResolveEventDirect(const FString& InstanceId, const FString& OptionId, FString& OutMessage);
 };

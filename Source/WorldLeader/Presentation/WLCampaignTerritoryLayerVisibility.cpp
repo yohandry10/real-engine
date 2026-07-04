@@ -100,8 +100,8 @@ void UWLCampaignTerritoryLayerComponent::ApplyVisibility(float CameraHeight)
 	const bool bProvinceVisible = false;
 	const bool bCountryLabelsVisible = bLayerActive && bShowLabels && (bGlobal || bRegion);
 	const bool bProvinceLabelsVisible = false;
-	// Resource diamonds were placeholder debug markers; they read as random yellow
-	// squares over cities/sea at close zoom and do not belong in the accepted map view.
+	// Los marcadores de recurso de depuracion se veian como cuadrados amarillos sueltos
+	// sobre ciudades/mar en close zoom y no pertenecen a la vista aceptada del mapa.
 	const bool bResourcesVisible = false;
 
 	if (NationalBorderMesh)

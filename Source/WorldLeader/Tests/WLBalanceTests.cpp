@@ -7,12 +7,29 @@
 
 #include "Misc/AutomationTest.h"
 #include "Balance/WLBalanceTypes.h"
+#include "Campaign/WLDataRegistry.h"
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Characters/WLCharacterSubsystem.h"
 #include "Core/WLGameTypes.h"
 #include "Economy/WLEconomyLibrary.h"
 #include "Engine/GameInstance.h"
 #include "Politics/WLPoliticalSubsystem.h"
+
+namespace
+{
+	void AdvanceDays(UWLStrategicTickSubsystem* Tick, int32 Days)
+	{
+		for (int32 Day = 0; Tick && Day < Days; ++Day)
+		{
+			Tick->AdvanceDay();
+		}
+	}
+
+	void AdvanceThirtyDays(UWLStrategicTickSubsystem* Tick)
+	{
+		AdvanceDays(Tick, 30);
+	}
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLBalanceRulesEconomyTest,
@@ -165,6 +182,60 @@ bool FWLNationBudgetBreakdownTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLExactDailyTreasuryAccrualTest,
+	"WorldLeader.Balance.ExactDailyTreasuryAccrual",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLExactDailyTreasuryAccrualTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	UWLDataRegistry* Registry = GameInstance->GetSubsystem<UWLDataRegistry>();
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	TestNotNull(TEXT("Data registry"), Registry);
+	if (!Tick || !Registry)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString NationIso;
+	int64 MonthlyBalance = 0;
+	for (const FWLNationData& Nation : Registry->GetAllNations())
+	{
+		const int64 CandidateBalance = Tick->GetMonthlyBalance(Nation.Iso);
+		if (CandidateBalance != 0 && CandidateBalance % 30 != 0 && Tick->GetTreasury(Nation.Iso) >= 0)
+		{
+			NationIso = Nation.Iso;
+			MonthlyBalance = CandidateBalance;
+			break;
+		}
+	}
+	TestFalse(TEXT("Hay una nacion con balance no divisible entre 30"), NationIso.IsEmpty());
+	if (NationIso.IsEmpty())
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	const int64 TreasuryBefore = Tick->GetTreasury(NationIso);
+	AdvanceThirtyDays(Tick);
+	const int64 TreasuryAfter = Tick->GetTreasury(NationIso);
+	TestEqual(TEXT("Treinta dias aplican exactamente el balance mensual inicial"),
+		TreasuryAfter - TreasuryBefore, MonthlyBalance);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLProvinceSectorsProductionTest,
 	"WorldLeader.Economy.ProvinceSectorsProduction",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -254,9 +325,9 @@ bool FWLGDPAndGrowthTest::RunTest(const FString& Parameters)
 		GDP > Tick->GetNationBudget(TEXT("VE")).TotalIncome());
 	TestEqual(TEXT("Sin ticks aun no hay tasa de crecimiento"), Tick->GetNationGDPGrowth(TEXT("VE")), 0.0);
 
-	// Dos ticks: el primero fija la base, el segundo mide crecimiento (la poblacion crece con orden estable).
-	Tick->AdvanceMonth();
-	Tick->AdvanceMonth();
+	// Dos cierres mensuales: el primero fija la base, el segundo mide crecimiento.
+	AdvanceThirtyDays(Tick);
+	AdvanceThirtyDays(Tick);
 	const double Growth = Tick->GetNationGDPGrowth(TEXT("VE"));
 	TestTrue(TEXT("Crecimiento medido tras dos ticks"), Growth != 0.0);
 	TestTrue(TEXT("Crecimiento en rango razonable (+-10%)"), FMath::Abs(Growth) < 0.10);
@@ -452,6 +523,7 @@ bool FWLMarketShocksFE34Test::RunTest(const FString& Parameters)
 	}
 	const double OilPriceBefore = OilBefore->UnitPrice;
 	const double InflationBefore = Tick->GetNationInflationRate(TEXT("CO"));
+	const int64 ResourceIncomeBefore = Tick->GetNationBudget(TEXT("CO")).ResourceIncome;
 
 	FString Message;
 	TestTrue(TEXT("Aplicar shock petrolero"),
@@ -469,6 +541,8 @@ bool FWLMarketShocksFE34Test::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Shock presiona inflacion"),
 		Tick->GetNationInflationRate(TEXT("CO")) >= InflationBefore);
+	TestTrue(TEXT("Shock de mercado entra al ingreso fiscal de recursos/produccion"),
+		Tick->GetNationBudget(TEXT("CO")).ResourceIncome > ResourceIncomeBefore);
 
 	int32 Year = 0;
 	int32 Month = 0;
@@ -500,9 +574,9 @@ bool FWLMarketShocksFE34Test::RunTest(const FString& Parameters)
 		RestoredTick->RestoreSaveSnapshot(Year, Month, Treasuries, Buildings, ProvinceStates, Shocks, Message));
 	TestEqual(TEXT("Shock restaurado"), RestoredTick->GetActiveMarketShocks().Num(), 1);
 	TestEqual(TEXT("Multiplicador restaurado"), RestoredTick->GetMarketShockMultiplier(TEXT("oil")), 1.75, 1e-9);
-	RestoredTick->AdvanceMonth();
+	AdvanceThirtyDays(RestoredTick);
 	TestEqual(TEXT("Shock queda con un mes"), RestoredTick->GetActiveMarketShocks()[0].RemainingMonths, 1);
-	RestoredTick->AdvanceMonth();
+	AdvanceThirtyDays(RestoredTick);
 	TestEqual(TEXT("Shock expira"), RestoredTick->GetActiveMarketShocks().Num(), 0);
 
 	RestoredGameInstance->Shutdown();
@@ -755,7 +829,7 @@ bool FWLAdvancedFinanceFE5Test::RunTest(const FString& Parameters)
 	TestTrue(TEXT("FDI visible como inflow"),
 		Tick->GetNationBudget(TEXT("CO")).ForeignInvestmentInflow > 0);
 
-	Tick->AdvanceMonth();
+	AdvanceThirtyDays(Tick);
 	TestTrue(TEXT("FDI construye edificio al completar"),
 		Tick->GetProvinceBuildings(TEXT("CO-DC")).Contains(TEXT("financial_center")));
 	bool bAidStillActive = false;
@@ -768,11 +842,17 @@ bool FWLAdvancedFinanceFE5Test::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Ayuda exterior persiste tras un mes"), bAidStillActive);
 
+	const FWLFinancialProfile ProfileBeforeDefault = Tick->GetFinancialProfile(TEXT("CO"));
 	TestTrue(TEXT("Default manual marca deuda"),
 		Tick->MarkDebtDefault(TEXT("CO"), Message));
 	const FWLFinancialProfile DefaultProfile = Tick->GetFinancialProfile(TEXT("CO"));
 	TestTrue(TEXT("Perfil detecta default"), DefaultProfile.bInDefault);
 	TestEqual(TEXT("Rating default"), DefaultProfile.CreditRatingLabel, FString(TEXT("Default")));
+	TestTrue(TEXT("Habia deuda viva antes del default"),
+		ProfileBeforeDefault.OutstandingDebt > 0);
+	TestEqual(TEXT("Default elimina deuda viva"),
+		DefaultProfile.OutstandingDebt, static_cast<int64>(0));
+	TestEqual(TEXT("Default suspende servicio de deuda"), DefaultProfile.MonthlyDebtService, static_cast<int64>(0));
 	TestTrue(TEXT("FMI disponible tras default"),
 		Tick->RequestIMFProgram(TEXT("CO"), 1000, 24, Message));
 	bool bHasIMF = false;

@@ -76,7 +76,7 @@ void AWLCampaignPlayerController::SetupInputComponent()
 
 	if (InputComponent)
 	{
-		InputComponent->BindKey(EKeys::M, IE_Pressed, this, &AWLCampaignPlayerController::OnAdvanceMonth);
+		InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &AWLCampaignPlayerController::OnAdvanceDay);
 		InputComponent->BindKey(EKeys::P, IE_Pressed, this, &AWLCampaignPlayerController::OnPrintState);
 		InputComponent->BindKey(EKeys::F5, IE_Pressed, this, &AWLCampaignPlayerController::OnSaveCampaign);
 		InputComponent->BindKey(EKeys::B, IE_Pressed, this, &AWLCampaignPlayerController::OnBuildRecommended);
@@ -142,7 +142,7 @@ float AWLCampaignPlayerController::GetCampaignCameraHeight() const
 		: 0.f;
 }
 
-void AWLCampaignPlayerController::OnAdvanceMonth()
+void AWLCampaignPlayerController::OnAdvanceDay()
 {
 	if (!HasCampaignInput())
 	{
@@ -179,7 +179,7 @@ void AWLCampaignPlayerController::OnAdvanceMonth()
 		SetLastActionMessage(FString::Printf(TEXT("Dia avanzado: %02d/%02d/%d."),
 			Tick->GetCurrentDay(), Tick->GetCurrentMonth(), Tick->GetCurrentYear()), true);
 
-		// Tras avanzar el mes: (1) materializa/actualiza el ejercito movible de cada fuerte que termino de
+		// Tras avanzar el dia: (1) materializa/actualiza el ejercito movible de cada fuerte que termino de
 		// reclutar, y (2) re-evalua el LOD a la altura de camara actual para que el token de ejercito (tanque)
 		// aparezca de inmediato. Sin esto, el ejercito no se mostraria hasta el siguiente zoom/pan.
 		if (Campaign3DView)

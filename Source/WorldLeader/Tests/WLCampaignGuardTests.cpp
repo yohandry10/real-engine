@@ -402,4 +402,55 @@ bool FWLMilitaryOperationalRecoveryTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLMilitaryGarrisonSyncPreservesRecoveryTest,
+	"WorldLeader.Military.GarrisonSyncPreservesRecovery",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLMilitaryGarrisonSyncPreservesRecoveryTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLMilitarySubsystem* Military = GameInstance->GetSubsystem<UWLMilitarySubsystem>();
+	TestNotNull(TEXT("Military subsystem"), Military);
+	if (!Military)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLArmy RoutedArmy;
+	RoutedArmy.Id = TEXT("A88");
+	RoutedArmy.OwnerIso = TEXT("VE");
+	RoutedArmy.ProvinceId = TEXT("VE-ZU");
+	RoutedArmy.General = TEXT("Rangel");
+	RoutedArmy.SourceBaseId = TEXT("VE-HQ");
+	RoutedArmy.RecoveringUnits = { TEXT("tank"), TEXT("infantry") };
+
+	FString Message;
+	TestTrue(TEXT("Restaurar ejercito con unidades desorganizadas"),
+		Military->RestoreSaveSnapshot({ RoutedArmy }, 89, Message));
+
+	TArray<TPair<FString, int32>> GarrisonUnits;
+	GarrisonUnits.Add(TPair<FString, int32>(TEXT("mbt"), 1));
+	GarrisonUnits.Add(TPair<FString, int32>(TEXT("infantry"), 2));
+	const FString SyncedArmyId = Military->SyncArmyFromGarrison(TEXT("VE-HQ"), TEXT("VE"), TEXT("VE-ZU"), GarrisonUnits);
+	TestEqual(TEXT("Sync reutiliza ejercito existente"), SyncedArmyId, FString(TEXT("A88")));
+
+	FWLArmy Army;
+	TestTrue(TEXT("Ejercito sincronizado consultable"), Military->GetArmy(TEXT("A88"), Army));
+	TestEqual(TEXT("Sync no borra unidades desorganizadas"), Army.RecoveringUnits.Num(), 2);
+	TestEqual(TEXT("Solo unidades nuevas quedan efectivas"), Army.Units.Num(), 1);
+	TestTrue(TEXT("La unidad efectiva nueva es infanteria"), Army.Units.Contains(TEXT("infantry")));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

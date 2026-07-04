@@ -67,7 +67,7 @@ enum class EWLCampaignForceMovementOrderMode : uint8
 /**
  * PlayerController de campania. Input del jugador (regla del roadmap).
  * Por ahora, atajos de teclado para la vertical slice:
- *   M -> avanzar un mes (tick estrategico)
+ *   Space -> avanzar un dia
  *   P -> imprimir el estado al log
  *   Mouse en bordes / arrastre / rueda -> navegar el mapa estrategico
  */
@@ -204,7 +204,7 @@ protected:
 	virtual bool InputKey(const FInputKeyEventArgs& Params) override;
 
 private:
-	void OnAdvanceMonth();
+	void OnAdvanceDay();
 	void OnPrintState();
 	void OnSaveCampaign();
 	void OnBuildRecommended();
@@ -257,7 +257,7 @@ private:
 	void ConfirmForceMovementOrder();
 	void CancelForceMovementOrder();
 	void SelectCampaignBuildingSlot(const FString& SlotLabel, int32 SlotIndex, bool bCityMode);
-	bool TryBuildCampaignPlaceholderBuilding(const FString& BuildingId, FString& OutMessage);
+	bool TryBuildCampaignSlotBuilding(const FString& BuildingId, FString& OutMessage);
 	bool SelectProvince(const FString& ProvinceId);
 	void SelectCampaignTerritory(const FWLCampaignTerritoryRegionView& Territory);
 	void SelectCampaignCity(const FWLCampaign3DCityView& City);
@@ -361,7 +361,7 @@ private:
 	FString PendingForceMoveRouteSummary;
 	int32 PendingForceMoveEstimatedTurns = 0;
 
-	TMap<FString, FString> CampaignPlaceholderBuildingsBySlot;
+	TMap<FString, FString> CampaignBuiltBuildingsBySlot;
 	FString SelectedBuildingSlotKey;
 	FString SelectedBuildingSlotLabel;
 	FString SelectedCampaignBuildingId;

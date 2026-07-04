@@ -5,7 +5,9 @@
 
 #include "Campaign/WLDataRegistry.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Politics/WLPoliticalSubsystem.h"
 #include "WorldLeader.h"
+#include "Engine/GameInstance.h"
 
 using WLStrategicTickPrivate::ProvinceSupportsBuilding;
 
@@ -275,6 +277,14 @@ bool UWLStrategicTickSubsystem::BuildBuilding(const FString& ProvinceId, const F
 
 	OutMessage = FString::Printf(TEXT("%s construido en %s (%s). Coste %lld. Tesoro %s: %lld"),
 		*Building.Name, *Province.Name, *Province.Id, Building.Cost, *Nation, *Treasury);
+	if (Nation == GetActivePlayerNationIsoForAI())
+	{
+		if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+		{
+			Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, Nation, TEXT(""),
+				TEXT("Construccion provincial"), OutMessage, TEXT("construction"), 3, false, true);
+		}
+	}
 	UE_LOG(LogWorldLeader, Log, TEXT("%s"), *OutMessage);
 	return true;
 }
@@ -348,6 +358,14 @@ bool UWLStrategicTickSubsystem::UpgradeBuilding(
 
 	OutMessage = FString::Printf(TEXT("%s mejorado a nivel %d en %s (%s). Coste %lld. Tesoro %s: %lld"),
 		*Building.Name, NextLevel, *Province.Name, *Province.Id, UpgradeCost, *Nation, *Treasury);
+	if (Nation == GetActivePlayerNationIsoForAI())
+	{
+		if (UWLPoliticalSubsystem* Politics = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLPoliticalSubsystem>() : nullptr)
+		{
+			Politics->AddGovernmentLogEntry(EWLGovernmentLogCategory::Economy, Nation, TEXT(""),
+				TEXT("Mejora provincial"), OutMessage, TEXT("construction"), 3, false, true);
+		}
+	}
 	UE_LOG(LogWorldLeader, Log, TEXT("%s"), *OutMessage);
 	return true;
 }

@@ -15,7 +15,7 @@ namespace
 {
 	const FString WLLocalCampaignSlot = TEXT("WorldLeader_LocalCampaign");
 	constexpr int32 WLLocalCampaignUserIndex = 0;
-	constexpr int32 WLLocalCampaignSaveVersion = 13;
+	constexpr int32 WLLocalCampaignSaveVersion = 17;
 }
 
 UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
@@ -67,16 +67,13 @@ bool UWLCampaignGameInstance::StartNewCampaign(const FString& NationIso)
 	}
 	UE_LOG(LogWorldLeader, Log, TEXT("Campania iniciada con %s (%s)."), *Nation.Name, *Nation.Iso);
 	// Instantanea economica al iniciar (incluye el upkeep militar de FE1.1) para diagnostico/verificacion.
-	for (const TCHAR* SnapIso : { TEXT("CO"), TEXT("VE") })
-	{
-		UE_LOG(LogWorldLeader, Log,
-			TEXT("[Economia %s] fuerza=%lld  upkeepMilitar/mes=%lld  balance/mes=%lld  tesoro=%lld"),
-			SnapIso,
-			static_cast<long long>(Tick->GetNationMilitaryStrength(SnapIso)),
-			static_cast<long long>(Tick->GetNationMilitaryUpkeep(SnapIso)),
-			static_cast<long long>(Tick->GetMonthlyBalance(SnapIso)),
-			static_cast<long long>(Tick->GetTreasury(SnapIso)));
-	}
+	UE_LOG(LogWorldLeader, Log,
+		TEXT("[Economia %s] fuerza=%lld  upkeepMilitar/mes=%lld  balance/mes=%lld  tesoro=%lld"),
+		*Nation.Iso,
+		static_cast<long long>(Tick->GetNationMilitaryStrength(Nation.Iso)),
+		static_cast<long long>(Tick->GetNationMilitaryUpkeep(Nation.Iso)),
+		static_cast<long long>(Tick->GetMonthlyBalance(Nation.Iso)),
+		static_cast<long long>(Tick->GetTreasury(Nation.Iso)));
 	return true;
 }
 
@@ -143,6 +140,7 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 	Tick->WriteSaveSnapshot(
 		Save->CurrentYear,
 		Save->CurrentMonth,
+		Save->CurrentDay,
 		Save->NationTreasuries,
 		Save->ProvinceBuildings,
 		Save->ProvinceStates,
@@ -184,12 +182,14 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 			Save->MediaStates,
 			Save->RegionGovernors,
 			Save->CrisisChains,
-			Save->GovernmentCalibration);
+			Save->GovernmentCalibration,
+			Save->PoliticalActionRecords,
+			&Save->GovernmentLogEntries);
 	}
 
 	const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, WLLocalCampaignSlot, WLLocalCampaignUserIndex);
 	OutMessage = bSaved
-		? FString::Printf(TEXT("Campania guardada: %s %02d/%d."), *Nation.Iso, Save->CurrentMonth, Save->CurrentYear)
+		? FString::Printf(TEXT("Campania guardada: %s %02d/%02d/%d."), *Nation.Iso, Save->CurrentDay, Save->CurrentMonth, Save->CurrentYear)
 		: TEXT("SaveGameToSlot fallo.");
 	return bSaved;
 }
@@ -233,6 +233,7 @@ bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 	if (!Tick->RestoreSaveSnapshot(
 		Save->CurrentYear,
 		Save->CurrentMonth,
+		Save->CurrentDay > 0 ? Save->CurrentDay : 1,
 		Save->NationTreasuries,
 		Save->ProvinceBuildings,
 		Save->ProvinceStates,
@@ -304,7 +305,9 @@ bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 			Save->RegionGovernors,
 			Save->CrisisChains,
 			Save->GovernmentCalibration,
-			PoliticsMessage))
+			Save->PoliticalActionRecords,
+			PoliticsMessage,
+			&Save->GovernmentLogEntries))
 		{
 			OutMessage = PoliticsMessage;
 			return false;
@@ -348,14 +351,17 @@ void UWLCampaignGameInstance::WLLoad()
 	}
 }
 
-void UWLCampaignGameInstance::WLAdvanceMonth()
+void UWLCampaignGameInstance::WLAdvanceDay()
 {
 	if (UWLStrategicTickSubsystem* Tick = GetTick())
 	{
-		Tick->AdvanceMonth();
-		if (UWLPoliticalSubsystem* Politics = GetPolitics())
+		const int32 PreviousMonth = Tick->GetCurrentMonth();
+		const int32 PreviousYear = Tick->GetCurrentYear();
+		Tick->AdvanceDay();
+		if ((Tick->GetCurrentMonth() != PreviousMonth || Tick->GetCurrentYear() != PreviousYear)
+			&& GetPolitics())
 		{
-			Politics->ProcessPoliticalMonth();
+			GetPolitics()->ProcessPoliticalMonth();
 		}
 		WLPrintState();
 	}
@@ -371,8 +377,8 @@ void UWLCampaignGameInstance::WLPrintState()
 		return;
 	}
 
-	UE_LOG(LogWorldLeader, Log, TEXT("=== World Leader | %02d/%d ==="),
-		Tick->GetCurrentMonth(), Tick->GetCurrentYear());
+	UE_LOG(LogWorldLeader, Log, TEXT("=== World Leader | %02d/%02d/%d ==="),
+		Tick->GetCurrentDay(), Tick->GetCurrentMonth(), Tick->GetCurrentYear());
 	UE_LOG(LogWorldLeader, Log, TEXT("Provincias: %d | Naciones: %d"),
 		Registry->GetProvinceCount(), Registry->GetNationCount());
 

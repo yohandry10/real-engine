@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Balance/WLBalanceTypes.h"
+#include "Core/WLFinancialTypes.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Save/WLLocalSaveGame.h"
 #include "WLStrategicTickSubsystem.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FWLOnDayAdvanced, int32, Year, int32, Month, int32, Day);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWLOnMonthAdvanced, int32, Year, int32, Month);
 
 /** FE1.3: presupuesto mensual de una nacion desglosado por categorias (todo en creditos/mes). */
@@ -334,10 +336,9 @@ struct FWLGarrisonGroup   // tropa YA producida en una base (para mostrar en car
 };
 
 /**
- * Motor de campania estrategica. Mantiene la fecha de juego (1 tick = 1 mes,
- * ver roadmap) y aplica la economia mensual a cada nacion. Es deliberadamente
- * minimo para la vertical slice de Phase 0/1: solo tesoro nacional a partir
- * del balance de provincias propias.
+ * Motor de campania estrategica. Mantiene la fecha de juego y avanza por dias.
+ * La economia visible se prorratea diariamente; los sistemas mensuales cierran
+ * al rollover de mes.
  */
 UCLASS()
 class WORLDLEADER_API UWLStrategicTickSubsystem : public UGameInstanceSubsystem
@@ -347,12 +348,7 @@ class WORLDLEADER_API UWLStrategicTickSubsystem : public UGameInstanceSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
-	/** Avanza un tick (un mes). Recalcula economia y emite OnMonthAdvanced. */
-	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
-	void AdvanceMonth();
-
-	// Avanza UN DIA (accion del jugador): corre economia/reclutamiento/IA una vez y adelanta la fecha 1 dia
-	// (con rollover a mes/anio). Es el "avanzar tiempo" clicable del HUD (antes solo existia el mes por tecla).
+	// Avanza UN DIA (accion del jugador): economia/reclutamiento diarios y cierre mensual al completar 30 dias.
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
 	void AdvanceDay();
 
@@ -391,6 +387,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Finance")
 	TArray<FWLFinancialInstrumentState> GetFinancialInstrumentsForNation(const FString& NationIso) const;
+
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Finance")
+	double GetInterestRateForInstrument(const FString& NationIso, EWLFinancialInstrumentType Type) const;
 
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Finance")
 	bool IssueBond(const FString& NationIso, int64 Principal, int32 TermMonths, FString& OutMessage);
@@ -616,6 +615,17 @@ public:
 		TArray<FWLFinancialInstrumentState>* OutFinancialInstruments = nullptr,
 		TArray<FWLForeignSupportState>* OutForeignSupportStates = nullptr) const;
 
+	void WriteSaveSnapshot(
+		int32& OutYear,
+		int32& OutMonth,
+		int32& OutDay,
+		TArray<FWLNationTreasurySave>& OutTreasuries,
+		TArray<FWLProvinceBuildingsSave>& OutProvinceBuildings,
+		TArray<FWLProvinceRuntimeState>& OutProvinceStates,
+		TArray<FWLMarketShockState>* OutMarketShocks = nullptr,
+		TArray<FWLFinancialInstrumentState>* OutFinancialInstruments = nullptr,
+		TArray<FWLForeignSupportState>* OutForeignSupportStates = nullptr) const;
+
 	bool RestoreSaveSnapshot(
 		int32 SavedYear,
 		int32 SavedMonth,
@@ -644,6 +654,22 @@ public:
 		const TArray<FWLForeignSupportState>& SavedForeignSupportStates,
 		FString& OutMessage);
 
+	bool RestoreSaveSnapshot(
+		int32 SavedYear,
+		int32 SavedMonth,
+		int32 SavedDay,
+		const TArray<FWLNationTreasurySave>& SavedTreasuries,
+		const TArray<FWLProvinceBuildingsSave>& SavedProvinceBuildings,
+		const TArray<FWLProvinceRuntimeState>& SavedProvinceStates,
+		const TArray<FWLMarketShockState>& SavedMarketShocks,
+		const TArray<FWLFinancialInstrumentState>& SavedFinancialInstruments,
+		const TArray<FWLForeignSupportState>& SavedForeignSupportStates,
+		FString& OutMessage);
+
+	UPROPERTY(BlueprintAssignable, Category = "WorldLeader|Campaign")
+	FWLOnDayAdvanced OnDayAdvanced;
+
+	/** Fires only when the calendar rolls into a new month after monthly systems have processed. */
 	UPROPERTY(BlueprintAssignable, Category = "WorldLeader|Campaign")
 	FWLOnMonthAdvanced OnMonthAdvanced;
 
@@ -654,6 +680,9 @@ private:
 
 	/** Tesoro nacional en runtime (ISO -> creditos). */
 	TMap<FString, int64> Treasuries;
+
+	/** Fraccion diaria acumulada por nacion para que el prorrateo mensual cierre exacto. */
+	TMap<FString, double> DailyTreasuryRemainders;
 
 	/** FE1.2: tasa de impuestos por nacion (ISO -> %). Si falta, se usa TaxRateDefaultPercent. */
 	TMap<FString, int32> TaxRates;
@@ -679,7 +708,6 @@ private:
 	void AdvanceFinancialMonth();
 	int64 GetNationDebtService(const FString& NationIso) const;
 	int64 GetNationOutstandingDebt(const FString& NationIso) const;
-	double GetInterestRateForInstrument(const FString& NationIso, EWLFinancialInstrumentType Type) const;
 	bool CanAddDebtInstrument(const FString& NationIso, int64 Principal, int32 TermMonths, double MonthlyInterestRate, FString& OutMessage) const;
 	FWLFinancialInstrumentState AddDebtInstrument(const FString& NationIso, const FString& CreditorIso, EWLFinancialInstrumentType Type, int64 Principal, int32 TermMonths, double MonthlyInterestRate, const FString& Title);
 	bool CompleteForeignInvestment(FWLForeignSupportState& Support, FString& OutMessage);
@@ -711,8 +739,8 @@ private:
 
 	void InitTreasuriesFromData();
 	void InitProvinceStatesFromData();
-	void ApplyMonthlyEconomy();
 	void ApplyDailyEconomy();   // 1/30 del balance mensual (coherencia temporal del avance por dias)
+	void ProcessMonthRollover();
 	void ApplyMonthlyProvinceState();
 	int32 RunEconomicAIInternal(const FString& PlayerNationIso, TArray<FString>& OutReports);
 	bool FindBestEconomicAIBuildCandidate(
@@ -738,11 +766,12 @@ private:
 	int64 GetNationPopulation(const FString& NationIso) const;
 	int64 GetNationMarketProductionValue(const FString& NationIso) const;
 	int64 GetNationTradeBalance(const FString& NationIso) const;
+	int64 GetProvinceMarketProductionIncome(const FString& ProvinceId, const FString& ControllerIso) const;
 	double GetTariffImportVolumeMultiplier(const FString& NationIso) const;
 
 	void EnsureRecruitCatalog() const;
 	const FWLRecruitOption* FindRecruitOption(const FString& UnitType) const;
-	void AdvanceRecruitment();   // llamado por AdvanceMonth: avanza colas y completa ordenes
+	void AdvanceRecruitment();   // avance diario de colas y ordenes de reclutamiento
 
 	class UWLDataRegistry* GetDataRegistry() const;
 	class UWLBalanceSubsystem* GetBalanceSubsystem() const;

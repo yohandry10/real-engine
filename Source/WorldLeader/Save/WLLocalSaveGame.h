@@ -22,6 +22,10 @@ struct FWLNationTreasurySave
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	int64 Treasury = 0;
 
+	/** Fraccion de tesoro ya devengada pero no aplicada aun al entero visible. */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	double DailyTreasuryRemainder = 0.0;
+
 	/** FE1.2: tasa de impuestos de la nacion (%). -1 = nunca ajustada (usar default de balance). */
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	int32 TaxRatePercent = -1;
@@ -58,7 +62,7 @@ class WORLDLEADER_API UWLLocalSaveGame : public USaveGame
 
 public:
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
-	int32 SaveVersion = 13;
+	int32 SaveVersion = 17;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	FString SelectedNationIso;
@@ -71,6 +75,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	int32 CurrentMonth = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	int32 CurrentDay = 1;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	TArray<FWLNationTreasurySave> NationTreasuries;
@@ -170,4 +177,10 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	TArray<FWLGovernmentCalibrationState> GovernmentCalibration;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLPoliticalActionRecord> PoliticalActionRecords;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLGovernmentLogEntry> GovernmentLogEntries;
 };

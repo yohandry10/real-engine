@@ -30,9 +30,9 @@ struct FWLCampaignTerritoryRegionView
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString DetailLevel;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FVector WorldLocation = FVector::ZeroVector;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 StrategicValue = 0;
-	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 PopulationPlaceholder = 0;
-	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 InfrastructurePlaceholder = 0;
-	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 PublicOrderPlaceholder = 70;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 Population = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 Infrastructure = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") int32 PublicOrder = 70;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bIsCountry = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bIsOccupied = false;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") bool bIsDisputed = false;

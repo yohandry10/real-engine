@@ -43,7 +43,7 @@ void FWLCampaignOverviewBuilder::Build(
 	FMeshBuffers RegionalMarkerBuffer;
 	TSet<FString> RenderedIsos;
 	AddCountriesFromGeoJson(Params, AmericaData.Countries, LandBuffer, RenderedIsos, ProjectLonLat);
-	AddMissingCountryPlaceholders(AmericaData.Countries, RenderedIsos, Params, LandBuffer, ProjectLonLat);
+	AddMissingCountryFootprints(AmericaData.Countries, RenderedIsos, Params, LandBuffer, ProjectLonLat);
 	for (const FWLCampaignAmericaCitySpec& City : AmericaData.Cities)
 	{
 		AddCityMarker(GlobalMarkerBuffer, RegionalMarkerBuffer, City, Params, ProjectLonLat);

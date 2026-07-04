@@ -200,18 +200,28 @@ void UWLEventModalWidget::Rebuild()
 		const FString ConfirmKey = FString::Printf(TEXT("%s|%s"), *Current->InstanceId, *Option.OptionId);
 		const bool bPending = !PendingConfirmKey.IsEmpty() && PendingConfirmKey == ConfirmKey;
 		const bool bSensitive = OptionIsSensitive(Option);
+		FWLPoliticalActionRequest PreviewRequest;
+		PreviewRequest.NationIso = Current->NationIso;
+		PreviewRequest.ActionType = EWLPoliticalActionType::ResolveEvent;
+		PreviewRequest.PrimaryId = Current->InstanceId;
+		PreviewRequest.SecondaryId = Option.OptionId;
+		const FWLPoliticalActionPreview Preview = Political
+			? Political->GetPoliticalActionPreview(PreviewRequest)
+			: FWLPoliticalActionPreview();
 
 		UBorder* OptCard = MakeBorder(WidgetTree, (OptionIndex % 2 == 0) ? GovCardAlt : GovCard, FMargin(12.f, 10.f));
 		UVerticalBox* OVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 
 		// Boton de opcion (ocupa el ancho, con la etiqueta a la izquierda).
 		UWLEventOptionButton* Button = WidgetTree->ConstructWidget<UWLEventOptionButton>(UWLEventOptionButton::StaticClass());
-		Button->SetBackgroundColor(bPending ? GovConfirm : GovGoldDim);
+		Button->SetBackgroundColor(!Preview.bCanExecute ? GovTabIdle : (bPending ? GovConfirm : GovGoldDim));
 		Button->BindOption(this, Current->InstanceId, Option.OptionId);
 		UBorder* LabelPad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(12.f, 8.f));
 		LabelPad->SetContent(MakeText(WidgetTree,
-			bPending ? FString::Printf(TEXT("CONFIRMAR: %s"), *Option.Label) : Option.Label,
-			14, GovDarkInk, ETextJustify::Left));
+			!Preview.bCanExecute
+				? FString::Printf(TEXT("BLOQUEADO: %s"), *Option.Label)
+				: (bPending ? FString::Printf(TEXT("CONFIRMAR: %s"), *Option.Label) : Option.Label),
+			14, Preview.bCanExecute ? GovDarkInk : GovMuted, ETextJustify::Left));
 		Button->SetContent(LabelPad);
 		OVB->AddChildToVerticalBox(Button);
 
@@ -233,10 +243,28 @@ void UWLEventModalWidget::Rebuild()
 		{
 			Impact = TEXT("Sin impacto directo medible.");
 		}
+		const FString CostLine = FString::Printf(TEXT("AP %d · Capital %d · Tesoro %s · %s"),
+			Preview.ActionPointCost,
+			Preview.PoliticalCapitalCost,
+			*GovGroupThousands(Preview.TreasuryCost),
+			Preview.bCanExecute ? TEXT("Disponible") : *Preview.BlockReason);
+		if (UVerticalBoxSlot* S = OVB->AddChildToVerticalBox(MakeText(WidgetTree, CostLine, 12,
+			Preview.bCanExecute ? GovGold : GovBad, ETextJustify::Left, true)))
+		{
+			S->SetPadding(FMargin(2.f, 7.f, 0.f, 0.f));
+		}
+		if (!Preview.EffectsPreview.IsEmpty())
+		{
+			if (UVerticalBoxSlot* S = OVB->AddChildToVerticalBox(MakeText(WidgetTree, Preview.EffectsPreview, 11,
+				GovMuted, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(2.f, 4.f, 0.f, 0.f));
+			}
+		}
 		if (UVerticalBoxSlot* S = OVB->AddChildToVerticalBox(MakeText(WidgetTree, Impact, 12,
 			(Option.PublicOrderDelta < 0 || Option.OppositionDelta > 0) ? GovBad : GovMuted, ETextJustify::Left, true)))
 		{
-			S->SetPadding(FMargin(2.f, 7.f, 0.f, 0.f));
+			S->SetPadding(FMargin(2.f, 4.f, 0.f, 0.f));
 		}
 
 		// Riesgo/consecuencia diferida: shock de mercado.
@@ -280,6 +308,19 @@ void UWLEventModalWidget::ChooseOption(const FString& InstanceId, const FString&
 
 	// Confirmacion en dos clics para opciones sensibles.
 	const FString ConfirmKey = FString::Printf(TEXT("%s|%s"), *InstanceId, *OptionId);
+	FWLPoliticalActionRequest PreviewRequest;
+	PreviewRequest.NationIso = PlayerIso();
+	PreviewRequest.ActionType = EWLPoliticalActionType::ResolveEvent;
+	PreviewRequest.PrimaryId = InstanceId;
+	PreviewRequest.SecondaryId = OptionId;
+	const FWLPoliticalActionPreview Preview = Political->GetPoliticalActionPreview(PreviewRequest);
+	if (!Preview.bCanExecute)
+	{
+		PendingConfirmKey.Reset();
+		LastResolutionMessage = Preview.BlockReason;
+		Rebuild();
+		return;
+	}
 	bool bSensitive = false;
 	for (const FWLPoliticalEventInstance& Event : Political->GetQueuedEvents(PlayerIso()))
 	{

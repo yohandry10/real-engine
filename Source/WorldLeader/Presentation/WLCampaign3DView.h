@@ -115,7 +115,7 @@ struct FWLCampaign3DForceView
 	// Ruta de marcha SIGUIENDO EL TRAZADO de la carretera (puntos de mundo; [0]=posicion actual). Si esta
 	// llena, el ejercito conduce por ella curva a curva. Si no, cae al destino recto (MoveTargetWorld).
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") TArray<FVector> MovePathPoints;
-	// Alcance (unidades de mundo) que le QUEDA por recorrer este turno. Se rellena al avanzar el mes y se
+	// Alcance (unidades de mundo) que le QUEDA por recorrer este turno diario. Se rellena al avanzar el dia y se
 	// descuenta en cada paso; asi spamear clics no permite cruzar mas de lo permitido por turno. -1 = lleno.
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") float MoveBudgetRemainingWorld = -1.f;
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Campaign3D") FString MovementStatus;
@@ -218,7 +218,7 @@ public:
 	// Crea/actualiza el token de EJERCITO movible de cada fuerte cuya guarnicion ha reclutado tropas
 	// (modelo Total War: recluta en el edificio, despliega un ejercito aparte que avanza por carretera).
 	void SyncRecruitedArmyTokens();
-	// Avanza TODOS los ejercitos en marcha por su ruta segun su cargador de movimiento (1 vez por turno [M]).
+	// Avanza TODOS los ejercitos en marcha por su ruta segun su cargador de movimiento (1 vez por dia [Space]).
 	void AdvanceArmyMovements();
 	// Orden de marcha LIBRE: el ejercito ForceId recorre la carretera hacia WorldClick (ajustado a la via mas
 	// cercana) y se detiene ahi, avanzando su alcance este turno. Devuelve la fuerza actualizada en OutForce.
@@ -276,7 +276,7 @@ private:
 	UPROPERTY() UInstancedStaticMeshComponent* ArmyMarkerInstances = nullptr;
 	// VEGETACION / RELIEVE de naturaleza: un ISM por tipo (EWLNatureKind), con su mesh Blender unlit
 	// vertex-color de /Game/GenNature. El scatter por bioma (AddVegetationScatter) reparte instancias.
-	// Reemplaza a los antiguos conos placeholder (TreeInstances/BrushInstances).
+	// Reemplaza a los antiguos conos de depuracion (TreeInstances/BrushInstances).
 	UPROPERTY() TArray<UInstancedStaticMeshComponent*> NatureInstances;
 	UPROPERTY() TArray<UStaticMesh*> NatureMeshes;
 	// Modelos de CIUDAD 3D cohesiva (generados en Blender, /Game/GenCity). Se coloca UNO por
@@ -298,9 +298,8 @@ private:
 	UPROPERTY() TArray<UStaticMeshComponent*> ForceMarkerComponents;
 	UPROPERTY() TArray<UPrimitiveComponent*> ForceSelectionMarkers;
 	UPROPERTY() TArray<UTextRenderComponent*> ForceMarkerLabels;
-	// Fuerzas militares = placeholder sin gameplay todavia. En false NO se crean conos/etiquetas/
-	// hitbox: limpia los "triangulos amarillos" y la etiqueta que duplicaba el nombre de la ciudad
-	// (p.ej. el segundo "Caracas"). Los datos siguen en ForceViews. Poner true al activar el gameplay.
+	// Tokens militares clicables. En false no se crean tokens/etiquetas/hitbox: util para depurar
+	// etiquetas urbanas sin duplicar nombres de ciudad. Los datos siguen en ForceViews.
 	bool bShowMilitaryForceMarkers = true;  // tokens de ejercito activos (NPC clicable estilo Total War)
 	UPROPERTY() TArray<UStaticMeshComponent*> MovementDestinationComponents;
 	UPROPERTY() TArray<UPrimitiveComponent*> MovementDestinationSelectionMarkers;

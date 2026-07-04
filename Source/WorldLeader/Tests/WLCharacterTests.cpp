@@ -324,8 +324,76 @@ bool FWLCharacterGeneralAssignmentTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("General asignado consultable"), Characters->GetAssignedGeneralForArmy(ArmyId, General));
 	TestEqual(TEXT("General correcto"), General.Id, FString(TEXT("CO-GEN-PADILLA")));
 
+	const FString SecondArmyId = Military->CreateArmy(TEXT("CO"), TEXT("CO-CES"), TEXT("infantry"), 1, TEXT(""));
+	TestFalse(TEXT("Segundo ejercito CO creado"), SecondArmyId.IsEmpty());
+	TestTrue(TEXT("Reasignar general CO al segundo ejercito"),
+		Characters->AssignGeneralToArmy(TEXT("CO-GEN-PADILLA"), SecondArmyId, Message));
+	FWLArmy FirstArmy;
+	TestTrue(TEXT("Primer ejercito consultable tras reasignar"), Military->GetArmy(ArmyId, FirstArmy));
+	TestEqual(TEXT("Reasignar limpia el general visible del ejercito anterior"),
+		FirstArmy.General, FString(TEXT("Comandante")));
+
 	TestFalse(TEXT("General VE no puede comandar ejercito CO"),
 		Characters->AssignGeneralToArmy(TEXT("VE-GEN-ZAMORA"), ArmyId, Message));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLCharacterMonthlyRenownRequiresCommandTest,
+	"WorldLeader.Government.Characters.MonthlyRenownRequiresCommand",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLCharacterMonthlyRenownRequiresCommandTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLCharacterSubsystem* Characters = GameInstance->GetSubsystem<UWLCharacterSubsystem>();
+	TestNotNull(TEXT("Character subsystem"), Characters);
+	if (!Characters)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLCharacter Assigned;
+	Assigned.Id = TEXT("CO-GEN-ASSIGNED-TEST");
+	Assigned.Name = TEXT("General Con Mando");
+	Assigned.CountryIso = TEXT("CO");
+	Assigned.Role = EWLCharacterRole::General;
+	Assigned.Rank = EWLMilitaryRank::Colonel;
+	Assigned.Skill = 60;
+	Assigned.Loyalty = 70;
+	Assigned.Ambition = 30;
+	Assigned.AssignedArmyId = TEXT("A-TEST");
+	Assigned.bActive = true;
+
+	FWLCharacter Idle = Assigned;
+	Idle.Id = TEXT("CO-GEN-IDLE-TEST");
+	Idle.Name = TEXT("General Sin Mando");
+	Idle.AssignedArmyId.Reset();
+
+	FString Message;
+	TestTrue(TEXT("Restaurar generales controlados"),
+		Characters->RestoreSaveSnapshot({ Assigned, Idle }, {}, Message));
+	TestEqual(TEXT("Solo un general con mando recibe renombre mensual"),
+		Characters->AddMonthlyRenownToGenerals(TEXT("CO"), 25), 1);
+
+	FWLCharacter AssignedAfter;
+	FWLCharacter IdleAfter;
+	TestTrue(TEXT("General con mando consultable"), Characters->GetCharacter(Assigned.Id, AssignedAfter));
+	TestTrue(TEXT("General sin mando consultable"), Characters->GetCharacter(Idle.Id, IdleAfter));
+	TestEqual(TEXT("Renombre sube con mando"), AssignedAfter.Renown, 25);
+	TestEqual(TEXT("Skill sube al cruzar umbral de renombre"), AssignedAfter.Skill, 61);
+	TestEqual(TEXT("Sin mando no gana renombre pasivo"), IdleAfter.Renown, 0);
+	TestEqual(TEXT("Sin mando no farmea skill pasivo"), IdleAfter.Skill, 60);
 
 	GameInstance->Shutdown();
 	return true;

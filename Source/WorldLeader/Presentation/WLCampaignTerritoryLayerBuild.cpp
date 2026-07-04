@@ -276,9 +276,9 @@ void UWLCampaignTerritoryLayerComponent::BuildProvinceRegions(
 		Obj->TryGetBoolField(TEXT("is_resource_rich"), Region.View.bIsResourceRich);
 		int32 TmpInt = 0;
 		if (Obj->TryGetNumberField(TEXT("strategic_value"), TmpInt)) Region.View.StrategicValue = TmpInt;
-		if (Obj->TryGetNumberField(TEXT("population_placeholder"), TmpInt)) Region.View.PopulationPlaceholder = TmpInt;
-		if (Obj->TryGetNumberField(TEXT("infrastructure_placeholder"), TmpInt)) Region.View.InfrastructurePlaceholder = TmpInt;
-		if (Obj->TryGetNumberField(TEXT("public_order_placeholder"), TmpInt)) Region.View.PublicOrderPlaceholder = TmpInt;
+		if (Obj->TryGetNumberField(TEXT("population"), TmpInt)) Region.View.Population = TmpInt;
+		if (Obj->TryGetNumberField(TEXT("infrastructure"), TmpInt)) Region.View.Infrastructure = TmpInt;
+		if (Obj->TryGetNumberField(TEXT("public_order"), TmpInt)) Region.View.PublicOrder = TmpInt;
 		if (Region.View.OwnerCountry.IsEmpty()) Region.View.OwnerCountry = Region.View.CountryIso;
 		if (Region.View.ControllerCountry.IsEmpty()) Region.View.ControllerCountry = Region.View.OwnerCountry;
 

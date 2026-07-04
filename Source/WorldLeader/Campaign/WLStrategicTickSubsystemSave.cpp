@@ -19,8 +19,33 @@ void UWLStrategicTickSubsystem::WriteSaveSnapshot(
 	TArray<FWLFinancialInstrumentState>* OutFinancialInstruments,
 	TArray<FWLForeignSupportState>* OutForeignSupportStates) const
 {
+	int32 IgnoredDay = 1;
+	WriteSaveSnapshot(
+		OutYear,
+		OutMonth,
+		IgnoredDay,
+		OutTreasuries,
+		OutProvinceBuildings,
+		OutProvinceStates,
+		OutMarketShocks,
+		OutFinancialInstruments,
+		OutForeignSupportStates);
+}
+
+void UWLStrategicTickSubsystem::WriteSaveSnapshot(
+	int32& OutYear,
+	int32& OutMonth,
+	int32& OutDay,
+	TArray<FWLNationTreasurySave>& OutTreasuries,
+	TArray<FWLProvinceBuildingsSave>& OutProvinceBuildings,
+	TArray<FWLProvinceRuntimeState>& OutProvinceStates,
+	TArray<FWLMarketShockState>* OutMarketShocks,
+	TArray<FWLFinancialInstrumentState>* OutFinancialInstruments,
+	TArray<FWLForeignSupportState>* OutForeignSupportStates) const
+{
 	OutYear = CurrentYear;
 	OutMonth = CurrentMonth;
+	OutDay = CurrentDay;
 
 	OutTreasuries.Reset();
 	for (const TPair<FString, int64>& Pair : Treasuries)
@@ -28,6 +53,7 @@ void UWLStrategicTickSubsystem::WriteSaveSnapshot(
 		FWLNationTreasurySave SavedTreasury;
 		SavedTreasury.NationIso = Pair.Key;
 		SavedTreasury.Treasury = Pair.Value;
+		SavedTreasury.DailyTreasuryRemainder = DailyTreasuryRemainders.FindRef(Pair.Key);
 		if (const int32* TaxRate = TaxRates.Find(Pair.Key))
 		{
 			SavedTreasury.TaxRatePercent = *TaxRate;   // FE1.2: -1 se mantiene si nunca se ajusto
@@ -209,10 +235,35 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 	const TArray<FWLForeignSupportState>& SavedForeignSupportStates,
 	FString& OutMessage)
 {
+	return RestoreSaveSnapshot(
+		SavedYear,
+		SavedMonth,
+		1,
+		SavedTreasuries,
+		SavedProvinceBuildings,
+		SavedProvinceStates,
+		SavedMarketShocks,
+		SavedFinancialInstruments,
+		SavedForeignSupportStates,
+		OutMessage);
+}
+
+bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
+	int32 SavedYear,
+	int32 SavedMonth,
+	int32 SavedDay,
+	const TArray<FWLNationTreasurySave>& SavedTreasuries,
+	const TArray<FWLProvinceBuildingsSave>& SavedProvinceBuildings,
+	const TArray<FWLProvinceRuntimeState>& SavedProvinceStates,
+	const TArray<FWLMarketShockState>& SavedMarketShocks,
+	const TArray<FWLFinancialInstrumentState>& SavedFinancialInstruments,
+	const TArray<FWLForeignSupportState>& SavedForeignSupportStates,
+	FString& OutMessage)
+{
 	const FWLBalanceRules Rules = GetBalanceRules();
-	if (SavedYear <= 0 || SavedMonth < 1 || SavedMonth > Rules.MonthsPerYear)
+	if (SavedYear <= 0 || SavedMonth < 1 || SavedMonth > Rules.MonthsPerYear || SavedDay < 1 || SavedDay > 30)
 	{
-		OutMessage = FString::Printf(TEXT("Fecha invalida en save: %02d/%d"), SavedMonth, SavedYear);
+		OutMessage = FString::Printf(TEXT("Fecha invalida en save: %02d/%02d/%d"), SavedDay, SavedMonth, SavedYear);
 		return false;
 	}
 
@@ -225,6 +276,7 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 
 	CurrentYear = SavedYear;
 	CurrentMonth = SavedMonth;
+	CurrentDay = SavedDay;
 	ProvinceBuildings.Reset();
 	ProvinceBuildingLevels.Reset();
 	ActiveMarketShocks.Reset();
@@ -235,6 +287,7 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 	NextForeignSupportNumber = 1;
 	TaxRates.Reset();
 	TariffRates.Reset();
+	DailyTreasuryRemainders.Reset();
 	PreviousGDP.Reset();   // FE1.5: el crecimiento se vuelve a medir tras cargar
 	GDPGrowth.Reset();
 	InitTreasuriesFromData();
@@ -247,6 +300,7 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 		if (Registry->GetNation(SavedTreasury.NationIso, Nation))
 		{
 			Treasuries.FindOrAdd(Nation.Iso) = SavedTreasury.Treasury;
+			DailyTreasuryRemainders.FindOrAdd(Nation.Iso) = FMath::Clamp(SavedTreasury.DailyTreasuryRemainder, -1.0, 1.0);
 			if (SavedTreasury.TaxRatePercent >= 0)
 			{
 				SetTaxRate(Nation.Iso, SavedTreasury.TaxRatePercent);   // FE1.2
@@ -452,9 +506,9 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 	}
 
 	InvalidateEconomicQueryCache();
-	OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
-	OutMessage = FString::Printf(TEXT("Save restaurado: %02d/%d, %d tesoros, %d edificios, %d estados de provincia, %d shocks de mercado, %d instrumentos financieros, %d apoyos exteriores."),
-		CurrentMonth, CurrentYear, RestoredTreasuries, RestoredBuildings, RestoredProvinceStates, RestoredMarketShocks,
+	OnDayAdvanced.Broadcast(CurrentYear, CurrentMonth, CurrentDay);
+	OutMessage = FString::Printf(TEXT("Save restaurado: %02d/%02d/%d, %d tesoros, %d edificios, %d estados de provincia, %d shocks de mercado, %d instrumentos financieros, %d apoyos exteriores."),
+		CurrentDay, CurrentMonth, CurrentYear, RestoredTreasuries, RestoredBuildings, RestoredProvinceStates, RestoredMarketShocks,
 		RestoredFinancialInstruments, RestoredForeignSupport);
 	return true;
 }

@@ -93,11 +93,11 @@ private:
 
 	bool LoadProvincesFromFile(const FString& FilePath);
 	bool LoadNationsFromFile(const FString& FilePath);
-	bool LoadAmericaDiplomacyNationsFromDirectory(const FString& DirectoryPath);
 	bool LoadBuildingsFromFile(const FString& FilePath);
 	bool LoadUnitsFromFile(const FString& FilePath);
 	bool LoadGoodsFromFile(const FString& FilePath);
 	bool ValidateLoadedData() const;
+	bool ValidateAmericaLowDetailCoverage(const FString& DirectoryPath) const;
 
 	static EWLTerrainType TerrainFromString(const FString& In);
 	static EWLBuildingSlot SlotFromString(const FString& In);

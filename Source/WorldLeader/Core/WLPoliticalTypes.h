@@ -69,6 +69,20 @@ enum class EWLGovernmentAIObjective : uint8
 };
 
 UENUM(BlueprintType)
+enum class EWLGovernmentLogCategory : uint8
+{
+	General      UMETA(DisplayName = "General"),
+	Government   UMETA(DisplayName = "Gobierno"),
+	Economy      UMETA(DisplayName = "Economia"),
+	Diplomacy    UMETA(DisplayName = "Diplomacia"),
+	Military     UMETA(DisplayName = "Militar"),
+	Intelligence UMETA(DisplayName = "Inteligencia"),
+	Crisis       UMETA(DisplayName = "Crisis"),
+	Event        UMETA(DisplayName = "Evento"),
+	AI           UMETA(DisplayName = "IA")
+};
+
+UENUM(BlueprintType)
 enum class EWLPolicyReformArea : uint8
 {
 	Tax              UMETA(DisplayName = "Tributaria"),
@@ -159,6 +173,270 @@ enum class EWLCrisisChainType : uint8
 	Impeachment           UMETA(DisplayName = "Juicio politico"),
 	SoftCoup              UMETA(DisplayName = "Golpe blando"),
 	StateOfException      UMETA(DisplayName = "Estado de excepcion")
+};
+
+UENUM(BlueprintType)
+enum class EWLPoliticalActionType : uint8
+{
+	SetAgenda                 UMETA(DisplayName = "Definir agenda"),
+	StartProgram              UMETA(DisplayName = "Iniciar programa"),
+	EnactReform               UMETA(DisplayName = "Aprobar reforma"),
+	ResolveEvent              UMETA(DisplayName = "Resolver evento"),
+	RepressOpposition         UMETA(DisplayName = "Reprimir oposicion"),
+	NegotiatePartySupport     UMETA(DisplayName = "Negociar partido"),
+	HoldPartyInternalElection UMETA(DisplayName = "Eleccion interna"),
+	MakeCampaignPromise       UMETA(DisplayName = "Promesa electoral"),
+	UsePatronage              UMETA(DisplayName = "Patronazgo"),
+	RunMediaAction            UMETA(DisplayName = "Accion de medios"),
+	RunRegionPolicy           UMETA(DisplayName = "Politica regional"),
+	GovernmentCommand         UMETA(DisplayName = "Comando de gobierno")
+};
+
+USTRUCT(BlueprintType)
+struct FWLPoliticalActionRequest
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	EWLPoliticalActionType ActionType = EWLPoliticalActionType::SetAgenda;
+
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	FString PrimaryId;
+
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	FString SecondaryId;
+
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	int32 NumericValue = 0;
+
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	TArray<EWLGovernmentPriority> Priorities;
+};
+
+USTRUCT(BlueprintType)
+struct FWLPoliticalActionPreview
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	EWLPoliticalActionType ActionType = EWLPoliticalActionType::SetAgenda;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	bool bCanExecute = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString BlockReason;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int64 TreasuryCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 PoliticalCapitalCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 ActionPointCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 CooldownRemainingMonths = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 CooldownMonths = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 ActionPointsRemaining = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString EffectsPreview;
+};
+
+USTRUCT(BlueprintType)
+struct FWLPoliticalActionBudget
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 MonthKey = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 MonthlyActionPoints = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 UsedActionPoints = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 RemainingActionPoints = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString LastReport;
+};
+
+USTRUCT(BlueprintType)
+struct FWLPoliticalActionRecord
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	EWLPoliticalActionType ActionType = EWLPoliticalActionType::SetAgenda;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString ActionKey;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString TargetKey;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 Year = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 Month = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 Day = 1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 MonthKey = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 ActionPointCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 CooldownMonths = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString Result;
+};
+
+USTRUCT(BlueprintType)
+struct FWLGovernmentActionRequest
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	FString NationIso;
+
+	/** Existing UI command id: verb[:arg1[:arg2[:arg3]]]. */
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	FString ActionId;
+
+	/** Optional context used by province/building actions. */
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	FString ContextId;
+
+	/** Optional actor selected by UI, e.g. active spy. */
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	FString AgentCharacterId;
+
+	/** Agenda priorities when ActionId == agendaset. */
+	UPROPERTY(BlueprintReadWrite, Category = "WorldLeader|Government")
+	TArray<EWLGovernmentPriority> Priorities;
+};
+
+USTRUCT(BlueprintType)
+struct FWLGovernmentActionPreview
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString ActionId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString ActionKey;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString TargetKey;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	EWLGovernmentLogCategory Category = EWLGovernmentLogCategory::General;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	bool bCanExecute = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString BlockReason;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int64 TreasuryCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 PoliticalCapitalCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 ActionPointCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 CooldownRemainingMonths = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 CooldownMonths = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 ActionPointsRemaining = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString EffectsPreview;
+};
+
+USTRUCT(BlueprintType)
+struct FWLGovernmentLogEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString EntryId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString NationIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString TargetIso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	EWLGovernmentLogCategory Category = EWLGovernmentLogCategory::General;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 Severity = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 Year = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 Month = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 Day = 1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	int32 MonthKey = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString Title;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString Body;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	FString Source;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	bool bPublic = true;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Government")
+	bool bPlayerVisible = true;
 };
 
 USTRUCT(BlueprintType)
@@ -986,6 +1264,9 @@ struct FWLPoliticalEventDefinition
 	FString TargetIso;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
+	FString CrisisType;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
 	int32 MinCoupRisk = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
@@ -993,6 +1274,18 @@ struct FWLPoliticalEventDefinition
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
 	int32 MaxPublicOrder = 100;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
+	int32 MinCrisisStage = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
+	int32 MaxCrisisStage = 5;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
+	int32 MinCrisisIntensity = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
+	int32 MaxCrisisIntensity = 100;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Events")
 	TArray<FWLPoliticalEventOption> Options;

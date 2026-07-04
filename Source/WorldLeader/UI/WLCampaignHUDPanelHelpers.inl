@@ -37,13 +37,26 @@ FString TerrainToText(EWLTerrainType Terrain)
 		return Catalog;
 	}
 
-	FString JoinDisplayList(const TArray<FString>& Values, const FString& EmptyText = TEXT("Sin datos placeholder"))
+	FString JoinDisplayList(const TArray<FString>& Values, const FString& EmptyText = TEXT("Sin datos"))
 	{
 		if (Values.IsEmpty())
 		{
 			return EmptyText;
 		}
 		return FString::Join(Values, TEXT("  |  "));
+	}
+
+	FString FormatCampaignPopulation(int64 Population)
+	{
+		if (Population >= 1000000)
+		{
+			return FString::Printf(TEXT("%.1fM"), static_cast<double>(Population) / 1000000.0);
+		}
+		if (Population >= 1000)
+		{
+			return FString::Printf(TEXT("%.0fk"), static_cast<double>(Population) / 1000.0);
+		}
+		return FString::Printf(TEXT("%lld"), static_cast<long long>(Population));
 	}
 
 	FString ShortenForPanel(const FString& Text, int32 MaxChars)
@@ -78,8 +91,12 @@ FString TerrainToText(EWLTerrainType Terrain)
 			Entry.CapitalOrMainCity = Province.Capital;
 			Entry.Owner = Province.CountryIso;
 			Entry.Controller = Tick ? Tick->GetProvinceControllerIso(Province.Id) : Province.CountryIso;
-			Entry.Population = FString::Printf(TEXT("%lld placeholder"), Province.Population);
-			Entry.PublicOrder = TEXT("70 / 100");
+			Entry.Population = FormatCampaignPopulation(Province.Population);
+			FWLProvinceRuntimeState RuntimeState;
+			const int32 PublicOrder = Tick && Tick->GetProvinceState(Province.Id, RuntimeState)
+				? RuntimeState.PublicOrder
+				: 70;
+			Entry.PublicOrder = FString::Printf(TEXT("%d / 100"), PublicOrder);
 			Entry.Infrastructure = FString::Printf(TEXT("%d / 100"), Province.Infrastructure);
 			Entry.StrategicImportance = FString::Printf(TEXT("Strategic value %d"), Province.StrategicValue);
 			Entry.DetailLevel = (Province.CountryIso.Equals(TEXT("CO"), ESearchCase::IgnoreCase)
@@ -94,7 +111,7 @@ FString TerrainToText(EWLTerrainType Terrain)
 			if (Province.bHasPort) Entry.Ports.Add(Province.Capital);
 			Entry.Cities.Add(Province.Capital);
 			Entry.BuildingSlots = { TEXT("Economic"), TEXT("Infrastructure"), TEXT("Security"), TEXT("Logistics") };
-			Entry.DisabledActions = { TEXT("Administrar edificios"), TEXT("Reclutar"), TEXT("Mejorar infraestructura"), TEXT("Gestionar orden publico") };
+			Entry.DisabledActions = { TEXT("Reclutar requiere fuerte"), TEXT("Orden publico se gestiona desde Gobierno") };
 			return Entry;
 		}
 
@@ -103,18 +120,18 @@ FString TerrainToText(EWLTerrainType Terrain)
 		Entry.CountryIso = PC->GetSelectedTerritoryCountryIso();
 		Entry.Country = Entry.CountryIso;
 		Entry.TypeLabel = PC->GetSelectedTerritoryType();
-		Entry.CapitalOrMainCity = TEXT("Ciudad principal placeholder");
+		Entry.CapitalOrMainCity = Entry.Name;
 		Entry.Owner = Entry.CountryIso;
 		Entry.Controller = Entry.CountryIso;
-		Entry.Population = TEXT("Placeholder");
+		Entry.Population = TEXT("Sin datos");
 		Entry.PublicOrder = TEXT("70 / 100");
 		Entry.Infrastructure = TEXT("50 / 100");
-		Entry.StrategicImportance = TEXT("Lectura estrategica placeholder");
-		Entry.DetailLevel = TEXT("theater placeholder");
+		Entry.StrategicImportance = TEXT("Territorio sin ficha detallada; usa lectura regional.");
+		Entry.DetailLevel = TEXT("theater runtime");
 		Entry.Resources = { TEXT("regional"), TEXT("logistics") };
 		Entry.Cities = { Entry.CapitalOrMainCity };
 		Entry.BuildingSlots = { TEXT("Infrastructure"), TEXT("Logistics"), TEXT("Security") };
-		Entry.DisabledActions = { TEXT("Administrar edificios"), TEXT("Mejorar infraestructura"), TEXT("Gestionar orden publico") };
+		Entry.DisabledActions = { TEXT("Orden publico se gestiona desde Gobierno") };
 		return Entry;
 	}
 
@@ -132,13 +149,13 @@ FString TerrainToText(EWLTerrainType Terrain)
 		Entry.TypeLabel = PC->GetSelectedCityType();
 		Entry.TerritoryId = PC->GetSelectedCityTerritoryId();
 		Entry.TerritoryName = PC->GetSelectedCityTerritoryName();
-		Entry.Population = TEXT("Placeholder");
+		Entry.Population = TEXT("Sin datos");
 		Entry.Infrastructure = TEXT("55 / 100");
-		Entry.StrategicImportance = TEXT("Ciudad estrategica placeholder");
-		Entry.PortStatus = Entry.TypeLabel.Contains(TEXT("port")) ? TEXT("Port placeholder active") : TEXT("No port");
+		Entry.StrategicImportance = TEXT("Nodo urbano conectado al territorio.");
+		Entry.PortStatus = Entry.TypeLabel.Contains(TEXT("port")) ? TEXT("Puerto operativo") : TEXT("No aplica");
 		Entry.Resources = { TEXT("urban"), TEXT("logistics") };
 		Entry.UrbanSlots = { TEXT("Urban"), TEXT("Infrastructure"), TEXT("Security") };
-		Entry.DisabledActions = { TEXT("Administrar edificios"), TEXT("Reclutar"), TEXT("Mejorar infraestructura") };
+		Entry.DisabledActions = { TEXT("Reclutar requiere fuerte") };
 		return Entry;
 	}
 
@@ -202,7 +219,7 @@ FString TerrainToText(EWLTerrainType Terrain)
 	{
 		if (Values.IsEmpty())
 		{
-			HUD->DrawText(TEXT("Sin datos placeholder"), FLinearColor(0.55f, 0.66f, 0.68f, 1.f), X, Y, Font, 0.76f);
+			HUD->DrawText(TEXT("Sin datos"), FLinearColor(0.55f, 0.66f, 0.68f, 1.f), X, Y, Font, 0.76f);
 			Y += 21.f;
 			return;
 		}
@@ -348,15 +365,14 @@ FString TerrainToText(EWLTerrainType Terrain)
 		}
 
 		HUD->DrawRect(FLinearColor(0.014f, 0.026f, 0.032f, 0.92f), PanelX + 18.f, Y, PanelW - 36.f, FMath::Min(PanelY + PanelH - Y - 16.f, 228.f));
-		HUD->DrawText(TEXT("CONSTRUCCION PLACEHOLDER"), Gold, PanelX + 30.f, Y + 10.f, SmallFont, 0.76f);
+		HUD->DrawText(TEXT("CONSTRUCCION"), Gold, PanelX + 30.f, Y + 10.f, SmallFont, 0.76f);
 		Y += 30.f;
 
 		if (!PC->HasSelectedBuildingSlot())
 		{
 			HUD->DrawText(TEXT("Selecciona un slot para ver edificios compatibles."), Muted, PanelX + 30.f, Y, SmallFont, 0.74f);
 			Y += 28.f;
-			HUD->DrawRect(Disabled, PanelX + 30.f, Y, PanelW - 60.f, 24.f);
-			HUD->DrawText(TEXT("Mejorar / demoler / gestionar - bloqueado"), Muted, PanelX + 42.f, Y + 5.f, SmallFont, 0.68f);
+			HUD->DrawText(TEXT("Cada construccion usa tesoro y ocupa un slot estrategico real."), Muted, PanelX + 30.f, Y, SmallFont, 0.68f);
 			return;
 		}
 
@@ -373,7 +389,7 @@ FString TerrainToText(EWLTerrainType Terrain)
 		if (State == EWLCampaignBuildingSlotState::Locked)
 		{
 			HUD->DrawRect(Disabled, PanelX + 30.f, Y, PanelW - 60.f, 30.f);
-			HUD->DrawText(TEXT("Slot bloqueado para costos, upgrades o sistemas futuros."), Muted, PanelX + 42.f, Y + 8.f, SmallFont, 0.70f);
+			HUD->DrawText(TEXT("Slot no disponible para este tipo de provincia."), Muted, PanelX + 42.f, Y + 8.f, SmallFont, 0.70f);
 			return;
 		}
 
@@ -394,12 +410,7 @@ FString TerrainToText(EWLTerrainType Terrain)
 			DrawTagRow(HUD, SmallFont, Building->Effects, PanelX + 30.f, Y, PanelW - 72.f, FLinearColor(0.12f, 0.17f, 0.14f, 0.92f), Text);
 			if (Y < PanelY + PanelH - 72.f)
 			{
-				HUD->DrawRect(Disabled, PanelX + 30.f, Y, 116.f, 24.f);
-				HUD->DrawText(TEXT("Mejorar - bloqueado"), Muted, PanelX + 38.f, Y + 5.f, SmallFont, 0.64f);
-				HUD->DrawRect(Disabled, PanelX + 154.f, Y, 116.f, 24.f);
-				HUD->DrawText(TEXT("Demoler - bloqueado"), Muted, PanelX + 162.f, Y + 5.f, SmallFont, 0.64f);
-				HUD->DrawRect(Disabled, PanelX + 278.f, Y, 104.f, 24.f);
-				HUD->DrawText(TEXT("Gestionar"), Muted, PanelX + 292.f, Y + 5.f, SmallFont, 0.64f);
+				HUD->DrawText(TEXT("Gestion detallada disponible desde Gobierno > Economia."), Muted, PanelX + 30.f, Y + 5.f, SmallFont, 0.64f);
 			}
 			return;
 		}
@@ -409,7 +420,7 @@ FString TerrainToText(EWLTerrainType Terrain)
 		const int32 MaxOptions = FMath::Min(CompatibleBuildings.Num(), 3);
 		if (MaxOptions == 0)
 		{
-			HUD->DrawText(TEXT("Sin edificios compatibles en este catalogo placeholder."), Muted, PanelX + 30.f, Y, SmallFont, 0.70f);
+			HUD->DrawText(TEXT("Sin edificios compatibles para este slot."), Muted, PanelX + 30.f, Y, SmallFont, 0.70f);
 			return;
 		}
 
@@ -418,7 +429,10 @@ FString TerrainToText(EWLTerrainType Terrain)
 			const FWLCampaignBuildingDefinition& Building = CompatibleBuildings[Index];
 			HUD->DrawRect(FLinearColor(0.020f, 0.038f, 0.044f, 0.94f), PanelX + 30.f, Y, PanelW - 60.f, 46.f);
 			HUD->DrawText(ShortenForPanel(Building.Name, 28), Text, PanelX + 40.f, Y + 7.f, SmallFont, 0.76f);
-			HUD->DrawText(ShortenForPanel(JoinDisplayList(Building.Effects), 36), Muted, PanelX + 40.f, Y + 25.f, SmallFont, 0.62f);
+			const FString CostLine = Building.ConstructionCost > 0
+				? FString::Printf(TEXT("%s | Coste %lld"), *JoinDisplayList(Building.Effects), static_cast<long long>(Building.ConstructionCost))
+				: JoinDisplayList(Building.Effects);
+			HUD->DrawText(ShortenForPanel(CostLine, 42), Muted, PanelX + 40.f, Y + 25.f, SmallFont, 0.62f);
 			HUD->DrawRect(FLinearColor(0.50f, 0.40f, 0.18f, 0.96f), PanelX + PanelW - 105.f, Y + 12.f, 78.f, 23.f);
 			HUD->DrawText(TEXT("Construir"), Text, PanelX + PanelW - 94.f, Y + 17.f, SmallFont, 0.62f);
 			Y += 51.f;

@@ -13,6 +13,14 @@
 
 namespace
 {
+	void AdvanceThirtyDays(UWLStrategicTickSubsystem* Tick)
+	{
+		for (int32 Day = 0; Tick && Day < 30; ++Day)
+		{
+			Tick->AdvanceDay();
+		}
+	}
+
 	int32 CountBuildingsForControlledNation(const UWLDataRegistry* Registry, const UWLStrategicTickSubsystem* Tick, const FString& NationIso)
 	{
 		if (!Registry || !Tick)
@@ -145,7 +153,7 @@ bool FWLEconomicAIRequiresCampaignForMonthlyTickTest::RunTest(const FString& Par
 		return false;
 	}
 
-	Tick->AdvanceMonth();
+	AdvanceThirtyDays(Tick);
 	const int32 ExpectedAINations = CountNationsExcept(Registry, TEXT("VE"));
 
 	TestTrue(TEXT("America completa participa en tick mensual"), ExpectedAINations >= 30);

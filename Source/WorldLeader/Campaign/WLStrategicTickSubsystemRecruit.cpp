@@ -1,7 +1,7 @@
 // Copyright World Leader project. See ROADMAP.md.
 //
 // Reclutamiento de tropas por turnos (estilo Total War): una base encola unidades; cada turno
-// (AdvanceMonth) avanza la primera orden de la cola; al terminar, el lote entra a la guarnicion de
+// (AdvanceDay) avanza la primera orden de la cola; al terminar, el lote entra a la guarnicion de
 // esa base. La UI (panel de la base) llama QueueRecruit y lee GetRecruitQueue / GetGarrisonRecruited.
 
 #include "Campaign/WLStrategicTickSubsystem.h"
