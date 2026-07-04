@@ -195,8 +195,9 @@ namespace WLGovUI
 		{
 			UBorder* B = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
 			B->SetBrushFromTexture(Bg);
-			// Tinte oscuro: la imagen aporta profundidad pero el texto denso sigue legible encima.
-			B->SetBrushColor(FLinearColor(0.50f, 0.52f, 0.58f, 1.f));
+			// Tinte suave: la imagen ya viene oscurecida para UI, solo se ampara un poco. Subir hacia
+			// 1.0 = mas brillante; bajar = mas oscura, si el texto de cabecera/pie cuesta leerse.
+			B->SetBrushColor(FLinearColor(0.88f, 0.90f, 0.94f, 1.f));
 			B->SetPadding(Pad);
 			return B;
 		}
