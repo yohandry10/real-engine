@@ -487,6 +487,32 @@ namespace WLGovUI
 	}
 
 	/**
+	 * Fila de DOS columnas (layout tipo Football Manager): devuelve dos UVerticalBox lado a lado
+	 * para rellenar con AddColumnChild. El peso reparte el ancho (1:1 por defecto). La fila
+	 * resultante se anade a CenterBox con AddColumnChild. Ambas columnas scrollean juntas.
+	 */
+	inline UHorizontalBox* MakeTwoColumnRow(UWidgetTree* Tree, UVerticalBox*& OutLeft, UVerticalBox*& OutRight,
+		float LeftWeight = 1.f, float RightWeight = 1.f, float Gap = 14.f)
+	{
+		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		OutLeft = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		OutRight = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(OutLeft))
+		{
+			FSlateChildSize Sz(ESlateSizeRule::Fill); Sz.Value = LeftWeight; S->SetSize(Sz);
+			S->SetPadding(FMargin(0.f, 0.f, Gap * 0.5f, 0.f));
+			S->SetVerticalAlignment(VAlign_Top);
+		}
+		if (UHorizontalBoxSlot* S = Row->AddChildToHorizontalBox(OutRight))
+		{
+			FSlateChildSize Sz(ESlateSizeRule::Fill); Sz.Value = RightWeight; S->SetSize(Sz);
+			S->SetPadding(FMargin(Gap * 0.5f, 0.f, 0.f, 0.f));
+			S->SetVerticalAlignment(VAlign_Top);
+		}
+		return Row;
+	}
+
+	/**
 	 * Barra horizontal de progreso/riesgo 0..1 (track oscuro + relleno proporcional).
 	 * Mismo truco que orden publico: ESlateSizeRule::Fill con el peso en Value.
 	 */

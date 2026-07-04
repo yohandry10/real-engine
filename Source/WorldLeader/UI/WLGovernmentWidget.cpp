@@ -192,14 +192,15 @@ void UWLGovernmentWidget::BuildShell()
 		S->SetOffsets(FMargin(0.f));
 	}
 
-	// Marco dorado + panel interior, centrado. Esquinas redondeadas: la ventana deja de ser un ladrillo.
+	// Marco dorado + panel interior, centrado. Ventana grande estilo Football Manager: mas ancho
+	// para layouts de 2 columnas y menos scroll (el contenido de GOBIERNO es denso).
 	UBorder* Frame = MakeRoundedSurface(WidgetTree, GovFrame, FMargin(2.f), 14.f);
 	if (UCanvasPanelSlot* S = Root->AddChildToCanvas(Frame))
 	{
 		S->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
 		S->SetAlignment(FVector2D(0.5f, 0.5f));
 		S->SetPosition(FVector2D(0.f, 0.f));
-		S->SetSize(FVector2D(1180.f, 900.f));
+		S->SetSize(FVector2D(1560.f, 948.f));
 	}
 
 	// Panel con fondo TEXTURIZADO (gradiente+viñeta): profundidad frente al relleno plano.
@@ -891,58 +892,36 @@ void UWLGovernmentWidget::BuildOverviewTab()
 		return;
 	}
 
-	// Cabecera de columnas (etiquetas discretas, sin fondo).
-	{
-		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		UBorder* NamePad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(12.f, 0.f, 0.f, 0.f));
-		NamePad->SetContent(MakeText(WidgetTree, TEXT("PROVINCIA"), 11, GovMuted));
-		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(NamePad))
-		{
-			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-			S->SetVerticalAlignment(VAlign_Center);
-		}
-		USizeBox* PopHdr = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		PopHdr->SetWidthOverride(160.f);
-		PopHdr->SetContent(MakeText(WidgetTree, TEXT("POBLACION"), 11, GovMuted, ETextJustify::Right));
-		Head->AddChildToHorizontalBox(PopHdr);
-		USizeBox* BalHdr = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		BalHdr->SetWidthOverride(150.f);
-		UBorder* BalHdrPad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f, 0.f, 12.f, 0.f));
-		BalHdrPad->SetContent(MakeText(WidgetTree, TEXT("BALANCE / MES"), 11, GovMuted, ETextJustify::Right));
-		BalHdr->SetContent(BalHdrPad);
-		Head->AddChildToHorizontalBox(BalHdr);
-		AddColumnChild(CenterBox, Head, 4.f);
-	}
-
-	// Filas redondeadas: nombre + poblacion + balance como insignia de color (verde/carmesi).
+	// Layout FM: provincias en DOS columnas (mitad de scroll en paises grandes). Cada ficha
+	// es autoexplicativa: nombre + poblacion + balance como insignia de color.
+	UVerticalBox* TerrLeft; UVerticalBox* TerrRight;
+	UHorizontalBox* TerrCols = MakeTwoColumnRow(WidgetTree, TerrLeft, TerrRight);
 	int32 Index = 0;
 	for (const FWLProvinceData& P : Sum.Controlled)
 	{
 		const int64 Bal = Tick ? GetCachedProvinceMonthlyBalance(P.Id) : 0;
 		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, P.Name, 15, GovText)))
+		UVerticalBox* NamePop = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		NamePop->AddChildToVerticalBox(MakeText(WidgetTree, P.Name, 15, GovText));
+		NamePop->AddChildToVerticalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("Poblacion %s"), *GovGroupThousands(P.Population)), 11, GovMuted));
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(NamePop))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			S->SetVerticalAlignment(VAlign_Center);
 		}
-		USizeBox* PopBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		PopBox->SetWidthOverride(160.f);
-		PopBox->SetContent(MakeText(WidgetTree, GovGroupThousands(P.Population), 13, GovMuted, ETextJustify::Right));
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(PopBox)) { S->SetVerticalAlignment(VAlign_Center); }
-		USizeBox* BalBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		BalBox->SetWidthOverride(150.f);
-		UBorder* BalPad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f, 0.f, 0.f, 0.f));
-		BalPad->SetHorizontalAlignment(HAlign_Right);
-		BalPad->SetContent(MakeBadge(WidgetTree,
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeBadge(WidgetTree,
 			FString::Printf(TEXT("%s%s"), Bal >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Bal)),
-			Bal >= 0 ? GovGood : GovBad, GovDarkInk));
-		BalBox->SetContent(BalPad);
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(BalBox)) { S->SetVerticalAlignment(VAlign_Center); }
+			Bal >= 0 ? GovGood : GovBad, GovDarkInk)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+		}
 		Row->SetContent(HB);
-		AddColumnChild(CenterBox, Row, 4.f);
+		AddColumnChild((Index % 2 == 0) ? TerrLeft : TerrRight, Row, 4.f);
 		++Index;
 	}
+	AddColumnChild(CenterBox, TerrCols, 4.f);
 }
 
 // FE1.3: panel ECONOMIA — presupuesto mensual desglosado por categorias + palanca de impuestos (FE1.2).
@@ -960,11 +939,11 @@ void UWLGovernmentWidget::BuildEconomyTab()
 	const FWLBalanceRules Rules = Tick->GetBalanceRules();
 	const FWLNationBudget Budget = GetCachedNationBudget();
 
-	// Fila de presupuesto: etiqueta (fill) + importe con signo a la derecha.
-	auto AddBudgetRow = [&](const FString& Label, int64 Amount, bool bIsIncome, bool bTotal, int32 Index)
+	// Fila de presupuesto: etiqueta (fill) + importe con signo a la derecha. Target = columna destino.
+	auto AddBudgetRow = [&](UVerticalBox* Target, const FString& Label, int64 Amount, bool bIsIncome, bool bTotal, int32 Index)
 	{
 		const FLinearColor RowColor = bTotal ? GovCardAlt : ((Index % 2 == 0) ? GovCard : GovCardAlt);
-		UBorder* Row = MakeBorder(WidgetTree, RowColor, FMargin(12.f, bTotal ? 10.f : 8.f));
+		UBorder* Row = MakeCard(WidgetTree, RowColor, FMargin(12.f, bTotal ? 10.f : 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(
 			MakeText(WidgetTree, Label, bTotal ? 15 : 14, bTotal ? GovGold : GovText)))
@@ -976,7 +955,7 @@ void UWLGovernmentWidget::BuildEconomyTab()
 			FString::Printf(TEXT("%s%s"), bIsIncome ? TEXT("+") : TEXT("-"), *GovGroupThousands(Amount)),
 			bTotal ? 15 : 14, bIsIncome ? GovGood : GovBad, ETextJustify::Right));
 		Row->SetContent(HB);
-		AddColumnChild(CenterBox, Row, bTotal ? 8.f : 4.f);
+		AddColumnChild(Target, Row, bTotal ? 8.f : 4.f);
 	};
 
 	// FE1.5: macro en tiles con icono (antes eran dos lineas de texto apretadas e ilegibles).
@@ -1010,49 +989,55 @@ void UWLGovernmentWidget::BuildEconomyTab()
 
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("PRESUPUESTO MENSUAL")), 12.f);
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("INGRESOS"), 13, GovMuted), 12.f);
-	AddBudgetRow(TEXT("Recursos y produccion"), Budget.ResourceIncome, true, false, 0);
-	AddBudgetRow(TEXT("Impuestos"), Budget.TaxIncome, true, false, 1);
+	// Layout FM: INGRESOS y GASTOS lado a lado (contabilidad de dos columnas), no una pila larga.
+	UVerticalBox* IncomeCol; UVerticalBox* ExpenseCol;
+	UHorizontalBox* BudgetCols = MakeTwoColumnRow(WidgetTree, IncomeCol, ExpenseCol);
+
+	AddColumnChild(IncomeCol, MakeText(WidgetTree, TEXT("INGRESOS"), 13, GovGood), 0.f);
+	AddBudgetRow(IncomeCol, TEXT("Recursos y produccion"), Budget.ResourceIncome, true, false, 0);
+	AddBudgetRow(IncomeCol, TEXT("Impuestos"), Budget.TaxIncome, true, false, 1);
 	if (Budget.ExportIncome > 0)
 	{
-		AddBudgetRow(TEXT("Exportaciones"), Budget.ExportIncome, true, false, 2);
+		AddBudgetRow(IncomeCol, TEXT("Exportaciones"), Budget.ExportIncome, true, false, 2);
 	}
 	if (Budget.TariffIncome > 0)
 	{
-		AddBudgetRow(TEXT("Aranceles"), Budget.TariffIncome, true, false, 3);   // FE4.3
+		AddBudgetRow(IncomeCol, TEXT("Aranceles"), Budget.TariffIncome, true, false, 3);   // FE4.3
 	}
 	if (Budget.ForeignAidIncome > 0)
 	{
-		AddBudgetRow(TEXT("Ayuda exterior recibida"), Budget.ForeignAidIncome, true, false, 4);   // FE5.3
+		AddBudgetRow(IncomeCol, TEXT("Ayuda exterior recibida"), Budget.ForeignAidIncome, true, false, 4);   // FE5.3
 	}
-	AddBudgetRow(TEXT("TOTAL INGRESOS"), Budget.TotalIncome(), true, true, 0);
+	AddBudgetRow(IncomeCol, TEXT("TOTAL INGRESOS"), Budget.TotalIncome(), true, true, 0);
 
-	AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("GASTOS"), 13, GovMuted), 14.f);
-	AddBudgetRow(TEXT("Militar"), Budget.MilitaryUpkeep, false, false, 0);
-	AddBudgetRow(TEXT("Infraestructura"), Budget.InfrastructureUpkeep, false, false, 1);
-	AddBudgetRow(TEXT("Salarios publicos"), Budget.PublicWages, false, false, 2);
-	AddBudgetRow(TEXT("Gasto social"), Budget.SocialSpending, false, false, 3);
+	AddColumnChild(ExpenseCol, MakeText(WidgetTree, TEXT("GASTOS"), 13, GovBad), 0.f);
+	AddBudgetRow(ExpenseCol, TEXT("Militar"), Budget.MilitaryUpkeep, false, false, 0);
+	AddBudgetRow(ExpenseCol, TEXT("Infraestructura"), Budget.InfrastructureUpkeep, false, false, 1);
+	AddBudgetRow(ExpenseCol, TEXT("Salarios publicos"), Budget.PublicWages, false, false, 2);
+	AddBudgetRow(ExpenseCol, TEXT("Gasto social"), Budget.SocialSpending, false, false, 3);
 	if (Budget.DebtInterest > 0)
 	{
-		AddBudgetRow(TEXT("Intereses de deuda"), Budget.DebtInterest, false, false, 4);   // FE1.4
+		AddBudgetRow(ExpenseCol, TEXT("Intereses de deuda"), Budget.DebtInterest, false, false, 4);   // FE1.4
 	}
 	if (Budget.DebtService > 0)
 	{
-		AddBudgetRow(TEXT("Servicio de deuda (bonos/FMI)"), Budget.DebtService, false, false, 5);   // FE5.1
+		AddBudgetRow(ExpenseCol, TEXT("Servicio de deuda (bonos/FMI)"), Budget.DebtService, false, false, 5);   // FE5.1
 	}
 	if (Budget.ImportCost > 0)
 	{
-		AddBudgetRow(TEXT("Importaciones criticas"), Budget.ImportCost, false, false, 6);
+		AddBudgetRow(ExpenseCol, TEXT("Importaciones criticas"), Budget.ImportCost, false, false, 6);
 	}
 	if (Budget.CorruptionLoss > 0)
 	{
-		AddBudgetRow(TEXT("Perdida por corrupcion"), Budget.CorruptionLoss, false, false, 7);   // FE6.2
+		AddBudgetRow(ExpenseCol, TEXT("Perdida por corrupcion"), Budget.CorruptionLoss, false, false, 7);   // FE6.2
 	}
 	if (Budget.ForeignAidExpense > 0)
 	{
-		AddBudgetRow(TEXT("Ayuda exterior concedida"), Budget.ForeignAidExpense, false, false, 8);   // FE5.3
+		AddBudgetRow(ExpenseCol, TEXT("Ayuda exterior concedida"), Budget.ForeignAidExpense, false, false, 8);   // FE5.3
 	}
-	AddBudgetRow(TEXT("TOTAL GASTOS"), Budget.TotalSpending(), false, true, 0);
+	AddBudgetRow(ExpenseCol, TEXT("TOTAL GASTOS"), Budget.TotalSpending(), false, true, 0);
+
+	AddColumnChild(CenterBox, BudgetCols, 8.f);
 
 	// Balance neto (== GetMonthlyBalance).
 	const int64 Net = Budget.Net();
@@ -1939,12 +1924,14 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 		return;
 	}
 
-	// Listado compacto: una fila por pais, GESTIONAR abre su ficha de gestion (vista master/detalle).
+	// Listado en DOS columnas (layout FM): 37 naciones ocupan la mitad de scroll.
+	UVerticalBox* DipLeft; UVerticalBox* DipRight;
+	UHorizontalBox* DipCols = MakeTwoColumnRow(WidgetTree, DipLeft, DipRight);
 	int32 Index = 0;
 	for (const FDiploRow& Row : Rows)
 	{
 		const bool bAtWar = Row.Relation.Status == EWLDiplomaticStatus::War;
-		UBorder* Card = MakeBorder(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(10.f, 6.f));
+		UBorder* Card = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(10.f, 6.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeFlag(WidgetTree,
@@ -1991,9 +1978,10 @@ void UWLGovernmentWidget::BuildDiplomacyTab()
 			S->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
 		}
 		Card->SetContent(HB);
-		AddColumnChild(CenterBox, Card, 3.f);
+		AddColumnChild((Index % 2 == 0) ? DipLeft : DipRight, Card, 3.f);
 		++Index;
 	}
+	AddColumnChild(CenterBox, DipCols, 3.f);
 
 	AddColumnChild(CenterBox, MakeText(WidgetTree,
 		TEXT("GESTIONAR abre el panel del pais con tratados, guerra, ayuda, inversion e intriga. Sin guerra declarada no hay combate."),

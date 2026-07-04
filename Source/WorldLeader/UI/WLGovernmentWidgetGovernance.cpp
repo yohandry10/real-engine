@@ -825,9 +825,11 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 			TEXT("Ningun programa en curso para este filtro."), 13, GovMuted), 6.f);
 	}
 
-	// --- Catalogo ---
+	// --- Catalogo (2 columnas estilo FM: 50 programas ocupan la mitad de scroll) ---
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree,
 		FString::Printf(TEXT("CATALOGO DE PROGRAMAS  (%d)"), Catalog.Num())), 16.f);
+	UVerticalBox* CatLeft; UVerticalBox* CatRight;
+	UHorizontalBox* CatCols = MakeTwoColumnRow(WidgetTree, CatLeft, CatRight);
 	int32 ShownCatalog = 0;
 	for (const FWLMinistryProgramDefinition& Definition : Catalog)
 	{
@@ -926,9 +928,10 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 			S->SetVerticalAlignment(VAlign_Center);
 		}
 		Card->SetContent(CardRow);
-		AddColumnChild(CenterBox, Card, 4.f);
+		AddColumnChild((ShownCatalog % 2 == 0) ? CatLeft : CatRight, Card, 4.f);
 		++ShownCatalog;
 	}
+	AddColumnChild(CenterBox, CatCols, 4.f);
 	if (ShownCatalog == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
@@ -1078,6 +1081,8 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 
 	// --- Reformas disponibles ---
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("REFORMAS DISPONIBLES")), 16.f);
+	UVerticalBox* RefLeft; UVerticalBox* RefRight;
+	UHorizontalBox* RefCols = MakeTwoColumnRow(WidgetTree, RefLeft, RefRight);
 	int32 Shown = 0;
 	for (const FWLPolicyReformDefinition& Definition : Definitions)
 	{
@@ -1213,9 +1218,10 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 			}
 		}
 		Card->SetContent(DVB);
-		AddColumnChild(CenterBox, Card, 4.f);
+		AddColumnChild((Shown % 2 == 0) ? RefLeft : RefRight, Card, 4.f);
 		++Shown;
 	}
+	AddColumnChild(CenterBox, RefCols, 4.f);
 	if (Shown == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree, TEXT("Sin reformas en esta area."), 13, GovMuted), 6.f);
@@ -2343,6 +2349,9 @@ void UWLGovernmentWidget::BuildPoliticalProfilesSection()
 		}
 	});
 
+	// Perfiles en DOS columnas (layout FM): hasta 12 fichas con retrato, la mitad de scroll.
+	UVerticalBox* ProfLeft; UVerticalBox* ProfRight;
+	UHorizontalBox* ProfCols = MakeTwoColumnRow(WidgetTree, ProfLeft, ProfRight);
 	int32 Shown = 0;
 	for (const FWLCharacterPoliticalProfile& Profile : Profiles)
 	{
@@ -2431,9 +2440,10 @@ void UWLGovernmentWidget::BuildPoliticalProfilesSection()
 			S->SetVerticalAlignment(VAlign_Center);
 		}
 		Card->SetContent(CardRow);
-		AddColumnChild(CenterBox, Card, 4.f);
+		AddColumnChild((Shown % 2 == 0) ? ProfLeft : ProfRight, Card, 4.f);
 		++Shown;
 	}
+	AddColumnChild(CenterBox, ProfCols, 4.f);
 }
 
 // REGISTROS: plan de la IA politica de cada pais de America (solo expone GetGovernmentAIPlan).

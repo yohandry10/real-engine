@@ -12,7 +12,7 @@
 
 namespace
 {
-	void AdvanceThirtyDays(UWLStrategicTickSubsystem* Tick)
+	void AdvanceThirtyDaysProvinceState(UWLStrategicTickSubsystem* Tick)
 	{
 		for (int32 Day = 0; Tick && Day < 30; ++Day)
 		{
@@ -51,7 +51,7 @@ bool FWLProvinceStateMonthlyTickTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Poblacion inicial positiva"), Before.Population > 0);
 	TestTrue(TEXT("Orden publico inicial valido"), Before.PublicOrder >= 0 && Before.PublicOrder <= 100);
 
-	AdvanceThirtyDays(Tick);
+	AdvanceThirtyDaysProvinceState(Tick);
 
 	FWLProvinceRuntimeState After;
 	TestTrue(TEXT("Estado post tick VE-ZU"), Tick->GetProvinceState(TEXT("VE-ZU"), After));

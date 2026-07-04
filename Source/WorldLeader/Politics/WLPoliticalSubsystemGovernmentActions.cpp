@@ -88,7 +88,7 @@ namespace
 		return FMath::Clamp<int64>(Raw, 1000, AvailableCredit);
 	}
 
-	bool ParseMinisterOffice(const FString& Raw, EWLMinisterOffice& OutOffice)
+	bool ParseMinisterOfficeAction(const FString& Raw, EWLMinisterOffice& OutOffice)
 	{
 		const int32 RawValue = FCString::Atoi(*Raw);
 		if (RawValue < static_cast<int32>(EWLMinisterOffice::None)
@@ -555,7 +555,7 @@ FWLGovernmentActionPreview UWLPoliticalSubsystem::GetGovernmentActionPreview(con
 			Preview.ActionPointCost = 1;
 			Preview.CooldownMonths = 0;
 			EWLMinisterOffice Office = EWLMinisterOffice::None;
-			if (!ParseMinisterOffice(Arg1, Office) || !Characters)
+			if (!ParseMinisterOfficeAction(Arg1, Office) || !Characters)
 			{
 				Block(TEXT("Cartera invalida."));
 			}

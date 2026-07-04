@@ -13,7 +13,7 @@
 
 namespace
 {
-	void AdvanceThirtyDays(UWLStrategicTickSubsystem* Tick)
+	void AdvanceThirtyDaysEconAI(UWLStrategicTickSubsystem* Tick)
 	{
 		for (int32 Day = 0; Tick && Day < 30; ++Day)
 		{
@@ -153,7 +153,7 @@ bool FWLEconomicAIRequiresCampaignForMonthlyTickTest::RunTest(const FString& Par
 		return false;
 	}
 
-	AdvanceThirtyDays(Tick);
+	AdvanceThirtyDaysEconAI(Tick);
 	const int32 ExpectedAINations = CountNationsExcept(Registry, TEXT("VE"));
 
 	TestTrue(TEXT("America completa participa en tick mensual"), ExpectedAINations >= 30);
