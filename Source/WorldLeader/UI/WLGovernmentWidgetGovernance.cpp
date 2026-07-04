@@ -2056,22 +2056,24 @@ void UWLGovernmentWidget::BuildGovernanceOverviewCards()
 			S->SetHorizontalAlignment(HAlign_Fill);
 		}
 	};
-	Place(0, 0, MakeMetricCard(WidgetTree, TEXT("Aprobacion"),
-		FString::Printf(TEXT("%d%%"), Media.PresidentialApproval), SupportColor(Media.PresidentialApproval)));
-	Place(0, 1, MakeMetricCard(WidgetTree, TEXT("Legitimidad"),
-		FString::Printf(TEXT("%d"), Election.Legitimacy), SupportColor(Election.Legitimacy)));
-	Place(1, 0, MakeMetricCard(WidgetTree, TEXT("Eleccion"),
-		FString::Printf(TEXT("%d meses"), Election.MonthsToElection),
-		Election.MonthsToElection <= 6 ? GovGold : GovText));
-	Place(1, 1, MakeMetricCard(WidgetTree, TEXT("Coalicion"),
-		FString::Printf(TEXT("%d"), Institutions.RulingCoalitionSupport),
-		SupportColor(Institutions.RulingCoalitionSupport)));
-	Place(2, 0, MakeMetricCard(WidgetTree, TEXT("Capacidad estatal"),
-		FString::Printf(TEXT("%d"), Capacity.AdministrativeEfficiency),
-		SupportColor(Capacity.AdministrativeEfficiency)));
-	Place(2, 1, MakeMetricCard(WidgetTree, TEXT("Crisis activas"),
-		FString::Printf(TEXT("%d"), ActiveCrises),
-		ActiveCrises > 0 ? GovBad : GovGood));
+	const FLinearColor ApprColor = SupportColor(Media.PresidentialApproval);
+	const FLinearColor LegitColor = SupportColor(Election.Legitimacy);
+	const FLinearColor ElecColor = Election.MonthsToElection <= 6 ? GovWarn : GovText;
+	const FLinearColor CoalColor = SupportColor(Institutions.RulingCoalitionSupport);
+	const FLinearColor CapColor = SupportColor(Capacity.AdministrativeEfficiency);
+	const FLinearColor CrisisColor = ActiveCrises > 0 ? GovBad : GovGood;
+	Place(0, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Approval, ApprColor, TEXT("Aprobacion"),
+		FString::Printf(TEXT("%d%%"), Media.PresidentialApproval), ApprColor));
+	Place(0, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Capital, LegitColor, TEXT("Legitimidad"),
+		FString::Printf(TEXT("%d"), Election.Legitimacy), LegitColor));
+	Place(1, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Politics, ElecColor, TEXT("Eleccion"),
+		FString::Printf(TEXT("%d meses"), Election.MonthsToElection), ElecColor));
+	Place(1, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Population, CoalColor, TEXT("Coalicion"),
+		FString::Printf(TEXT("%d"), Institutions.RulingCoalitionSupport), CoalColor));
+	Place(2, 0, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Order, CapColor, TEXT("Capacidad estatal"),
+		FString::Printf(TEXT("%d"), Capacity.AdministrativeEfficiency), CapColor));
+	Place(2, 1, MakeMetricCardIcon(WidgetTree, EWLGovIcon::Crisis, CrisisColor, TEXT("Crisis activas"),
+		FString::Printf(TEXT("%d"), ActiveCrises), CrisisColor));
 	AddColumnChild(CenterBox, Grid, 10.f);
 	AddColumnChild(CenterBox, MakeText(WidgetTree,
 		TEXT("El detalle vive en POLITICA: agenda, programas, leyes, Congreso, elecciones, medios, regiones y crisis."),

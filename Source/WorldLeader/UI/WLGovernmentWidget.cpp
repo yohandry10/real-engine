@@ -749,7 +749,91 @@ void UWLGovernmentWidget::BuildOverviewTab()
 		}
 	}
 
-	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ESTADO DE LA NACION")), 6.f);
+	// INFORME PRESIDENCIAL: rostro del lider + identidad + rasgos + aprobacion como titular.
+	// Da un punto focal humano al RESUMEN (el retrato no vive en la cabecera, solo la bandera).
+	{
+		UWLCampaignGameInstance* GI = GetCampaignGI();
+		FWLNationData Nation;
+		const bool bHasNation = GI && GI->GetSelectedNation(Nation);
+		const UWLPoliticalSubsystem* Political = GetPolitical();
+		const int32 Approval = Political ? Political->GetMediaPublicOpinion(Iso).PresidentialApproval : 0;
+
+		UBorder* Hero = MakeCard(WidgetTree, GovHeaderStrip, FMargin(16.f, 14.f));
+		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakePortrait(WidgetTree,
+			FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 94.f, 116.f)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 16.f, 0.f));
+		}
+
+		UVerticalBox* IdVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		IdVB->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("INFORME PRESIDENCIAL"), 11, GovMuted));
+		const FString Leader = (bHasNation && !Nation.Leader.IsEmpty()) ? Nation.Leader : TEXT("Presidente de la Republica");
+		if (UVerticalBoxSlot* S = IdVB->AddChildToVerticalBox(MakeText(WidgetTree, Leader, 21, GovText)))
+		{
+			S->SetPadding(FMargin(0.f, 2.f, 0.f, 0.f));
+		}
+		if (bHasNation && !Nation.GovernmentType.IsEmpty())
+		{
+			if (UVerticalBoxSlot* S = IdVB->AddChildToVerticalBox(MakeText(WidgetTree, Nation.GovernmentType, 13, GovGold)))
+			{
+				S->SetPadding(FMargin(0.f, 2.f, 0.f, 0.f));
+			}
+		}
+		if (Political)
+		{
+			const TArray<FString> Traits = Political->GetLeaderAgendaTraits(Iso);
+			if (Traits.Num() > 0)
+			{
+				UHorizontalBox* TraitRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+				for (const FString& T : Traits)
+				{
+					if (UHorizontalBoxSlot* S = TraitRow->AddChildToHorizontalBox(
+						MakeBadge(WidgetTree, T.ToUpper(), GovGoldDim, GovDarkInk)))
+					{
+						S->SetPadding(FMargin(0.f, 0.f, 5.f, 0.f));
+					}
+				}
+				if (UVerticalBoxSlot* S = IdVB->AddChildToVerticalBox(TraitRow))
+				{
+					S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+				}
+			}
+		}
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(IdVB))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+
+		// Aprobacion presidencial como titular a la derecha: numero grande + barra.
+		UVerticalBox* ApprVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		ApprVB->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("APROBACION"), 11, GovMuted, ETextJustify::Right));
+		if (UVerticalBoxSlot* S = ApprVB->AddChildToVerticalBox(MakeText(WidgetTree,
+			FString::Printf(TEXT("%d%%"), Approval), 36, SupportColor(Approval), ETextJustify::Right)))
+		{
+			S->SetPadding(FMargin(0.f, 1.f, 0.f, 0.f));
+		}
+		USizeBox* ApprBar = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		ApprBar->SetWidthOverride(158.f);
+		ApprBar->SetContent(MakeBar(WidgetTree, Approval / 100.f, SupportColor(Approval), 9.f));
+		if (UVerticalBoxSlot* S = ApprVB->AddChildToVerticalBox(ApprBar))
+		{
+			S->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+			S->SetHorizontalAlignment(HAlign_Right);
+		}
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(ApprVB))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+
+		Hero->SetContent(HB);
+		AddColumnChild(CenterBox, Hero, 6.f);
+	}
+
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("ESTADO DE LA NACION")), 16.f);
 
 	UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
 	Grid->SetSlotPadding(FMargin(5.f));
@@ -807,38 +891,56 @@ void UWLGovernmentWidget::BuildOverviewTab()
 		return;
 	}
 
-	auto MakeRow = [&](const FString& Name, const FString& Pop, const FString& Bal, const FLinearColor& BalColor,
-		const FLinearColor& RowColor, int32 FontSize, const FLinearColor& NameColor)
+	// Cabecera de columnas (etiquetas discretas, sin fondo).
 	{
-		UBorder* Row = MakeBorder(WidgetTree, RowColor, FMargin(12.f, 8.f));
+		UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UBorder* NamePad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(12.f, 0.f, 0.f, 0.f));
+		NamePad->SetContent(MakeText(WidgetTree, TEXT("PROVINCIA"), 11, GovMuted));
+		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(NamePad))
+		{
+			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		USizeBox* PopHdr = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		PopHdr->SetWidthOverride(160.f);
+		PopHdr->SetContent(MakeText(WidgetTree, TEXT("POBLACION"), 11, GovMuted, ETextJustify::Right));
+		Head->AddChildToHorizontalBox(PopHdr);
+		USizeBox* BalHdr = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		BalHdr->SetWidthOverride(150.f);
+		UBorder* BalHdrPad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f, 0.f, 12.f, 0.f));
+		BalHdrPad->SetContent(MakeText(WidgetTree, TEXT("BALANCE / MES"), 11, GovMuted, ETextJustify::Right));
+		BalHdr->SetContent(BalHdrPad);
+		Head->AddChildToHorizontalBox(BalHdr);
+		AddColumnChild(CenterBox, Head, 4.f);
+	}
+
+	// Filas redondeadas: nombre + poblacion + balance como insignia de color (verde/carmesi).
+	int32 Index = 0;
+	for (const FWLProvinceData& P : Sum.Controlled)
+	{
+		const int64 Bal = Tick ? GetCachedProvinceMonthlyBalance(P.Id) : 0;
+		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, Name, FontSize, NameColor)))
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, P.Name, 15, GovText)))
 		{
 			S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			S->SetVerticalAlignment(VAlign_Center);
 		}
 		USizeBox* PopBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 		PopBox->SetWidthOverride(160.f);
-		PopBox->SetContent(MakeText(WidgetTree, Pop, FontSize, GovMuted, ETextJustify::Right));
+		PopBox->SetContent(MakeText(WidgetTree, GovGroupThousands(P.Population), 13, GovMuted, ETextJustify::Right));
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(PopBox)) { S->SetVerticalAlignment(VAlign_Center); }
 		USizeBox* BalBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		BalBox->SetWidthOverride(140.f);
-		BalBox->SetContent(MakeText(WidgetTree, Bal, FontSize, BalColor, ETextJustify::Right));
+		BalBox->SetWidthOverride(150.f);
+		UBorder* BalPad = MakeBorder(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f, 0.f, 0.f, 0.f));
+		BalPad->SetHorizontalAlignment(HAlign_Right);
+		BalPad->SetContent(MakeBadge(WidgetTree,
+			FString::Printf(TEXT("%s%s"), Bal >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Bal)),
+			Bal >= 0 ? GovGood : GovBad, GovDarkInk));
+		BalBox->SetContent(BalPad);
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(BalBox)) { S->SetVerticalAlignment(VAlign_Center); }
 		Row->SetContent(HB);
-		return Row;
-	};
-
-	AddColumnChild(CenterBox, MakeRow(TEXT("Provincia"), TEXT("Poblacion"), TEXT("Balance/mes"),
-		GovMuted, FLinearColor(0.f, 0.f, 0.f, 0.f), 12, GovMuted), 6.f);
-
-	int32 Index = 0;
-	for (const FWLProvinceData& P : Sum.Controlled)
-	{
-		const int64 Bal = Tick ? GetCachedProvinceMonthlyBalance(P.Id) : 0;
-		AddColumnChild(CenterBox, MakeRow(P.Name, GovGroupThousands(P.Population),
-			FString::Printf(TEXT("%s%s"), Bal >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Bal)),
-			Bal >= 0 ? GovGood : GovBad, (Index % 2 == 0) ? GovCard : GovCardAlt, 15, GovText), 4.f);
+		AddColumnChild(CenterBox, Row, 4.f);
 		++Index;
 	}
 }
