@@ -62,7 +62,7 @@ enum class EWLGovernmentTab : uint8
 	HighCommand,  // ALTO MANDO -> gabinete + generales (F1.6/F1.7)
 	Politics,     // POLITICA   -> hub de Gobierno P1/P2 con subsecciones
 	Diplomacy,    // DIPLOMACIA -> relaciones, tratados, guerra (F3) + intriga (F4)
-	Records,      // REGISTROS  -> noticias del mes + IA economica/politica + calibracion
+	Records,      // REGISTROS  -> timeline persistente + estimaciones IA + diagnostico
 	Province      // PROVINCIA  -> slots de edificios de la provincia seleccionada (sin boton de tab; se abre con [B])
 };
 
@@ -163,7 +163,7 @@ private:
 	void BuildTabs(UVerticalBox* Root);
 	void BuildBody(UVerticalBox* Root);
 	void BuildFooter(UVerticalBox* Root);
-	void RebuildCenter();
+	void RebuildCenter(bool bPreserveScrollOffset = true);
 
 	void BuildOverviewTab();
 	void BuildEconomyTab();       // FE: presupuesto/mercado/comercio/finanzas/gobernanza/impuestos
@@ -189,7 +189,7 @@ private:
 	void BuildCabinetDynamicsCard();     // ALTO MANDO: gabinete vivo (rivalidad/escandalo/renuncia)
 	void BuildPoliticalProfilesSection();// ALTO MANDO: fichas politicas de personajes
 	void BuildAIPlansPanel();            // REGISTROS: plan de IA politica por pais
-	void BuildCalibrationPanel();        // REGISTROS: telemetria de dilemas (playtest)
+	void BuildCalibrationPanel();        // REGISTROS: diagnostico de dilemas del regimen
 
 	/** DIPLOMACIA: panel de gestion del pais seleccionado (tratados, guerra, FDI, intriga). */
 	void BuildDiplomacyDetailPanel(const FWLNationData& Other);
@@ -245,6 +245,7 @@ private:
 	UPROPERTY() UScrollBox* CenterScroll = nullptr;
 	UPROPERTY() UVerticalBox* CenterBox = nullptr;
 	UPROPERTY() TArray<UButton*> TabButtons;
+	UPROPERTY() TArray<UTextBlock*> TabLabels;
 
 	mutable FDataSnapshot DataSnapshot;
 
@@ -280,6 +281,9 @@ private:
 
 	/** Orden del listado de perfiles politicos: 0 sucesion, 1 ambicion, 2 corrupcion, 3 lealtad. */
 	int32 ProfileSortMode = 0;
+
+	/** Filtro de REGISTROS: -1 todos, si no un EWLGovernmentLogCategory. */
+	int32 RecordsCategoryFilter = -1;
 
 	// --- Flujo de combate (ALTO MANDO): preview de batalla antes de resolver ---
 

@@ -637,7 +637,8 @@ namespace WLGovUI
 	// esta accion pendiente de confirmar, el boton se pinta naranja y pide el segundo clic.
 	inline UWLGovActionButton* MakeActionButton(UWidgetTree* Tree, UWLGovernmentWidget* Owner,
 		const FString& ActionId, const FString& Label, const FLinearColor& Bg,
-		float MinWidth = 0.f, int32 FontSize = 12, bool bEnabled = true)
+		float MinWidth = 0.f, int32 FontSize = 12, bool bEnabled = true,
+		const FLinearColor& TextColor = GovText)
 	{
 		const bool bPending = Owner && Owner->IsPendingConfirm(ActionId);
 		UWLGovActionButton* Button = Tree->ConstructWidget<UWLGovActionButton>(UWLGovActionButton::StaticClass());
@@ -649,7 +650,8 @@ namespace WLGovUI
 			Button->BindAction(Owner, ActionId);
 		}
 		UBorder* Pad = MakeBorder(Tree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(9.f, 5.f));
-		Pad->SetContent(MakeText(Tree, bPending ? TEXT("CONFIRMAR?") : Label, FontSize, GovText, ETextJustify::Center));
+		Pad->SetContent(MakeText(Tree, bPending ? TEXT("CONFIRMAR?") : Label, FontSize,
+			bPending ? GovText : TextColor, ETextJustify::Center));
 		if (MinWidth > 0.f)
 		{
 			USizeBox* Box = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());

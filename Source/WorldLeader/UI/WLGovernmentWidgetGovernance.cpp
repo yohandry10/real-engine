@@ -322,7 +322,8 @@ void UWLGovernmentWidget::BuildPoliticsHeader()
 		const bool bActive = PoliticsSection == Def.Section;
 		if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Chips->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
 			FString::Printf(TEXT("polsec:%d"), static_cast<int32>(Def.Section)),
-			Def.Label, bActive ? GovGoldDim : GovTabIdle, 92.f, 11))))
+			Def.Label, bActive ? GovGold : GovTabIdle, 92.f, 11, true,
+			bActive ? GovDarkInk : GovMuted))))
 		{
 			S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
 		}
@@ -654,8 +655,17 @@ void UWLGovernmentWidget::BuildPoliticsAgendaSection()
 		++Index;
 	}
 
+	FWLPoliticalActionRequest AgendaPreviewRequest;
+	AgendaPreviewRequest.NationIso = Iso;
+	AgendaPreviewRequest.ActionType = EWLPoliticalActionType::SetAgenda;
+	AgendaPreviewRequest.Priorities = DraftAgenda;
+	const FWLPoliticalActionPreview AgendaPreview = Political->GetPoliticalActionPreview(AgendaPreviewRequest);
+	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(TEXT("AP %d · %s"),
+		AgendaPreview.ActionPointCost,
+		AgendaPreview.bCanExecute ? TEXT("Disponible") : *AgendaPreview.BlockReason),
+		11, AgendaPreview.bCanExecute ? GovGold : GovBad, ETextJustify::Left, true), 10.f);
 	AddColumnChild(CenterBox, MakeActionButton(WidgetTree, this, TEXT("agendaset"),
-		TEXT("ESTABLECER AGENDA"), GovGoldDim, 190.f, 13), 12.f);
+		TEXT("ESTABLECER AGENDA"), AgendaPreview.bCanExecute ? GovGoldDim : GovTabIdle, 190.f, 13), 4.f);
 	AddColumnChild(CenterBox, MakeText(WidgetTree,
 		TEXT("La agenda guia eventos, presupuesto, opinion, ministerios y grupos sociales mes a mes. Cambiarla reinicia sus meses activos."),
 		12, GovMuted, ETextJustify::Left, true), 4.f);
@@ -803,31 +813,35 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 				S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
 			}
 		}
+		FWLPoliticalActionRequest PreviewRequest;
+		PreviewRequest.NationIso = Iso;
+		PreviewRequest.ActionType = EWLPoliticalActionType::StartProgram;
+		PreviewRequest.PrimaryId = Definition.ProgramId;
+		const FWLPoliticalActionPreview Preview = Political->GetPoliticalActionPreview(PreviewRequest);
 		if (UVerticalBoxSlot* S = DVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-			TEXT("Duracion %d meses · Capital %d · Tesoro %s%s"),
-			Definition.DurationMonths, Definition.PoliticalCapitalCost, *GovGroupThousands(Definition.TreasuryCost),
+			TEXT("Duracion %d meses · AP %d · Capital %d · Tesoro %s%s"),
+			Definition.DurationMonths,
+			Preview.ActionPointCost,
+			Preview.PoliticalCapitalCost,
+			*GovGroupThousands(Preview.TreasuryCost),
 			Definition.bRequiresLegislation ? TEXT(" · Requiere ley del Congreso") : TEXT("")),
-			11, GovGoldDim, ETextJustify::Left, true)))
+			11, Preview.bCanExecute ? GovGoldDim : GovBad, ETextJustify::Left, true)))
 		{
 			S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
 		}
+		if (!Preview.EffectsPreview.IsEmpty())
+		{
+			if (UVerticalBoxSlot* S = DVB->AddChildToVerticalBox(MakeText(WidgetTree, Preview.EffectsPreview, 11, GovMuted, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+			}
+		}
 
-		// Bloqueos legibles ANTES de intentar (el backend re-valida igualmente).
+		// Bloqueos legibles desde el mismo preview que valida el backend.
 		TArray<FString> Blockers;
-		if (const FWLMinistryProgramState* Occupied = ActiveByOffice.Find(Definition.Office))
+		if (!Preview.bCanExecute)
 		{
-			Blockers.Add(FString::Printf(TEXT("La cartera ya ejecuta: %s (%d meses restantes)"),
-				*Occupied->Name, Occupied->RemainingMonths));
-		}
-		if (Stats.PoliticalCapital < Definition.PoliticalCapitalCost)
-		{
-			Blockers.Add(FString::Printf(TEXT("Capital politico insuficiente (%d/%d)"),
-				Stats.PoliticalCapital, Definition.PoliticalCapitalCost));
-		}
-		if (Treasury < Definition.TreasuryCost)
-		{
-			Blockers.Add(FString::Printf(TEXT("Tesoro insuficiente (falta %s)"),
-				*GovGroupThousands(Definition.TreasuryCost - Treasury)));
+			Blockers.Add(Preview.BlockReason);
 		}
 		if (Blockers.Num() > 0)
 		{
@@ -1039,15 +1053,29 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 				S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
 			}
 		}
+		FWLPoliticalActionRequest PreviewRequest;
+		PreviewRequest.NationIso = Iso;
+		PreviewRequest.ActionType = EWLPoliticalActionType::EnactReform;
+		PreviewRequest.PrimaryId = Definition.ReformId;
+		const FWLPoliticalActionPreview Preview = Political->GetPoliticalActionPreview(PreviewRequest);
 
 		// Coste, requisitos y riesgo.
 		if (UVerticalBoxSlot* S = DVB->AddChildToVerticalBox(MakeText(WidgetTree, FString::Printf(
-			TEXT("Capital %d · Tesoro %s · Coalicion %d · Capacidad %d · Riesgo de protesta %d%%"),
-			Definition.PoliticalCapitalCost, *GovGroupThousands(Definition.TreasuryCost),
+			TEXT("AP %d · Capital %d · Tesoro %s · Coalicion %d · Capacidad %d · Riesgo de protesta %d%%"),
+			Preview.ActionPointCost,
+			Preview.PoliticalCapitalCost,
+			*GovGroupThousands(Preview.TreasuryCost),
 			Definition.RequiredCoalitionSupport, Definition.RequiredStateCapacity, Definition.ProtestRisk),
-			11, Definition.ProtestRisk >= 40 ? GovBad : GovGoldDim, ETextJustify::Left, true)))
+			11, (!Preview.bCanExecute || Definition.ProtestRisk >= 40) ? GovBad : GovGoldDim, ETextJustify::Left, true)))
 		{
 			S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+		}
+		if (!Preview.EffectsPreview.IsEmpty())
+		{
+			if (UVerticalBoxSlot* S = DVB->AddChildToVerticalBox(MakeText(WidgetTree, Preview.EffectsPreview, 11, GovMuted, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 3.f, 0.f, 0.f));
+			}
 		}
 
 		// Efectos previstos: inmediatos + de largo plazo + grupos afectados.
@@ -1095,34 +1123,9 @@ void UWLGovernmentWidget::BuildPoliticsLawsSection()
 		if (!bEnacted)
 		{
 			TArray<FString> Blockers;
-			for (const FString& Prerequisite : Definition.PrerequisiteReformIds)
+			if (!Preview.bCanExecute)
 			{
-				if (!EnactedIds.Contains(Prerequisite))
-				{
-					const FString* PrereqName = NameById.Find(Prerequisite);
-					Blockers.Add(FString::Printf(TEXT("Requiere aprobar antes: %s"),
-						PrereqName ? **PrereqName : *Prerequisite));
-				}
-			}
-			if (Institutions.RulingCoalitionSupport < Definition.RequiredCoalitionSupport)
-			{
-				Blockers.Add(FString::Printf(TEXT("Coalicion insuficiente (%d/%d) — negocia apoyo en CONGRESO"),
-					Institutions.RulingCoalitionSupport, Definition.RequiredCoalitionSupport));
-			}
-			if (Capacity.AdministrativeEfficiency < Definition.RequiredStateCapacity)
-			{
-				Blockers.Add(FString::Printf(TEXT("Capacidad estatal insuficiente (%d/%d)"),
-					Capacity.AdministrativeEfficiency, Definition.RequiredStateCapacity));
-			}
-			if (Stats.PoliticalCapital < Definition.PoliticalCapitalCost)
-			{
-				Blockers.Add(FString::Printf(TEXT("Capital politico insuficiente (%d/%d)"),
-					Stats.PoliticalCapital, Definition.PoliticalCapitalCost));
-			}
-			if (Treasury < Definition.TreasuryCost)
-			{
-				Blockers.Add(FString::Printf(TEXT("Tesoro insuficiente (falta %s)"),
-					*GovGroupThousands(Definition.TreasuryCost - Treasury)));
+				Blockers.Add(Preview.BlockReason);
 			}
 			if (Blockers.Num() > 0)
 			{
@@ -1260,15 +1263,39 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 			{
 				PVB->AddChildToVerticalBox(MakeText(WidgetTree, Party.LastIncident, 11, GovMuted, ETextJustify::Left, true));
 			}
+			FWLPoliticalActionRequest NegotiatePreviewRequest;
+			NegotiatePreviewRequest.NationIso = Iso;
+			NegotiatePreviewRequest.ActionType = EWLPoliticalActionType::NegotiatePartySupport;
+			NegotiatePreviewRequest.PrimaryId = Party.PartyId;
+			const FWLPoliticalActionPreview NegotiatePreview = Political->GetPoliticalActionPreview(NegotiatePreviewRequest);
+			FWLPoliticalActionRequest ElectionPreviewRequest;
+			ElectionPreviewRequest.NationIso = Iso;
+			ElectionPreviewRequest.ActionType = EWLPoliticalActionType::HoldPartyInternalElection;
+			ElectionPreviewRequest.PrimaryId = Party.PartyId;
+			const FWLPoliticalActionPreview ElectionPreview = Political->GetPoliticalActionPreview(ElectionPreviewRequest);
+			const FString PartyActionPreview = FString::Printf(TEXT("Negociar: AP %d capital %d (%s) · Interna: AP %d capital %d (%s)"),
+				NegotiatePreview.ActionPointCost,
+				NegotiatePreview.PoliticalCapitalCost,
+				NegotiatePreview.bCanExecute ? TEXT("ok") : *NegotiatePreview.BlockReason,
+				ElectionPreview.ActionPointCost,
+				ElectionPreview.PoliticalCapitalCost,
+				ElectionPreview.bCanExecute ? TEXT("ok") : *ElectionPreview.BlockReason);
+			if (UVerticalBoxSlot* S = PVB->AddChildToVerticalBox(MakeText(WidgetTree, PartyActionPreview, 10,
+				(NegotiatePreview.bCanExecute || ElectionPreview.bCanExecute) ? GovGold : GovBad, ETextJustify::Left, true)))
+			{
+				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			}
 			UHorizontalBox* Actions = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 			if (UHorizontalBoxSlot* S = Actions->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
-				FString::Printf(TEXT("negotiate:%s"), *Party.PartyId), TEXT("NEGOCIAR APOYO"), GovGoldDim, 140.f, 11)))
+				FString::Printf(TEXT("negotiate:%s"), *Party.PartyId), TEXT("NEGOCIAR APOYO"),
+				NegotiatePreview.bCanExecute ? GovGoldDim : GovTabIdle, 140.f, 11)))
 			{
 				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
 				S->SetVerticalAlignment(VAlign_Center);
 			}
 			if (UHorizontalBoxSlot* S = Actions->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
-				FString::Printf(TEXT("partyelect:%s"), *Party.PartyId), TEXT("ELECCION INTERNA"), GovTabIdle, 140.f, 11)))
+				FString::Printf(TEXT("partyelect:%s"), *Party.PartyId), TEXT("ELECCION INTERNA"),
+				ElectionPreview.bCanExecute ? GovTabIdle : GovCardAlt, 140.f, 11)))
 			{
 				S->SetVerticalAlignment(VAlign_Center);
 			}
@@ -1312,6 +1339,11 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 	int32 PatronageIndex = 0;
 	for (const FPatronageActionUI& Def : PatronageActions)
 	{
+		FWLPoliticalActionRequest PreviewRequest;
+		PreviewRequest.NationIso = Iso;
+		PreviewRequest.ActionType = EWLPoliticalActionType::UsePatronage;
+		PreviewRequest.NumericValue = static_cast<int32>(Def.Action);
+		const FWLPoliticalActionPreview Preview = Political->GetPoliticalActionPreview(PreviewRequest);
 		UBorder* Row = MakeCard(WidgetTree, (PatronageIndex % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, Def.Preview, 11, GovMuted, ETextJustify::Left, true)))
@@ -1320,8 +1352,20 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
 		}
+		const FString PreviewLine = FString::Printf(TEXT("AP %d · Capital %d · Tesoro %s · %s"),
+			Preview.ActionPointCost,
+			Preview.PoliticalCapitalCost,
+			*GovGroupThousands(Preview.TreasuryCost),
+			Preview.bCanExecute ? TEXT("Disponible") : *Preview.BlockReason);
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, PreviewLine, 10,
+			Preview.bCanExecute ? GovGold : GovBad, ETextJustify::Left, true)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		}
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
-			FString::Printf(TEXT("patronage:%d"), static_cast<int32>(Def.Action)), Def.Label, GovGoldDim, 170.f, 11)))
+			FString::Printf(TEXT("patronage:%d"), static_cast<int32>(Def.Action)), Def.Label,
+			Preview.bCanExecute ? GovGoldDim : GovTabIdle, 170.f, 11)))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 		}
@@ -1443,9 +1487,17 @@ void UWLGovernmentWidget::BuildPoliticsElectionsSection()
 			{
 				continue;
 			}
+			FWLPoliticalActionRequest PreviewRequest;
+			PreviewRequest.NationIso = Iso;
+			PreviewRequest.ActionType = EWLPoliticalActionType::MakeCampaignPromise;
+			PreviewRequest.PrimaryId = Definition.ReformId;
+			const FWLPoliticalActionPreview Preview = Political->GetPoliticalActionPreview(PreviewRequest);
 			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Options->AddChildToWrapBox(MakeActionButton(WidgetTree, this,
 				FString::Printf(TEXT("promise:%s"), *Definition.ReformId),
-				FString::Printf(TEXT("PROMETER: %s"), *Definition.Name), GovTabIdle, 0.f, 10))))
+				Preview.bCanExecute
+					? FString::Printf(TEXT("PROMETER: %s · AP %d"), *Definition.Name, Preview.ActionPointCost)
+					: FString::Printf(TEXT("BLOQUEADO: %s"), *Definition.Name),
+				Preview.bCanExecute ? GovTabIdle : GovCardAlt, 0.f, 10))))
 			{
 				S->SetPadding(FMargin(0.f, 0.f, 5.f, 5.f));
 			}
@@ -1515,6 +1567,11 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 	int32 Index = 0;
 	for (const FMediaActionUI& Def : MediaActions)
 	{
+		FWLPoliticalActionRequest PreviewRequest;
+		PreviewRequest.NationIso = Iso;
+		PreviewRequest.ActionType = EWLPoliticalActionType::RunMediaAction;
+		PreviewRequest.NumericValue = static_cast<int32>(Def.Action);
+		const FWLPoliticalActionPreview Preview = Political->GetPoliticalActionPreview(PreviewRequest);
 		UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, Def.Preview, 11, GovMuted, ETextJustify::Left, true)))
@@ -1523,10 +1580,21 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
 		}
+		const FString PreviewLine = FString::Printf(TEXT("AP %d · Capital %d · Tesoro %s · %s"),
+			Preview.ActionPointCost,
+			Preview.PoliticalCapitalCost,
+			*GovGroupThousands(Preview.TreasuryCost),
+			Preview.bCanExecute ? TEXT("Disponible") : *Preview.BlockReason);
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, PreviewLine, 10,
+			Preview.bCanExecute ? GovGold : GovBad, ETextJustify::Left, true)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		}
 		const bool bHardline = Def.Action == EWLMediaActionType::Censorship || Def.Action == EWLMediaActionType::Propaganda;
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeActionButton(WidgetTree, this,
 			FString::Printf(TEXT("media:%d"), static_cast<int32>(Def.Action)), Def.Label,
-			bHardline ? GovDanger : GovGoldDim, 170.f, 11)))
+			!Preview.bCanExecute ? GovTabIdle : (bHardline ? GovDanger : GovGoldDim), 170.f, 11)))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 		}
@@ -1535,7 +1603,7 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 		++Index;
 	}
 	AddColumnChild(CenterBox, MakeText(WidgetTree,
-		TEXT("Censura y propaganda piden confirmacion: dan control hoy y cobran legitimidad, elecciones y memoria politica manana."),
+		TEXT("Censura y propaganda piden confirmacion: el preview muestra coste/AP y la memoria politica registra el backlash."),
 		12, GovMuted, ETextJustify::Left, true), 6.f);
 }
 
@@ -1635,10 +1703,24 @@ void UWLGovernmentWidget::BuildPoliticsRegionsSection()
 		UWrapBox* Actions = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
 		for (const FRegionActionUI& Def : RegionActions)
 		{
+			FWLPoliticalActionRequest PreviewRequest;
+			PreviewRequest.NationIso = Iso;
+			PreviewRequest.ActionType = EWLPoliticalActionType::RunRegionPolicy;
+			PreviewRequest.PrimaryId = Region.RegionId;
+			PreviewRequest.NumericValue = static_cast<int32>(Def.Action);
+			const FWLPoliticalActionPreview Preview = Political->GetPoliticalActionPreview(PreviewRequest);
 			UWLGovActionButton* Button = MakeActionButton(WidgetTree, this,
 				FString::Printf(TEXT("region:%d:%s"), static_cast<int32>(Def.Action), *Region.RegionId),
-				Def.Label, Def.Action == EWLRegionPolicyActionType::SecurityOperation ? GovDanger : GovTabIdle, 0.f, 10);
-			Button->SetToolTipText(FText::FromString(Def.Preview));
+				Def.Label,
+				!Preview.bCanExecute ? GovCardAlt : (Def.Action == EWLRegionPolicyActionType::SecurityOperation ? GovDanger : GovTabIdle),
+				0.f,
+				10);
+			Button->SetToolTipText(FText::FromString(FString::Printf(TEXT("%s\nAP %d · Capital %d · Tesoro %s\n%s"),
+				Def.Preview,
+				Preview.ActionPointCost,
+				Preview.PoliticalCapitalCost,
+				*GovGroupThousands(Preview.TreasuryCost),
+				Preview.bCanExecute ? TEXT("Disponible") : *Preview.BlockReason)));
 			if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Actions->AddChildToWrapBox(Button)))
 			{
 				S->SetPadding(FMargin(0.f, 0.f, 5.f, 4.f));
@@ -2199,11 +2281,11 @@ void UWLGovernmentWidget::BuildAIPlansPanel()
 		return;
 	}
 
-	// Recolecta planes; separa los "notables" (la IA hace algo distinto a arrancar estabilizando)
-	// del ruido inicial donde todos empiezan igual. Asi el panel informa en vez de escupir 37 filas iguales.
-	struct FAIPlanRow { FString Name; FWLPoliticalAIPlanState Plan; };
+	// Recolecta estimaciones visibles; no expone planes internos crudos de todos los paises.
+	struct FAIPlanRow { FString Name; FWLPoliticalAIPlanState Plan; bool bHighConfidence = false; };
 	TArray<FAIPlanRow> Notable;
 	int32 ObjectiveHistogram[6] = { 0, 0, 0, 0, 0, 0 };   // indexado por (int32)EWLGovernmentAIObjective
+	int32 UnknownCount = 0;
 	for (const FWLNationData& Nation : Registry->GetAllNations())
 	{
 		if (Nation.Iso.Equals(Iso, ESearchCase::IgnoreCase))
@@ -2211,18 +2293,31 @@ void UWLGovernmentWidget::BuildAIPlansPanel()
 			continue;
 		}
 		const FWLPoliticalAIPlanState Plan = Political->GetGovernmentAIPlan(Nation.Iso);
+		FWLDiplomaticRelationState Relation;
+		const bool bHasRelation = Political->GetRelation(Iso, Nation.Iso, Relation);
+		const FWLIntelligenceNetworkState Network = Political->GetIntelligenceNetwork(Iso, Nation.Iso);
+		const bool bVisibleEstimate =
+			(Plan.TargetIso == Iso)
+			|| Network.NetworkStrength >= 25
+			|| (bHasRelation && Relation.Opinion >= 45)
+			|| (bHasRelation && Relation.Status == EWLDiplomaticStatus::War);
+		if (!bVisibleEstimate)
+		{
+			++UnknownCount;
+			continue;
+		}
 		const int32 ObjIndex = static_cast<int32>(Plan.Objective);
 		if (ObjIndex >= 0 && ObjIndex < 6)
 		{
 			++ObjectiveHistogram[ObjIndex];
 		}
 		const bool bNotable = Plan.Objective != EWLGovernmentAIObjective::Stabilize
-			|| Plan.MonthsOnPlan > 0
 			|| !Plan.TargetIso.IsEmpty()
 			|| !Plan.CurrentProgramId.IsEmpty();
 		if (bNotable)
 		{
-			Notable.Add({ Nation.Name, Plan });
+			const bool bHighConfidence = Network.NetworkStrength >= 50 || (bHasRelation && Relation.Status == EWLDiplomaticStatus::War);
+			Notable.Add({ Nation.Name, Plan, bHighConfidence });
 		}
 	}
 
@@ -2244,14 +2339,16 @@ void UWLGovernmentWidget::BuildAIPlansPanel()
 			}
 		}
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
-			Summary.IsEmpty() ? TEXT("Sin gobiernos IA activos.") : FString::Printf(TEXT("Postura del continente: %s"), *Summary),
+			Summary.IsEmpty()
+				? FString::Printf(TEXT("Sin estimaciones firmes. %d gobiernos sin inteligencia suficiente."), UnknownCount)
+				: FString::Printf(TEXT("Postura estimada: %s   ·   %d sin inteligencia suficiente"), *Summary, UnknownCount),
 			12, GovMuted, ETextJustify::Left, true), 4.f);
 	}
 
 	if (Notable.Num() == 0)
 	{
 		AddColumnChild(CenterBox, MakeText(WidgetTree,
-			TEXT("Ningun gobierno IA ha movido ficha todavia: todos arrancan estabilizando. Avanza los meses y veras aqui a quien se militariza, se endeuda, se alinea a un bloque o prepara una guerra — con su motivo."),
+			TEXT("No hay movimientos externos confirmados. Mejora relaciones o construye redes de inteligencia para convertir rumores en estimaciones utiles."),
 			12, GovMuted, ETextJustify::Left, true), 6.f);
 		return;
 	}
@@ -2287,9 +2384,15 @@ void UWLGovernmentWidget::BuildAIPlansPanel()
 			Detail += FString::Printf(TEXT(" · programa: %s"), *Plan.CurrentProgramId);
 		}
 		VB->AddChildToVerticalBox(MakeText(WidgetTree, Detail, 11, GovGoldDim, ETextJustify::Left, true));
-		if (!Plan.LastPlanReason.IsEmpty())
+		if (Entry.bHighConfidence && !Plan.LastPlanReason.IsEmpty())
 		{
 			VB->AddChildToVerticalBox(MakeText(WidgetTree, Plan.LastPlanReason, 11, GovMuted, ETextJustify::Left, true));
+		}
+		else
+		{
+			VB->AddChildToVerticalBox(MakeText(WidgetTree,
+				TEXT("Estimacion basada en relacion, conflicto o inteligencia disponible; la razon interna exacta no esta confirmada."),
+				11, GovMuted, ETextJustify::Left, true));
 		}
 		Row->SetContent(VB);
 		AddColumnChild(CenterBox, Row, 4.f);
@@ -2323,14 +2426,6 @@ void UWLGovernmentWidget::BuildArmiesSection()
 			12, GovMuted, ETextJustify::Left, true), 6.f);
 		return;
 	}
-
-	// Generales libres (activos, sin mando) para el flujo de asignacion.
-	TArray<FWLCharacter> FreeGenerals = Characters->GetGenerals(Iso);
-	FreeGenerals.RemoveAll([](const FWLCharacter& G)
-	{
-		return !G.bActive || !G.AssignedArmyId.IsEmpty();
-	});
-	FreeGenerals.Sort([](const FWLCharacter& A, const FWLCharacter& B) { return A.Skill > B.Skill; });
 
 	int32 Index = 0;
 	for (const FWLArmy& Army : Armies)
@@ -2400,17 +2495,34 @@ void UWLGovernmentWidget::BuildArmiesSection()
 			AddArmyAction(FString::Printf(TEXT("reorg:%s"), *Army.Id),
 				FString::Printf(TEXT("REORGANIZAR (%d)"), Army.RecoveringUnits.Num()), GovGoldDim);
 		}
-		// Reasignacion: primeros generales libres por skill (evita listar decenas).
-		int32 Shown = 0;
-		for (const FWLCharacter& Candidate : FreeGenerals)
+		// Reasignacion/rotacion: permite mover generales ya asignados a otros ejercitos.
+		TArray<FWLCharacter> AssignableGenerals = Characters->GetGenerals(Iso);
+		AssignableGenerals.RemoveAll([&Army](const FWLCharacter& G)
 		{
-			if (Shown >= 3)
+			return !G.bActive || G.AssignedArmyId == Army.Id;
+		});
+		AssignableGenerals.Sort([](const FWLCharacter& A, const FWLCharacter& B)
+		{
+			const bool bAFree = A.AssignedArmyId.IsEmpty();
+			const bool bBFree = B.AssignedArmyId.IsEmpty();
+			if (bAFree != bBFree)
+			{
+				return bAFree;
+			}
+			return A.Skill > B.Skill;
+		});
+		int32 Shown = 0;
+		for (const FWLCharacter& Candidate : AssignableGenerals)
+		{
+			if (Shown >= 4)
 			{
 				break;
 			}
+			const FString Verb = Candidate.AssignedArmyId.IsEmpty()
+				? (bHasGeneral ? FString(TEXT("CAMBIAR A")) : FString(TEXT("ASIGNAR")))
+				: FString::Printf(TEXT("ROTAR %s"), *Candidate.AssignedArmyId);
 			AddArmyAction(FString::Printf(TEXT("assigngen:%s:%s"), *Candidate.Id, *Army.Id),
-				FString::Printf(TEXT("%s: %s (sk %d)"), bHasGeneral ? TEXT("CAMBIAR A") : TEXT("ASIGNAR"),
-					*Candidate.Name, Candidate.Skill), GovTabIdle);
+				FString::Printf(TEXT("%s: %s (sk %d)"), *Verb, *Candidate.Name, Candidate.Skill), GovTabIdle);
 			++Shown;
 		}
 		if (UVerticalBoxSlot* S = AVB->AddChildToVerticalBox(Actions))
@@ -2634,7 +2746,7 @@ void UWLGovernmentWidget::BuildDifficultyPanel()
 		12, GovMuted, ETextJustify::Left, true), 4.f);
 }
 
-// REGISTROS: telemetria de dilemas para el playtest de calibracion 24-36 meses.
+// REGISTROS: diagnostico jugable de dilemas nacionales.
 void UWLGovernmentWidget::BuildCalibrationPanel()
 {
 	const FString Iso = PlayerIso();
@@ -2645,9 +2757,9 @@ void UWLGovernmentWidget::BuildCalibrationPanel()
 	}
 	const FWLGovernmentCalibrationState Calibration = Political->GetGovernmentCalibration(Iso);
 
-	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("CALIBRACION (PLAYTEST)")), 18.f);
+	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("DIAGNOSTICO DEL REGIMEN")), 18.f);
 	AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
-		TEXT("Herramienta de debug: mide si cada dilema tiene tradeoff real. %d meses observados."),
+		TEXT("Lectura estrategica de tensiones acumuladas. %d meses observados."),
 		Calibration.MonthsObserved), 12, GovMuted, ETextJustify::Left, true), 4.f);
 
 	const struct { const TCHAR* Label; int32 Value; } Dilemmas[] = {
@@ -2670,7 +2782,7 @@ void UWLGovernmentWidget::BuildCalibrationPanel()
 	if (bAnyDominant)
 	{
 		AddColumnChild(CenterBox, MakeAlert(WidgetTree,
-			TEXT("Un dilema domina demasiado (>=75): revisar balance, no hay tradeoff real."), GovBad), 6.f);
+			TEXT("Un dilema domina la agenda nacional (>=75): actua pronto o se convertira en crisis recurrente."), GovBad), 6.f);
 	}
 	if (!Calibration.LastReport.IsEmpty())
 	{
