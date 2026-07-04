@@ -223,7 +223,9 @@ void UWLGovernmentWidget::BuildHeader(UVerticalBox* Root)
 	const bool bHasNation = GI && GI->GetSelectedNation(Nation);
 	const UWLStrategicTickSubsystem* Tick = GetTick();
 
-	UBorder* Strip = MakeRoundedSurface(WidgetTree, GovHeaderStrip, FMargin(16.f, 12.f), 10.f);
+	// Franja translucida: si hay imagen de fondo (UI/gov_panel_bg.png) asoma tras el titulo (efecto banner).
+	UBorder* Strip = MakeRoundedSurface(WidgetTree,
+		FLinearColor(GovHeaderStrip.R, GovHeaderStrip.G, GovHeaderStrip.B, 0.78f), FMargin(16.f, 12.f), 10.f);
 	UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	Strip->SetContent(HB);
 
@@ -375,7 +377,8 @@ void UWLGovernmentWidget::BuildFooter(UVerticalBox* Root)
 	const FSummary Sum = BuildSummary();
 	const int32 PolCapital = (Characters && !Iso.IsEmpty()) ? Characters->GetGovernmentStats(Iso).PoliticalCapital : 0;
 
-	UBorder* Footer = MakeRoundedSurface(WidgetTree, GovHeaderStrip, FMargin(12.f, 9.f), 10.f);
+	UBorder* Footer = MakeRoundedSurface(WidgetTree,
+		FLinearColor(GovHeaderStrip.R, GovHeaderStrip.G, GovHeaderStrip.B, 0.78f), FMargin(12.f, 9.f), 10.f);
 	UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	Footer->SetContent(HB);
 
@@ -1052,7 +1055,9 @@ void UWLGovernmentWidget::BuildEconomyTab()
 		FString::Printf(TEXT("%s%s"), Net >= 0 ? TEXT("+") : TEXT(""), *GovGroupThousands(Net)),
 		18, Net >= 0 ? GovGood : GovBad, ETextJustify::Right));
 	NetCard->SetContent(NetHB);
-	AddColumnChild(CenterBox, NetCard, 12.f);
+	// El balance neto vive bajo INGRESOS (columna izquierda): equilibra las alturas (ingresos suele
+	// tener menos filas que gastos) y lee natural — "lo que entra y lo que queda al final".
+	AddColumnChild(IncomeCol, NetCard, 8.f);
 
 	// FE1.4: deuda y linea de credito. Gastar por encima del tesoro endeuda (con interes mensual)
 	// hasta el limite de credito; el tesoro negativo ademas penaliza el orden publico cada mes.
@@ -1082,11 +1087,11 @@ void UWLGovernmentWidget::BuildEconomyTab()
 				S->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 			}
 			DebtCard->SetContent(DebtVB);
-			AddColumnChild(CenterBox, DebtCard, 8.f);
+			AddColumnChild(IncomeCol, DebtCard, 8.f);
 		}
 		else
 		{
-			AddColumnChild(CenterBox, MakeText(WidgetTree, FString::Printf(
+			AddColumnChild(IncomeCol, MakeText(WidgetTree, FString::Printf(
 				TEXT("Sin deuda. Linea de credito disponible: %s (interes %.0f%%/mes si el tesoro cae en negativo)."),
 				*GovGroupThousands(CreditLimit), Rules.DebtMonthlyInterestRate * 100.0),
 				12, GovMuted, ETextJustify::Left, true), 8.f);

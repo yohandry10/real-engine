@@ -181,13 +181,26 @@ namespace WLGovUI
 		return Box;
 	}
 
-	/** Fondo de panel TEXTURIZADO (gradiente+viñeta runtime, o UI/gov_panel_bg.png). Profundidad vs relleno plano. */
+	/**
+	 * Fondo del panel de gobierno. Si existe UI/gov_panel_bg.png lo usa como IMAGEN de fondo
+	 * (estilo menu principal: mapa/situacion-room oscuro), tintada oscura para no competir con el
+	 * texto denso. Si no, cae a la superficie pizarra redondeada plana. Al soltar el asset, la
+	 * ventana se enriquece sola sin tocar codigo.
+	 */
 	inline UBorder* MakeTexturedPanel(UWidgetTree* Tree, const FMargin& Pad)
 	{
-		// Identidad "documento": superficie de papel lisa y redondeada. La textura oscura
-		// pertenecia a la identidad pizarra anterior y pelearia con la paleta clara.
-		UBorder* B = MakeRoundedSurface(Tree, GovPanel, Pad, 12.f);
-		return B;
+		// Solo la imagen EXTERNA (no el gradiente procedural): asi el fondo plano oscuro actual se
+		// mantiene tal cual hasta que sueltes UI/gov_panel_bg.png, y entonces se enriquece solo.
+		if (UTexture2D* Bg = WLGovAssetsNS::LoadExternalTexture(TEXT("UI/gov_panel_bg.png")))
+		{
+			UBorder* B = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
+			B->SetBrushFromTexture(Bg);
+			// Tinte oscuro: la imagen aporta profundidad pero el texto denso sigue legible encima.
+			B->SetBrushColor(FLinearColor(0.50f, 0.52f, 0.58f, 1.f));
+			B->SetPadding(Pad);
+			return B;
+		}
+		return MakeRoundedSurface(Tree, GovPanel, Pad, 12.f);
 	}
 
 	inline uint32 PortraitSeedHash(const FString& Seed)
