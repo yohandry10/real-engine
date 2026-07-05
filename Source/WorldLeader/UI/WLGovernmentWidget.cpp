@@ -923,10 +923,28 @@ void UWLGovernmentWidget::BuildOverviewTab()
 
 	AddColumnChild(CenterBox, MakeSectionTitle(WidgetTree, TEXT("CONDICIONES DE VICTORIA")), 20.f);
 	UHorizontalBox* Tags = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	const TCHAR* Conditions[] = { TEXT("Dominacion"), TEXT("Economica"), TEXT("Tecnologica"), TEXT("Diplomatica"), TEXT("Militar") };
-	for (const TCHAR* C : Conditions)
+	const struct { const TCHAR* Label; const TCHAR* Key; } Conditions[] = {
+		{ TEXT("Dominacion"), TEXT("domination") }, { TEXT("Economica"), TEXT("economic") },
+		{ TEXT("Tecnologica"), TEXT("technological") }, { TEXT("Diplomatica"), TEXT("diplomatic") },
+		{ TEXT("Militar"), TEXT("military") } };
+	for (const auto& C : Conditions)
 	{
-		if (UHorizontalBoxSlot* S = Tags->AddChildToHorizontalBox(MakeTag(WidgetTree, C)))
+		UBorder* Tag = MakeCard(WidgetTree, GovCardAlt, FMargin(11.f, 5.f));
+		UHorizontalBox* TagHB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UWidget* Ico = MakeAssetIcon(WidgetTree, TEXT("Victory"), C.Key, 20.f))
+		{
+			if (UHorizontalBoxSlot* S = TagHB->AddChildToHorizontalBox(Ico))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 7.f, 0.f));
+			}
+		}
+		if (UHorizontalBoxSlot* S = TagHB->AddChildToHorizontalBox(MakeText(WidgetTree, C.Label, 13, GovText)))
+		{
+			S->SetVerticalAlignment(VAlign_Center);
+		}
+		Tag->SetContent(TagHB);
+		if (UHorizontalBoxSlot* S = Tags->AddChildToHorizontalBox(Tag))
 		{
 			S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
 		}
@@ -1690,6 +1708,15 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
 		}
+		// Insignia de rango (UI/Ranks/<rango>.png) antes del badge de texto.
+		if (UWidget* RankIco = MakeAssetIcon(WidgetTree, TEXT("Ranks"), RankAssetName(General.Rank), 22.f))
+		{
+			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(RankIco))
+			{
+				S->SetVerticalAlignment(VAlign_Center);
+				S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+			}
+		}
 		if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(
 			MakeBadge(WidgetTree, RankToText(General.Rank).ToUpper(), GovHeaderStrip, GovGold)))
 		{
@@ -2148,10 +2175,24 @@ void UWLGovernmentWidget::BuildDiplomacyDetailPanel(const FWLNationData& Other)
 	// a la izquierda y el boton a la derecha. Todo el panel queda uniforme y legible.
 	int32 ActionRowIndex = 0;
 	auto AddActionRow = [&](const FString& Title, const FString& Desc,
-		const FString& ActionId, const FString& ButtonLabel, const FLinearColor& ButtonBg)
+		const FString& ActionId, const FString& ButtonLabel, const FLinearColor& ButtonBg,
+		const TCHAR* IconFolder = nullptr, const TCHAR* IconKey = nullptr)
 	{
 		UBorder* Row = MakeCard(WidgetTree, (ActionRowIndex++ % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+		// Icono opcional (p.ej. tratado) a la izquierda de la fila.
+		if (IconFolder && IconKey)
+		{
+			if (UWidget* Ico = MakeAssetIcon(WidgetTree, IconFolder, IconKey, 26.f))
+			{
+				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(Ico))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+					S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
+				}
+			}
+		}
 
 		UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Info->AddChildToVerticalBox(MakeText(WidgetTree, Title, 13, GovText));
@@ -2207,13 +2248,15 @@ void UWLGovernmentWidget::BuildDiplomacyDetailPanel(const FWLNationData& Other)
 			{
 				AddActionRow(FString::Printf(TEXT("%s  —  VIGENTE"), Def.Title), Def.Desc,
 					FString::Printf(TEXT("breaktreaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
-					FString::Printf(TEXT("ROMPER %s"), Def.Label), GovTabIdle);
+					FString::Printf(TEXT("ROMPER %s"), Def.Label), GovTabIdle,
+					TEXT("Treaties"), TreatyAssetName(Def.Type));
 			}
 			else
 			{
 				AddActionRow(Def.Title, Def.Desc,
 					FString::Printf(TEXT("treaty:%d:%s"), static_cast<int32>(Def.Type), *Other.Iso),
-					FString::Printf(TEXT("FIRMAR %s"), Def.Label), GovGoldDim);
+					FString::Printf(TEXT("FIRMAR %s"), Def.Label), GovGoldDim,
+					TEXT("Treaties"), TreatyAssetName(Def.Type));
 			}
 		}
 	}

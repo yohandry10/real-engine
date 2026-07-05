@@ -1311,6 +1311,15 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 			}
 			UVerticalBox* PVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			// Emblema del partido por ideologia (UI/Parties/<key>.png) antes del nombre.
+			if (UWidget* Emblem = MakeAssetIcon(WidgetTree, TEXT("Parties"), IdeologyAssetName(Party.Ideology), 24.f))
+			{
+				if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(Emblem))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+					S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+				}
+			}
 			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree, Party.Name, 14, GovText, ETextJustify::Left, true)))
 			{
 				S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));

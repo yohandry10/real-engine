@@ -402,6 +402,49 @@ namespace WLGovUI
 		return MakeAssetIcon(Tree, TEXT("Buildings"), BuildingId, SizePx);
 	}
 
+	/** Emblema de partido por ideologia (UI/Parties/<key>.png). */
+	inline const TCHAR* IdeologyAssetName(EWLPoliticalIdeology I)
+	{
+		switch (I)
+		{
+		case EWLPoliticalIdeology::Conservative:   return TEXT("conservative");
+		case EWLPoliticalIdeology::Liberal:        return TEXT("liberal");
+		case EWLPoliticalIdeology::SocialDemocrat: return TEXT("socialdemocrat");
+		case EWLPoliticalIdeology::Nationalist:    return TEXT("nationalist");
+		case EWLPoliticalIdeology::Technocratic:   return TEXT("technocratic");
+		case EWLPoliticalIdeology::Populist:       return TEXT("populist");
+		case EWLPoliticalIdeology::Regionalist:    return TEXT("regionalist");
+		default:                                   return TEXT("liberal");
+		}
+	}
+
+	/** Insignia de rango de general (UI/Ranks/<key>.png). */
+	inline const TCHAR* RankAssetName(EWLMilitaryRank R)
+	{
+		switch (R)
+		{
+		case EWLMilitaryRank::Colonel:         return TEXT("colonel");
+		case EWLMilitaryRank::BrigadeGeneral:  return TEXT("brigade");
+		case EWLMilitaryRank::DivisionGeneral: return TEXT("division");
+		case EWLMilitaryRank::CorpsGeneral:    return TEXT("corps");
+		case EWLMilitaryRank::FieldMarshal:    return TEXT("marshal");
+		default:                               return TEXT("colonel");
+		}
+	}
+
+	/** Icono de tratado (UI/Treaties/<key>.png). */
+	inline const TCHAR* TreatyAssetName(EWLTreatyType T)
+	{
+		switch (T)
+		{
+		case EWLTreatyType::TradeAgreement: return TEXT("trade");
+		case EWLTreatyType::NonAggression:  return TEXT("nonaggression");
+		case EWLTreatyType::Alliance:       return TEXT("alliance");
+		case EWLTreatyType::Embargo:        return TEXT("embargo");
+		default:                            return TEXT("trade");
+		}
+	}
+
 	// Tarjeta de metrica: etiqueta pequena + valor grande. Rellena la celda del grid.
 	inline UBorder* MakeMetricCard(UWidgetTree* Tree, const FString& Label, const FString& Value, const FLinearColor& ValueColor)
 	{
