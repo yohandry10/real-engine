@@ -1119,6 +1119,15 @@ void UWLGovernmentWidget::BuildEconomyTab()
 
 				UBorder* Row = MakeCard(WidgetTree, (Index % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 7.f));
 				UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+				// Icono a color del bien (petroleo, cafe, acero...) si existe UI/Goods/<id>.png.
+				if (UWidget* GoodIcon = MakeGoodIcon(WidgetTree, Balance.GoodId, 26.f))
+				{
+					if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(GoodIcon))
+					{
+						S->SetVerticalAlignment(VAlign_Center);
+						S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
+					}
+				}
 				if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakeText(WidgetTree, GoodName, 14, GovText)))
 				{
 					S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));

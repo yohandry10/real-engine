@@ -372,6 +372,23 @@ namespace WLGovUI
 		return Img;
 	}
 
+	/** Icono a COLOR de un bien del mercado (UI/Goods/<id>.png). nullptr si no existe el asset. */
+	inline UWidget* MakeGoodIcon(UWidgetTree* Tree, const FString& GoodId, float SizePx)
+	{
+		UTexture2D* Tex = WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Goods/%s.png"), *GoodId.ToLower()));
+		if (!Tex)
+		{
+			return nullptr;
+		}
+		UImage* Img = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+		Img->SetBrushFromTexture(Tex, false);
+		USizeBox* Box = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Box->SetWidthOverride(SizePx);
+		Box->SetHeightOverride(SizePx);
+		Box->SetContent(Img);
+		return Box;
+	}
+
 	// Tarjeta de metrica: etiqueta pequena + valor grande. Rellena la celda del grid.
 	inline UBorder* MakeMetricCard(UWidgetTree* Tree, const FString& Label, const FString& Value, const FLinearColor& ValueColor)
 	{
