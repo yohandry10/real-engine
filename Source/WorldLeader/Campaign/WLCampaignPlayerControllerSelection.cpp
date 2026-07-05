@@ -518,6 +518,27 @@ void AWLCampaignPlayerController::SelectCampaignForce(const FWLCampaign3DForceVi
 	SelectedForceMovementNodeId = Force.MovementNodeId;
 	SelectedForceMovementStatus = Force.MovementStatus;
 
+	// "Efectivos est." reales: un fuerte propio muestra 0 porque su guarnicion se recluta despues del
+	// marcador. Se recalcula de la composicion TOTAL (base + guarnicion viva). SOLO para fuerzas del
+	// jugador: revelar la cifra exacta de una fuerza enemiga romperia la niebla de guerra.
+	{
+		const UWLCampaignGameInstance* OwnGI = Cast<UWLCampaignGameInstance>(UGameplayStatics::GetGameInstance(this));
+		const FString PlayerIso = OwnGI ? OwnGI->GetSelectedNationIso() : FString();
+		const bool bOwnForce = !PlayerIso.IsEmpty() && SelectedForceCountryIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
+		if (bOwnForce)
+		{
+			int32 TotalStrength = 0;
+			for (const FWLCampaignForceCompositionEntry& Entry : GetSelectedForceTotalComposition())
+			{
+				TotalStrength += Entry.Count;
+			}
+			if (TotalStrength > 0)
+			{
+				SelectedForceEstimatedStrength = TotalStrength;
+			}
+		}
+	}
+
 	if (!Campaign3DView)
 	{
 		CachePresentationActors();

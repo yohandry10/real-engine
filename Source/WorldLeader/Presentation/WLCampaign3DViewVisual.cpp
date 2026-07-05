@@ -1468,6 +1468,23 @@ void AWLCampaign3DView::AddBorderOutpost(
 		Garrison.WorldLocation = Base + FVector(0.f, 0.f, 1000.f);
 		Garrison.bMovable = false;            // el FUERTE (edificio) no se mueve: solo recluta
 		Garrison.bIsRecruitmentBase = true;   // -> el panel muestra opciones de reclutar
+		// Datos del fuerte para el panel FUERZA MILITAR (antes salian en blanco: parecia a medio hacer).
+		// Un fuerte es estatico y defensivo; provincia = region del nombre (quita "border fort").
+		{
+			FString Region = Name;
+			Region.ReplaceInline(TEXT(" border fort"), TEXT(""), ESearchCase::IgnoreCase);
+			Region.ReplaceInline(TEXT("Fuerte fronterizo"), TEXT(""), ESearchCase::IgnoreCase);
+			Region.ReplaceInline(TEXT(" fronterizo"), TEXT(""), ESearchCase::IgnoreCase);
+			Region.TrimStartAndEndInline();
+			Garrison.ProvinceName = Region.IsEmpty() ? Name : Region;
+		}
+		Garrison.Mobility = TEXT("Estatica (fuerte)");
+		Garrison.OperationalState = TEXT("Guarnicion activa");
+		Garrison.Supply = TEXT("Abastecido");
+		Garrison.Morale = TEXT("Firme");
+		Garrison.Posture = TEXT("Defensiva");
+		Garrison.StrategicRole = TEXT("Reclutamiento y defensa");
+		Garrison.MovementStatus = TEXT("Estatico: el fuerte no se mueve");
 		// El fuerte es un EDIFICIO clicable SIN token (nada de tanque flotante). Al reclutar tropas, sale
 		// un EJERCITO movible aparte (token tanque) generado por SyncRecruitedArmyTokens, que avanza por
 		// carretera (modelo Total War). bSpawnTokenMesh=false -> el fuerte solo aporta la hitbox de clic.
