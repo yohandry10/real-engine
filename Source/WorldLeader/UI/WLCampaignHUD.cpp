@@ -13,7 +13,9 @@
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
+#include "Engine/Texture2D.h"
 #include "Kismet/GameplayStatics.h"
+#include "UI/WLGovAssets.h"   // arte externo opcional (siluetas de unidad UI/Units/<cat>.png)
 
 namespace
 {

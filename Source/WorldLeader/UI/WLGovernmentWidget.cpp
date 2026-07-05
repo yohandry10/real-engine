@@ -2397,6 +2397,14 @@ void UWLGovernmentWidget::BuildProvinceTab()
 		{
 			const int32 Level = Tick->GetProvinceBuildingLevel(Province.Id, BuiltBuilding.Id);
 			UHorizontalBox* Head = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UWidget* BIcon = MakeBuildingIcon(WidgetTree, BuiltBuilding.Id, 30.f))
+			{
+				if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(BIcon))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+					S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
+				}
+			}
 			if (UHorizontalBoxSlot* S = Head->AddChildToHorizontalBox(MakeText(WidgetTree,
 				FString::Printf(TEXT("%s — %s"), *SlotToText(BuildingSlot), *BuiltBuilding.Name), 14, GovText)))
 			{

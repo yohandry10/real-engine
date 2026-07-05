@@ -113,6 +113,20 @@ void DrawCampaignSelectionPanel(
 	// identificar de un vistazo el tipo: infanteria, tanque, artilleria, transporte, avion, buque.
 	void DrawTroopIcon(AWLCampaignHUD* HUD, EWLTroopIcon Icon, float ix, float iy, float iw, float ih)
 	{
+		// Arte real de la unidad si existe UI/Units/<cat>.png; si no, la silueta procedural de abajo.
+		const TCHAR* UnitAsset =
+			Icon == EWLTroopIcon::Tank      ? TEXT("tank") :
+			Icon == EWLTroopIcon::Artillery ? TEXT("artillery") :
+			Icon == EWLTroopIcon::Transport ? TEXT("transport") :
+			Icon == EWLTroopIcon::Air       ? TEXT("air") :
+			Icon == EWLTroopIcon::Naval     ? TEXT("naval") :
+			                                  TEXT("infantry");
+		if (UTexture2D* UnitTex = WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Units/%s.png"), UnitAsset)))
+		{
+			HUD->DrawTexture(UnitTex, ix, iy, iw, ih, 0.f, 0.f,
+				static_cast<float>(UnitTex->GetSizeX()), static_cast<float>(UnitTex->GetSizeY()));
+			return;
+		}
 		const FLinearColor Body(0.84f, 0.88f, 0.92f, 1.f);
 		const FLinearColor Dark(0.32f, 0.36f, 0.40f, 1.f);
 		auto R = [&](float fx, float fy, float fw, float fh, const FLinearColor& C)
