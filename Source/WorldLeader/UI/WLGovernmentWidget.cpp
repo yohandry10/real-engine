@@ -153,6 +153,50 @@ void UWLGovernmentWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	SetIsFocusable(true);
+
+	// Juice: la ventana entra con fundido + escala desde el centro (se siente premium, no "de golpe").
+	SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
+	SetRenderOpacity(0.f);
+	OpenAnimTime = 0.f;
+	bOpenAnimating = true;
+}
+
+void UWLGovernmentWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	// Curva suave (easeOutCubic) para que arranque rapido y frene con elegancia.
+	auto EaseOut = [](float T) { const float U = 1.f - FMath::Clamp(T, 0.f, 1.f); return 1.f - U * U * U; };
+
+	if (bOpenAnimating)
+	{
+		OpenAnimTime += InDeltaTime;
+		const float E = EaseOut(OpenAnimTime / 0.20f);
+		SetRenderOpacity(E);
+		FWidgetTransform X;
+		X.Scale = FVector2D(FMath::Lerp(0.97f, 1.f, E), FMath::Lerp(0.97f, 1.f, E));
+		X.Translation = FVector2D(0.f, FMath::Lerp(14.f, 0.f, E));   // sube ligeramente al aparecer
+		SetRenderTransform(X);
+		if (OpenAnimTime >= 0.20f)
+		{
+			bOpenAnimating = false;
+			SetRenderOpacity(1.f);
+			SetRenderTransform(FWidgetTransform());
+		}
+	}
+
+	// Fade rapido del contenido al cambiar de pestana.
+	if (bContentAnimating && CenterScroll)
+	{
+		ContentAnimTime += InDeltaTime;
+		const float E = EaseOut(ContentAnimTime / 0.13f);
+		CenterScroll->SetRenderOpacity(E);
+		if (ContentAnimTime >= 0.13f)
+		{
+			bContentAnimating = false;
+			CenterScroll->SetRenderOpacity(1.f);
+		}
+	}
 }
 
 void UWLGovernmentWidget::NativeDestruct()
@@ -2591,6 +2635,13 @@ void UWLGovernmentWidget::SetActiveTab(EWLGovernmentTab Tab)
 	bDraftAgendaLoaded = false;  // AGENDA vuelve a leer las prioridades reales del backend
 	RefreshTabButtonStyles();
 	RebuildCenter(false);
+	// Fade rapido del contenido SOLO al cambiar de pestana (no en cada accion, para no parpadear).
+	if (CenterScroll)
+	{
+		CenterScroll->SetRenderOpacity(0.f);
+		ContentAnimTime = 0.f;
+		bContentAnimating = true;
+	}
 }
 
 void UWLGovernmentWidget::RefreshTabButtonStyles()

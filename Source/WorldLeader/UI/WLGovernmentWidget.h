@@ -103,7 +103,14 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+
+	/** Juice: la ventana entra con fundido + escala; el contenido hace un fade rapido al cambiar de tab. */
+	float OpenAnimTime = 0.f;
+	bool bOpenAnimating = false;
+	float ContentAnimTime = 0.f;
+	bool bContentAnimating = false;
 
 private:
 	// Agregados de la nacion del jugador (calculados de datos reales).
