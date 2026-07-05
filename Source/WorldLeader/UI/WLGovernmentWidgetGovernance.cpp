@@ -31,6 +31,8 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Components/WrapBox.h"
 #include "Components/WrapBoxSlot.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 
 #include "UI/WLGovernmentWidgetShared.h"
 
@@ -1272,6 +1274,133 @@ void UWLGovernmentWidget::BuildPoliticsCongressSection()
 
 	// Bancadas agrupadas por rol parlamentario.
 	const TArray<FWLPartyState> Parties = Political->GetPoliticalParties(Iso);
+
+	// ===== HEMICICLO DEL PARLAMENTO: cada escano es un punto coloreado por ideologia, ordenado en
+	// el espectro politico. De un vistazo se ve la composicion de la camara y quien tiene mayoria. =====
+	{
+		TArray<FWLPartyState> Ordered = Parties;
+		Ordered.Sort([](const FWLPartyState& A, const FWLPartyState& B)
+		{
+			return IdeologySpectrumOrder(A.Ideology) < IdeologySpectrumOrder(B.Ideology);
+		});
+		int32 TotalSeats = 0;
+		for (const FWLPartyState& P : Ordered) { TotalSeats += FMath::Max(0, P.Seats); }
+
+		if (TotalSeats > 0)
+		{
+			const float CW = 520.f, CH = 250.f;
+			const float Cx = CW * 0.5f, Cy = CH - 14.f;
+			const int32 RowsN = FMath::Clamp(FMath::RoundToInt(FMath::Sqrt(static_cast<float>(TotalSeats)) / 1.5f), 3, 8);
+			const float Rin = 78.f, Rout = CH - 34.f;
+
+			TArray<float> RowR;
+			float RSum = 0.f;
+			for (int32 i = 0; i < RowsN; ++i)
+			{
+				const float r = FMath::Lerp(Rin, Rout, RowsN <= 1 ? 0.f : static_cast<float>(i) / (RowsN - 1));
+				RowR.Add(r);
+				RSum += r;
+			}
+			// Escanos por fila proporcionales al radio; la ultima fila absorbe el redondeo.
+			TArray<int32> RowSeats;
+			int32 Assigned = 0;
+			for (int32 i = 0; i < RowsN; ++i)
+			{
+				const int32 s = (i == RowsN - 1) ? (TotalSeats - Assigned)
+					: FMath::Max(0, FMath::RoundToInt(TotalSeats * (RowR[i] / RSum)));
+				RowSeats.Add(s);
+				Assigned += s;
+			}
+			// Posiciones de todos los escanos a lo largo de cada arco (180deg -> 0deg).
+			struct FSeatPos { float X; float Y; float Angle; };
+			TArray<FSeatPos> SeatPos;
+			for (int32 i = 0; i < RowsN; ++i)
+			{
+				const int32 s = RowSeats[i];
+				for (int32 k = 0; k < s; ++k)
+				{
+					const float t = (s == 1) ? 0.5f : static_cast<float>(k) / (s - 1);
+					const float Ang = FMath::Lerp(PI, 0.f, t);
+					SeatPos.Add({ Cx + RowR[i] * FMath::Cos(Ang), Cy - RowR[i] * FMath::Sin(Ang), Ang });
+				}
+			}
+			// Orden por angulo (izq->der) para que cada partido ocupe una cuna contigua.
+			SeatPos.Sort([](const FSeatPos& A, const FSeatPos& B) { return A.Angle > B.Angle; });
+			// Color de cada escano en orden de partido (ya ordenados por espectro).
+			TArray<FLinearColor> SeatColor;
+			SeatColor.Reserve(TotalSeats);
+			for (const FWLPartyState& P : Ordered)
+			{
+				for (int32 k = 0; k < FMath::Max(0, P.Seats); ++k) { SeatColor.Add(IdeologyColor(P.Ideology)); }
+			}
+
+			UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
+			const float Dot = 10.f;
+			const int32 N = FMath::Min(SeatPos.Num(), SeatColor.Num());
+			for (int32 i = 0; i < N; ++i)
+			{
+				UBorder* D = MakeRoundedSurface(WidgetTree, SeatColor[i], FMargin(0.f), Dot * 0.5f);
+				if (UCanvasPanelSlot* S = Canvas->AddChildToCanvas(D))
+				{
+					S->SetSize(FVector2D(Dot, Dot));
+					S->SetPosition(FVector2D(SeatPos[i].X - Dot * 0.5f, SeatPos[i].Y - Dot * 0.5f));
+				}
+			}
+			// Total de escanos, centrado bajo el arco.
+			UTextBlock* TotalText = MakeText(WidgetTree, FString::Printf(TEXT("%d"), TotalSeats), 26, GovText, ETextJustify::Center);
+			if (UCanvasPanelSlot* S = Canvas->AddChildToCanvas(TotalText))
+			{
+				S->SetSize(FVector2D(120.f, 34.f));
+				S->SetPosition(FVector2D(Cx - 60.f, Cy - 40.f));
+			}
+			UTextBlock* SeatLbl = MakeText(WidgetTree, TEXT("ESCANOS"), 10, GovMuted, ETextJustify::Center);
+			if (UCanvasPanelSlot* S = Canvas->AddChildToCanvas(SeatLbl))
+			{
+				S->SetSize(FVector2D(120.f, 16.f));
+				S->SetPosition(FVector2D(Cx - 60.f, Cy - 12.f));
+			}
+
+			USizeBox* ChartBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			ChartBox->SetWidthOverride(CW);
+			ChartBox->SetHeightOverride(CH);
+			ChartBox->SetContent(Canvas);
+
+			// Tarjeta contenedora con el arco centrado.
+			UBorder* Panel = MakeCard(WidgetTree, GovCard, FMargin(12.f, 10.f));
+			UHorizontalBox* CenterRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UHorizontalBoxSlot* S = CenterRow->AddChildToHorizontalBox(ChartBox))
+			{
+				S->SetHorizontalAlignment(HAlign_Center);
+			}
+			Panel->SetContent(CenterRow);
+			AddColumnChild(CenterBox, Panel, 8.f);
+
+			// Leyenda: partido + color + escanos (en orden de espectro).
+			UWrapBox* Legend = WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
+			for (const FWLPartyState& P : Ordered)
+			{
+				if (P.Seats <= 0) { continue; }
+				UHorizontalBox* Item = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+				USizeBox* Chip = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+				Chip->SetWidthOverride(12.f);
+				Chip->SetHeightOverride(12.f);
+				Chip->SetContent(MakeRoundedSurface(WidgetTree, IdeologyColor(P.Ideology), FMargin(0.f), 3.f));
+				if (UHorizontalBoxSlot* S = Item->AddChildToHorizontalBox(Chip))
+				{
+					S->SetVerticalAlignment(VAlign_Center);
+					S->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+				}
+				Item->AddChildToHorizontalBox(MakeText(WidgetTree,
+					FString::Printf(TEXT("%s  %d"), *P.Name, P.Seats), 11, GovMuted));
+				if (UWrapBoxSlot* S = Cast<UWrapBoxSlot>(Legend->AddChildToWrapBox(Item)))
+				{
+					S->SetPadding(FMargin(0.f, 0.f, 16.f, 6.f));
+				}
+			}
+			AddColumnChild(CenterBox, Legend, 6.f);
+		}
+	}
+
 	const EWLPartyRole RoleOrder[] = {
 		EWLPartyRole::Ruling, EWLPartyRole::Ally, EWLPartyRole::SoftOpposition, EWLPartyRole::HardOpposition };
 	for (const EWLPartyRole Role : RoleOrder)

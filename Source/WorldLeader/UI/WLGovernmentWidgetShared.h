@@ -432,6 +432,38 @@ namespace WLGovUI
 		}
 	}
 
+	/** Color de cada ideologia (para el hemiciclo del parlamento y chips de partido). */
+	inline FLinearColor IdeologyColor(EWLPoliticalIdeology I)
+	{
+		switch (I)
+		{
+		case EWLPoliticalIdeology::SocialDemocrat: return FLinearColor(0.86f, 0.26f, 0.26f);  // rojo
+		case EWLPoliticalIdeology::Populist:       return FLinearColor(0.95f, 0.56f, 0.18f);  // naranja
+		case EWLPoliticalIdeology::Liberal:        return FLinearColor(0.95f, 0.82f, 0.30f);  // amarillo
+		case EWLPoliticalIdeology::Regionalist:    return FLinearColor(0.40f, 0.76f, 0.44f);  // verde
+		case EWLPoliticalIdeology::Technocratic:   return FLinearColor(0.36f, 0.74f, 0.82f);  // cian
+		case EWLPoliticalIdeology::Conservative:   return FLinearColor(0.38f, 0.56f, 0.94f);  // azul
+		case EWLPoliticalIdeology::Nationalist:    return FLinearColor(0.34f, 0.34f, 0.66f);  // anil
+		default:                                   return FLinearColor(0.60f, 0.62f, 0.68f);
+		}
+	}
+
+	/** Orden en el espectro politico (izquierda->derecha) para agrupar el hemiciclo. */
+	inline int32 IdeologySpectrumOrder(EWLPoliticalIdeology I)
+	{
+		switch (I)
+		{
+		case EWLPoliticalIdeology::SocialDemocrat: return 0;
+		case EWLPoliticalIdeology::Populist:       return 1;
+		case EWLPoliticalIdeology::Liberal:        return 2;
+		case EWLPoliticalIdeology::Regionalist:    return 3;
+		case EWLPoliticalIdeology::Technocratic:   return 4;
+		case EWLPoliticalIdeology::Conservative:   return 5;
+		case EWLPoliticalIdeology::Nationalist:    return 6;
+		default:                                   return 3;
+		}
+	}
+
 	/** Icono de tratado (UI/Treaties/<key>.png). */
 	inline const TCHAR* TreatyAssetName(EWLTreatyType T)
 	{
