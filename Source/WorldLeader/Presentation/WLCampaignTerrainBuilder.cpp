@@ -61,7 +61,9 @@ namespace
 		TStaticArray<FTerrainSectionBuffer, static_cast<int32>(EWLVisualBiome::Count)> Buffers;
 		// Paises "teatro" enormes (Brasil, a futuro EEUU/Argentina) usan celdas mas
 		// gruesas para no disparar el conteo de vertices; los chicos conservan el detalle.
-		float CoreCell = 0.040f;
+		// Celda mas fina = costa menos escalonada (el borde se cuantiza al tamano de celda). El hardware
+		// no es limitante, asi que priorizamos costa suave sobre conteo de triangulos.
+		float CoreCell = 0.022f;
 		{
 			float SpanMinLon = 1.0e9f, SpanMaxLon = -1.0e9f, SpanMinLat = 1.0e9f, SpanMaxLat = -1.0e9f;
 			for (const TArray<FVector2D>& Ring : Rings)
@@ -77,10 +79,10 @@ namespace
 			const float Span = FMath::Max(SpanMaxLon - SpanMinLon, SpanMaxLat - SpanMinLat);
 			if (Span > 25.f)
 			{
-				CoreCell = 0.10f;
+				CoreCell = 0.06f;   // paises teatro enormes: mas grueso para no disparar el conteo
 			}
 		}
-		const float CellDegrees = bCoreCountry ? CoreCell : 0.16f;
+		const float CellDegrees = bCoreCountry ? CoreCell : 0.085f;
 
 		for (const TArray<FVector2D>& Ring : Rings)
 		{
