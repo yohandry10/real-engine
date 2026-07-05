@@ -215,44 +215,88 @@ namespace WLGovUI
 		return H;
 	}
 
-	inline UTexture2D* LoadPortraitFromPool(const FString& Seed, const TCHAR* Prefix, int32 PoolSize)
+	/**
+	 * Genero a partir del PRIMER nombre (heuristica espanola): terminacion -a = mujer, -o = hombre,
+	 * consonante/-e = hombre; con una lista de excepciones (Carmen, Jose, Andrea...). Devuelve
+	 * 'm' / 'f', o '?' si el nombre esta vacio. Sirve para elegir el pool de retrato correcto.
+	 */
+	inline char InferGender(const FString& FullName)
 	{
-		if (PoolSize <= 0)
+		FString First = FullName;
+		First.TrimStartAndEndInline();
+		int32 SpaceIdx;
+		if (First.FindChar(TEXT(' '), SpaceIdx)) { First = First.Left(SpaceIdx); }
+		First.TrimStartAndEndInline();
+		if (First.IsEmpty()) { return '?'; }
+		const FString L = First.ToLower();
+
+		static const TSet<FString> Female = {
+			TEXT("carmen"), TEXT("pilar"), TEXT("isabel"), TEXT("raquel"), TEXT("beatriz"),
+			TEXT("mercedes"), TEXT("dolores"), TEXT("soledad"), TEXT("cruz"), TEXT("paz"),
+			TEXT("luz"), TEXT("ines"), TEXT("noemi"), TEXT("abril"), TEXT("estibaliz"),
+			TEXT("nieves"), TEXT("consuelo"), TEXT("rosario"), TEXT("amparo"), TEXT("belen"),
+			TEXT("mar"), TEXT("flor") };
+		static const TSet<FString> Male = {
+			TEXT("jose"), TEXT("luca"), TEXT("borja"), TEXT("nicola"), TEXT("cosme"),
+			TEXT("jesus"), TEXT("elias"), TEXT("tobias"), TEXT("matias"), TEXT("lucas"),
+			TEXT("tomas"), TEXT("andres"), TEXT("nicolas"), TEXT("jonas"), TEXT("dimas"),
+			TEXT("agustin") };
+		if (Female.Contains(L)) { return 'f'; }
+		if (Male.Contains(L)) { return 'm'; }
+		if (L.EndsWith(TEXT("a"))) { return 'f'; }   // Maria, Ana, Andrea, Sofia...
+		if (L.EndsWith(TEXT("o"))) { return 'm'; }   // Pedro, Pablo, Mario...
+		return 'm';                                  // Daniel, Miguel, Jorge, Carlos, Felipe...
+	}
+
+	// Pool de retrato SEPARADO POR GENERO (<prefix>_m_NN / <prefix>_f_NN). Si el genero es
+	// desconocido ('?'), deriva uno estable por hash del seed (consistente por personaje).
+	inline UTexture2D* LoadPortraitFromPoolG(const FString& Seed, const TCHAR* Prefix,
+		char Gender, int32 SizeM, int32 SizeF)
+	{
+		char G = Gender;
+		if (G != 'm' && G != 'f')
+		{
+			G = (PortraitSeedHash(Seed) & 1u) ? 'f' : 'm';
+		}
+		const int32 Size = (G == 'f') ? SizeF : SizeM;
+		if (Size <= 0)
 		{
 			return nullptr;
 		}
-		const int32 PoolIndex = static_cast<int32>(PortraitSeedHash(Seed) % PoolSize) + 1;
-		return WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Portraits/%s_%02d.png"), Prefix, PoolIndex));
+		const int32 Idx = static_cast<int32>(PortraitSeedHash(Seed) % static_cast<uint32>(Size)) + 1;
+		const TCHAR* GStr = (G == 'f') ? TEXT("f") : TEXT("m");
+		return WLGovAssetsNS::LoadExternalTexture(
+			FString::Printf(TEXT("UI/Portraits/%s_%s_%02d.png"), Prefix, GStr, Idx));
 	}
 
-	inline UTexture2D* LoadPortraitForSeed(const FString& Seed)
+	// Tamanos de cada pool por genero (deben coincidir con los PNG en Content/UI/Portraits/).
+	inline UTexture2D* LoadPortraitForSeed(const FString& Seed, char Gender = '?')
 	{
 		if (UTexture2D* Exact = WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Portraits/%s.png"), *Seed)))
 		{
 			return Exact;
 		}
 
-		// Personajes dinamicos tienen IDs por rol (US-LEADER-GEN01, CO-MIN-ECO-GEN02, etc.).
-		// Si no existe retrato exacto, rotan por pools genericos estables.
+		// Personajes dinamicos con IDs por rol (US-LEADER-..., CO-MIN-ECO-..., etc.): pool por rol+genero.
 		if (Seed.Contains(TEXT("-LEADER-"), ESearchCase::IgnoreCase))
 		{
-			return LoadPortraitFromPool(Seed, TEXT("leader"), 20);
+			return LoadPortraitFromPoolG(Seed, TEXT("leader"), Gender, 11, 9);
 		}
 		if (Seed.Contains(TEXT("-MIN-"), ESearchCase::IgnoreCase))
 		{
-			return LoadPortraitFromPool(Seed, TEXT("minister"), 150);
+			return LoadPortraitFromPoolG(Seed, TEXT("minister"), Gender, 83, 67);
 		}
 		if (Seed.Contains(TEXT("-GEN-"), ESearchCase::IgnoreCase))
 		{
-			return LoadPortraitFromPool(Seed, TEXT("general"), 19);
+			return LoadPortraitFromPoolG(Seed, TEXT("general"), Gender, 11, 8);
 		}
 		if (Seed.Contains(TEXT("-OPP-"), ESearchCase::IgnoreCase))
 		{
-			return LoadPortraitFromPool(Seed, TEXT("opposition"), 15);
+			return LoadPortraitFromPoolG(Seed, TEXT("opposition"), Gender, 9, 6);
 		}
 		if (Seed.Contains(TEXT("-SPY-"), ESearchCase::IgnoreCase))
 		{
-			return LoadPortraitFromPool(Seed, TEXT("spy"), 5);
+			return LoadPortraitFromPoolG(Seed, TEXT("spy"), Gender, 3, 2);
 		}
 
 		return nullptr;
@@ -264,11 +308,12 @@ namespace WLGovUI
 	 * si no, un busto estilizado
 	 * generado en runtime (cara+pelo+hombros con el color de la cartera). Marco redondeado con acento.
 	 */
-	inline UWidget* MakePortrait(UWidgetTree* Tree, const FString& Seed, const FLinearColor& Accent, float W, float H)
+	inline UWidget* MakePortrait(UWidgetTree* Tree, const FString& Seed, const FLinearColor& Accent, float W, float H,
+		char Gender = '?')
 	{
 		UBorder* Frame = MakeCard(Tree, GovDarkInk, FMargin(2.f), 6.f, Accent * 0.7f + FLinearColor(0.10f, 0.11f, 0.13f), 1.4f);
 		UImage* Img = Tree->ConstructWidget<UImage>(UImage::StaticClass());
-		UTexture2D* Tex = LoadPortraitForSeed(Seed);
+		UTexture2D* Tex = LoadPortraitForSeed(Seed, Gender);
 		if (!Tex)
 		{
 			Tex = WLGovIconsNS::GetPortraitTexture(Seed, Accent, static_cast<int32>(W), static_cast<int32>(H));

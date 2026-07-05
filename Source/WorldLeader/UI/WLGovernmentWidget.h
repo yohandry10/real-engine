@@ -230,6 +230,8 @@ private:
 	int64 GetCachedCreditLimit(const FWLBalanceRules& Rules) const;
 	int64 GetCachedProvinceMonthlyBalance(const FString& ProvinceId) const;
 	FString PlayerIso() const;
+	/** Nombre del lider de la nacion del jugador (para elegir el retrato del presidente por genero). */
+	FString PlayerLeaderName() const;
 
 	UWLCampaignGameInstance* GetCampaignGI() const;
 	UWLDataRegistry* GetRegistry() const;

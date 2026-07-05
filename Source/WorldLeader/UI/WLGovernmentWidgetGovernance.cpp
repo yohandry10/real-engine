@@ -404,7 +404,7 @@ void UWLGovernmentWidget::BuildPoliticsPowerSection()
 		{
 			UHorizontalBox* TraitRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 			if (UHorizontalBoxSlot* S = TraitRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
-				FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 40.f, 50.f)))
+				FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 40.f, 50.f, InferGender(PlayerLeaderName()))))
 			{
 				S->SetVerticalAlignment(VAlign_Center);
 				S->SetPadding(FMargin(0.f, 0.f, 9.f, 0.f));
@@ -845,7 +845,7 @@ void UWLGovernmentWidget::BuildPoliticsProgramsSection()
 			const bool bHasMinister = Characters->GetCabinetMinister(Iso, Definition.Office, Minister) && Minister.IsValid();
 			if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
 				bHasMinister ? Minister.Id : FString::Printf(TEXT("%s-MIN-VAC-%d"), *Iso, static_cast<int32>(Definition.Office)),
-				GovGoldDim, 48.f, 58.f)))
+				GovGoldDim, 48.f, 58.f, bHasMinister ? InferGender(Minister.Name) : '?')))
 			{
 				S->SetVerticalAlignment(VAlign_Center);
 				S->SetPadding(FMargin(0.f, 0.f, 11.f, 0.f));
@@ -1548,7 +1548,7 @@ void UWLGovernmentWidget::BuildPoliticsElectionsSection()
 		// Duelo con CARAS: presidente vs rival de la oposicion, como una portada de noche electoral.
 		UHorizontalBox* DuelRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = DuelRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
-			FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 58.f, 72.f)))
+			FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 58.f, 72.f, InferGender(PlayerLeaderName()))))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
@@ -1689,7 +1689,7 @@ void UWLGovernmentWidget::BuildPoliticsMediaSection()
 		UHorizontalBox* HeroRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = HeroRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
 			FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso),
-			SupportColor(Media.PresidentialApproval), 74.f, 92.f)))
+			SupportColor(Media.PresidentialApproval), 74.f, 92.f, InferGender(PlayerLeaderName()))))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
@@ -1790,7 +1790,7 @@ void UWLGovernmentWidget::BuildPoliticsRegionsSection()
 		UHorizontalBox* CardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree,
 			FString::Printf(TEXT("%s-MIN-GOV-%s"), *Iso, *Region.RegionId),
-			PartyRoleColor(Region.Alignment), 52.f, 64.f)))
+			PartyRoleColor(Region.Alignment), 52.f, 64.f, InferGender(Region.GovernorName))))
 		{
 			S->SetVerticalAlignment(VAlign_Top);
 			S->SetPadding(FMargin(0.f, 0.f, 11.f, 0.f));
@@ -2233,7 +2233,8 @@ void UWLGovernmentWidget::BuildMinisterComparator(EWLMinisterOffice Office)
 		}
 		UBorder* Row = MakeCard(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(11.f, 8.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakePortrait(WidgetTree, Candidate.Id, GovGoldDim, 44.f, 54.f)))
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakePortrait(WidgetTree, Candidate.Id, GovGoldDim, 44.f, 54.f,
+			InferGender(Candidate.Name))))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
@@ -2367,7 +2368,7 @@ void UWLGovernmentWidget::BuildPoliticalProfilesSection()
 		UBorder* Card = MakeCard(WidgetTree, (Shown % 2 == 0) ? GovCard : GovCardAlt, FMargin(12.f, 9.f));
 		UHorizontalBox* CardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree, Profile.CharacterId,
-			Character.Loyalty < 40 ? GovBad : GovGoldDim, 48.f, 58.f)))
+			Character.Loyalty < 40 ? GovBad : GovGoldDim, 48.f, 58.f, InferGender(Character.Name))))
 		{
 			S->SetVerticalAlignment(VAlign_Top);
 			S->SetPadding(FMargin(0.f, 0.f, 11.f, 0.f));

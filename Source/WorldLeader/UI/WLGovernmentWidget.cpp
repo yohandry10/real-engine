@@ -765,12 +765,13 @@ void UWLGovernmentWidget::BuildOverviewTab()
 		const bool bHasNation = GI && GI->GetSelectedNation(Nation);
 		const UWLPoliticalSubsystem* Political = GetPolitical();
 		const int32 Approval = Political ? Political->GetMediaPublicOpinion(Iso).PresidentialApproval : 0;
+		const FString Leader = (bHasNation && !Nation.Leader.IsEmpty()) ? Nation.Leader : TEXT("Presidente de la Republica");
 
 		UBorder* Hero = MakeCard(WidgetTree, GovHeaderStrip, FMargin(16.f, 14.f));
 		UHorizontalBox* HB = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
 		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakePortrait(WidgetTree,
-			FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 94.f, 116.f)))
+			FString::Printf(TEXT("%s-LEADER-INCUMBENT"), *Iso), GovGold, 94.f, 116.f, InferGender(Leader))))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(0.f, 0.f, 16.f, 0.f));
@@ -778,7 +779,6 @@ void UWLGovernmentWidget::BuildOverviewTab()
 
 		UVerticalBox* IdVB = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		IdVB->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("INFORME PRESIDENCIAL"), 11, GovMuted));
-		const FString Leader = (bHasNation && !Nation.Leader.IsEmpty()) ? Nation.Leader : TEXT("Presidente de la Republica");
 		if (UVerticalBoxSlot* S = IdVB->AddChildToVerticalBox(MakeText(WidgetTree, Leader, 21, GovText)))
 		{
 			S->SetPadding(FMargin(0.f, 2.f, 0.f, 0.f));
@@ -1516,7 +1516,8 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 			Seat.Office == EWLMinisterOffice::Foreign     ? FLinearColor(0.45f, 0.68f, 0.95f) :
 			                                                FLinearColor(0.72f, 0.56f, 0.90f);
 		const FString PortraitSeed = bFilled ? Seat.CharacterId : FString::Printf(TEXT("VAC-%d"), static_cast<int32>(Seat.Office));
-		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakePortrait(WidgetTree, PortraitSeed, OfficeAccent, 58.f, 72.f)))
+		if (UHorizontalBoxSlot* S = HB->AddChildToHorizontalBox(MakePortrait(WidgetTree, PortraitSeed, OfficeAccent, 58.f, 72.f,
+			bFilled ? InferGender(Seat.Minister.Name) : '?')))
 		{
 			S->SetVerticalAlignment(VAlign_Center);
 			S->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
@@ -1696,7 +1697,8 @@ void UWLGovernmentWidget::BuildHighCommandTab()
 			S->SetPadding(FMargin(0.f, 7.f, 0.f, 0.f));
 		}
 		UHorizontalBox* CardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree, General.Id, GovGoldDim, 52.f, 64.f)))
+		if (UHorizontalBoxSlot* S = CardRow->AddChildToHorizontalBox(MakePortrait(WidgetTree, General.Id, GovGoldDim, 52.f, 64.f,
+			InferGender(General.Name))))
 		{
 			S->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
 			S->SetVerticalAlignment(VAlign_Center);
@@ -2875,6 +2877,13 @@ FString UWLGovernmentWidget::PlayerIso() const
 {
 	const UWLCampaignGameInstance* GI = GetCampaignGI();
 	return GI ? GI->GetSelectedNationIso() : FString();
+}
+
+FString UWLGovernmentWidget::PlayerLeaderName() const
+{
+	UWLCampaignGameInstance* GI = GetCampaignGI();
+	FWLNationData Nation;
+	return (GI && GI->GetSelectedNation(Nation)) ? Nation.Leader : FString();
 }
 
 UWLCampaignGameInstance* UWLGovernmentWidget::GetCampaignGI() const
