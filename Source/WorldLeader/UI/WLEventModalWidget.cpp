@@ -110,6 +110,25 @@ void UWLEventModalWidget::BuildShell()
 	Rebuild();
 }
 
+// Tema de arte de un evento a partir de su EventId. Las 40 variantes (10 sueltas + 30 de crisis
+// crisis_<tema>_<etapa>) colapsan en ~10 temas, asi que una ilustracion por tema cubre todo.
+static FString EventArtThemeKey(const FString& EventId)
+{
+	const FString Id = EventId.ToLower();
+	if (Id.Contains(TEXT("corruption")) || Id.Contains(TEXT("media_leak")))                                   { return TEXT("corruption"); }
+	if (Id.Contains(TEXT("military")) || Id.Contains(TEXT("coup")) || Id.Contains(TEXT("officers"))
+		|| Id.Contains(TEXT("security_service")))                                                             { return TEXT("military"); }
+	if (Id.Contains(TEXT("student")))                                                                          { return TEXT("student"); }
+	if (Id.Contains(TEXT("oil")))                                                                              { return TEXT("oil"); }
+	if (Id.Contains(TEXT("border")))                                                                          { return TEXT("border"); }
+	if (Id.Contains(TEXT("impeachment")))                                                                     { return TEXT("impeachment"); }
+	if (Id.Contains(TEXT("state_exception")))                                                                 { return TEXT("state_exception"); }
+	if (Id.Contains(TEXT("debt")) || Id.Contains(TEXT("food_price")) || Id.Contains(TEXT("tax_revolt")))      { return TEXT("economy"); }
+	if (Id.Contains(TEXT("protest")) || Id.Contains(TEXT("block")) || Id.Contains(TEXT("union"))
+		|| Id.Contains(TEXT("mayors")) || Id.Contains(TEXT("strike")))                                        { return TEXT("protest"); }
+	return TEXT("default");
+}
+
 void UWLEventModalWidget::Rebuild()
 {
 	if (!ContentBox)
@@ -179,6 +198,27 @@ void UWLEventModalWidget::Rebuild()
 		AddColumnChild(ContentBox, MakeText(WidgetTree,
 			TEXT("No quedan eventos pendientes. Puedes cerrar con [Esc]."), 14, GovMuted, ETextJustify::Left, true), 16.f);
 		return;
+	}
+
+	// Banner de arte del evento (UI/Events/<tema>.png, con default como respaldo). Da cara al evento.
+	{
+		UTexture2D* Art = WLGovAssetsNS::LoadExternalTexture(
+			FString::Printf(TEXT("UI/Events/%s.png"), *EventArtThemeKey(Current->EventId)));
+		if (!Art)
+		{
+			Art = WLGovAssetsNS::LoadExternalTexture(TEXT("UI/Events/default.png"));
+		}
+		if (Art)
+		{
+			UImage* Img = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
+			Img->SetBrushFromTexture(Art, false);
+			UBorder* Framed = MakeRoundedSurface(WidgetTree, FLinearColor(0.f, 0.f, 0.f, 0.f), FMargin(0.f), 10.f);
+			USizeBox* BannerBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			BannerBox->SetHeightOverride(170.f);
+			BannerBox->SetContent(Img);
+			Framed->SetContent(BannerBox);
+			AddColumnChild(ContentBox, Framed, 14.f);
+		}
 	}
 
 	// Carta del evento actual.
