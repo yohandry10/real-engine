@@ -123,8 +123,9 @@ void DrawCampaignSelectionPanel(
 			                                  TEXT("infantry");
 		if (UTexture2D* UnitTex = WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Units/%s.png"), UnitAsset)))
 		{
-			HUD->DrawTexture(UnitTex, ix, iy, iw, ih, 0.f, 0.f,
-				static_cast<float>(UnitTex->GetSizeX()), static_cast<float>(UnitTex->GetSizeY()));
+			// UV NORMALIZADAS (0..1): dibuja la textura completa una vez, escalada al rect. Pasar el
+			// tamano en pixeles aqui la teselaba cientos de veces (ese ruido de marcas diminutas).
+			HUD->DrawTexture(UnitTex, ix, iy, iw, ih, 0.f, 0.f, 1.f, 1.f);
 			return;
 		}
 		const FLinearColor Body(0.84f, 0.88f, 0.92f, 1.f);
