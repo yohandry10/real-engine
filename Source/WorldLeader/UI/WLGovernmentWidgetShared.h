@@ -330,11 +330,41 @@ namespace WLGovUI
 		return Box;
 	}
 
-	/** Icono vectorial generado en runtime (moneda, poblacion, escudo...) mostrado a SizePx y tintado. */
+	/** Nombre de archivo del icono externo (UI/Icons/<name>.png) que sustituye al procedural. */
+	inline const TCHAR* IconAssetName(EWLGovIcon Icon)
+	{
+		switch (Icon)
+		{
+		case EWLGovIcon::Treasury:   return TEXT("treasury");
+		case EWLGovIcon::Balance:    return TEXT("balance");
+		case EWLGovIcon::Population: return TEXT("population");
+		case EWLGovIcon::Provinces:  return TEXT("provinces");
+		case EWLGovIcon::Growth:     return TEXT("growth");
+		case EWLGovIcon::Order:      return TEXT("order");
+		case EWLGovIcon::Capital:    return TEXT("capital");
+		case EWLGovIcon::Politics:   return TEXT("politics");
+		case EWLGovIcon::Diplomacy:  return TEXT("diplomacy");
+		case EWLGovIcon::Military:   return TEXT("military");
+		case EWLGovIcon::Approval:   return TEXT("approval");
+		case EWLGovIcon::Crisis:     return TEXT("crisis");
+		default:                     return TEXT("icon");
+		}
+	}
+
+	/**
+	 * Icono mostrado a SizePx y tintado. Si existe UI/Icons/<name>.png lo usa (debe ser blanco/monocromo
+	 * sobre transparente: el UI lo tinta al color pedido). Si no, cae al icono vectorial procedural.
+	 */
 	inline UImage* MakeIcon(UWidgetTree* Tree, EWLGovIcon Icon, int32 SizePx, const FLinearColor& Color)
 	{
 		UImage* Img = Tree->ConstructWidget<UImage>(UImage::StaticClass());
-		if (UTexture2D* Tex = WLGovIconsNS::GetIconTexture(Icon, SizePx, Color))
+		if (UTexture2D* External = WLGovAssetsNS::LoadExternalTexture(
+			FString::Printf(TEXT("UI/Icons/%s.png"), IconAssetName(Icon))))
+		{
+			Img->SetBrushFromTexture(External, false);
+			Img->SetColorAndOpacity(Color);   // monocromo blanco -> tintado al color de la seccion
+		}
+		else if (UTexture2D* Tex = WLGovIconsNS::GetIconTexture(Icon, SizePx, Color))
 		{
 			Img->SetBrushFromTexture(Tex, false);
 		}
