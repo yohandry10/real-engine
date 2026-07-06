@@ -48,6 +48,80 @@ void AWLCampaignHUD::DrawTacticalBattleHud(const AWLCampaignPlayerController* PC
 	DrawRect(InkHard, 0.f, H - 34.f, W, 34.f);
 	DrawText(PC->GetTacticalSelectedUnitInfo(), Text, 24.f, H - 24.f, SmallFont, 0.9f);
 
+	// F1b: CARTAS DE CONTINGENTE del jugador (estilo Total War) — render de la unidad, efectivos,
+	// salud y moral. Mismo orden y coordenadas que el hit-test del PlayerController (clic=seleccionar).
+	{
+		const FWLTacticalBattleState& Battle = PC->GetTacticalBattleStateCache();
+		const FString PlayerIso = PC->GetTacticalPlayerIso();
+		const FString SelectedId = PC->GetTacticalSelectedUnitId();
+		TArray<const FWLTacticalUnitState*> PlayerContingents;
+		for (const FWLTacticalUnitState& U : Battle.Units)
+		{
+			if (!U.bDestroyed && U.Health > 0.0 && U.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase))
+			{
+				PlayerContingents.Add(&U);
+			}
+		}
+
+		auto UnitRenderFor = [](const FString& UnitId) -> UTexture2D*
+		{
+			const FString Id = UnitId.ToLower();
+			const TCHAR* Render =
+				(Id == TEXT("mbt") || Id == TEXT("tank"))                              ? TEXT("tank") :
+				(Id == TEXT("apc") || Id == TEXT("ifv") || Id == TEXT("drone")
+					|| Id == TEXT("sam"))                                              ? TEXT("transport") :
+				(Id == TEXT("artillery"))                                              ? TEXT("artillery") :
+				(Id == TEXT("heli") || Id == TEXT("aircraft"))                         ? TEXT("air") :
+				(Id == TEXT("ship"))                                                   ? TEXT("naval") :
+				                                                                         TEXT("infantry");
+			return WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Units/%s.png"), Render));
+		};
+
+		for (int32 i = 0; i < PlayerContingents.Num(); ++i)
+		{
+			const FWLTacticalUnitState& U = *PlayerContingents[i];
+			const FBox2D Box = WLTacticalHudLayout::ContingentCardBox(W, H, i, PlayerContingents.Num());
+			const float CX = Box.Min.X, CY = Box.Min.Y;
+			const float CW = Box.Max.X - Box.Min.X, CH = Box.Max.Y - Box.Min.Y;
+			const bool bSelected = U.TacticalUnitId == SelectedId;
+			const bool bRouting = U.Order == EWLTacticalUnitOrder::Routing;
+
+			DrawRect(FLinearColor(0.030f, 0.045f, 0.055f, 0.96f), CX, CY, CW, CH);
+			DrawRect(bSelected ? Gold : (bRouting ? Bad : FLinearColor(0.16f, 0.22f, 0.26f, 1.f)), CX, CY, CW, 3.f);
+			if (bSelected)
+			{
+				// Marco dorado completo: se ve QUE contingente comandas.
+				DrawRect(Gold, CX, CY + CH - 2.f, CW, 2.f);
+				DrawRect(Gold, CX, CY, 2.f, CH);
+				DrawRect(Gold, CX + CW - 2.f, CY, 2.f, CH);
+			}
+
+			// Render de la unidad (UV normalizadas 0..1: la textura completa, una vez).
+			if (UTexture2D* Render = UnitRenderFor(U.UnitId))
+			{
+				const float ImgH = 64.f;
+				DrawTexture(Render, CX + (CW - ImgH) * 0.5f, CY + 8.f, ImgH, ImgH, 0.f, 0.f, 1.f, 1.f);
+			}
+
+			// Nombre corto + efectivos.
+			FString Name = U.DisplayName;
+			int32 XIdx;
+			if (Name.FindLastChar(TEXT('x'), XIdx) && XIdx > 1) { Name = Name.Left(XIdx - 1).TrimEnd(); }
+			if (Name.Len() > 16) { Name = Name.Left(15) + TEXT("."); }
+			DrawText(Name, Text, CX + 8.f, CY + 74.f, SmallFont, 0.72f);
+			DrawText(FString::Printf(TEXT("%d/%d ef."), U.ElementCount, U.InitialElementCount),
+				bRouting ? Bad : Muted, CX + 8.f, CY + 90.f, SmallFont, 0.68f);
+
+			// Barras de salud (verde) y moral (ambar).
+			const float BarW = CW - 16.f;
+			DrawRect(FLinearColor(0.05f, 0.07f, 0.08f, 1.f), CX + 8.f, CY + CH - 16.f, BarW, 5.f);
+			DrawRect(Good, CX + 8.f, CY + CH - 16.f, BarW * FMath::Clamp(static_cast<float>(U.Health) / 100.f, 0.f, 1.f), 5.f);
+			DrawRect(FLinearColor(0.05f, 0.07f, 0.08f, 1.f), CX + 8.f, CY + CH - 9.f, BarW, 4.f);
+			DrawRect(FLinearColor(0.90f, 0.72f, 0.28f, 1.f), CX + 8.f, CY + CH - 9.f,
+				BarW * FMath::Clamp(static_cast<float>(U.Morale) / 100.f, 0.f, 1.f), 4.f);
+		}
+	}
+
 	// Panel de ayuda (izquierda).
 	DrawRect(Ink, 24.f, 78.f, 360.f, 92.f);
 	DrawText(TEXT("CONTROLES DE BATALLA"), Gold, 36.f, 86.f, SmallFont, 0.86f);

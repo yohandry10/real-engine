@@ -3,9 +3,13 @@
 #include "Presentation/WLTacticalBattleView.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
+#include "Campaign/WLDataRegistry.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/DirectionalLight.h"
+#include "Engine/GameInstance.h"
 #include "Engine/SkyLight.h"
+#include "Engine/World.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -60,23 +64,237 @@ FVector2D AWLTacticalBattleView::WorldToTactical(const FVector& World) const
 
 FLinearColor AWLTacticalBattleView::ColorForUnit(const FWLTacticalUnitState& Unit) const
 {
-	// Bando del jugador en tonos calidos (dorado/verde), enemigo en rojo. La salud baja apaga el color.
+	// Bando del jugador en azul, enemigo en rojo. Derrota/moral rota apaga el color.
 	const bool bPlayer = Unit.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
 	const bool bRouting = Unit.Order == EWLTacticalUnitOrder::Routing || Unit.Morale <= 25.0;
 	FLinearColor Base = bPlayer
 		? (bRouting ? FLinearColor(0.55f, 0.50f, 0.22f) : FLinearColor(0.30f, 0.62f, 0.95f))
 		: (bRouting ? FLinearColor(0.55f, 0.30f, 0.24f) : FLinearColor(0.92f, 0.28f, 0.22f));
-	const float HealthT = FMath::Clamp(static_cast<float>(Unit.Health) / 100.f, 0.25f, 1.f);
+	const float HealthT = FMath::Clamp(static_cast<float>(Unit.Health) / 100.f, 0.35f, 1.f);
 	return Base * HealthT;
+}
+
+AWLTacticalBattleView::FElementStyle AWLTacticalBattleView::StyleForUnitId(const FString& UnitId) const
+{
+	FElementStyle Style;
+	EWLUnitType Type = EWLUnitType::Infantry;
+	if (const FWLUnitData* Data = UnitDataById.Find(UnitId.ToLower()))
+	{
+		Type = Data->Type;
+	}
+	switch (Type)
+	{
+	case EWLUnitType::Armor:
+		Style.Scale = FVector(1.9f, 1.15f, 0.85f); Style.SpacingCm = 300.f; break;
+	case EWLUnitType::LightVehicle:
+	case EWLUnitType::Drone:
+		Style.Scale = FVector(1.5f, 0.95f, 0.75f); Style.SpacingCm = 260.f; break;
+	case EWLUnitType::Artillery:
+		Style.Scale = FVector(1.7f, 1.00f, 0.80f); Style.SpacingCm = 300.f; break;
+	case EWLUnitType::AirDefense:
+		Style.Scale = FVector(1.3f, 1.30f, 1.00f); Style.SpacingCm = 280.f; break;
+	case EWLUnitType::Air:
+		Style.Scale = FVector(1.9f, 1.40f, 0.45f); Style.SpacingCm = 380.f; Style.HoverZCm = 900.f; break;
+	case EWLUnitType::Naval:
+		Style.Scale = FVector(3.2f, 1.10f, 0.90f); Style.SpacingCm = 460.f; break;
+	case EWLUnitType::Infantry:
+	case EWLUnitType::SpecialForces:
+	default:
+		Style.Scale = FVector(0.42f, 0.42f, 1.05f); Style.SpacingCm = 115.f; break;
+	}
+	return Style;
+}
+
+void AWLTacticalBattleView::BuildFormationOffsets(int32 Count, float Spacing, TArray<FVector2D>& OutOffsets)
+{
+	// Rejilla ANCHA (mas columnas que filas, como una linea de batalla), centrada en el
+	// contingente. Local: +X = frente, +Y = derecha. Al morir elementos desaparecen las
+	// ultimas posiciones (las filas traseras se vacian primero).
+	OutOffsets.Reset();
+	if (Count <= 0)
+	{
+		return;
+	}
+	const int32 Cols = FMath::Max(1, FMath::CeilToInt(FMath::Sqrt(static_cast<float>(Count) * 2.4f)));
+	const int32 Rows = FMath::Max(1, FMath::DivideAndRoundUp(Count, Cols));
+	for (int32 i = 0; i < Count; ++i)
+	{
+		const int32 Row = i / Cols;
+		const int32 Col = i % Cols;
+		const int32 ColsInRow = (Row == Rows - 1) ? (Count - Row * Cols) : Cols;
+		const float Y = (static_cast<float>(Col) - static_cast<float>(ColsInRow - 1) * 0.5f) * Spacing;
+		const float X = -static_cast<float>(Row) * Spacing * 0.95f;   // filas hacia atras
+		OutOffsets.Add(FVector2D(X, Y));
+	}
+}
+
+void AWLTacticalBattleView::RebuildContingentInstances(UInstancedStaticMeshComponent* Mesh, const FWLTacticalUnitState& Unit)
+{
+	const FElementStyle Style = StyleForUnitId(Unit.UnitId);
+	TArray<FVector2D> Offsets;
+	BuildFormationOffsets(Unit.ElementCount, Style.SpacingCm, Offsets);
+
+	Mesh->ClearInstances();
+	for (const FVector2D& Offset : Offsets)
+	{
+		FTransform Xform;
+		Xform.SetScale3D(Style.Scale);
+		Xform.SetLocation(FVector(Offset.X, Offset.Y, Style.Scale.Z * 50.f));   // base apoyada
+		Mesh->AddInstance(Xform);
+	}
+	ContingentShownElements.Add(Unit.TacticalUnitId, Unit.ElementCount);
+}
+
+void AWLTacticalBattleView::SpawnWrecks(const FWLTacticalUnitState& Unit, const FVector& Center)
+{
+	if (WreckedContingents.Contains(Unit.TacticalUnitId) || !UnitMesh)
+	{
+		return;
+	}
+	WreckedContingents.Add(Unit.TacticalUnitId);
+
+	// Restos oscuros y ladeados: el campo cuenta la historia de la batalla.
+	const FElementStyle Style = StyleForUnitId(Unit.UnitId);
+	const int32 WreckCount = FMath::Clamp(Unit.InitialElementCount, 1, 5);
+	const uint32 Hash = GetTypeHash(Unit.TacticalUnitId);
+	for (int32 i = 0; i < WreckCount; ++i)
+	{
+		UStaticMeshComponent* Wreck = NewObject<UStaticMeshComponent>(this);
+		Wreck->SetupAttachment(Root);
+		Wreck->RegisterComponent();
+		Wreck->SetStaticMesh(UnitMesh);
+		Wreck->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		const float OffX = static_cast<float>(((Hash >> (i * 3)) % 7)) * 90.f - 270.f;
+		const float OffY = static_cast<float>(((Hash >> (i * 5)) % 9)) * 90.f - 360.f;
+		const float Yaw = static_cast<float>((Hash >> (i * 2)) % 360);
+		FVector Loc = Center + FVector(OffX, OffY, 0.f);
+		Loc.Z = GroundZ + Style.Scale.Z * 26.f;   // medio hundido: chatarra, no unidad viva
+		Wreck->SetWorldLocation(Loc);
+		Wreck->SetWorldRotation(FRotator(0.f, Yaw, 8.f));
+		Wreck->SetWorldScale3D(Style.Scale * 0.92f);
+		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(0.055f, 0.048f, 0.042f)))
+		{
+			Wreck->SetMaterial(0, Mat);
+		}
+		WreckComponents.Add(Wreck);
+	}
+}
+
+void AWLTacticalBattleView::UpdateTracer(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit)
+{
+	UStaticMeshComponent** FoundTracer = TracerComponents.Find(Unit.TacticalUnitId);
+	UStaticMeshComponent* Tracer = FoundTracer ? *FoundTracer : nullptr;
+
+	auto HideTracer = [&Tracer]()
+	{
+		if (Tracer) { Tracer->SetVisibility(false); }
+	};
+
+	if (Unit.bDestroyed || Unit.Order != EWLTacticalUnitOrder::Attacking || Unit.AttackTargetUnitId.IsEmpty())
+	{
+		HideTracer();
+		return;
+	}
+	const FWLTacticalUnitState* Target = Battle.Units.FindByPredicate([&Unit](const FWLTacticalUnitState& U)
+	{
+		return U.TacticalUnitId == Unit.AttackTargetUnitId && !U.bDestroyed && U.Health > 0.0;
+	});
+	if (!Target)
+	{
+		HideTracer();
+		return;
+	}
+
+	// Solo dispara (y traza) dentro de su alcance — el mismo criterio que el backend.
+	double Range = 1200.0;
+	if (const FWLUnitData* Data = UnitDataById.Find(Unit.UnitId.ToLower()))
+	{
+		if (Data->RangeUnits > 0.0) { Range = Data->RangeUnits; }
+	}
+	const double Distance = FVector2D::Distance(Unit.Position, Target->Position);
+	if (Distance > Range)
+	{
+		HideTracer();
+		return;
+	}
+
+	// Parpadeo: rafagas, no un laser continuo. Fase estable por contingente.
+	const double Phase = static_cast<double>(GetTypeHash(Unit.TacticalUnitId) % 100) / 100.0;
+	if (FMath::Fmod(Battle.ElapsedSeconds * 2.6 + Phase, 1.0) > 0.62)
+	{
+		HideTracer();
+		return;
+	}
+
+	if (!Tracer)
+	{
+		if (!UnitMesh)
+		{
+			return;
+		}
+		Tracer = NewObject<UStaticMeshComponent>(this);
+		Tracer->SetupAttachment(Root);
+		Tracer->RegisterComponent();
+		Tracer->SetStaticMesh(UnitMesh);
+		Tracer->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		const bool bPlayer = Unit.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
+		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(
+			bPlayer ? FLinearColor(1.0f, 0.88f, 0.42f) : FLinearColor(1.0f, 0.40f, 0.22f)))
+		{
+			Tracer->SetMaterial(0, Mat);
+		}
+		TracerComponents.Add(Unit.TacticalUnitId, Tracer);
+	}
+
+	const FElementStyle FromStyle = StyleForUnitId(Unit.UnitId);
+	const FElementStyle ToStyle = StyleForUnitId(Target->UnitId);
+	FVector From = TacticalToWorld(Unit.Position);
+	From.Z = GroundZ + FromStyle.HoverZCm + FromStyle.Scale.Z * 60.f;
+	FVector To = TacticalToWorld(Target->Position);
+	To.Z = GroundZ + ToStyle.HoverZCm + ToStyle.Scale.Z * 60.f;
+
+	const FVector Mid = (From + To) * 0.5f;
+	const FVector Dir = To - From;
+	const float Length = static_cast<float>(Dir.Size());
+	if (Length < 10.f)
+	{
+		HideTracer();
+		return;
+	}
+	Tracer->SetWorldLocation(Mid);
+	Tracer->SetWorldRotation(Dir.Rotation());
+	Tracer->SetWorldScale3D(FVector(Length / 100.f, 0.09f, 0.09f));
+	Tracer->SetVisibility(true);
 }
 
 void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, const FString& InPlayerIso)
 {
 	PlayerIso = InPlayerIso.TrimStartAndEnd().ToUpper();
+	AttackerIso = Battle.AttackerIso;
 	UWorld* World = GetWorld();
 	if (!World)
 	{
 		return;
+	}
+
+	// Datos de unidad cacheados (estilo de formacion + alcance de trazadora).
+	if (const UGameInstance* GI = World->GetGameInstance())
+	{
+		if (const UWLDataRegistry* Registry = GI->GetSubsystem<UWLDataRegistry>())
+		{
+			for (const FWLTacticalUnitState& Unit : Battle.Units)
+			{
+				const FString Key = Unit.UnitId.ToLower();
+				if (!UnitDataById.Contains(Key))
+				{
+					FWLUnitData Data;
+					if (Registry->GetUnit(Key, Data))
+					{
+						UnitDataById.Add(Key, Data);
+					}
+				}
+			}
+		}
 	}
 
 	// Suelo: plano llano centrado en el origen (el plano del Engine mide 100x100 -> escalar a metros).
@@ -134,23 +352,28 @@ void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, con
 		ObjectiveComponents.Add(Ring);
 	}
 
-	// Una malla (cubo) por unidad.
+	// Una FORMACION instanciada por contingente: N elementos visibles que caen con las bajas.
 	for (const FWLTacticalUnitState& Unit : Battle.Units)
 	{
 		if (!UnitMesh)
 		{
 			break;
 		}
-		UStaticMeshComponent* Comp = NewObject<UStaticMeshComponent>(this);
-		Comp->SetupAttachment(Root);
-		Comp->RegisterComponent();
-		Comp->SetStaticMesh(UnitMesh);
-		Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		UInstancedStaticMeshComponent* Mesh = NewObject<UInstancedStaticMeshComponent>(this);
+		Mesh->SetupAttachment(Root);
+		Mesh->RegisterComponent();
+		Mesh->SetStaticMesh(UnitMesh);
+		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(ColorForUnit(Unit)))
 		{
-			Comp->SetMaterial(0, Mat);
+			Mesh->SetMaterial(0, Mat);
 		}
-		UnitComponents.Add(Unit.TacticalUnitId, Comp);
+		ContingentMeshes.Add(Unit.TacticalUnitId, Mesh);
+
+		// Encaramiento inicial: los bandos se miran (atacante desde -X).
+		ContingentYaw.Add(Unit.TacticalUnitId,
+			Unit.OwnerIso.Equals(Battle.AttackerIso, ESearchCase::IgnoreCase) ? 0.f : 180.f);
+		RebuildContingentInstances(Mesh, Unit);
 	}
 
 	// Luces propias: la batalla se ve igual aunque la escena de campana se apague.
@@ -182,33 +405,77 @@ void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, con
 
 void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battle)
 {
+	LastElapsedSeconds = Battle.ElapsedSeconds;
+
 	for (const FWLTacticalUnitState& Unit : Battle.Units)
 	{
-		UStaticMeshComponent** Found = UnitComponents.Find(Unit.TacticalUnitId);
+		UInstancedStaticMeshComponent** Found = ContingentMeshes.Find(Unit.TacticalUnitId);
 		if (!Found || !*Found)
 		{
 			continue;
 		}
-		UStaticMeshComponent* Comp = *Found;
+		UInstancedStaticMeshComponent* Mesh = *Found;
+
 		if (Unit.bDestroyed || Unit.Health <= 0.0)
 		{
-			Comp->SetVisibility(false);
+			// El contingente cae: la formacion desaparece y quedan RESTOS en su ultima posicion.
+			if (const FVector* LastCenter = ContingentCenters.Find(Unit.TacticalUnitId))
+			{
+				SpawnWrecks(Unit, *LastCenter);
+			}
+			Mesh->SetVisibility(false);
+			ContingentCenters.Remove(Unit.TacticalUnitId);
+			UpdateTracer(Battle, Unit);
 			continue;
 		}
-		Comp->SetVisibility(true);
-		// Cubo base = 100cm; el token mide ~2m y se estira un poco con la salud para dar sensacion de "bloque".
-		const float Health = FMath::Clamp(static_cast<float>(Unit.Health) / 100.f, 0.3f, 1.f);
-		Comp->SetWorldScale3D(FVector(1.7f, 1.7f, 1.7f + Health * 1.6f));
-		FVector Loc = TacticalToWorld(Unit.Position);
-		Loc.Z = GroundZ + (1.7f + Health * 1.6f) * 50.f;   // apoya la base en el suelo
-		Comp->SetWorldLocation(Loc);
-		if (UMaterialInstanceDynamic* Mat = Cast<UMaterialInstanceDynamic>(Comp->GetMaterial(0)))
+		Mesh->SetVisibility(true);
+
+		const FElementStyle Style = StyleForUnitId(Unit.UnitId);
+
+		// Encaramiento: hacia el objetivo de ataque, o hacia el destino de movimiento.
+		float Yaw = ContingentYaw.FindRef(Unit.TacticalUnitId);
+		FVector2D Facing = FVector2D::ZeroVector;
+		if (Unit.Order == EWLTacticalUnitOrder::Attacking && !Unit.AttackTargetUnitId.IsEmpty())
+		{
+			if (const FWLTacticalUnitState* Target = Battle.Units.FindByPredicate(
+				[&Unit](const FWLTacticalUnitState& U) { return U.TacticalUnitId == Unit.AttackTargetUnitId; }))
+			{
+				Facing = Target->Position - Unit.Position;
+			}
+		}
+		else if (Unit.Order == EWLTacticalUnitOrder::Moving || Unit.Order == EWLTacticalUnitOrder::Routing)
+		{
+			Facing = Unit.MoveTarget - Unit.Position;
+		}
+		if (Facing.SizeSquared() > 1.0)
+		{
+			Yaw = FMath::RadiansToDegrees(FMath::Atan2(Facing.Y, Facing.X));
+			ContingentYaw.Add(Unit.TacticalUnitId, Yaw);
+		}
+
+		// Mover TODA la formacion (las instancias son relativas al componente).
+		FVector Center = TacticalToWorld(Unit.Position);
+		Center.Z = GroundZ + Style.HoverZCm;
+		Mesh->SetWorldLocationAndRotation(Center, FRotator(0.f, Yaw, 0.f));
+		ContingentCenters.Add(Unit.TacticalUnitId, Center);
+		const float FormationExtent = FMath::Sqrt(static_cast<float>(FMath::Max(1, Unit.ElementCount))) * Style.SpacingCm;
+		ContingentPickRadius.Add(Unit.TacticalUnitId, FMath::Max(UnitPickRadius, FormationExtent * 0.75f));
+
+		// Las BAJAS se ven: reconstruir instancias cuando cambian los elementos vivos.
+		if (ContingentShownElements.FindRef(Unit.TacticalUnitId) != Unit.ElementCount)
+		{
+			RebuildContingentInstances(Mesh, Unit);
+		}
+
+		if (UMaterialInstanceDynamic* Mat = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0)))
 		{
 			const FLinearColor Color = ColorForUnit(Unit);
 			Mat->SetVectorParameterValue(TEXT("Color"), Color);
 			Mat->SetVectorParameterValue(TEXT("BaseColor"), Color);
 			Mat->SetVectorParameterValue(TEXT("Base Color"), Color);
 		}
+
+		UpdateTracer(Battle, Unit);
 	}
 
 	// Objetivos: color por controlador (jugador/enemigo/neutral).
@@ -234,7 +501,7 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 		}
 	}
 
-	// Anillo de seleccion sigue a su unidad (si sigue viva).
+	// Anillo de seleccion: rodea la FORMACION seleccionada (escala con su extension).
 	if (SelectionRing)
 	{
 		const FWLTacticalUnitState* Sel = Battle.Units.FindByPredicate([this](const FWLTacticalUnitState& U)
@@ -243,9 +510,13 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 		});
 		if (Sel)
 		{
+			const FElementStyle Style = StyleForUnitId(Sel->UnitId);
 			FVector Loc = TacticalToWorld(Sel->Position);
 			Loc.Z = GroundZ + 6.f;
 			SelectionRing->SetWorldLocation(Loc);
+			const float Extent = FMath::Sqrt(static_cast<float>(FMath::Max(1, Sel->ElementCount))) * Style.SpacingCm;
+			const float RingScale = FMath::Max(2.6f, (Extent * 1.35f) / 50.f);
+			SelectionRing->SetWorldScale3D(FVector(RingScale, RingScale, 0.06f));
 			SelectionRing->SetVisibility(true);
 		}
 		else
@@ -258,17 +529,15 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 FString AWLTacticalBattleView::FindUnitNearWorldPoint(const FVector& WorldPoint) const
 {
 	FString Best;
-	float BestDistSq = UnitPickRadius * UnitPickRadius;
-	for (const TPair<FString, UStaticMeshComponent*>& Pair : UnitComponents)
+	float BestDistSq = TNumericLimits<float>::Max();
+	for (const TPair<FString, FVector>& Pair : ContingentCenters)
 	{
-		if (!Pair.Value || !Pair.Value->IsVisible())
-		{
-			continue;
-		}
-		const FVector Loc = Pair.Value->GetComponentLocation();
+		const float PickRadius = ContingentPickRadius.FindRef(Pair.Key) > 0.f
+			? ContingentPickRadius.FindRef(Pair.Key)
+			: UnitPickRadius;
 		const float DistSq = FVector2D::DistSquared(
-			FVector2D(Loc.X, Loc.Y), FVector2D(WorldPoint.X, WorldPoint.Y));
-		if (DistSq < BestDistSq)
+			FVector2D(Pair.Value.X, Pair.Value.Y), FVector2D(WorldPoint.X, WorldPoint.Y));
+		if (DistSq < PickRadius * PickRadius && DistSq < BestDistSq)
 		{
 			BestDistSq = DistSq;
 			Best = Pair.Key;

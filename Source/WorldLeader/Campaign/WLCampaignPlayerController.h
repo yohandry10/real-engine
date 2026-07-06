@@ -190,6 +190,10 @@ public:
 	FString GetTacticalSelectedUnitInfo() const;
 	int32 GetTacticalPlayerUnitCount() const;
 	int32 GetTacticalEnemyUnitCount() const;
+	// F1b: el HUD dibuja las cartas de contingente desde el estado cacheado (misma fuente que el 3D).
+	const FWLTacticalBattleState& GetTacticalBattleStateCache() const { return TacticalBattleCache; }
+	const FString& GetTacticalSelectedUnitId() const { return TacticalSelectedUnitId; }
+	const FString& GetTacticalPlayerIso() const { return TacticalPlayerIso; }
 
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|CampaignView")
 	void ShowCampaign3DView();

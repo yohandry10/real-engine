@@ -166,6 +166,32 @@ bool AWLCampaignPlayerController::HandleTacticalBattleClick()
 			ExitTacticalBattle(true);
 			return true;
 		}
+
+		// F1b: clic en una carta de contingente = seleccionarlo (mismo orden estable que dibuja el HUD:
+		// contingentes vivos del jugador en orden de Battle.Units).
+		if (!bTacticalFinished)
+		{
+			TArray<const FWLTacticalUnitState*> PlayerContingents;
+			for (const FWLTacticalUnitState& U : TacticalBattleCache.Units)
+			{
+				if (!U.bDestroyed && U.Health > 0.0 && U.OwnerIso.Equals(TacticalPlayerIso, ESearchCase::IgnoreCase))
+				{
+					PlayerContingents.Add(&U);
+				}
+			}
+			for (int32 i = 0; i < PlayerContingents.Num(); ++i)
+			{
+				if (WLTacticalHudLayout::ContingentCardBox(CanvasW, CanvasH, i, PlayerContingents.Num()).IsInside(CanvasMouse))
+				{
+					TacticalSelectedUnitId = PlayerContingents[i]->TacticalUnitId;
+					if (TacticalBattleView)
+					{
+						TacticalBattleView->SetSelectedUnit(TacticalSelectedUnitId);
+					}
+					return true;
+				}
+			}
+		}
 	}
 
 	if (bTacticalFinished || !TacticalBattleView)
