@@ -266,7 +266,13 @@ void AWLCampaign3DView::BuildCampaignVisualLayer()
 		RoadClipCircles.Reserve(CityFlatPads.Num());
 		for (const FCityFlatPad& Pad : CityFlatPads)
 		{
-			RoadClipCircles.Add(FVector(Pad.Lon, Pad.Lat, Pad.FlatRadiusDeg * 0.72f));
+			// RAIZ del hueco via-ciudad: este radio se derivaba del TAZON de terreno (FlatRadiusDeg =
+			// 2.3x la media huella, dimensionado para aplanar relieve en pendiente), no del bloque de
+			// edificios. 0.72 x 2.3 = 1.66x la media huella -> TODA via moria lejos del borde y quedaba
+			// un margen verde en cada ciudad (la unica red visible es la recortada: bStrategicRoads=false).
+			// Ciudad: 0.46 x 2.3 ~= 1.06x la media huella -> la via muere PEGADA al bloque.
+			// Fuerte (bIsCity=false): FlatRadius = 1.18x; 0.72 (=0.85x) ya lo dejaba al borde. Se conserva.
+			RoadClipCircles.Add(FVector(Pad.Lon, Pad.Lat, Pad.FlatRadiusDeg * (Pad.bIsCity ? 0.46f : 0.72f)));
 		}
 		FWLCampaignRouteBuilder::SetCityClipCircles(RoadClipCircles);
 	}
