@@ -93,11 +93,20 @@ con variante por terreno donde aplica).
 
 ## 6. Fases de implementación (incrementales y verificables)
 
-**F1 — Núcleo de contingentes y órdenes** *(la base jugable)*
+**F1 — Núcleo de contingentes y órdenes** *(la base jugable, y ya DECENTE a la vista)*
 - Contingentes desde la composición real del ejército (agrupar por tipo).
+- **Formaciones instanciadas** (estructural, no cosmético): un contingente de 50 de
+  infantería son 50 instancias en cuadrícula que se mueven juntas; 4 tanques en cuña.
+  Al perder salud DESAPARECEN individuos (ves la unidad reducirse en vivo). Esto es el
+  70% de que una batalla "parezca batalla" y con instancing es casi gratis.
 - Input: clic selecciona contingente propio; clic derecho en suelo = mover; en enemigo = atacar.
 - Tick: perseguir objetivo, entrar en alcance, intercambio de daño con `soft/hard attack`,
   `armor` y la matriz de contras (terreno "open" fijo en F1).
+- **Feedback mínimo de combate**: trazadoras entre atacante y objetivo, humo en vehículos
+  dañados, y los RESTOS se quedan en el campo (chatarra humeante cuenta la batalla).
+- **UI de batalla**: barra inferior con cartas de contingente reutilizando los renders 3/4
+  de unidades ya generados (mismo estilo del panel de ejército), salud/moral por contingente,
+  anillo de selección y marcadores de orden (mover/atacar).
 - Verificar: test automation — MBT vs infantería en abierto, gana MBT con >70% de salud;
   costes iguales infantería-ATGM vs MBT en urbano (F2) invierte el resultado.
 
@@ -123,11 +132,20 @@ con variante por terreno donde aplica).
   rápidos). El resultado esperado de la batalla manual ≈ probabilidades del auto-resolve
   (mismo modelo de fuerza), para que elegir "auto" no sea trampa ni castigo.
 
-**F6 — Presentación**
-- Contingentes como formaciones instanciadas (N mallas por grupo, no 1 bloque), trazadoras,
-  humo/daño por estado, barra de salud/moral sobre el contingente, cámara RTS pulida,
-  minimapa. Assets (mallas low-poly de unidades) se pueden generar/importar después:
-  el gameplay NO se bloquea por arte.
+**F6 — Presentación (de "decente" a "buena")**
+- **Modelos low-poly reales por el pipeline Blender ya probado**: igual que las ciudades
+  salen de `gen_city.py` (modelos vertex-color coherentes con el mapa), un `gen_units.py`
+  genera tanque/APC/soldado/obús/helo flat-shaded. Sin packs externos ni bloqueos de arte.
+- Fogonazos e impactos (Niagara simple), cámara RTS pulida (zoom baja el pitch, shake leve
+  con artillería), minimapa, y sonido al final (disparos, motores).
+
+### Escalera visual (por impacto, para no aceptar una batalla fea)
+1. Formaciones instanciadas + bajas visibles ......... F1 (70% del efecto, casi gratis)
+2. Trazadoras + humo + restos en el campo ............ F1
+3. Cartas de contingente con los renders ya hechos ... F1
+4. Terreno con contexto (urbano/bosque/fuerte) ....... F2 (es mecánica, no adorno)
+5. Modelos low-poly reales (gen_units.py) ............ F6
+6. VFX/cámara/sonido ................................. F6
 
 ## 7. Integración con campaña (pipe existente)
 
