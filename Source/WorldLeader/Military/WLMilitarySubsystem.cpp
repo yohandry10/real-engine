@@ -163,17 +163,23 @@ void UWLMilitarySubsystem::ReconcileArmyFromTacticalBattle(
 			continue;
 		}
 
-		if (Unit.bDestroyed || Unit.Health <= 0.0)
+		// F1 contingentes: cada unidad tactica agrupa N elementos. Las bajas son los elementos
+		// perdidos; los vivos vuelven a campania como entradas individuales (efectivos o en
+		// recuperacion segun la moral del contingente al cierre).
+		const int32 Initial = FMath::Max(1, Unit.InitialElementCount);
+		const int32 Alive = (Unit.bDestroyed || Unit.Health <= 0.0) ? 0 : FMath::Clamp(Unit.ElementCount, 0, Initial);
+		OutDestroyedLosses += Initial - Alive;
+		if (Alive <= 0)
 		{
-			++OutDestroyedLosses;
+			continue;
 		}
-		else if (Unit.IsCombatEffective(Rules.TacticalRoutMoraleThreshold))
+		if (Unit.IsCombatEffective(Rules.TacticalRoutMoraleThreshold))
 		{
-			EffectiveUnits.Add(Unit.UnitId);
+			for (int32 i = 0; i < Alive; ++i) { EffectiveUnits.Add(Unit.UnitId); }
 		}
 		else
 		{
-			RoutedUnits.Add(Unit.UnitId);
+			for (int32 i = 0; i < Alive; ++i) { RoutedUnits.Add(Unit.UnitId); }
 		}
 	}
 
@@ -333,10 +339,17 @@ FString UWLMilitarySubsystem::FindArmyIdByBase(const FString& BaseId) const
 // Tipos del catalogo de reclutamiento (RecruitableUnits.json) -> unidades con stats (Units.json).
 static FString MapRecruitTypeToUnitId(const FString& RecruitType)
 {
+	// F1 armas combinadas: mapeo 1:1 — cada tipo reclutado conserva su identidad tactica.
+	// Antes mbt/ifv/apc colapsaban en "tank" y heli/aircraft/ship en "drone", lo que destruia
+	// la matriz de contras. Units.json ya define stats para los 8 tipos reclutables.
 	const FString T = RecruitType.TrimStartAndEnd().ToLower();
-	if (T == TEXT("mbt") || T == TEXT("ifv") || T == TEXT("apc"))       return TEXT("tank");
-	if (T == TEXT("artillery"))                                          return TEXT("artillery");
-	if (T == TEXT("heli") || T == TEXT("aircraft") || T == TEXT("ship")) return TEXT("drone");
+	if (T == TEXT("mbt"))       return TEXT("mbt");
+	if (T == TEXT("ifv"))       return TEXT("ifv");
+	if (T == TEXT("apc"))       return TEXT("apc");
+	if (T == TEXT("artillery")) return TEXT("artillery");
+	if (T == TEXT("heli"))      return TEXT("heli");
+	if (T == TEXT("aircraft"))  return TEXT("aircraft");
+	if (T == TEXT("ship"))      return TEXT("ship");
 	return TEXT("infantry");
 }
 

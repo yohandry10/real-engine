@@ -218,7 +218,10 @@ enum class EWLUnitType : uint8
 	Air           UMETA(DisplayName = "Aviacion"),
 	Naval         UMETA(DisplayName = "Naval"),
 	Drone         UMETA(DisplayName = "Drone"),
-	SpecialForces UMETA(DisplayName = "Fuerzas especiales")
+	SpecialForces UMETA(DisplayName = "Fuerzas especiales"),
+	// Anadido AL FINAL para no desplazar valores existentes. APC/IFV: transporte y combate
+	// ligero, contra distinta que el tanque en la matriz tactica (F1 batalla).
+	LightVehicle  UMETA(DisplayName = "Vehiculo ligero")
 };
 
 /** Definicion estatica de un tipo de unidad. Se carga desde Content/Data/Units/Units.json. */
@@ -235,7 +238,23 @@ struct FWLUnitData
 	UPROPERTY(BlueprintReadOnly, Category = "Unit") int32 Strength = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Unit") int64 Cost = 0;
 
+	// --- Batalla tactica F1 (armas combinadas). 0 = derivar de Attack/Defense (unidades legacy). ---
+	/** Dano por elemento contra objetivos blandos (infanteria, artilleria, AA). */
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") int32 SoftAttack = 0;
+	/** Dano por elemento contra blindaje (MBT, IFV, APC). */
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") int32 HardAttack = 0;
+	/** Blindaje: mitiga el dano recibido (mas fuerte contra soft attack). */
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") int32 Armor = 0;
+	/** Alcance de fuego en unidades tacticas. 0 = usar el global de reglas de balance. */
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") double RangeUnits = 0.0;
+	/** Velocidad tactica en unidades/seg. 0 = usar la global de reglas de balance. */
+	UPROPERTY(BlueprintReadOnly, Category = "Unit") double SpeedUnits = 0.0;
+
 	bool IsValid() const { return !Id.IsEmpty(); }
+
+	int32 EffectiveSoftAttack() const { return SoftAttack > 0 ? SoftAttack : Attack; }
+	int32 EffectiveHardAttack() const { return HardAttack > 0 ? HardAttack : FMath::Max(1, Attack / 2); }
+	int32 EffectiveArmor() const { return Armor > 0 ? Armor : Defense / 2; }
 };
 
 /** Un ejercito: stack de unidades de una nacion, situado en una provincia. */

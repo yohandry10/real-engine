@@ -41,6 +41,121 @@ namespace
 		}
 		Unit.Position += ToTarget / Distance * Step;
 	}
+
+	// --- F1: matriz de contras de armas combinadas (terreno abierto). Atacante -> defensor. ---
+	// La "piedra-papel-tijera" moderna: el tanque revienta infanteria en abierto, la infanteria
+	// apenas rasca blindaje, el SAM caza aviacion, la aviacion caza tanques, la artilleria
+	// castiga objetivos blandos. Los matchups clave estan amarrados por tests de automation.
+	double TacticalCounterMultiplier(EWLUnitType Attacker, EWLUnitType Defender)
+	{
+		// Fuerzas especiales combaten como infanteria; el drone legacy como vehiculo ligero fragil.
+		auto Norm = [](EWLUnitType T)
+		{
+			if (T == EWLUnitType::SpecialForces) { return EWLUnitType::Infantry; }
+			if (T == EWLUnitType::Drone)         { return EWLUnitType::LightVehicle; }
+			return T;
+		};
+		const EWLUnitType A = Norm(Attacker);
+		const EWLUnitType D = Norm(Defender);
+
+		switch (A)
+		{
+		case EWLUnitType::Infantry:
+			switch (D)
+			{
+			case EWLUnitType::Infantry:     return 1.0;
+			case EWLUnitType::LightVehicle: return 0.8;
+			case EWLUnitType::Armor:        return 0.3;   // en abierto el fusil no rasca al MBT
+			case EWLUnitType::Artillery:    return 1.6;
+			case EWLUnitType::AirDefense:   return 1.5;
+			case EWLUnitType::Air:          return 0.2;
+			case EWLUnitType::Naval:        return 0.2;
+			default:                        return 1.0;
+			}
+		case EWLUnitType::LightVehicle:
+			switch (D)
+			{
+			case EWLUnitType::Infantry:     return 1.6;
+			case EWLUnitType::LightVehicle: return 1.0;
+			case EWLUnitType::Armor:        return 0.4;
+			case EWLUnitType::Artillery:    return 1.4;
+			case EWLUnitType::AirDefense:   return 1.3;
+			case EWLUnitType::Air:          return 0.3;
+			case EWLUnitType::Naval:        return 0.2;
+			default:                        return 1.0;
+			}
+		case EWLUnitType::Armor:
+			switch (D)
+			{
+			case EWLUnitType::Infantry:     return 1.8;   // "caballeria vs arqueros" moderno
+			case EWLUnitType::LightVehicle: return 1.6;
+			case EWLUnitType::Armor:        return 1.0;
+			case EWLUnitType::Artillery:    return 1.8;
+			case EWLUnitType::AirDefense:   return 1.6;
+			case EWLUnitType::Air:          return 0.2;
+			case EWLUnitType::Naval:        return 0.3;
+			default:                        return 1.0;
+			}
+		case EWLUnitType::Artillery:
+			switch (D)
+			{
+			case EWLUnitType::Infantry:     return 1.8;
+			case EWLUnitType::LightVehicle: return 1.2;
+			case EWLUnitType::Armor:        return 0.8;
+			case EWLUnitType::Artillery:    return 1.0;   // contrabateria
+			case EWLUnitType::AirDefense:   return 1.4;
+			case EWLUnitType::Air:          return 0.1;
+			case EWLUnitType::Naval:        return 0.5;
+			default:                        return 1.0;
+			}
+		case EWLUnitType::AirDefense:
+			switch (D)
+			{
+			case EWLUnitType::Infantry:     return 0.2;
+			case EWLUnitType::LightVehicle: return 0.2;
+			case EWLUnitType::Armor:        return 0.1;
+			case EWLUnitType::Artillery:    return 0.3;
+			case EWLUnitType::AirDefense:   return 1.0;
+			case EWLUnitType::Air:          return 2.2;   // el SAM caza aviacion
+			case EWLUnitType::Naval:        return 0.1;
+			default:                        return 1.0;
+			}
+		case EWLUnitType::Air:
+			switch (D)
+			{
+			case EWLUnitType::Infantry:     return 1.2;
+			case EWLUnitType::LightVehicle: return 1.5;
+			case EWLUnitType::Armor:        return 1.9;   // helo/caza cazan blindados
+			case EWLUnitType::Artillery:    return 1.6;
+			case EWLUnitType::AirDefense:   return 0.35;  // entrar al paraguas SAM cuesta caro
+			case EWLUnitType::Air:          return 1.0;
+			case EWLUnitType::Naval:        return 1.0;
+			default:                        return 1.0;
+			}
+		case EWLUnitType::Naval:
+			switch (D)
+			{
+			case EWLUnitType::Infantry:     return 0.8;
+			case EWLUnitType::LightVehicle: return 0.8;
+			case EWLUnitType::Armor:        return 0.6;
+			case EWLUnitType::Artillery:    return 0.8;
+			case EWLUnitType::AirDefense:   return 0.6;
+			case EWLUnitType::Air:          return 0.4;
+			case EWLUnitType::Naval:        return 1.0;
+			default:                        return 1.0;
+			}
+		default:
+			return 1.0;
+		}
+	}
+
+	// El dano usa el canal correcto: HARD attack contra blindaje, SOFT contra lo demas.
+	bool IsArmoredTarget(EWLUnitType Type)
+	{
+		return Type == EWLUnitType::Armor
+			|| Type == EWLUnitType::LightVehicle
+			|| Type == EWLUnitType::Naval;
+	}
 }
 
 UWLDataRegistry* UWLTacticalBattleSubsystem::GetRegistry() const
@@ -108,25 +223,52 @@ void UWLTacticalBattleSubsystem::AddArmyUnits(
 	}
 
 	const FString OwnerIso = NormalizeTacticalIso(Army.OwnerIso);
+
+	// F1: CONTINGENTES. Las entradas identicas del ejercito (50 x "infantry") se agrupan en UNA
+	// unidad tactica con ElementCount, en orden de primera aparicion (determinista). Es el modelo
+	// Total War: se comandan grupos, no individuos.
+	TArray<TPair<FString, int32>> Contingents;
+	for (const FString& RawUnitId : Army.Units)
+	{
+		const FString UnitId = NormalizeTacticalDataId(RawUnitId);
+		bool bFound = false;
+		for (TPair<FString, int32>& Existing : Contingents)
+		{
+			if (Existing.Key == UnitId)
+			{
+				++Existing.Value;
+				bFound = true;
+				break;
+			}
+		}
+		if (!bFound)
+		{
+			Contingents.Add(TPair<FString, int32>(UnitId, 1));
+		}
+	}
+
 	const int32 StartIndex = Battle.Units.Num();
-	for (int32 Index = 0; Index < Army.Units.Num(); ++Index)
+	int32 ContingentIndex = 0;
+	for (const TPair<FString, int32>& Contingent : Contingents)
 	{
 		FWLUnitData UnitData;
-		const FString UnitId = NormalizeTacticalDataId(Army.Units[Index]);
-		if (!Registry->GetUnit(UnitId, UnitData))
+		if (!Registry->GetUnit(Contingent.Key, UnitData))
 		{
 			continue;
 		}
 
 		FWLTacticalUnitState Unit;
-		Unit.TacticalUnitId = FString::Printf(TEXT("%s-%s-%03d"), *Battle.BattleId, *OwnerIso, StartIndex + Index + 1);
+		Unit.TacticalUnitId = FString::Printf(TEXT("%s-%s-%03d"), *Battle.BattleId, *OwnerIso, StartIndex + ContingentIndex + 1);
 		Unit.SourceArmyId = Army.Id;
 		Unit.OwnerIso = OwnerIso;
 		Unit.UnitId = UnitData.Id;
-		Unit.DisplayName = UnitData.Name;
-		Unit.Position = Origin + FVector2D(0.0, static_cast<double>(Index) * 260.0 * DirectionSign);
+		Unit.DisplayName = FString::Printf(TEXT("%s x%d"), *UnitData.Name, Contingent.Value);
+		Unit.ElementCount = Contingent.Value;
+		Unit.InitialElementCount = Contingent.Value;
+		Unit.Position = Origin + FVector2D(0.0, static_cast<double>(ContingentIndex) * 420.0 * DirectionSign);
 		Unit.MoveTarget = Unit.Position;
 		Battle.Units.Add(MoveTemp(Unit));
+		++ContingentIndex;
 	}
 }
 
@@ -436,18 +578,27 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 		{
 			continue;
 		}
+
+		// Velocidad y alcance POR TIPO de unidad (0 en datos = usar el global de reglas).
+		FWLUnitData AttackerData;
+		const bool bHasAttackerData = Registry->GetUnit(Unit.UnitId, AttackerData);
+		const double UnitSpeed = (bHasAttackerData && AttackerData.SpeedUnits > 0.0)
+			? AttackerData.SpeedUnits : Rules.TacticalMoveSpeedUnitsPerSecond;
+		const double UnitRange = (bHasAttackerData && AttackerData.RangeUnits > 0.0)
+			? AttackerData.RangeUnits : Rules.TacticalAttackRangeUnits;
+
 		if (Unit.Morale <= Rules.TacticalRoutMoraleThreshold)
 		{
 			Unit.Order = EWLTacticalUnitOrder::Routing;
 			Unit.AttackTargetUnitId.Reset();
 			const double RetreatDirection = Unit.OwnerIso == Battle.AttackerIso ? -1.0 : 1.0;
-			MoveUnitToward(Unit, Unit.Position + FVector2D(600.0 * RetreatDirection, 0.0), Rules.TacticalMoveSpeedUnitsPerSecond * 0.5, DeltaSeconds);
+			MoveUnitToward(Unit, Unit.Position + FVector2D(600.0 * RetreatDirection, 0.0), UnitSpeed * 0.5, DeltaSeconds);
 			continue;
 		}
 
 		if (Unit.Order == EWLTacticalUnitOrder::Moving)
 		{
-			MoveUnitToward(Unit, Unit.MoveTarget, Rules.TacticalMoveSpeedUnitsPerSecond, DeltaSeconds);
+			MoveUnitToward(Unit, Unit.MoveTarget, UnitSpeed, DeltaSeconds);
 			if (FVector2D::Distance(Unit.Position, Unit.MoveTarget) <= 1.0)
 			{
 				Unit.Order = EWLTacticalUnitOrder::Idle;
@@ -469,29 +620,52 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 		}
 
 		const double Distance = FVector2D::Distance(Unit.Position, Target->Position);
-		if (Distance > Rules.TacticalAttackRangeUnits)
+		if (Distance > UnitRange)
 		{
-			MoveUnitToward(Unit, Target->Position, Rules.TacticalMoveSpeedUnitsPerSecond, DeltaSeconds);
+			MoveUnitToward(Unit, Target->Position, UnitSpeed, DeltaSeconds);
 			continue;
 		}
 
-		FWLUnitData AttackerData;
 		FWLUnitData DefenderData;
-		if (!Registry->GetUnit(Unit.UnitId, AttackerData) || !Registry->GetUnit(Target->UnitId, DefenderData))
+		if (!bHasAttackerData || !Registry->GetUnit(Target->UnitId, DefenderData))
 		{
 			continue;
 		}
 
-		const double Mitigation = 1.0 / (1.0 + static_cast<double>(DefenderData.Defense) * Rules.TacticalDefenseMitigationPerPoint);
-		const double Damage = static_cast<double>(AttackerData.Attack) * Rules.TacticalDamagePerAttackPerSecond * Mitigation * DeltaSeconds;
+		// --- F1 armas combinadas ---
+		// Canal de dano segun el objetivo (HARD vs blindaje, SOFT vs blandos), escalado por los
+		// elementos VIVOS del contingente atacante, multiplicado por la matriz de contras y
+		// mitigado por el blindaje del defensor. El dano se normaliza contra el pool del
+		// contingente defensor (HP por elemento x elementos iniciales) para que 50 fusileros
+		// no tengan la misma vida que 4 tanques.
+		const double BaseAttack = IsArmoredTarget(DefenderData.Type)
+			? static_cast<double>(AttackerData.EffectiveHardAttack())
+			: static_cast<double>(AttackerData.EffectiveSoftAttack());
+		const double Counter = TacticalCounterMultiplier(AttackerData.Type, DefenderData.Type);
+		const double Mitigation = 1.0 / (1.0 + static_cast<double>(DefenderData.EffectiveArmor()) * Rules.TacticalDefenseMitigationPerPoint);
+		const double DamagePerSecond = BaseAttack
+			* static_cast<double>(FMath::Max(1, Unit.ElementCount))
+			* Counter
+			* Rules.TacticalDamagePerAttackPerSecond
+			* Mitigation;
+		const double DefenderPool = FMath::Max(1.0,
+			static_cast<double>(FMath::Max(1, DefenderData.Strength)) * static_cast<double>(FMath::Max(1, Target->InitialElementCount)));
+		const double HealthLossPercent = DamagePerSecond * DeltaSeconds / DefenderPool * 100.0;
+
 		const double PreviousHealth = Target->Health;
-		Target->Health = FMath::Max(0.0, Target->Health - Damage);
+		Target->Health = FMath::Max(0.0, Target->Health - HealthLossPercent);
 		const double HealthLost = PreviousHealth - Target->Health;
 		Target->Morale = FMath::Max(0.0, Target->Morale - HealthLost * Rules.TacticalMoraleDamagePerHealth);
+
+		// Las bajas se VEN: los elementos vivos siguen al % de salud del contingente.
+		Target->ElementCount = Target->Health <= 0.0
+			? 0
+			: FMath::Clamp(FMath::CeilToInt(static_cast<double>(Target->InitialElementCount) * Target->Health / 100.0), 1, Target->InitialElementCount);
 
 		if (Target->Health <= 0.0 && !Target->bDestroyed)
 		{
 			Target->bDestroyed = true;
+			Target->ElementCount = 0;
 			Target->Order = EWLTacticalUnitOrder::Idle;
 			OutEvents.Add(FString::Printf(TEXT("%s destruida por %s."), *Target->TacticalUnitId, *Unit.TacticalUnitId));
 		}

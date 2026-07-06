@@ -61,6 +61,15 @@ struct FWLTacticalUnitState
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
 	double Morale = 100.0;
 
+	// F1 armas combinadas: una unidad tactica es un CONTINGENTE (grupo de N elementos del mismo
+	// tipo: "50 de infanteria", "4 tanques"). Health es el % agregado del contingente; los
+	// elementos vivos se derivan de el (las bajas se VEN: la formacion se reduce).
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	int32 ElementCount = 1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	int32 InitialElementCount = 1;
+
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
 	bool bDestroyed = false;
 

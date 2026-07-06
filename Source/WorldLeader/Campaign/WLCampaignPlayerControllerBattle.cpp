@@ -316,12 +316,13 @@ void AWLCampaignPlayerController::ExitTacticalBattle(bool bApplyResult)
 
 int32 AWLCampaignPlayerController::GetTacticalPlayerUnitCount() const
 {
+	// F1 contingentes: se cuentan EFECTIVOS (elementos vivos), no contingentes.
 	int32 Count = 0;
 	for (const FWLTacticalUnitState& U : TacticalBattleCache.Units)
 	{
 		if (!U.bDestroyed && U.Health > 0.0 && U.OwnerIso.Equals(TacticalPlayerIso, ESearchCase::IgnoreCase))
 		{
-			++Count;
+			Count += FMath::Max(1, U.ElementCount);
 		}
 	}
 	return Count;
@@ -334,7 +335,7 @@ int32 AWLCampaignPlayerController::GetTacticalEnemyUnitCount() const
 	{
 		if (!U.bDestroyed && U.Health > 0.0 && !U.OwnerIso.Equals(TacticalPlayerIso, ESearchCase::IgnoreCase))
 		{
-			++Count;
+			Count += FMath::Max(1, U.ElementCount);
 		}
 	}
 	return Count;
@@ -389,8 +390,8 @@ FString AWLCampaignPlayerController::GetTacticalSelectedUnitInfo() const
 	{
 		if (U.TacticalUnitId == TacticalSelectedUnitId)
 		{
-			return FString::Printf(TEXT("Seleccion: %s   ·   Salud %.0f   ·   Moral %.0f   ·   %s"),
-				*U.DisplayName, U.Health, U.Morale,
+			return FString::Printf(TEXT("Seleccion: %s   ·   Efectivos %d/%d   ·   Salud %.0f   ·   Moral %.0f   ·   %s"),
+				*U.DisplayName, U.ElementCount, U.InitialElementCount, U.Health, U.Morale,
 				U.Order == EWLTacticalUnitOrder::Attacking ? TEXT("atacando")
 				: (U.Order == EWLTacticalUnitOrder::Moving ? TEXT("moviendose")
 				: (U.Order == EWLTacticalUnitOrder::Routing ? TEXT("en desbandada") : TEXT("en espera"))));

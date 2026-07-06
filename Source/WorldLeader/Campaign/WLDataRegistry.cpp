@@ -84,6 +84,7 @@ EWLUnitType UWLDataRegistry::UnitTypeFromString(const FString& In)
 {
 	const FString S = In.ToLower();
 	if (S == TEXT("armor") || S == TEXT("tank"))            return EWLUnitType::Armor;
+	if (S == TEXT("light_vehicle") || S == TEXT("apc") || S == TEXT("ifv")) return EWLUnitType::LightVehicle;
 	if (S == TEXT("artillery"))                              return EWLUnitType::Artillery;
 	if (S == TEXT("airdefense") || S == TEXT("sam"))         return EWLUnitType::AirDefense;
 	if (S == TEXT("air"))                                    return EWLUnitType::Air;
@@ -352,6 +353,14 @@ bool UWLDataRegistry::LoadUnitsFromFile(const FString& FilePath)
 		if (Obj->TryGetNumberField(TEXT("attack"), Tmp))   U.Attack = Tmp;
 		if (Obj->TryGetNumberField(TEXT("defense"), Tmp))  U.Defense = Tmp;
 		if (Obj->TryGetNumberField(TEXT("strength"), Tmp)) U.Strength = Tmp;
+
+		// Batalla tactica F1: stats de armas combinadas (opcionales; 0 = derivar de attack/defense).
+		if (Obj->TryGetNumberField(TEXT("soft_attack"), Tmp)) U.SoftAttack = FMath::Max(0, Tmp);
+		if (Obj->TryGetNumberField(TEXT("hard_attack"), Tmp)) U.HardAttack = FMath::Max(0, Tmp);
+		if (Obj->TryGetNumberField(TEXT("armor"), Tmp))       U.Armor = FMath::Max(0, Tmp);
+		double TacticalTmp = 0.0;
+		if (Obj->TryGetNumberField(TEXT("range_units"), TacticalTmp)) U.RangeUnits = FMath::Max(0.0, TacticalTmp);
+		if (Obj->TryGetNumberField(TEXT("speed_units"), TacticalTmp)) U.SpeedUnits = FMath::Max(0.0, TacticalTmp);
 
 		double Cost = 0.0;
 		if (Obj->TryGetNumberField(TEXT("cost"), Cost)) U.Cost = static_cast<int64>(Cost);

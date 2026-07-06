@@ -52,11 +52,13 @@ bool FWLTacticalBattleBackendTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Iniciar batalla tactica"),
 		Tactical->StartTacticalBattleFromArmies(Attacker, Defender, TEXT("CO-CES"), Battle, Message));
 	TestTrue(TEXT("Batalla activa"), Battle.bActive);
-	TestEqual(TEXT("Unidades tacticas creadas"), Battle.Units.Num(), 4);
+	// F1 contingentes: 3x tank se agrupan en UN contingente (3 elementos) + 1 de infanteria.
+	TestEqual(TEXT("Contingentes tacticos creados"), Battle.Units.Num(), 2);
 	TestEqual(TEXT("Objetivo creado"), Battle.Objectives.Num(), 1);
 
 	FString DefenderUnitId;
 	TArray<FString> AttackerUnitIds;
+	int32 AttackerElements = 0;
 	for (const FWLTacticalUnitState& Unit : Battle.Units)
 	{
 		if (Unit.OwnerIso == TEXT("CO"))
@@ -66,10 +68,12 @@ bool FWLTacticalBattleBackendTest::RunTest(const FString& Parameters)
 		else if (Unit.OwnerIso == TEXT("VE"))
 		{
 			AttackerUnitIds.Add(Unit.TacticalUnitId);
+			AttackerElements += Unit.ElementCount;
 		}
 	}
 	TestFalse(TEXT("Defensor tactico encontrado"), DefenderUnitId.IsEmpty());
-	TestEqual(TEXT("Tres atacantes tacticos"), AttackerUnitIds.Num(), 3);
+	TestEqual(TEXT("Un contingente atacante"), AttackerUnitIds.Num(), 1);
+	TestEqual(TEXT("Tres elementos atacantes"), AttackerElements, 3);
 
 	for (const FString& AttackerUnitId : AttackerUnitIds)
 	{
@@ -77,14 +81,20 @@ bool FWLTacticalBattleBackendTest::RunTest(const FString& Parameters)
 			Tactical->IssueAttackOrder(Battle.BattleId, AttackerUnitId, DefenderUnitId, Message));
 	}
 
+	// Ticks pequenos (como el juego real): el tanque cierra distancia a su alcance y dispara.
 	TArray<FString> Events;
-	TestTrue(TEXT("Avanzar batalla tactica"),
-		Tactical->AdvanceTacticalBattle(Battle.BattleId, 30.0, Battle, Events));
+	TArray<FString> AllEvents;
+	for (int32 Step = 0; Step < 120 && Battle.bActive; ++Step)
+	{
+		TestTrue(TEXT("Avanzar batalla tactica"),
+			Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events));
+		AllEvents.Append(Events);
+	}
 	TestEqual(TEXT("Victoria tactica atacante"),
 		static_cast<int32>(Battle.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
 	TestEqual(TEXT("Ganador VE"), Battle.WinnerIso, FString(TEXT("VE")));
 	TestFalse(TEXT("Batalla cerrada"), Battle.bActive);
-	TestTrue(TEXT("Eventos de batalla generados"), Events.Num() > 0);
+	TestTrue(TEXT("Eventos de batalla generados"), AllEvents.Num() > 0);
 
 	GameInstance->Shutdown();
 	return true;
@@ -135,6 +145,7 @@ bool FWLTacticalBattleCampaignResultTest::RunTest(const FString& Parameters)
 
 	FString DefenderTacticalUnitId;
 	TArray<FString> AttackerTacticalUnitIds;
+	int32 AttackerElements = 0;
 	for (const FWLTacticalUnitState& Unit : Battle.Units)
 	{
 		if (Unit.SourceArmyId == DefenderArmyId)
@@ -144,10 +155,12 @@ bool FWLTacticalBattleCampaignResultTest::RunTest(const FString& Parameters)
 		else if (Unit.SourceArmyId == AttackerArmyId)
 		{
 			AttackerTacticalUnitIds.Add(Unit.TacticalUnitId);
+			AttackerElements += Unit.ElementCount;
 		}
 	}
 	TestFalse(TEXT("Unidad defensora tactica encontrada"), DefenderTacticalUnitId.IsEmpty());
-	TestEqual(TEXT("Tres unidades atacantes enlazadas"), AttackerTacticalUnitIds.Num(), 3);
+	TestEqual(TEXT("Un contingente atacante enlazado"), AttackerTacticalUnitIds.Num(), 1);
+	TestEqual(TEXT("Tres elementos atacantes enlazados"), AttackerElements, 3);
 
 	for (const FString& TacticalUnitId : AttackerTacticalUnitIds)
 	{
@@ -156,8 +169,11 @@ bool FWLTacticalBattleCampaignResultTest::RunTest(const FString& Parameters)
 	}
 
 	TArray<FString> Events;
-	TestTrue(TEXT("Resolver tactica oficial"),
-		Tactical->AdvanceTacticalBattle(Battle.BattleId, 30.0, Battle, Events));
+	for (int32 Step = 0; Step < 120 && Battle.bActive; ++Step)
+	{
+		TestTrue(TEXT("Resolver tactica oficial"),
+			Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events));
+	}
 	TestEqual(TEXT("Resultado tactico atacante"),
 		static_cast<int32>(Battle.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
 
@@ -227,8 +243,11 @@ bool FWLTacticalBattleAITest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("VE marcado como controlado por IA"), Battle.IsOwnerAIControlled(TEXT("VE")));
 
 	Events.Reset();
-	TestTrue(TEXT("IA resuelve combate"),
-		Tactical->AdvanceTacticalBattle(Battle.BattleId, 30.0, Battle, Events));
+	for (int32 Step = 0; Step < 120 && Battle.bActive; ++Step)
+	{
+		TestTrue(TEXT("IA resuelve combate"),
+			Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events));
+	}
 	TestEqual(TEXT("Victoria atacante por IA"),
 		static_cast<int32>(Battle.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
 	TestEqual(TEXT("Ganador IA VE"), Battle.WinnerIso, FString(TEXT("VE")));
@@ -302,6 +321,91 @@ bool FWLTacticalBattleMoveOrderTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("La unidad se acerco al objetivo"),
 		FVector2D::Distance(MovedUnit.Position, FVector2D::ZeroVector) < FVector2D::Distance(Start, FVector2D::ZeroVector));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+// F1 armas combinadas — CONTRATO de la matriz de contras (Docs/TACTICAL_BATTLE_GAMEPLAY.md):
+// en campo abierto, 4 tanques MBT contra 50 de infanteria es una masacre (el equivalente
+// moderno de caballeria vs arqueros): el tanque gana conservando >=70% de salud.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTacticalCounterMatrixOpenFieldTest,
+	"WorldLeader.Battle.TacticalCounterMatrixOpenField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTacticalCounterMatrixOpenFieldTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLTacticalBattleSubsystem* Tactical = GameInstance->GetSubsystem<UWLTacticalBattleSubsystem>();
+	TestNotNull(TEXT("Tactical battle subsystem"), Tactical);
+	if (!Tactical)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLArmy TankSide;
+	TankSide.Id = TEXT("A-MBT");
+	TankSide.OwnerIso = TEXT("VE");
+	TankSide.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 4; ++i) { TankSide.Units.Add(TEXT("mbt")); }
+
+	FWLArmy InfantrySide;
+	InfantrySide.Id = TEXT("A-INF");
+	InfantrySide.OwnerIso = TEXT("CO");
+	InfantrySide.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 50; ++i) { InfantrySide.Units.Add(TEXT("infantry")); }
+
+	FWLTacticalBattleState Battle;
+	FString Message;
+	TestTrue(TEXT("Iniciar matchup MBT vs infanteria"),
+		Tactical->StartTacticalBattleFromArmies(TankSide, InfantrySide, TEXT("CO-CES"), Battle, Message));
+	TestEqual(TEXT("Dos contingentes"), Battle.Units.Num(), 2);
+
+	FString TankUnitId, InfantryUnitId;
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		if (Unit.UnitId == TEXT("mbt"))      { TankUnitId = Unit.TacticalUnitId; }
+		if (Unit.UnitId == TEXT("infantry")) { InfantryUnitId = Unit.TacticalUnitId; }
+	}
+	TestFalse(TEXT("Contingente MBT creado"), TankUnitId.IsEmpty());
+	TestFalse(TEXT("Contingente infanteria creado"), InfantryUnitId.IsEmpty());
+
+	// Ambos con orden de atacar al otro: duelo frontal en campo abierto.
+	TestTrue(TEXT("Orden MBT->infanteria"),
+		Tactical->IssueAttackOrder(Battle.BattleId, TankUnitId, InfantryUnitId, Message));
+	TestTrue(TEXT("Orden infanteria->MBT"),
+		Tactical->IssueAttackOrder(Battle.BattleId, InfantryUnitId, TankUnitId, Message));
+
+	TArray<FString> Events;
+	for (int32 Step = 0; Step < 300 && Battle.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events);
+	}
+
+	TestEqual(TEXT("El bando MBT gana en abierto"),
+		static_cast<int32>(Battle.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
+
+	double TankHealth = 0.0;
+	int32 TankElements = 0;
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		if (Unit.UnitId == TEXT("mbt"))
+		{
+			TankHealth = Unit.Health;
+			TankElements = Unit.ElementCount;
+		}
+	}
+	TestTrue(TEXT("MBT conserva >=70% de salud (masacre, no intercambio)"), TankHealth >= 70.0);
+	TestEqual(TEXT("MBT no pierde elementos"), TankElements, 4);
 
 	GameInstance->Shutdown();
 	return true;
