@@ -110,11 +110,19 @@ con variante por terreno donde aplica).
 - Verificar: test automation — MBT vs infantería en abierto, gana MBT con >70% de salud;
   costes iguales infantería-ATGM vs MBT en urbano (F2) invierte el resultado.
 
-**F2 — Terreno y posicionamiento**
-- Parches de terreno en el campo (urbano alrededor de la ciudad si la batalla es por una
-  ciudad, bosque/colinas procedurales; el fuerte defiende con bono).
-- Modificadores de la matriz por terreno; bono defensivo por mantener posición.
-- Verificar: la MISMA batalla cambia de ganador según el terreno dominante.
+**F2 — Terreno y posicionamiento** ✅ IMPLEMENTADA
+- Parches circulares de terreno (`FWLTacticalTerrainPatch`: urbano/bosque) en el estado de
+  batalla. Las batallas de campaña generan zona urbana sobre la línea defensora (el defensor
+  defiende el asentamiento) y un bosque a mitad de campo; `AddTacticalTerrainPatch` permite
+  escenarios a medida.
+- Reglas: la EMBOSCADA nace de la cobertura del que dispara (infantería en urbano vs blindado
+  1.4, vs vehículo ligero 1.6; bosque 1.1/1.2); la PROTECCIÓN, de la cobertura del que recibe
+  (blindado vs infantería urbana 0.7; aviación ×0.6 y artillería ×0.75 contra urbano). Contra
+  un objetivo en cobertura el fuego DIRECTO se recorta al borde del parche (urbano 380,
+  bosque 500) — el tanque tiene que ENTRAR a la ciudad; artillería/naval tiran por elevación.
+  Mantener posición (Idle) da bono defensivo ×0.85.
+- Verificado: test `WorldLeader.Battle.TacticalTerrainUrbanFlip` — el MISMO matchup 4 MBT vs
+  50 infantería que en abierto gana el tanque, en ciudad lo gana la infantería defensora.
 
 **F3 — Capa indirecta y aérea**
 - Artillería: fuego indirecto con retardo y área (mata estáticos, falla contra móviles).

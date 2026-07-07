@@ -824,7 +824,17 @@ bool UWLMilitarySubsystem::StartTacticalBattle(
 	{
 		if (UWLTacticalBattleSubsystem* Tactical = GI->GetSubsystem<UWLTacticalBattleSubsystem>())
 		{
-			return Tactical->StartTacticalBattleFromArmies(*Attacker, *Defender, Defender->ProvinceId, OutBattle, OutMessage);
+			if (!Tactical->StartTacticalBattleFromArmies(*Attacker, *Defender, Defender->ProvinceId, OutBattle, OutMessage))
+			{
+				return false;
+			}
+			// F2: el campo de campana no es una llanura. El defensor defiende el asentamiento
+			// (zona urbana sobre su linea) y hay un bosque a mitad de campo para maniobrar.
+			FString TerrainMessage;
+			Tactical->AddTacticalTerrainPatch(OutBattle.BattleId, EWLTacticalTerrain::Urban, FVector2D(500.0, 50.0), 620.0, TerrainMessage);
+			Tactical->AddTacticalTerrainPatch(OutBattle.BattleId, EWLTacticalTerrain::Forest, FVector2D(-40.0, -420.0), 400.0, TerrainMessage);
+			Tactical->GetTacticalBattleState(OutBattle.BattleId, OutBattle);
+			return true;
 		}
 	}
 

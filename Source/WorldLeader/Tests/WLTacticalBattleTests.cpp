@@ -411,4 +411,95 @@ bool FWLTacticalCounterMatrixOpenFieldTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// F2 terreno — CONTRATO del flip urbano (Docs/TACTICAL_BATTLE_GAMEPLAY.md): el MISMO matchup
+// que en abierto es masacre del tanque (4 MBT vs 50 de infanteria) se INVIERTE si la
+// infanteria defiende una ciudad: el tanque debe entrar a la zona urbana (alcance de
+// cobertura) y ahi los equipos ATGM entre edificios lo revientan.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTacticalTerrainUrbanFlipTest,
+	"WorldLeader.Battle.TacticalTerrainUrbanFlip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTacticalTerrainUrbanFlipTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLTacticalBattleSubsystem* Tactical = GameInstance->GetSubsystem<UWLTacticalBattleSubsystem>();
+	TestNotNull(TEXT("Tactical battle subsystem"), Tactical);
+	if (!Tactical)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLArmy TankSide;
+	TankSide.Id = TEXT("A-MBT");
+	TankSide.OwnerIso = TEXT("VE");
+	TankSide.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 4; ++i) { TankSide.Units.Add(TEXT("mbt")); }
+
+	FWLArmy InfantrySide;
+	InfantrySide.Id = TEXT("A-INF");
+	InfantrySide.OwnerIso = TEXT("CO");
+	InfantrySide.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 50; ++i) { InfantrySide.Units.Add(TEXT("infantry")); }
+
+	FWLTacticalBattleState Battle;
+	FString Message;
+	TestTrue(TEXT("Iniciar matchup MBT vs infanteria urbana"),
+		Tactical->StartTacticalBattleFromArmies(TankSide, InfantrySide, TEXT("CO-CES"), Battle, Message));
+
+	FString TankUnitId, InfantryUnitId;
+	FVector2D InfantryPosition = FVector2D::ZeroVector;
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		if (Unit.UnitId == TEXT("mbt"))      { TankUnitId = Unit.TacticalUnitId; }
+		if (Unit.UnitId == TEXT("infantry")) { InfantryUnitId = Unit.TacticalUnitId; InfantryPosition = Unit.Position; }
+	}
+	TestFalse(TEXT("Contingente MBT creado"), TankUnitId.IsEmpty());
+	TestFalse(TEXT("Contingente infanteria creado"), InfantryUnitId.IsEmpty());
+
+	// La ciudad defendida: parche urbano centrado en la infanteria.
+	TestTrue(TEXT("Parche urbano creado"),
+		Tactical->AddTacticalTerrainPatch(Battle.BattleId, EWLTacticalTerrain::Urban, InfantryPosition, 520.0, Message));
+	TestTrue(TEXT("Leer estado con parche"), Tactical->GetTacticalBattleState(Battle.BattleId, Battle));
+	TestEqual(TEXT("Terreno urbano en la posicion defensora"),
+		static_cast<int32>(UWLTacticalBattleSubsystem::TerrainAtPosition(Battle, InfantryPosition)),
+		static_cast<int32>(EWLTacticalTerrain::Urban));
+
+	// Mismo duelo frontal que el test de campo abierto.
+	TestTrue(TEXT("Orden MBT->infanteria"),
+		Tactical->IssueAttackOrder(Battle.BattleId, TankUnitId, InfantryUnitId, Message));
+	TestTrue(TEXT("Orden infanteria->MBT"),
+		Tactical->IssueAttackOrder(Battle.BattleId, InfantryUnitId, TankUnitId, Message));
+
+	TArray<FString> Events;
+	for (int32 Step = 0; Step < 400 && Battle.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events);
+	}
+
+	TestEqual(TEXT("En ciudad gana la infanteria defensora"),
+		static_cast<int32>(Battle.Result), static_cast<int32>(EWLTacticalBattleResult::DefenderVictory));
+
+	int32 InfantryElements = 0;
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		if (Unit.UnitId == TEXT("infantry"))
+		{
+			InfantryElements = Unit.ElementCount;
+		}
+	}
+	TestTrue(TEXT("La infanteria urbana conserva efectivos"), InfantryElements >= 10);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

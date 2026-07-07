@@ -416,11 +416,15 @@ FString AWLCampaignPlayerController::GetTacticalSelectedUnitInfo() const
 	{
 		if (U.TacticalUnitId == TacticalSelectedUnitId)
 		{
-			return FString::Printf(TEXT("Seleccion: %s   ·   Efectivos %d/%d   ·   Salud %.0f   ·   Moral %.0f   ·   %s"),
+			// F2: el terreno pisado cambia la matriz de contras — el jugador debe verlo.
+			const EWLTacticalTerrain Terrain = UWLTacticalBattleSubsystem::TerrainAtPosition(TacticalBattleCache, U.Position);
+			return FString::Printf(TEXT("Seleccion: %s   ·   Efectivos %d/%d   ·   Salud %.0f   ·   Moral %.0f   ·   %s   ·   %s"),
 				*U.DisplayName, U.ElementCount, U.InitialElementCount, U.Health, U.Morale,
 				U.Order == EWLTacticalUnitOrder::Attacking ? TEXT("atacando")
 				: (U.Order == EWLTacticalUnitOrder::Moving ? TEXT("moviendose")
-				: (U.Order == EWLTacticalUnitOrder::Routing ? TEXT("en desbandada") : TEXT("en espera"))));
+				: (U.Order == EWLTacticalUnitOrder::Routing ? TEXT("en desbandada") : TEXT("en espera"))),
+				Terrain == EWLTacticalTerrain::Urban ? TEXT("terreno URBANO")
+				: (Terrain == EWLTacticalTerrain::Forest ? TEXT("terreno BOSQUE") : TEXT("campo abierto")));
 		}
 	}
 	return FString();

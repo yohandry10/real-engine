@@ -42,21 +42,22 @@ namespace
 		Unit.Position += ToTarget / Distance * Step;
 	}
 
+	// Fuerzas especiales combaten como infanteria; el drone legacy como vehiculo ligero fragil.
+	EWLUnitType NormalizeCombatType(EWLUnitType T)
+	{
+		if (T == EWLUnitType::SpecialForces) { return EWLUnitType::Infantry; }
+		if (T == EWLUnitType::Drone)         { return EWLUnitType::LightVehicle; }
+		return T;
+	}
+
 	// --- F1: matriz de contras de armas combinadas (terreno abierto). Atacante -> defensor. ---
 	// La "piedra-papel-tijera" moderna: el tanque revienta infanteria en abierto, la infanteria
 	// apenas rasca blindaje, el SAM caza aviacion, la aviacion caza tanques, la artilleria
 	// castiga objetivos blandos. Los matchups clave estan amarrados por tests de automation.
-	double TacticalCounterMultiplier(EWLUnitType Attacker, EWLUnitType Defender)
+	double OpenFieldCounterMultiplier(EWLUnitType Attacker, EWLUnitType Defender)
 	{
-		// Fuerzas especiales combaten como infanteria; el drone legacy como vehiculo ligero fragil.
-		auto Norm = [](EWLUnitType T)
-		{
-			if (T == EWLUnitType::SpecialForces) { return EWLUnitType::Infantry; }
-			if (T == EWLUnitType::Drone)         { return EWLUnitType::LightVehicle; }
-			return T;
-		};
-		const EWLUnitType A = Norm(Attacker);
-		const EWLUnitType D = Norm(Defender);
+		const EWLUnitType A = NormalizeCombatType(Attacker);
+		const EWLUnitType D = NormalizeCombatType(Defender);
 
 		switch (A)
 		{
@@ -149,12 +150,73 @@ namespace
 		}
 	}
 
+	// --- F2: el terreno del combate modifica la matriz ---
+	// La EMBOSCADA nace de la cobertura del que dispara (infanteria con ATGM entre edificios
+	// revienta blindados); la PROTECCION, de la cobertura del que recibe (no se desaloja
+	// infanteria urbana a canonazos, y la aviacion/artilleria pierden ojos sobre cobertura).
+	double TacticalCounterMultiplier(
+		EWLUnitType Attacker,
+		EWLUnitType Defender,
+		EWLTacticalTerrain TerrainAtAttacker,
+		EWLTacticalTerrain TerrainAtTarget)
+	{
+		const EWLUnitType A = NormalizeCombatType(Attacker);
+		const EWLUnitType D = NormalizeCombatType(Defender);
+		double Value = OpenFieldCounterMultiplier(A, D);
+
+		if (TerrainAtTarget != EWLTacticalTerrain::Open)
+		{
+			const bool bUrban = TerrainAtTarget == EWLTacticalTerrain::Urban;
+			if (A == EWLUnitType::Armor && D == EWLUnitType::Infantry)             { Value = bUrban ? 0.7 : 0.9; }
+			else if (A == EWLUnitType::LightVehicle && D == EWLUnitType::Infantry) { Value = bUrban ? 0.8 : 1.1; }
+			else if (A == EWLUnitType::Air)                                        { Value *= bUrban ? 0.6 : 0.7; }
+			else if (A == EWLUnitType::Artillery)                                  { Value *= bUrban ? 0.75 : 0.85; }
+		}
+		if (TerrainAtAttacker != EWLTacticalTerrain::Open && A == EWLUnitType::Infantry)
+		{
+			const bool bUrban = TerrainAtAttacker == EWLTacticalTerrain::Urban;
+			if (D == EWLUnitType::Armor)             { Value = FMath::Max(Value, bUrban ? 1.4 : 1.1); }
+			else if (D == EWLUnitType::LightVehicle) { Value = FMath::Max(Value, bUrban ? 1.6 : 1.2); }
+		}
+		return Value;
+	}
+
+	// F2: contra un objetivo en cobertura el fuego directo ocurre en el borde del parche, no
+	// desde 900 unidades (el tanque tiene que METERSE a la ciudad, y ahi lo emboscan).
+	bool UsesIndirectFire(EWLUnitType Type)
+	{
+		const EWLUnitType T = NormalizeCombatType(Type);
+		return T == EWLUnitType::Artillery || T == EWLUnitType::Naval;
+	}
+
 	// El dano usa el canal correcto: HARD attack contra blindaje, SOFT contra lo demas.
 	bool IsArmoredTarget(EWLUnitType Type)
 	{
 		return Type == EWLUnitType::Armor
 			|| Type == EWLUnitType::LightVehicle
 			|| Type == EWLUnitType::Naval;
+	}
+}
+
+EWLTacticalTerrain UWLTacticalBattleSubsystem::TerrainAtPosition(const FWLTacticalBattleState& Battle, const FVector2D& Position)
+{
+	for (const FWLTacticalTerrainPatch& Patch : Battle.TerrainPatches)
+	{
+		if (FVector2D::Distance(Position, Patch.Position) <= Patch.Radius)
+		{
+			return Patch.Terrain;
+		}
+	}
+	return EWLTacticalTerrain::Open;
+}
+
+double UWLTacticalBattleSubsystem::GetCoverEngageRange(EWLTacticalTerrain TerrainAtTarget)
+{
+	switch (TerrainAtTarget)
+	{
+	case EWLTacticalTerrain::Urban:  return 380.0;
+	case EWLTacticalTerrain::Forest: return 500.0;
+	default:                         return TNumericLimits<double>::Max();
 	}
 }
 
@@ -415,6 +477,31 @@ bool UWLTacticalBattleSubsystem::SetTacticalAIControl(
 	return true;
 }
 
+bool UWLTacticalBattleSubsystem::AddTacticalTerrainPatch(
+	const FString& BattleId,
+	EWLTacticalTerrain Terrain,
+	FVector2D Position,
+	double Radius,
+	FString& OutMessage)
+{
+	FWLTacticalBattleState* Battle = FindBattle(BattleId);
+	if (!Battle)
+	{
+		OutMessage = FString::Printf(TEXT("Batalla tactica desconocida: %s"), *BattleId);
+		return false;
+	}
+
+	FWLTacticalTerrainPatch Patch;
+	Patch.PatchId = FString::Printf(TEXT("%s-TER-%d"), *Battle->BattleId, Battle->TerrainPatches.Num() + 1);
+	Patch.Terrain = Terrain;
+	Patch.Position = Position;
+	Patch.Radius = FMath::Max(50.0, Radius);
+	Battle->TerrainPatches.Add(Patch);
+	OutMessage = FString::Printf(TEXT("Parche de terreno %s creado en %.0f, %.0f."),
+		*Patch.PatchId, Position.X, Position.Y);
+	return true;
+}
+
 bool UWLTacticalBattleSubsystem::AdvanceTacticalBattle(
 	const FString& BattleId,
 	double DeltaSeconds,
@@ -619,8 +706,15 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 			continue;
 		}
 
+		// F2: contra cobertura no hay francotirador de tanques: el fuego directo obliga a
+		// acercarse al borde del parche. Artilleria/naval tiran por elevacion y no se acercan.
+		const EWLTacticalTerrain TerrainAtTarget = TerrainAtPosition(Battle, Target->Position);
+		const double EngageRange = (bHasAttackerData && UsesIndirectFire(AttackerData.Type))
+			? UnitRange
+			: FMath::Min(UnitRange, GetCoverEngageRange(TerrainAtTarget));
+
 		const double Distance = FVector2D::Distance(Unit.Position, Target->Position);
-		if (Distance > UnitRange)
+		if (Distance > EngageRange)
 		{
 			MoveUnitToward(Unit, Target->Position, UnitSpeed, DeltaSeconds);
 			continue;
@@ -641,13 +735,17 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 		const double BaseAttack = IsArmoredTarget(DefenderData.Type)
 			? static_cast<double>(AttackerData.EffectiveHardAttack())
 			: static_cast<double>(AttackerData.EffectiveSoftAttack());
-		const double Counter = TacticalCounterMultiplier(AttackerData.Type, DefenderData.Type);
+		const EWLTacticalTerrain TerrainAtAttacker = TerrainAtPosition(Battle, Unit.Position);
+		const double Counter = TacticalCounterMultiplier(AttackerData.Type, DefenderData.Type, TerrainAtAttacker, TerrainAtTarget);
 		const double Mitigation = 1.0 / (1.0 + static_cast<double>(DefenderData.EffectiveArmor()) * Rules.TacticalDefenseMitigationPerPoint);
+		// F2: mantener posicion atrinchera — la unidad quieta recibe menos dano.
+		const double HoldBonus = Target->Order == EWLTacticalUnitOrder::Idle ? 0.85 : 1.0;
 		const double DamagePerSecond = BaseAttack
 			* static_cast<double>(FMath::Max(1, Unit.ElementCount))
 			* Counter
 			* Rules.TacticalDamagePerAttackPerSecond
-			* Mitigation;
+			* Mitigation
+			* HoldBonus;
 		const double DefenderPool = FMath::Max(1.0,
 			static_cast<double>(FMath::Max(1, DefenderData.Strength)) * static_cast<double>(FMath::Max(1, Target->InitialElementCount)));
 		const double HealthLossPercent = DamagePerSecond * DeltaSeconds / DefenderPool * 100.0;

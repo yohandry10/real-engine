@@ -68,6 +68,8 @@ private:
 	/** Offsets locales de la formacion (rejilla ancha centrada, primera fila al frente). */
 	static void BuildFormationOffsets(int32 Count, float Spacing, TArray<FVector2D>& OutOffsets);
 	void RebuildContingentInstances(UInstancedStaticMeshComponent* Mesh, const FWLTacticalUnitState& Unit);
+	/** F2: dibuja los parches de terreno (disco + edificios/arboles estilizados, dispersion determinista). */
+	void BuildTerrainPatches(const FWLTacticalBattleState& Battle);
 	void SpawnWrecks(const FWLTacticalUnitState& Unit, const FVector& Center);
 	void UpdateTracer(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit);
 
@@ -88,6 +90,7 @@ private:
 	UPROPERTY() UStaticMeshComponent* SelectionRing = nullptr;
 	UPROPERTY() TMap<FString, UStaticMeshComponent*> TracerComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> WreckComponents;
+	UPROPERTY() TArray<UStaticMeshComponent*> TerrainComponents;
 
 	// Estado de presentacion por contingente (centro, encaramiento, elementos dibujados).
 	TMap<FString, FVector> ContingentCenters;

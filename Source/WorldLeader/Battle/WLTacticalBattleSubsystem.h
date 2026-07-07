@@ -46,6 +46,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Battle")
 	bool SetTacticalAIControl(const FString& BattleId, const FString& OwnerIso, bool bEnabled, FString& OutMessage);
 
+	/** F2: anade un parche circular de terreno (urbano/bosque) al campo de batalla. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Battle")
+	bool AddTacticalTerrainPatch(const FString& BattleId, EWLTacticalTerrain Terrain, FVector2D Position, double Radius, FString& OutMessage);
+
+	/** Terreno en un punto del campo: primer parche que lo contiene; abierto si ninguno. */
+	static EWLTacticalTerrain TerrainAtPosition(const FWLTacticalBattleState& Battle, const FVector2D& Position);
+
+	/** Alcance maximo de fuego DIRECTO contra un objetivo en ese terreno (la cobertura obliga a acercarse). */
+	static double GetCoverEngageRange(EWLTacticalTerrain TerrainAtTarget);
+
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Battle")
 	bool AdvanceTacticalBattle(const FString& BattleId, double DeltaSeconds, FWLTacticalBattleState& OutBattle, TArray<FString>& OutEvents);
 

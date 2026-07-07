@@ -1,6 +1,7 @@
 // Copyright World Leader project. See ROADMAP.md.
 
 #include "Presentation/WLTacticalBattleView.h"
+#include "Battle/WLTacticalBattleSubsystem.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Campaign/WLDataRegistry.h"
@@ -145,6 +146,80 @@ void AWLTacticalBattleView::RebuildContingentInstances(UInstancedStaticMeshCompo
 	ContingentShownElements.Add(Unit.TacticalUnitId, Unit.ElementCount);
 }
 
+void AWLTacticalBattleView::BuildTerrainPatches(const FWLTacticalBattleState& Battle)
+{
+	if (!RingMesh || !UnitMesh)
+	{
+		return;
+	}
+
+	for (const FWLTacticalTerrainPatch& Patch : Battle.TerrainPatches)
+	{
+		const bool bUrban = Patch.Terrain == EWLTacticalTerrain::Urban;
+
+		// Disco apenas sobre el suelo: la zona se LEE desde la camara (asfalto gris / sotobosque).
+		UStaticMeshComponent* Disc = NewObject<UStaticMeshComponent>(this);
+		Disc->SetupAttachment(Root);
+		Disc->RegisterComponent();
+		Disc->SetStaticMesh(RingMesh);
+		Disc->SetWorldLocation(TacticalToWorld(Patch.Position) + FVector(0.f, 0.f, 1.5f));
+		const float DiscScale = static_cast<float>(Patch.Radius * WorldScale) / 50.f;
+		Disc->SetWorldScale3D(FVector(DiscScale, DiscScale, 0.02f));
+		Disc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(
+			bUrban ? FLinearColor(0.115f, 0.112f, 0.118f) : FLinearColor(0.05f, 0.115f, 0.045f)))
+		{
+			Disc->SetMaterial(0, Mat);
+		}
+		TerrainComponents.Add(Disc);
+
+		// Props dispersos deterministas: bloques grises (edificios) o pilares verdes (arboles).
+		const int32 PropCount = bUrban ? 10 : 16;
+		const uint32 Hash = GetTypeHash(Patch.PatchId);
+		const float MaxOffset = static_cast<float>(Patch.Radius * WorldScale) * 0.72f;
+		const FVector PatchCenter = TacticalToWorld(Patch.Position);
+		for (int32 i = 0; i < PropCount; ++i)
+		{
+			const uint32 Seed = Hash + static_cast<uint32>(i) * 2654435761u;
+			UStaticMeshComponent* Prop = NewObject<UStaticMeshComponent>(this);
+			Prop->SetupAttachment(Root);
+			Prop->RegisterComponent();
+			Prop->SetStaticMesh(UnitMesh);
+			Prop->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+			const float OffX = (static_cast<float>(Seed % 1000) / 500.f - 1.f) * MaxOffset;
+			const float OffY = (static_cast<float>((Seed / 1000u) % 1000) / 500.f - 1.f) * MaxOffset;
+			FVector Scale;
+			FLinearColor Color;
+			if (bUrban)
+			{
+				Scale = FVector(
+					1.6f + static_cast<float>((Seed / 7u) % 17) * 0.1f,
+					1.6f + static_cast<float>((Seed / 11u) % 17) * 0.1f,
+					2.5f + static_cast<float>((Seed / 13u) % 36) * 0.1f);
+				const float Tint = 0.30f + static_cast<float>((Seed / 17u) % 8) * 0.01f;
+				Color = FLinearColor(Tint, Tint + 0.01f, Tint + 0.03f);
+			}
+			else
+			{
+				Scale = FVector(
+					0.7f + static_cast<float>((Seed / 7u) % 4) * 0.1f,
+					0.7f + static_cast<float>((Seed / 11u) % 4) * 0.1f,
+					2.0f + static_cast<float>((Seed / 13u) % 15) * 0.1f);
+				Color = FLinearColor(0.055f, 0.16f + static_cast<float>((Seed / 17u) % 6) * 0.008f, 0.05f);
+			}
+			Prop->SetWorldLocation(PatchCenter + FVector(OffX, OffY, Scale.Z * 50.f));
+			Prop->SetWorldRotation(FRotator(0.f, static_cast<float>(Seed % 90), 0.f));
+			Prop->SetWorldScale3D(Scale);
+			if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(Color))
+			{
+				Prop->SetMaterial(0, Mat);
+			}
+			TerrainComponents.Add(Prop);
+		}
+	}
+}
+
 void AWLTacticalBattleView::SpawnWrecks(const FWLTacticalUnitState& Unit, const FVector& Center)
 {
 	if (WreckedContingents.Contains(Unit.TacticalUnitId) || !UnitMesh)
@@ -205,11 +280,17 @@ void AWLTacticalBattleView::UpdateTracer(const FWLTacticalBattleState& Battle, c
 		return;
 	}
 
-	// Solo dispara (y traza) dentro de su alcance — el mismo criterio que el backend.
+	// Solo dispara (y traza) dentro de su alcance — el mismo criterio que el backend,
+	// incluido el recorte F2 por cobertura (sin fuego directo lejano contra urbano/bosque).
 	double Range = 1200.0;
 	if (const FWLUnitData* Data = UnitDataById.Find(Unit.UnitId.ToLower()))
 	{
 		if (Data->RangeUnits > 0.0) { Range = Data->RangeUnits; }
+		if (Data->Type != EWLUnitType::Artillery && Data->Type != EWLUnitType::Naval)
+		{
+			Range = FMath::Min(Range, UWLTacticalBattleSubsystem::GetCoverEngageRange(
+				UWLTacticalBattleSubsystem::TerrainAtPosition(Battle, Target->Position)));
+		}
 	}
 	const double Distance = FVector2D::Distance(Unit.Position, Target->Position);
 	if (Distance > Range)
@@ -312,6 +393,9 @@ void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, con
 			Ground->SetMaterial(0, Mat);
 		}
 	}
+
+	// F2: los parches de terreno se dibujan antes que nada (quedan bajo unidades y anillos).
+	BuildTerrainPatches(Battle);
 
 	// Anillo de seleccion (oculto hasta seleccionar).
 	if (RingMesh)

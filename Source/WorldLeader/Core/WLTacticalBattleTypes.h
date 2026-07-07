@@ -18,6 +18,14 @@ enum class EWLTacticalUnitOrder : uint8
 };
 
 UENUM(BlueprintType)
+enum class EWLTacticalTerrain : uint8
+{
+	Open   UMETA(DisplayName = "Open"),
+	Urban  UMETA(DisplayName = "Urban"),
+	Forest UMETA(DisplayName = "Forest")
+};
+
+UENUM(BlueprintType)
 enum class EWLTacticalBattleResult : uint8
 {
 	Ongoing          UMETA(DisplayName = "Ongoing"),
@@ -103,6 +111,26 @@ struct FWLTacticalObjectiveState
 	double CaptureProgressSeconds = 0.0;
 };
 
+// F2: parche circular de terreno. El terreno de un punto = primer parche que lo contiene
+// (orden deterministico de creacion); fuera de todo parche el campo es abierto.
+USTRUCT(BlueprintType)
+struct FWLTacticalTerrainPatch
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	FString PatchId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	EWLTacticalTerrain Terrain = EWLTacticalTerrain::Open;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	FVector2D Position = FVector2D::ZeroVector;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	double Radius = 500.0;
+};
+
 USTRUCT(BlueprintType)
 struct FWLTacticalBattleState
 {
@@ -146,6 +174,9 @@ struct FWLTacticalBattleState
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
 	TArray<FWLTacticalObjectiveState> Objectives;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	TArray<FWLTacticalTerrainPatch> TerrainPatches;
 
 	bool IsOwnerAIControlled(const FString& OwnerIso) const
 	{
