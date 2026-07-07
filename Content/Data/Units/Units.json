@@ -130,6 +130,20 @@
 		"speed_units": 80
 	},
 	{
+		"id": "militia",
+		"name": "Milicia urbana",
+		"type": "infantry",
+		"attack": 4,
+		"defense": 6,
+		"strength": 8,
+		"cost": 400,
+		"soft_attack": 3,
+		"hard_attack": 1,
+		"armor": 1,
+		"range_units": 280,
+		"speed_units": 50
+	},
+	{
 		"id": "tank",
 		"name": "Tanque T-72 (legado)",
 		"type": "armor",

@@ -2845,6 +2845,15 @@ void UWLGovernmentWidget::BuildArmiesSection()
 			S->SetPadding(FMargin(0.f, 7.f, 0.f, 0.f));
 		}
 
+		// F7: asalto a la provincia actual (enemiga, en guerra, sin ejercito defensor): la
+		// ciudad levanta su milicia. Es EL camino para tomar territorio sin ejercito enfrente.
+		FString AssaultReason;
+		if (Military->CanAssaultProvince(Army.Id, AssaultReason))
+		{
+			AddArmyAction(FString::Printf(TEXT("provinceassault:%s"), *Army.Id),
+				FString::Printf(TEXT("ASALTAR %s (milicia local)"), *Army.ProvinceId), GovDanger);
+		}
+
 		// Flujo de combate: objetivos enemigos atacables ahora (en guerra + misma/adyacente provincia).
 		const TArray<FString> TargetIds = Military->GetAttackableTargetIds(Army.Id);
 		if (TargetIds.Num() > 0)

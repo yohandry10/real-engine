@@ -2843,7 +2843,7 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 			TEXT("bond"), TEXT("imf"), TEXT("default"),
 			TEXT("agendaset"), TEXT("program"), TEXT("reform"), TEXT("promise"),
 			TEXT("negotiate"), TEXT("patronage"),
-			TEXT("autoresolve"), TEXT("tacticalresolve") };
+			TEXT("autoresolve"), TEXT("tacticalresolve"), TEXT("provinceassault") };
 		for (const TCHAR* Confirmable : AlwaysConfirm)
 		{
 			if (Verb == Confirmable)
@@ -2911,6 +2911,19 @@ void UWLGovernmentWidget::HandleAction(const FString& ActionId)
 			PC->SetGovernmentWindowOpen(false);   // esto destruye/oculta esta ventana
 			PC->EnterTacticalBattle(Atk, Def);
 			return;   // 'this' ya no esta en pantalla: no toques mas estado del widget
+		}
+	}
+	else if (Verb == TEXT("provinceassault"))
+	{
+		// F7: asalto a la provincia actual del ejercito (la ciudad levanta su milicia).
+		if (AWLCampaignPlayerController* PC = GetOwningPlayer<AWLCampaignPlayerController>())
+		{
+			const FString Atk = Arg1;
+			BattleAttackerId.Reset();
+			BattleDefenderId.Reset();
+			PC->SetGovernmentWindowOpen(false);
+			PC->EnterTacticalBattle(Atk, FString());
+			return;
 		}
 	}
 	else if (Political)

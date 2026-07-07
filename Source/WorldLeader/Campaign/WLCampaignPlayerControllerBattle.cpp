@@ -51,7 +51,11 @@ void AWLCampaignPlayerController::EnterTacticalBattle(const FString& AttackerId,
 
 	FWLTacticalBattleState Battle;
 	FString Message;
-	if (!Military->StartTacticalBattle(AttackerId, DefenderId, Battle, Message))
+	// F7: sin defensor explicito = ASALTO A PROVINCIA (la ciudad levanta su milicia).
+	const bool bStarted = DefenderId.IsEmpty()
+		? Military->StartProvinceAssault(AttackerId, Battle, Message)
+		: Military->StartTacticalBattle(AttackerId, DefenderId, Battle, Message);
+	if (!bStarted)
 	{
 		SetLastActionMessage(Message, false);
 		return;
@@ -117,12 +121,70 @@ void AWLCampaignPlayerController::RefreshTacticalBattleCache()
 	}
 }
 
+void AWLCampaignPlayerController::UpdateTacticalCamera(float DeltaSeconds)
+{
+	ACameraActor* Cam = TacticalBattleView ? TacticalBattleView->GetBattleCamera() : nullptr;
+	if (!Cam)
+	{
+		return;
+	}
+
+	FVector Loc = Cam->GetActorLocation();
+	FRotator Rot = Cam->GetActorRotation();
+
+	// Pan WASD/flechas en ejes de pantalla (solo yaw), mas rapido cuanto mas alto.
+	FVector2D Pan = FVector2D::ZeroVector;
+	if (IsInputKeyDown(EKeys::W) || IsInputKeyDown(EKeys::Up))    { Pan.X += 1.f; }
+	if (IsInputKeyDown(EKeys::S) || IsInputKeyDown(EKeys::Down))  { Pan.X -= 1.f; }
+	if (IsInputKeyDown(EKeys::D) || IsInputKeyDown(EKeys::Right)) { Pan.Y += 1.f; }
+	if (IsInputKeyDown(EKeys::A) || IsInputKeyDown(EKeys::Left))  { Pan.Y -= 1.f; }
+	if (!Pan.IsNearlyZero())
+	{
+		Pan.Normalize();
+		const FRotator YawOnly(0.f, Rot.Yaw, 0.f);
+		Loc += YawOnly.RotateVector(FVector(Pan.X, Pan.Y, 0.f)) * (Loc.Z * 1.1f) * DeltaSeconds;
+	}
+
+	// Zoom por pasos con la rueda, a lo largo de la mirada.
+	float ZoomSteps = 0.f;
+	if (WasInputKeyJustPressed(EKeys::MouseScrollUp))   { ZoomSteps += 1.f; }
+	if (WasInputKeyJustPressed(EKeys::MouseScrollDown)) { ZoomSteps -= 1.f; }
+	if (ZoomSteps != 0.f)
+	{
+		Loc += Rot.Vector() * ZoomSteps * 1500.f;
+	}
+
+	// Orbita Q/E alrededor del punto donde la camara mira el suelo.
+	float OrbitDeg = 0.f;
+	if (IsInputKeyDown(EKeys::Q)) { OrbitDeg += 75.f * DeltaSeconds; }
+	if (IsInputKeyDown(EKeys::E)) { OrbitDeg -= 75.f * DeltaSeconds; }
+	if (OrbitDeg != 0.f)
+	{
+		const FVector Fwd = Rot.Vector();
+		if (Fwd.Z < -0.05f)
+		{
+			const double GroundZ = TacticalBattleView->GetGroundZ();
+			const double Dist = (Loc.Z - GroundZ) / -Fwd.Z;
+			const FVector Pivot = Loc + Fwd * Dist;
+			Loc = Pivot + FRotator(0.f, OrbitDeg, 0.f).RotateVector(Loc - Pivot);
+			Rot.Yaw += OrbitDeg;
+		}
+	}
+
+	Loc.Z = FMath::Clamp(Loc.Z, 2400.0, 17000.0);
+	Loc.X = FMath::Clamp(Loc.X, -34000.0, 34000.0);
+	Loc.Y = FMath::Clamp(Loc.Y, -34000.0, 34000.0);
+	Cam->SetActorLocationAndRotation(Loc, Rot);
+}
+
 void AWLCampaignPlayerController::TickTacticalBattle(float DeltaSeconds)
 {
 	if (!bTacticalBattleActive)
 	{
 		return;
 	}
+	// F6: la camara responde siempre, incluso con la batalla ya resuelta.
+	UpdateTacticalCamera(DeltaSeconds);
 	if (bTacticalFinished)
 	{
 		return;   // batalla resuelta: se queda a la vista hasta que el jugador pulse TERMINAR
@@ -250,14 +312,19 @@ bool AWLCampaignPlayerController::HandleTacticalBattleClick()
 	FString Message;
 	if (!HitUnitId.IsEmpty())
 	{
-		// Clic sobre un enemigo -> orden de ataque.
-		Tactical->IssueAttackOrder(TacticalBattleId, TacticalSelectedUnitId, HitUnitId, Message);
+		// Clic sobre un enemigo -> orden de ataque. El rechazo (p.ej. fusiles contra un
+		// caza) debe VERSE: sin feedback el jugador cree que el juego esta roto.
+		const bool bAccepted = Tactical->IssueAttackOrder(TacticalBattleId, TacticalSelectedUnitId, HitUnitId, Message);
+		SetLastActionMessage(Message, bAccepted);
 	}
 	else
 	{
 		// Clic en suelo libre -> orden de movimiento a esa coordenada tactica.
 		const FVector2D Target = TacticalBattleView->WorldToTactical(GroundPoint);
-		Tactical->IssueMoveOrder(TacticalBattleId, TacticalSelectedUnitId, Target, Message);
+		if (!Tactical->IssueMoveOrder(TacticalBattleId, TacticalSelectedUnitId, Target, Message))
+		{
+			SetLastActionMessage(Message, false);
+		}
 	}
 	return true;
 }

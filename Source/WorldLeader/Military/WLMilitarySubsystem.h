@@ -124,6 +124,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	bool StartTacticalBattle(const FString& AttackerId, const FString& DefenderId, FWLTacticalBattleState& OutBattle, FString& OutMessage);
 
+	/** F7: true si el ejercito puede ASALTAR su provincia actual (enemiga, en guerra, sin ejercito defensor). */
+	UFUNCTION(BlueprintPure, Category = "WorldLeader|Military")
+	bool CanAssaultProvince(const FString& AttackerArmyId, FString& OutReason) const;
+
+	/**
+	 * F7: ASALTO A PROVINCIA — ninguna ciudad se toma gratis. Si no hay ejercito defensor, la
+	 * poblacion levanta una MILICIA (proporcional a los habitantes) que defiende su ciudad
+	 * (el parche urbano de la batalla). Registra el ejercito de guarnicion y arranca la
+	 * batalla tactica normal; la victoria ocupa via ApplyTacticalBattleResult. Requiere guerra.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	bool StartProvinceAssault(const FString& AttackerArmyId, FWLTacticalBattleState& OutBattle, FString& OutMessage);
+
 	/** Aplica el resultado tactico cerrado al estado militar de campania: bajas, ocupacion y renombre. */
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	bool ApplyTacticalBattleResult(const FString& BattleId, FString& OutMessage);

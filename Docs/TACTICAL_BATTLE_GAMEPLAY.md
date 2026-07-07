@@ -149,17 +149,45 @@ con variante por terreno donde aplica).
 - Verificado: `TacticalFlankRout` — 20 vs 20 de infantería: de frente el defensor muere sin
   romperse; RODEADO entra en desbandada con la mayoría de la salud intacta.
 
-**F5 — IA de batalla y paridad con auto-resolve**
-- IA rival: evalúa la matriz (manda ATGM al bosque, protege su SAM, caza artillería con
-  rápidos). El resultado esperado de la batalla manual ≈ probabilidades del auto-resolve
-  (mismo modelo de fuerza), para que elegir "auto" no sea trampa ni castigo.
+**F5 — IA de batalla y paridad con auto-resolve** ✅ IMPLEMENTADA
+- IA por MATRIZ (`FindBestAITarget`): puntúa contra × terreno / distancia y no persigue lo
+  que no puede dañar; la aviación evita objetivos bajo paraguas SAM enemigo (×0.25) si hay
+  opción; el SAM no maniobra (su trabajo es el paraguas automático); la infantería marcha a
+  la COBERTURA que domina el objetivo (ATGM al bosque/ciudad), no al descampado.
+- PARIDAD: la campaña auto-resuelve vía `ResolveTacticalBattleToEnd` — la MISMA simulación
+  táctica con IA en ambos bandos, aplicada a campaña (bajas, ocupación). El cálculo viejo de
+  suma de poderes (`AutoResolveBattle`) queda solo como utilidad de preview/legacy.
+- Verificado: `TacticalAIMatrixTargeting` (la IA ataca la artillería por matriz aunque el
+  SAM esté más cerca; el SAM IA se queda en su puesto) y `TacticalAutoResolveParity` (una
+  llamada corre la sim táctica completa y aplica ocupación y bajas a campaña).
 
-**F6 — Presentación (de "decente" a "buena")**
-- **Modelos low-poly reales por el pipeline Blender ya probado**: igual que las ciudades
-  salen de `gen_city.py` (modelos vertex-color coherentes con el mapa), un `gen_units.py`
-  genera tanque/APC/soldado/obús/helo flat-shaded. Sin packs externos ni bloqueos de arte.
-- Fogonazos e impactos (Niagara simple), cámara RTS pulida (zoom baja el pitch, shake leve
-  con artillería), minimapa, y sonido al final (disparos, motores).
+**F6 — Presentación (de "decente" a "buena")** ✅ IMPLEMENTADA (sin sonido, vetado por ahora)
+- **Modelos low-poly reales** por el pipeline Blender probado (`gen_vehicle.py`, mismo enfoque
+  vertex-color unlit que las ciudades): soldado, APC, IFV, MBT, **obús autopropulsado, SAM con
+  radar y lanzador, helicóptero de ataque** (nuevos), caza y buque. Bando del jugador = camo
+  VERDE; enemigo = camo DESIERTO (variantes `veh_*_desert`); caza/buque neutros. La vista
+  (`ModelForUnit`) escala cada modelo por bounds al tamaño objetivo del tipo y apoya su origen
+  z=0 en el suelo; sin asset cae al cubo (degradación elegante).
+- **VFX baratos sin Niagara**: columna de humo que sube y se recicla sobre contingentes con
+  daño serio (salud < 55); FOGONAZO naranja que crece y muere en 0.5 s en cada impacto de
+  salva (además del cráter); trazadoras y restos ya venían de F1/F3.
+- **Cámara de batalla libre** (`UpdateTacticalCamera`): pan WASD/flechas en ejes de pantalla,
+  zoom por pasos con la rueda, órbita Q/E alrededor del punto mirado; límites de altura y de
+  campo. Funciona incluso con la batalla ya resuelta.
+- Pendiente de F6 (consciente): minimapa, shake de cámara y SONIDO (vetado por directiva).
+
+**F7 — Asalto a provincia (defensa territorial)** ✅ IMPLEMENTADA
+- NINGUNA ciudad se toma gratis. `StartProvinceAssault` (Military): un ejército en provincia
+  enemiga (en guerra, sin ejército defensor) puede ASALTARLA — la población levanta una
+  MILICIA (`militia` en Units.json: fusiles, casi sin antitanque; 1 grupo por ~250k
+  habitantes, 8–26) que defiende su ciudad (el parche urbano). Blindados solos ganan pagando;
+  armas combinadas aplastan. La victoria OCUPA vía `ApplyTacticalBattleResult`.
+- `CanAssaultProvince` valida: provincia enemiga + guerra declarada + sin ejército defensor
+  (si lo hay, la batalla es contra él). Botón "ASALTAR <provincia>" en la carta del ejército
+  (panel de gobierno, con confirmación); los fuertes del jugador ya se defienden solos porque
+  su guarnición se despliega como ejército real.
+- Verificado: `TacticalProvinceAssault` — sin guerra se rechaza; con guerra la ciudad levanta
+  milicia, el blindado la somete y la provincia cambia de manos.
 
 ### Escalera visual (por impacto, para no aceptar una batalla fea)
 1. Formaciones instanciadas + bajas visibles ......... F1 (70% del efecto, casi gratis)

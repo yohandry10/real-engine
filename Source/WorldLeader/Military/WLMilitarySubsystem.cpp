@@ -802,6 +802,136 @@ EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerI
 	return Result;
 }
 
+bool UWLMilitarySubsystem::CanAssaultProvince(const FString& AttackerArmyId, FString& OutReason) const
+{
+	const FWLArmy* Attacker = FindArmy(AttackerArmyId);
+	if (!Attacker || Attacker->Units.IsEmpty())
+	{
+		OutReason = TEXT("Ejercito atacante no disponible.");
+		return false;
+	}
+	const UWLDataRegistry* Reg = GetRegistry();
+	FWLProvinceData Province;
+	if (!Reg || !Reg->GetProvince(Attacker->ProvinceId, Province))
+	{
+		OutReason = TEXT("Provincia actual invalida.");
+		return false;
+	}
+
+	// Controlador actual (runtime); sin dato, el dueno por prefijo del id ("CO-CES" -> CO).
+	FString ControllerIso;
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLStrategicTickSubsystem* Tick = GI->GetSubsystem<UWLStrategicTickSubsystem>())
+		{
+			ControllerIso = Tick->GetProvinceControllerIso(Province.Id);
+		}
+	}
+	if (ControllerIso.IsEmpty())
+	{
+		FString Prefix, Rest;
+		if (Province.Id.Split(TEXT("-"), &Prefix, &Rest))
+		{
+			ControllerIso = Prefix;
+		}
+	}
+	ControllerIso = ControllerIso.TrimStartAndEnd().ToUpper();
+	if (ControllerIso.IsEmpty() || ControllerIso.Equals(Attacker->OwnerIso, ESearchCase::IgnoreCase))
+	{
+		OutReason = FString::Printf(TEXT("%s ya esta bajo tu control."), *Province.Id);
+		return false;
+	}
+
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLPoliticalSubsystem* Politics = GI->GetSubsystem<UWLPoliticalSubsystem>())
+		{
+			FWLDiplomaticRelationState Relation;
+			if (Politics->GetRelation(Attacker->OwnerIso, ControllerIso, Relation)
+				&& Relation.Status != EWLDiplomaticStatus::War)
+			{
+				OutReason = FString::Printf(TEXT("%s y %s no estan en guerra."), *Attacker->OwnerIso, *ControllerIso);
+				return false;
+			}
+		}
+	}
+
+	// Con ejercito enemigo presente la batalla es contra EL, no contra la ciudad.
+	for (const FWLArmy& Other : Armies)
+	{
+		if (Other.ProvinceId == Province.Id && Other.Units.Num() > 0
+			&& !Other.OwnerIso.Equals(Attacker->OwnerIso, ESearchCase::IgnoreCase))
+		{
+			OutReason = FString::Printf(TEXT("Hay un ejercito enemigo (%s) defendiendo %s: atacalo primero."),
+				*Other.Id, *Province.Id);
+			return false;
+		}
+	}
+	OutReason.Reset();
+	return true;
+}
+
+bool UWLMilitarySubsystem::StartProvinceAssault(const FString& AttackerArmyId, FWLTacticalBattleState& OutBattle, FString& OutMessage)
+{
+	if (!CanAssaultProvince(AttackerArmyId, OutMessage))
+	{
+		return false;
+	}
+	const FWLArmy* Attacker = FindArmy(AttackerArmyId);
+	const UWLDataRegistry* Reg = GetRegistry();
+	FWLProvinceData Province;
+	if (!Attacker || !Reg || !Reg->GetProvince(Attacker->ProvinceId, Province))
+	{
+		OutMessage = TEXT("Asalto a provincia invalido.");
+		return false;
+	}
+	FString ControllerIso;
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLStrategicTickSubsystem* Tick = GI->GetSubsystem<UWLStrategicTickSubsystem>())
+		{
+			ControllerIso = Tick->GetProvinceControllerIso(Province.Id);
+		}
+	}
+	if (ControllerIso.IsEmpty())
+	{
+		FString Prefix, Rest;
+		if (Province.Id.Split(TEXT("-"), &Prefix, &Rest))
+		{
+			ControllerIso = Prefix;
+		}
+	}
+	ControllerIso = ControllerIso.TrimStartAndEnd().ToUpper();
+
+	// F7: ninguna ciudad se toma gratis — la poblacion levanta MILICIA (1 grupo por ~250k
+	// habitantes) que defiende su ciudad. Con tanques solos se gana pagando; con armas
+	// combinadas se aplasta (la matriz F2 hace su trabajo en el parche urbano).
+	const int32 MilitiaCount = FMath::Clamp(static_cast<int32>(Province.Population / 250000), 8, 26);
+	FWLArmy Garrison;
+	Garrison.Id = FString::Printf(TEXT("GAR-%s"), *Province.Id);
+	Garrison.OwnerIso = ControllerIso;
+	Garrison.ProvinceId = Province.Id;
+	Garrison.General = TEXT("Milicia local");
+	for (int32 i = 0; i < MilitiaCount; ++i)
+	{
+		Garrison.Units.Add(TEXT("militia"));
+	}
+	// Un asalto anterior pudo dejar guarnicion registrada: se reemplaza (leva nueva).
+	Armies.RemoveAll([&Garrison](const FWLArmy& Army) { return Army.Id == Garrison.Id; });
+	Armies.Add(Garrison);
+
+	FString BattleMessage;
+	if (!StartTacticalBattle(AttackerArmyId, Garrison.Id, OutBattle, BattleMessage))
+	{
+		Armies.RemoveAll([&Garrison](const FWLArmy& Army) { return Army.Id == Garrison.Id; });
+		OutMessage = BattleMessage;
+		return false;
+	}
+	OutMessage = FString::Printf(TEXT("Asalto a %s: la poblacion levanta %d grupos de milicia para defender la ciudad. %s"),
+		*Province.Id, MilitiaCount, *BattleMessage);
+	return true;
+}
+
 bool UWLMilitarySubsystem::StartTacticalBattle(
 	const FString& AttackerId,
 	const FString& DefenderId,

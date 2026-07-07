@@ -788,4 +788,228 @@ bool FWLTacticalFlankRoutTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// F5 IA de batalla — CONTRATO: la IA elige objetivo por MATRIZ, no por cercania. Una
+// infanteria con un SAM (contra 1.5) mas cerca y una artilleria (contra 1.6) algo mas
+// lejos debe atacar la ARTILLERIA. Y el SAM de la IA no maniobra: su trabajo es el paraguas.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTacticalAIMatrixTargetingTest,
+	"WorldLeader.Battle.TacticalAIMatrixTargeting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTacticalAIMatrixTargetingTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLTacticalBattleSubsystem* Tactical = GameInstance->GetSubsystem<UWLTacticalBattleSubsystem>();
+	TestNotNull(TEXT("Tactical battle subsystem"), Tactical);
+	if (!Tactical)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLArmy Rifles;
+	Rifles.Id = TEXT("A-RIF");
+	Rifles.OwnerIso = TEXT("VE");
+	Rifles.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 10; ++i) { Rifles.Units.Add(TEXT("infantry")); }
+
+	// Defensor: artilleria (primera linea), SAM (segunda) y MBT (tercera). Desde el centro
+	// del campo el SAM queda MAS CERCA que la artilleria: elegir por cercania fallaria.
+	FWLArmy Mixed;
+	Mixed.Id = TEXT("A-MIX");
+	Mixed.OwnerIso = TEXT("CO");
+	Mixed.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 2; ++i) { Mixed.Units.Add(TEXT("artillery")); }
+	Mixed.Units.Add(TEXT("sam"));
+	for (int32 i = 0; i < 4; ++i) { Mixed.Units.Add(TEXT("mbt")); }
+
+	FWLTacticalBattleState Battle;
+	FString Message;
+	TestTrue(TEXT("Iniciar prueba de eleccion de objetivo"),
+		Tactical->StartTacticalBattleFromArmies(Rifles, Mixed, TEXT("CO-CES"), Battle, Message));
+
+	FString RiflesId, ArtilleryId, SamId;
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		if (Unit.UnitId == TEXT("infantry"))  { RiflesId = Unit.TacticalUnitId; }
+		if (Unit.UnitId == TEXT("artillery")) { ArtilleryId = Unit.TacticalUnitId; }
+		if (Unit.UnitId == TEXT("sam"))       { SamId = Unit.TacticalUnitId; }
+	}
+
+	// Marchar la infanteria al centro (ambos enemigos a tiro de decision) y soltar la IA.
+	TestTrue(TEXT("Marcha al centro del campo"),
+		Tactical->IssueMoveOrder(Battle.BattleId, RiflesId, FVector2D(0.0, 0.0), Message));
+	TArray<FString> Events;
+	for (int32 Step = 0; Step < 40 && Battle.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events);
+		const FWLTacticalUnitState* Marching = Battle.Units.FindByPredicate(
+			[&RiflesId](const FWLTacticalUnitState& U) { return U.TacticalUnitId == RiflesId; });
+		if (Marching && Marching->Order == EWLTacticalUnitOrder::Idle)
+		{
+			break;
+		}
+	}
+	TestTrue(TEXT("IA para ambos bandos"),
+		Tactical->SetTacticalAIControl(Battle.BattleId, TEXT("VE"), true, Message)
+		&& Tactical->SetTacticalAIControl(Battle.BattleId, TEXT("CO"), true, Message));
+	Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events);
+
+	const FWLTacticalUnitState* Rifle = Battle.Units.FindByPredicate(
+		[&RiflesId](const FWLTacticalUnitState& U) { return U.TacticalUnitId == RiflesId; });
+	const FWLTacticalUnitState* Sam = Battle.Units.FindByPredicate(
+		[&SamId](const FWLTacticalUnitState& U) { return U.TacticalUnitId == SamId; });
+	TestNotNull(TEXT("Infanteria IA viva"), Rifle);
+	TestNotNull(TEXT("SAM IA vivo"), Sam);
+	if (Rifle)
+	{
+		TestEqual(TEXT("La IA ataca por matriz (artilleria), no al mas cercano (SAM)"),
+			Rifle->AttackTargetUnitId, ArtilleryId);
+	}
+	if (Sam)
+	{
+		TestEqual(TEXT("El SAM de la IA se queda en su puesto"),
+			static_cast<int32>(Sam->Order), static_cast<int32>(EWLTacticalUnitOrder::Idle));
+	}
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+// F5 paridad — CONTRATO: auto-resolver corre la MISMA simulacion tactica que la batalla
+// manual (IA en ambos bandos) y aplica bajas y ocupacion a campania en una sola llamada.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTacticalAutoResolveParityTest,
+	"WorldLeader.Battle.TacticalAutoResolveParity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTacticalAutoResolveParityTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLMilitarySubsystem* Military = GameInstance->GetSubsystem<UWLMilitarySubsystem>();
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Military subsystem"), Military);
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	if (!Military || !Politics || !Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString Message;
+	const FString AttackerArmyId = Military->CreateArmy(TEXT("VE"), TEXT("VE-ZU"), TEXT("tank"), 3, TEXT("Miranda"));
+	const FString DefenderArmyId = Military->CreateArmy(TEXT("CO"), TEXT("CO-CES"), TEXT("infantry"), 1, TEXT("Santander"));
+	TestTrue(TEXT("VE y CO en guerra para paridad"), Politics->DeclareWar(TEXT("VE"), TEXT("CO"), Message));
+
+	FString Report;
+	const EWLBattleResult Result = Military->ResolveTacticalBattleToEnd(AttackerArmyId, DefenderArmyId, Report);
+	TestEqual(TEXT("Auto-resolve tactico: gana el atacante blindado"),
+		static_cast<int32>(Result), static_cast<int32>(EWLBattleResult::AttackerVictory));
+	TestTrue(TEXT("El reporte viene de la simulacion tactica"), Report.Contains(TEXT("Batalla tactica")));
+
+	FWLArmy ArmyAfter;
+	TestTrue(TEXT("Atacante sobrevive al auto-resolve"), Military->GetArmy(AttackerArmyId, ArmyAfter));
+	TestEqual(TEXT("Atacante ocupa la provincia defendida"), ArmyAfter.ProvinceId, FString(TEXT("CO-CES")));
+	TestFalse(TEXT("Defensor aniquilado y retirado de campania"), Military->GetArmy(DefenderArmyId, ArmyAfter));
+	TestEqual(TEXT("Control provincial pasa al atacante"), Tick->GetProvinceControllerIso(TEXT("CO-CES")), FString(TEXT("VE")));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+// F7 asalto a provincia — CONTRATO: ninguna ciudad se toma gratis. Sin guerra el asalto se
+// rechaza; con guerra y sin ejercito defensor la poblacion levanta MILICIA que defiende su
+// ciudad; un ejercito blindado la aplasta (pagando algo) y OCUPA la provincia.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTacticalProvinceAssaultTest,
+	"WorldLeader.Battle.TacticalProvinceAssault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTacticalProvinceAssaultTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLMilitarySubsystem* Military = GameInstance->GetSubsystem<UWLMilitarySubsystem>();
+	UWLTacticalBattleSubsystem* Tactical = GameInstance->GetSubsystem<UWLTacticalBattleSubsystem>();
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Military subsystem"), Military);
+	TestNotNull(TEXT("Tactical battle subsystem"), Tactical);
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	if (!Military || !Tactical || !Politics || !Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString Message;
+	const FString AttackerArmyId = Military->CreateArmy(TEXT("VE"), TEXT("VE-ZU"), TEXT("mbt"), 4, TEXT("Miranda"));
+	TestFalse(TEXT("Ejercito blindado creado"), AttackerArmyId.IsEmpty());
+	TestTrue(TEXT("Cruza la frontera a la provincia enemiga"),
+		Military->MoveArmy(AttackerArmyId, TEXT("CO-CES"), Message));
+
+	// Sin guerra declarada el asalto se RECHAZA.
+	FString Reason;
+	TestFalse(TEXT("Sin guerra no hay asalto"), Military->CanAssaultProvince(AttackerArmyId, Reason));
+
+	TestTrue(TEXT("VE declara la guerra a CO"), Politics->DeclareWar(TEXT("VE"), TEXT("CO"), Message));
+	TestTrue(TEXT("Con guerra el asalto procede"), Military->CanAssaultProvince(AttackerArmyId, Reason));
+
+	FWLTacticalBattleState Battle;
+	TestTrue(TEXT("Asalto a la provincia iniciado"),
+		Military->StartProvinceAssault(AttackerArmyId, Battle, Message));
+
+	int32 MilitiaElements = 0;
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		if (Unit.UnitId == TEXT("militia"))
+		{
+			MilitiaElements += Unit.ElementCount;
+		}
+	}
+	TestTrue(TEXT("La ciudad levanta milicia (nada se toma gratis)"), MilitiaElements >= 8);
+
+	// IA en ambos bandos y resolver: los blindados toman la ciudad pagando poco.
+	Tactical->SetTacticalAIControl(Battle.BattleId, TEXT("VE"), true, Message);
+	Tactical->SetTacticalAIControl(Battle.BattleId, TEXT("CO"), true, Message);
+	TArray<FString> Events;
+	for (int32 Step = 0; Step < 400 && Battle.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events);
+	}
+	TestEqual(TEXT("El blindado somete a la milicia"),
+		static_cast<int32>(Battle.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
+
+	TestTrue(TEXT("Aplicar el resultado del asalto"),
+		Military->ApplyTacticalBattleResult(Battle.BattleId, Message));
+	TestEqual(TEXT("La provincia cambia de manos"),
+		Tick->GetProvinceControllerIso(TEXT("CO-CES")), FString(TEXT("VE")));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
