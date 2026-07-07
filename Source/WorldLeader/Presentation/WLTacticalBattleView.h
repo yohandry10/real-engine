@@ -57,14 +57,21 @@ private:
 	/** Forma/espaciado/altura de cada elemento segun el tipo de unidad (tanque, soldado, caza...). */
 	struct FElementStyle
 	{
-		FVector Scale = FVector(1.f, 1.f, 1.f);
+		FVector Scale = FVector(1.f, 1.f, 1.f);   // escala del CUBO de reserva (sin modelo)
 		float SpacingCm = 260.f;
 		float HoverZCm = 0.f;      // >0 = contingente aereo (flota sobre el campo)
+		// F6: tamano objetivo del MODELO real (largo en X; alto si bScaleByHeight) -> escala por bounds.
+		float TargetSizeCm = 0.f;
+		bool bScaleByHeight = false;
 	};
 
 	UMaterialInstanceDynamic* MakeColorMaterial(const FLinearColor& Color);
 	FLinearColor ColorForUnit(const FWLTacticalUnitState& Unit) const;
 	FElementStyle StyleForUnitId(const FString& UnitId) const;
+	/** F6: modelo low-poly real del contingente (/Game/GenVehicle): camo verde propio, desierto enemigo. */
+	UStaticMesh* ModelForUnit(const FWLTacticalUnitState& Unit) const;
+	/** F6: humo en contingentes danados y fogonazos de impacto de salvas. */
+	void UpdateBattleEffects(const FWLTacticalBattleState& Battle);
 	/** Offsets locales de la formacion (rejilla ancha centrada, primera fila al frente). */
 	static void BuildFormationOffsets(int32 Count, float Spacing, TArray<FVector2D>& OutOffsets);
 	void RebuildContingentInstances(UInstancedStaticMeshComponent* Mesh, const FWLTacticalUnitState& Unit);
@@ -86,6 +93,9 @@ private:
 	UPROPERTY() UStaticMesh* SphereMesh = nullptr;
 	UPROPERTY() UStaticMesh* GroundMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
+	// F6: modelos de unidad reales (gen_vehicle.py) + material unlit vertex-color compartido.
+	UPROPERTY() TMap<FString, UStaticMesh*> UnitModels;
+	UPROPERTY() UMaterialInterface* VehicleMaterial = nullptr;
 
 	// F1b: una FORMACION instanciada por contingente (los elementos vivos se ven y caen).
 	UPROPERTY() TMap<FString, UInstancedStaticMeshComponent*> ContingentMeshes;
@@ -96,6 +106,10 @@ private:
 	UPROPERTY() TArray<UStaticMeshComponent*> TerrainComponents;
 	UPROPERTY() TMap<FString, UStaticMeshComponent*> ShellComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> ScorchComponents;
+	// F6: VFX baratos — humo por contingente danado y fogonazos de impacto con vida corta.
+	UPROPERTY() TMap<FString, UStaticMeshComponent*> SmokeComponents;
+	UPROPERTY() TArray<UStaticMeshComponent*> FlashComponents;
+	TArray<double> FlashSpawnSeconds;
 
 	// Estado de presentacion por contingente (centro, encaramiento, elementos dibujados).
 	TMap<FString, FVector> ContingentCenters;

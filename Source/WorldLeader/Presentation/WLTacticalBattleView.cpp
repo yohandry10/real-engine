@@ -38,6 +38,71 @@ AWLTacticalBattleView::AWLTacticalBattleView()
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	if (SphereFinder.Succeeded()) { SphereMesh = SphereFinder.Object; }
+
+	// F6: modelos low-poly reales (gen_vehicle.py -> /Game/GenVehicle), unlit vertex color.
+	// Bando del jugador = camo verde; enemigo = desierto. Caza y buque son neutros (gris).
+	// Si falta un asset, el contingente cae al cubo de reserva (degradacion elegante).
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MSoldier(TEXT("/Game/GenVehicle/veh_soldier.veh_soldier"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MApc(TEXT("/Game/GenVehicle/veh_apc.veh_apc"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MIfv(TEXT("/Game/GenVehicle/veh_ifv.veh_ifv"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MMbt(TEXT("/Game/GenVehicle/veh_mbt.veh_mbt"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MArty(TEXT("/Game/GenVehicle/veh_artillery.veh_artillery"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MSam(TEXT("/Game/GenVehicle/veh_sam.veh_sam"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MHeli(TEXT("/Game/GenVehicle/veh_heli.veh_heli"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MAir(TEXT("/Game/GenVehicle/veh_aircraft.veh_aircraft"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MShip(TEXT("/Game/GenVehicle/veh_ship.veh_ship"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MSoldierD(TEXT("/Game/GenVehicle/veh_soldier_desert.veh_soldier_desert"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MApcD(TEXT("/Game/GenVehicle/veh_apc_desert.veh_apc_desert"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MIfvD(TEXT("/Game/GenVehicle/veh_ifv_desert.veh_ifv_desert"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MMbtD(TEXT("/Game/GenVehicle/veh_mbt_desert.veh_mbt_desert"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MArtyD(TEXT("/Game/GenVehicle/veh_artillery_desert.veh_artillery_desert"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MSamD(TEXT("/Game/GenVehicle/veh_sam_desert.veh_sam_desert"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MHeliD(TEXT("/Game/GenVehicle/veh_heli_desert.veh_heli_desert"));
+	if (MSoldier.Succeeded()) { UnitModels.Add(TEXT("soldier"), MSoldier.Object); }
+	if (MApc.Succeeded())     { UnitModels.Add(TEXT("apc"), MApc.Object); }
+	if (MIfv.Succeeded())     { UnitModels.Add(TEXT("ifv"), MIfv.Object); }
+	if (MMbt.Succeeded())     { UnitModels.Add(TEXT("mbt"), MMbt.Object); }
+	if (MArty.Succeeded())    { UnitModels.Add(TEXT("artillery"), MArty.Object); }
+	if (MSam.Succeeded())     { UnitModels.Add(TEXT("sam"), MSam.Object); }
+	if (MHeli.Succeeded())    { UnitModels.Add(TEXT("heli"), MHeli.Object); }
+	if (MAir.Succeeded())     { UnitModels.Add(TEXT("aircraft"), MAir.Object); }
+	if (MShip.Succeeded())    { UnitModels.Add(TEXT("ship"), MShip.Object); }
+	if (MSoldierD.Succeeded()) { UnitModels.Add(TEXT("soldier_desert"), MSoldierD.Object); }
+	if (MApcD.Succeeded())     { UnitModels.Add(TEXT("apc_desert"), MApcD.Object); }
+	if (MIfvD.Succeeded())     { UnitModels.Add(TEXT("ifv_desert"), MIfvD.Object); }
+	if (MMbtD.Succeeded())     { UnitModels.Add(TEXT("mbt_desert"), MMbtD.Object); }
+	if (MArtyD.Succeeded())    { UnitModels.Add(TEXT("artillery_desert"), MArtyD.Object); }
+	if (MSamD.Succeeded())     { UnitModels.Add(TEXT("sam_desert"), MSamD.Object); }
+	if (MHeliD.Succeeded())    { UnitModels.Add(TEXT("heli_desert"), MHeliD.Object); }
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> VehMatFinder(TEXT("/Game/GenVehicle/M_VehicleUnlit.M_VehicleUnlit"));
+	if (VehMatFinder.Succeeded()) { VehicleMaterial = VehMatFinder.Object; }
+}
+
+UStaticMesh* AWLTacticalBattleView::ModelForUnit(const FWLTacticalUnitState& Unit) const
+{
+	const FString Id = Unit.UnitId.ToLower();
+	FString Kind;
+	if (Id == TEXT("infantry"))                              { Kind = TEXT("soldier"); }
+	else if (Id == TEXT("apc"))                              { Kind = TEXT("apc"); }
+	else if (Id == TEXT("ifv"))                              { Kind = TEXT("ifv"); }
+	else if (Id == TEXT("mbt") || Id == TEXT("tank"))        { Kind = TEXT("mbt"); }
+	else if (Id == TEXT("artillery"))                        { Kind = TEXT("artillery"); }
+	else if (Id == TEXT("sam"))                              { Kind = TEXT("sam"); }
+	else if (Id == TEXT("heli"))                             { Kind = TEXT("heli"); }
+	else if (Id == TEXT("aircraft") || Id == TEXT("drone"))  { Kind = TEXT("aircraft"); }
+	else if (Id == TEXT("ship"))                             { Kind = TEXT("ship"); }
+	else                                                     { Kind = TEXT("soldier"); }
+
+	const bool bPlayer = Unit.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
+	if (!bPlayer && Kind != TEXT("aircraft") && Kind != TEXT("ship"))
+	{
+		if (UStaticMesh* Desert = UnitModels.FindRef(Kind + TEXT("_desert")))
+		{
+			return Desert;
+		}
+	}
+	return UnitModels.FindRef(Kind);
 }
 
 UMaterialInstanceDynamic* AWLTacticalBattleView::MakeColorMaterial(const FLinearColor& Color)
@@ -89,22 +154,22 @@ AWLTacticalBattleView::FElementStyle AWLTacticalBattleView::StyleForUnitId(const
 	switch (Type)
 	{
 	case EWLUnitType::Armor:
-		Style.Scale = FVector(1.9f, 1.15f, 0.85f); Style.SpacingCm = 300.f; break;
+		Style.Scale = FVector(1.9f, 1.15f, 0.85f); Style.SpacingCm = 460.f; Style.TargetSizeCm = 400.f; break;
 	case EWLUnitType::LightVehicle:
 	case EWLUnitType::Drone:
-		Style.Scale = FVector(1.5f, 0.95f, 0.75f); Style.SpacingCm = 260.f; break;
+		Style.Scale = FVector(1.5f, 0.95f, 0.75f); Style.SpacingCm = 410.f; Style.TargetSizeCm = 350.f; break;
 	case EWLUnitType::Artillery:
-		Style.Scale = FVector(1.7f, 1.00f, 0.80f); Style.SpacingCm = 300.f; break;
+		Style.Scale = FVector(1.7f, 1.00f, 0.80f); Style.SpacingCm = 480.f; Style.TargetSizeCm = 430.f; break;
 	case EWLUnitType::AirDefense:
-		Style.Scale = FVector(1.3f, 1.30f, 1.00f); Style.SpacingCm = 280.f; break;
+		Style.Scale = FVector(1.3f, 1.30f, 1.00f); Style.SpacingCm = 450.f; Style.TargetSizeCm = 390.f; break;
 	case EWLUnitType::Air:
-		Style.Scale = FVector(1.9f, 1.40f, 0.45f); Style.SpacingCm = 380.f; Style.HoverZCm = 900.f; break;
+		Style.Scale = FVector(1.9f, 1.40f, 0.45f); Style.SpacingCm = 620.f; Style.TargetSizeCm = 540.f; Style.HoverZCm = 900.f; break;
 	case EWLUnitType::Naval:
-		Style.Scale = FVector(3.2f, 1.10f, 0.90f); Style.SpacingCm = 460.f; break;
+		Style.Scale = FVector(3.2f, 1.10f, 0.90f); Style.SpacingCm = 1050.f; Style.TargetSizeCm = 950.f; break;
 	case EWLUnitType::Infantry:
 	case EWLUnitType::SpecialForces:
 	default:
-		Style.Scale = FVector(0.42f, 0.42f, 1.05f); Style.SpacingCm = 115.f; break;
+		Style.Scale = FVector(0.42f, 0.42f, 1.05f); Style.SpacingCm = 115.f; Style.TargetSizeCm = 110.f; Style.bScaleByHeight = true; break;
 	}
 	return Style;
 }
@@ -138,12 +203,26 @@ void AWLTacticalBattleView::RebuildContingentInstances(UInstancedStaticMeshCompo
 	TArray<FVector2D> Offsets;
 	BuildFormationOffsets(Unit.ElementCount, Style.SpacingCm, Offsets);
 
+	// F6: con modelo real la escala sale de sus bounds hacia el tamano objetivo del tipo
+	// (largo X para vehiculos, alto para el soldado); el origen del modelo es z=0 = suelo.
+	FVector InstanceScale = Style.Scale;
+	float BaseZ = Style.Scale.Z * 50.f;   // cubo de reserva: centro apoyado
+	const UStaticMesh* Model = Mesh->GetStaticMesh();
+	if (Model && Model != UnitMesh)
+	{
+		const FBoxSphereBounds Bounds = Model->GetBounds();
+		const float ModelSize = 2.f * (Style.bScaleByHeight ? Bounds.BoxExtent.Z : Bounds.BoxExtent.X);
+		const float Uniform = Style.TargetSizeCm / FMath::Max(1.f, ModelSize);
+		InstanceScale = FVector(Uniform);
+		BaseZ = -(Bounds.Origin.Z - Bounds.BoxExtent.Z) * Uniform;   // punto mas bajo al suelo
+	}
+
 	Mesh->ClearInstances();
 	for (const FVector2D& Offset : Offsets)
 	{
 		FTransform Xform;
-		Xform.SetScale3D(Style.Scale);
-		Xform.SetLocation(FVector(Offset.X, Offset.Y, Style.Scale.Z * 50.f));   // base apoyada
+		Xform.SetScale3D(InstanceScale);
+		Xform.SetLocation(FVector(Offset.X, Offset.Y, BaseZ));
 		Mesh->AddInstance(Xform);
 	}
 	ContingentShownElements.Add(Unit.TacticalUnitId, Unit.ElementCount);
@@ -393,7 +472,7 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 		Comp->SetVisibility(true);
 	}
 
-	// Salvas que ya impactaron: quitar el proyectil y dejar CRATER (quemadura en el campo).
+	// Salvas que ya impactaron: quitar el proyectil, dejar CRATER y encender un FOGONAZO breve.
 	for (auto It = ShellComponents.CreateIterator(); It; ++It)
 	{
 		if (AliveShells.Contains(It->Key))
@@ -402,6 +481,24 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 		}
 		if (UStaticMeshComponent* Comp = It->Value)
 		{
+			if (FlashComponents.Num() < 24)
+			{
+				UStaticMeshComponent* Flash = NewObject<UStaticMeshComponent>(this);
+				Flash->SetupAttachment(Root);
+				Flash->RegisterComponent();
+				Flash->SetStaticMesh(SphereMesh);
+				FVector FlashLoc = Comp->GetComponentLocation();
+				FlashLoc.Z = GroundZ + 130.f;
+				Flash->SetWorldLocation(FlashLoc);
+				Flash->SetWorldScale3D(FVector(1.6f));
+				Flash->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(1.0f, 0.58f, 0.16f)))
+				{
+					Flash->SetMaterial(0, Mat);
+				}
+				FlashComponents.Add(Flash);
+				FlashSpawnSeconds.Add(Battle.ElapsedSeconds);
+			}
 			if (ScorchComponents.Num() < 60)
 			{
 				UStaticMeshComponent* Scorch = NewObject<UStaticMeshComponent>(this);
@@ -422,6 +519,61 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 			Comp->DestroyComponent();
 		}
 		It.RemoveCurrent();
+	}
+}
+
+void AWLTacticalBattleView::UpdateBattleEffects(const FWLTacticalBattleState& Battle)
+{
+	if (!SphereMesh)
+	{
+		return;
+	}
+
+	// HUMO: columna que sube y se recicla sobre contingentes vivos con dano serio.
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		const bool bSmoking = !Unit.bDestroyed && Unit.Health > 0.0 && Unit.Health < 55.0;
+		UStaticMeshComponent* Smoke = SmokeComponents.FindRef(Unit.TacticalUnitId);
+		const FVector* Center = ContingentCenters.Find(Unit.TacticalUnitId);
+		if (!bSmoking || !Center)
+		{
+			if (Smoke) { Smoke->SetVisibility(false); }
+			continue;
+		}
+		if (!Smoke)
+		{
+			Smoke = NewObject<UStaticMeshComponent>(this);
+			Smoke->SetupAttachment(Root);
+			Smoke->RegisterComponent();
+			Smoke->SetStaticMesh(SphereMesh);
+			Smoke->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(0.16f, 0.15f, 0.145f)))
+			{
+				Smoke->SetMaterial(0, Mat);
+			}
+			SmokeComponents.Add(Unit.TacticalUnitId, Smoke);
+		}
+		const double Phase = static_cast<double>(GetTypeHash(Unit.TacticalUnitId) % 97) / 97.0;
+		const float Cycle = static_cast<float>(FMath::Fmod(Battle.ElapsedSeconds * 0.55 + Phase, 1.0));
+		Smoke->SetWorldLocation(*Center + FVector(0.f, 0.f, 160.f + 460.f * Cycle));
+		Smoke->SetWorldScale3D(FVector(1.5f + 2.4f * Cycle));
+		Smoke->SetVisibility(true);
+	}
+
+	// FOGONAZOS: crecen y mueren en medio segundo.
+	for (int32 Index = FlashComponents.Num() - 1; Index >= 0; --Index)
+	{
+		UStaticMeshComponent* Flash = FlashComponents[Index];
+		const double Age = FlashSpawnSeconds.IsValidIndex(Index)
+			? Battle.ElapsedSeconds - FlashSpawnSeconds[Index] : 1.0;
+		if (!Flash || Age > 0.5)
+		{
+			if (Flash) { Flash->DestroyComponent(); }
+			FlashComponents.RemoveAt(Index);
+			FlashSpawnSeconds.RemoveAt(Index);
+			continue;
+		}
+		Flash->SetWorldScale3D(FVector(1.6f + 7.0f * static_cast<float>(Age / 0.5)));
 	}
 }
 
@@ -523,11 +675,22 @@ void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, con
 		UInstancedStaticMeshComponent* Mesh = NewObject<UInstancedStaticMeshComponent>(this);
 		Mesh->SetupAttachment(Root);
 		Mesh->RegisterComponent();
-		Mesh->SetStaticMesh(UnitMesh);
 		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(ColorForUnit(Unit)))
+		// F6: modelo real con material unlit vertex-color (el camo distingue los bandos);
+		// sin modelo, cubo tintado por bando/salud como antes.
+		UStaticMesh* Model = ModelForUnit(Unit);
+		if (Model && VehicleMaterial)
 		{
-			Mesh->SetMaterial(0, Mat);
+			Mesh->SetStaticMesh(Model);
+			Mesh->SetMaterial(0, VehicleMaterial);
+		}
+		else
+		{
+			Mesh->SetStaticMesh(UnitMesh);
+			if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(ColorForUnit(Unit)))
+			{
+				Mesh->SetMaterial(0, Mat);
+			}
 		}
 		ContingentMeshes.Add(Unit.TacticalUnitId, Mesh);
 
@@ -688,6 +851,9 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 
 	// F3: salvas indirectas en vuelo y crateres de impacto.
 	UpdateShells(Battle);
+
+	// F6: humo en danados y fogonazos de impacto.
+	UpdateBattleEffects(Battle);
 }
 
 FString AWLTacticalBattleView::FindUnitNearWorldPoint(const FVector& WorldPoint) const

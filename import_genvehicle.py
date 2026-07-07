@@ -3,7 +3,12 @@ import unreal, os
 SRC  = r"C:\Users\PC\Desktop\rome-actual\ExternalAssets\Generated"
 DEST = "/Game/GenVehicle"
 FILES = ["veh_mbt.fbx", "veh_ifv.fbx", "veh_apc.fbx",
-         "veh_soldier.fbx", "veh_aircraft.fbx", "veh_ship.fbx"]
+         "veh_soldier.fbx", "veh_aircraft.fbx", "veh_ship.fbx",
+         # F6 batalla tactica: tipos que faltaban + variantes desierto (bando enemigo).
+         "veh_artillery.fbx", "veh_sam.fbx", "veh_heli.fbx",
+         "veh_soldier_desert.fbx", "veh_apc_desert.fbx", "veh_ifv_desert.fbx",
+         "veh_mbt_desert.fbx", "veh_artillery_desert.fbx", "veh_sam_desert.fbx",
+         "veh_heli_desert.fbx"]
 
 at = unreal.AssetToolsHelpers.get_asset_tools()
 tasks = []

@@ -14,6 +14,9 @@ Tipos (kind):
   soldier  -> Soldado de infanteria moderno de pie con fusil, casco y chaleco (para formaciones de tropa).
   aircraft -> Caza moderno (F-16 / Su): fuselaje, alas en delta, cabina, cola, tren simple.
   ship     -> Fragata/destructor moderno: casco con proa en cuña, superestructura, mastil, torreta, helipuerto.
+  artillery-> Obus autopropulsado (PzH 2000 / M109): torreta grande atras, canon MUY largo elevado.
+  sam      -> Defensa aerea (Buk/Tor): chasis oruga, radar plano en mastil, 4 misiles inclinados.
+  heli     -> Helicoptero de ataque (Apache/Mi-28): tandem, alas cortas, botalon, rotor 4 palas.
 
 Todos: UNA malla cohesiva, miran a +X, 1 unidad ~= 1 metro (escalas coherentes entre tipos para formaciones).
 Camuflaje (camo, opcional 4o arg): green (OTAN, por defecto) | desert (arena) | grey (urbano).
@@ -370,8 +373,132 @@ def build_ship():
     floorbox(-12.5, 0.0, 1.6, 6.0, 4.4, 0.18, DECK)
     box(-12.5, 0.0, 1.73, 1.6, 1.6, 0.03, LIGHT)                       # marca "H"
 
+# =====================================================================================
+#  ARTILLERIA AUTOPROPULSADA  (estilo PzH 2000 / M109: chasis oruga, torreta grande atras,
+#  canon MUY largo y elevado con freno de boca)
+# =====================================================================================
+def build_artillery():
+    HULL_L, HULL_W = 7.4, 2.9
+    TRK_W, TRK_H = 0.6, 0.9
+    ty = HULL_W / 2 + TRK_W / 2 - 0.04
+    # Orugas + ruedas (igual lenguaje que el MBT).
+    for sgn in (-1, 1):
+        floorbox(0.0, sgn * ty, 0.0, HULL_L, TRK_W, TRK_H, DARK)
+        for i in range(7):
+            wx = -HULL_L / 2 + 0.7 + i * (HULL_L - 1.4) / 6.0
+            cyl(wx, sgn * (ty + TRK_W / 2 - 0.02), 0.44, 0.44, 0.12, 'y', RUBBER, seg=12)
+            cyl(wx, sgn * (ty + TRK_W / 2 - 0.05), 0.44, 0.19, 0.16, 'y', STEEL, seg=10)
+        floorbox(0.2, sgn * (ty + 0.02), TRK_H - 0.05, HULL_L - 0.8, 0.10, 0.5, BLOT)
+    # Casco bajo con glacis.
+    floorbox(0.0, 0.0, TRK_H - 0.15, HULL_L - 0.3, HULL_W, 0.5, HULL)
+    hull_top = TRK_H - 0.15 + 0.5
+    box(HULL_L / 2 - 0.5, 0.0, hull_top - 0.15, 1.3, HULL_W - 0.05, 0.10, BLOT, rot=rotY(36))
+    # Torreta GRANDE y alta, situada atras (el rasgo que la distingue del tanque).
+    TUR_L, TUR_W, TUR_H = 3.4, 2.6, 1.25
+    tcx = -1.0
+    tz = hull_top
+    floorbox(tcx, 0.0, tz, TUR_L, TUR_W, TUR_H, HULL)
+    box(tcx + 0.5, 0.55, tz + TUR_H - 0.02, 1.2, 1.0, 0.06, BLOT)
+    box(tcx - 0.8, -0.6, tz + TUR_H - 0.02, 1.0, 0.9, 0.06, BLOT2)
+    # Frente inclinado de torreta + cuna del canon.
+    box(tcx + TUR_L / 2 - 0.1, 0.0, tz + 0.45, 1.0, TUR_W - 0.2, 0.12, BLOT, rot=rotY(28))
+    floorbox(tcx + TUR_L / 2 + 0.05, 0.0, tz + 0.35, 0.7, 1.1, 0.75, METAL)
+    # CANON de obus: muy largo, ELEVADO ~14 grados, con freno de boca de doble camara.
+    gz = tz + 0.85
+    gx = tcx + TUR_L / 2 + 0.4
+    for i in range(5):
+        seg_x = gx + 0.62 * i
+        seg_z = gz + 0.155 * i
+        box(seg_x + 0.31, 0.0, seg_z + 0.077, 0.75, 0.20 if i < 3 else 0.15, 0.20 if i < 3 else 0.15,
+            METAL if i < 3 else DARK, rot=rotY(-14))
+    box(gx + 0.31 + 0.62 * 5, 0.0, gz + 0.077 + 0.155 * 5, 0.55, 0.30, 0.30, DARK, rot=rotY(-14))  # freno de boca
+    # Escotillas y estiba sobre la torreta; antena.
+    cyl(tcx - 0.6, 0.6, tz + TUR_H + 0.10, 0.38, 0.20, 'z', HULL, seg=12)
+    floorbox(tcx - TUR_L / 2 - 0.22, 0.0, tz + 0.15, 0.45, TUR_W - 0.4, 0.6, DARK)
+    cyl(tcx - TUR_L / 2 + 0.2, -(TUR_W / 2 - 0.3), tz + TUR_H + 0.85, 0.025, 1.7, 'z', STEEL, seg=6)
+
+# =====================================================================================
+#  SAM  (defensa aerea autopropulsada — estilo Buk/Tor: chasis oruga, radar plano en mastil
+#  y lanzador de 4 misiles INCLINADO hacia arriba)
+# =====================================================================================
+def build_sam():
+    HULL_L, HULL_W = 6.6, 2.9
+    TRK_W, TRK_H = 0.55, 0.85
+    ty = HULL_W / 2 + TRK_W / 2 - 0.04
+    for sgn in (-1, 1):
+        floorbox(0.0, sgn * ty, 0.0, HULL_L, TRK_W, TRK_H, DARK)
+        for i in range(6):
+            wx = -HULL_L / 2 + 0.7 + i * (HULL_L - 1.4) / 5.0
+            cyl(wx, sgn * (ty + TRK_W / 2 - 0.02), 0.42, 0.42, 0.12, 'y', RUBBER, seg=12)
+            cyl(wx, sgn * (ty + TRK_W / 2 - 0.05), 0.42, 0.18, 0.16, 'y', STEEL, seg=10)
+    # Casco tipo caja (mas alto que un tanque: electronica adentro).
+    floorbox(0.0, 0.0, TRK_H - 0.15, HULL_L - 0.3, HULL_W, 0.85, HULL)
+    hull_top = TRK_H - 0.15 + 0.85
+    box(HULL_L / 2 - 0.45, 0.0, hull_top - 0.25, 1.2, HULL_W - 0.05, 0.10, BLOT, rot=rotY(32))
+    box(-0.6, 0.5, hull_top - 0.02, 1.4, 1.0, 0.06, BLOT)
+    box(1.0, -0.55, hull_top - 0.02, 1.1, 0.9, 0.06, BLOT2)
+    # Cabina baja al frente.
+    floorbox(HULL_L / 2 - 1.1, 0.0, hull_top, 1.4, HULL_W - 0.5, 0.5, HULL)
+    box(HULL_L / 2 - 0.55, 0.0, hull_top + 0.28, 0.08, HULL_W - 0.9, 0.30, OPTIC)  # parabrisas
+    # RADAR: mastil + panel plano inclinado que gira (leible desde arriba).
+    mast_x = -HULL_L / 2 + 1.1
+    cyl(mast_x, 0.0, hull_top + 0.55, 0.16, 1.1, 'z', METAL, seg=10)
+    box(mast_x, 0.0, hull_top + 1.25, 0.14, 1.7, 0.95, STEEL, rot=rotY(-18))       # panel radar
+    for i in range(3):
+        box(mast_x + 0.09, 0.0, hull_top + 0.95 + i * 0.3, 0.03, 1.5, 0.05, DARK, rot=rotY(-18))
+    # LANZADOR: caja de 4 tubos de misil inclinada 35 grados sobre soporte central.
+    ln_x, ln_z = 0.4, hull_top
+    floorbox(ln_x, 0.0, ln_z, 1.1, 1.3, 0.45, METAL)                               # soporte giratorio
+    for sgn in (-1, 1):
+        for k in range(2):
+            oy = sgn * (0.38 + 0.0) - (0.0 if k == 0 else 0.0)
+            oz = 0.62 + k * 0.5
+            box(ln_x - 0.25, oy, ln_z + oz, 3.6, 0.42, 0.42, HULL, rot=rotY(-35))
+            cyl(ln_x + 1.15, oy, ln_z + oz + 1.05, 0.14, 0.5, 'x', DARK, seg=10, r2=0.02)  # punta misil
+    cyl(-HULL_L / 2 + 0.4, HULL_W / 2 - 0.3, hull_top + 0.9, 0.025, 1.6, 'z', STEEL, seg=6)
+
+# =====================================================================================
+#  HELICOPTERO DE ATAQUE  (estilo Apache/Mi-28: fuselaje estrecho en tandem, alas cortas
+#  con pods, botalon de cola, rotor principal de 4 palas y rotor de cola). Origen z=0 =
+#  suelo (patines); la vista lo eleva (HoverZ) cuando esta en vuelo.
+# =====================================================================================
+def build_heli():
+    FUS_L = 9.0
+    gz = 0.75   # altura de la panza sobre el suelo (patines debajo)
+    # Patines de aterrizaje.
+    for sgn in (-1, 1):
+        floorbox(0.3, sgn * 0.75, 0.0, 4.4, 0.12, 0.10, DARK)
+        for lx in (-1.1, 1.6):
+            box(lx, sgn * 0.62, 0.42, 0.10, 0.34, 0.62, METAL, rot=None)
+    # Fuselaje estrecho: morro + cabina en tandem escalonada + cuerpo.
+    floorbox(0.6, 0.0, gz, 4.6, 1.15, 1.15, HULL)                                    # cuerpo central
+    box(3.6, 0.0, gz + 0.45, 1.6, 0.95, 0.85, BLOT, rot=rotY(12))                    # morro caido
+    cyl(4.55, 0.0, gz + 0.35, 0.16, 0.7, 'x', DARK, seg=10)                          # canon de menton
+    box(2.3, 0.0, gz + 1.05, 1.1, 0.8, 0.55, OPTIC, rot=rotY(18))                    # cabina delantera
+    box(1.1, 0.0, gz + 1.25, 1.1, 0.8, 0.55, OPTIC, rot=rotY(14))                    # cabina trasera (escalonada)
+    floorbox(-0.4, 0.0, gz + 1.05, 2.2, 1.0, 0.55, HULL)                             # lomo de motores
+    box(-0.2, 0.45, gz + 1.55, 0.9, 0.35, 0.06, BLOT2)
+    # Alas cortas con pods de cohetes y misiles.
+    for sgn in (-1, 1):
+        floorbox(0.9, sgn * 1.35, gz + 0.55, 1.1, 1.6, 0.14, HULL)
+        cyl(0.9, sgn * 1.95, gz + 0.45, 0.22, 1.1, 'x', METAL, seg=10)               # pod cohetes
+        box(0.9, sgn * 1.55, gz + 0.38, 1.0, 0.16, 0.16, DARK)                       # rail misil
+    # Botalon de cola + deriva + rotor de cola (cruz de 2 palas en el plano vertical).
+    box(-3.4, 0.0, gz + 0.85, 4.2, 0.5, 0.5, HULL, rot=rotY(-3))
+    box(-5.4, 0.0, gz + 1.5, 0.5, 0.10, 1.3, BLOT, rot=rotY(18))                     # deriva vertical
+    floorbox(-5.2, 0.0, gz + 0.55, 1.1, 1.5, 0.12, HULL)                             # estabilizador
+    cyl(-5.45, 0.24, gz + 1.65, 0.09, 0.22, 'y', METAL, seg=8)                       # buje
+    box(-5.45, 0.33, gz + 1.65, 0.12, 0.05, 1.5, DARK)                               # pala vertical
+    box(-5.45, 0.33, gz + 1.65, 1.5, 0.05, 0.12, DARK)                               # pala horizontal
+    # Rotor principal: mastil + hub + 4 palas (2 cajas cruzadas = 4 brazos).
+    cyl(0.6, 0.0, gz + 1.75, 0.14, 0.5, 'z', METAL, seg=10)
+    cyl(0.6, 0.0, gz + 2.0, 0.28, 0.18, 'z', DARK, seg=10)
+    box(0.6, 0.0, gz + 2.05, 8.4, 0.30, 0.05, DARK)
+    box(0.6, 0.0, gz + 2.05, 0.30, 8.4, 0.05, DARK)
+
 BUILDERS = {"mbt": build_mbt, "ifv": build_ifv, "apc": build_apc,
-            "soldier": build_soldier, "aircraft": build_aircraft, "ship": build_ship}
+            "soldier": build_soldier, "aircraft": build_aircraft, "ship": build_ship,
+            "artillery": build_artillery, "sam": build_sam, "heli": build_heli}
 BUILDERS.get(KIND, build_mbt)()
 
 bmesh.ops.recalc_face_normals(bm, faces=bm.faces)

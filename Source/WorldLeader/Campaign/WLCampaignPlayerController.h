@@ -394,6 +394,8 @@ private:
 	void TickTacticalBattle(float DeltaSeconds);
 	bool HandleTacticalBattleClick();
 	void RefreshTacticalBattleCache();
+	/** F6: camara de batalla libre — pan WASD/flechas, zoom con rueda, orbita Q/E. */
+	void UpdateTacticalCamera(float DeltaSeconds);
 
 	bool bTacticalBattleActive = false;
 	bool bTacticalFinished = false;
