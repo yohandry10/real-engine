@@ -43,6 +43,11 @@
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
 
+namespace
+{
+	constexpr float RecruitmentBasePickRadius = 6800.f;
+}
+
 bool AWLCampaign3DView::TryGetProvinceForComponent(const UPrimitiveComponent* Component, FWLCampaign3DProvinceView& OutProvince) const
 {
 	if (!Component)
@@ -157,7 +162,8 @@ bool AWLCampaign3DView::TryGetForceNearWorldLocation(
 	float MaxDistance,
 	FWLCampaign3DForceView& OutForce) const
 {
-	float BestDistanceSq = FMath::Square(FMath::Max(1000.f, MaxDistance));
+	float BestDistanceSq = 0.f;
+	int32 BestPriority = MAX_int32;
 	int32 BestIndex = INDEX_NONE;
 	for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
 	{
@@ -167,9 +173,21 @@ bool AWLCampaign3DView::TryGetForceNearWorldLocation(
 		}
 		const FWLCampaign3DForceView& Force = ForceViews[Index];
 		const float DistanceSq = FVector::DistSquared2D(WorldLocation, Force.WorldLocation);
-		if (DistanceSq < BestDistanceSq)
+		const float CandidateMaxDistance = Force.bIsRecruitmentBase
+			? FMath::Max(MaxDistance, RecruitmentBasePickRadius)
+			: MaxDistance;
+		const float CandidateRadiusSq = FMath::Square(FMath::Max(1000.f, CandidateMaxDistance));
+		if (DistanceSq > CandidateRadiusSq)
+		{
+			continue;
+		}
+
+		const int32 Priority = Force.bIsRecruitmentBase ? 0 : 1;
+		if (BestIndex == INDEX_NONE || Priority < BestPriority
+			|| (Priority == BestPriority && DistanceSq < BestDistanceSq))
 		{
 			BestDistanceSq = DistanceSq;
+			BestPriority = Priority;
 			BestIndex = Index;
 		}
 	}
@@ -194,9 +212,7 @@ bool AWLCampaign3DView::IsForceSelectableByProximity(int32 Index) const
 	{
 		// El FUERTE (base de reclutamiento) es un EDIFICIO sin token: SIEMPRE seleccionable por proximidad
 		// (empieza VACIO, y hay que poder clicarlo para abrir el panel y reclutar). Antes devolvia false, asi
-		// que clicar el fuerte caia al terreno y agarraba la ciudad cercana (18500u) o nada. Esta proximidad
-		// (2800u, cubre el edificio) corre ANTES que la de ciudad y el fuerte esta a >=14km de toda ciudad,
-		// asi que no roba clics de ciudad.
+		// que clicar el fuerte caia al terreno y agarraba la ciudad cercana (18500u) o nada.
 		return true;
 	}
 	if (!ForceHasTroopsForToken(Index))
@@ -454,7 +470,7 @@ void AWLCampaign3DView::SetSelectedProvinceHighlight(const FString& ProvinceId)
 	RefreshMilitaryForceMarkerVisuals();
 	if (TerritoryLayer)
 	{
-		TerritoryLayer->SetSelectedTerritory(ProvinceId);
+		TerritoryLayer->SetSelectedTerritory(TEXT(""));
 	}
 
 	for (const FWLCampaign3DProvinceView& Province : ProvinceViews)
@@ -493,9 +509,9 @@ void AWLCampaign3DView::SetSelectedCityHighlight(const FString& CityId)
 	{
 		if (City.Id.Equals(CityId, ESearchCase::IgnoreCase))
 		{
-			if (TerritoryLayer && !City.TerritoryId.IsEmpty())
+			if (TerritoryLayer)
 			{
-				TerritoryLayer->SetSelectedTerritory(City.TerritoryId);
+				TerritoryLayer->SetSelectedTerritory(TEXT(""));
 			}
 			RebuildPointSelectionHighlight(City.WorldLocation + FVector(0.f, 0.f, 1240.f), City.bCapital ? 7600.f : 6200.f,
 				City.bPort ? FLinearColor(0.46f, 0.82f, 0.86f, 1.f) : FLinearColor(0.96f, 0.78f, 0.34f, 1.f));
