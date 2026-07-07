@@ -138,10 +138,16 @@ con variante por terreno donde aplica).
   helo limpia blindados sin un rasguño. `TacticalIndirectFire` — la artillería demuele a un
   estático a 2200 de distancia por salvas.
 
-**F4 — Moral, supresión y flanqueo**
-- Moral baja por bajas, fuego de artillería (supresión) y flanqueo; `Routing` al romperse,
-  recuperación fuera de combate. Bono de daño por atacar por flanco/retaguardia.
-- Verificar: rodear un contingente lo rompe antes que des-gastarlo de frente.
+**F4 — Moral, supresión y flanqueo** ✅ IMPLEMENTADA
+- FLANQUEO: el ángulo de ataque se mide contra el encaramiento del defensor (hacia su
+  objetivo, su destino, o el frente por defecto): retaguardia = daño ×1.35 y moral ×1.7;
+  flanco = ×1.15 / ×1.35. Los aviones no tienen flanco.
+- SUPRESIÓN: las salvas de artillería castigan la moral ×2.2 sobre el daño físico — el
+  bombardeo rompe nervios mucho más que carne.
+- RECUPERACIÓN: fuera del fuego la moral regenera 2/s; el que huía se REAGRUPA (vuelve a
+  Idle) al superar el umbral de derrota con margen (+20). Bajo fuego no hay calma.
+- Verificado: `TacticalFlankRout` — 20 vs 20 de infantería: de frente el defensor muere sin
+  romperse; RODEADO entra en desbandada con la mayoría de la salud intacta.
 
 **F5 — IA de batalla y paridad con auto-resolve**
 - IA rival: evalúa la matriz (manda ATGM al bosque, protege su SAM, caza artillería con

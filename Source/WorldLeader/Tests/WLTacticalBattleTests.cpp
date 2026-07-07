@@ -673,4 +673,119 @@ bool FWLTacticalIndirectFireTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// F4 flanqueo y moral — CONTRATO (Docs/TACTICAL_BATTLE_GAMEPLAY.md): rodear un contingente
+// lo ROMPE (desbandada con la mayoria de efectivos vivos) antes que desgastarlo de frente
+// (que lo aniquila sin romperlo). Mismo matchup 20 vs 20 de infanteria, defensor quieto.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTacticalFlankRoutTest,
+	"WorldLeader.Battle.TacticalFlankRout",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTacticalFlankRoutTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLTacticalBattleSubsystem* Tactical = GameInstance->GetSubsystem<UWLTacticalBattleSubsystem>();
+	TestNotNull(TEXT("Tactical battle subsystem"), Tactical);
+	if (!Tactical)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	// Asalto = infanteria (la que maniobra) + un SAM que se queda FIJANDO el objetivo
+	// central (contra infanteria es inofensivo): sin el, marchar al rodeo regalaria la
+	// victoria por captura al defensor. Fijar y flanquear, como manda el manual.
+	FWLArmy Assault;
+	Assault.Id = TEXT("A-ASLT");
+	Assault.OwnerIso = TEXT("VE");
+	Assault.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 10; ++i) { Assault.Units.Add(TEXT("infantry")); }
+	Assault.Units.Add(TEXT("sam"));
+
+	FWLArmy Holding;
+	Holding.Id = TEXT("A-HOLD");
+	Holding.OwnerIso = TEXT("CO");
+	Holding.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 20; ++i) { Holding.Units.Add(TEXT("infantry")); }
+
+	auto FindUnitIds = [](const FWLTacticalBattleState& Battle, FString& OutAttacker, FString& OutDefender)
+	{
+		for (const FWLTacticalUnitState& Unit : Battle.Units)
+		{
+			if (Unit.OwnerIso == TEXT("VE") && Unit.UnitId == TEXT("infantry")) { OutAttacker = Unit.TacticalUnitId; }
+			if (Unit.OwnerIso == TEXT("CO"))                                    { OutDefender = Unit.TacticalUnitId; }
+		}
+	};
+	auto FindDefender = [](const FWLTacticalBattleState& Battle) -> FWLTacticalUnitState
+	{
+		for (const FWLTacticalUnitState& Unit : Battle.Units)
+		{
+			if (Unit.OwnerIso == TEXT("CO")) { return Unit; }
+		}
+		return FWLTacticalUnitState();
+	};
+
+	FString Message;
+	TArray<FString> Events;
+
+	// --- Batalla A: asalto FRONTAL. El defensor aguanta hasta ser aniquilado, sin romperse. ---
+	FWLTacticalBattleState Frontal;
+	TestTrue(TEXT("Iniciar asalto frontal"),
+		Tactical->StartTacticalBattleFromArmies(Assault, Holding, TEXT("CO-CES"), Frontal, Message));
+	FString FrontalAttackerId, FrontalDefenderId;
+	FindUnitIds(Frontal, FrontalAttackerId, FrontalDefenderId);
+	TestTrue(TEXT("Orden de asalto frontal"),
+		Tactical->IssueAttackOrder(Frontal.BattleId, FrontalAttackerId, FrontalDefenderId, Message));
+	for (int32 Step = 0; Step < 200 && Frontal.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(Frontal.BattleId, 1.0, Frontal, Events);
+	}
+	const FWLTacticalUnitState FrontalDefender = FindDefender(Frontal);
+	TestEqual(TEXT("Asalto frontal gana por desgaste"),
+		static_cast<int32>(Frontal.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
+	TestTrue(TEXT("De frente el defensor muere sin romperse"), FrontalDefender.bDestroyed);
+
+	// --- Batalla B: RODEO. Marchar a la retaguardia del defensor y atacar desde atras. ---
+	FWLTacticalBattleState Flanked;
+	TestTrue(TEXT("Iniciar asalto por retaguardia"),
+		Tactical->StartTacticalBattleFromArmies(Assault, Holding, TEXT("CO-CES"), Flanked, Message));
+	FString FlankAttackerId, FlankDefenderId;
+	FindUnitIds(Flanked, FlankAttackerId, FlankDefenderId);
+	TestTrue(TEXT("Orden de marcha envolvente"),
+		Tactical->IssueMoveOrder(Flanked.BattleId, FlankAttackerId, FVector2D(1100.0, 260.0), Message));
+	for (int32 Step = 0; Step < 80 && Flanked.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(Flanked.BattleId, 1.0, Flanked, Events);
+		const FWLTacticalUnitState* Marching = Flanked.Units.FindByPredicate(
+			[&FlankAttackerId](const FWLTacticalUnitState& U) { return U.TacticalUnitId == FlankAttackerId; });
+		if (Marching && Marching->Order == EWLTacticalUnitOrder::Idle)
+		{
+			break;   // llego a la retaguardia
+		}
+	}
+	TestTrue(TEXT("Orden de ataque por la espalda"),
+		Tactical->IssueAttackOrder(Flanked.BattleId, FlankAttackerId, FlankDefenderId, Message));
+	for (int32 Step = 0; Step < 200 && Flanked.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(Flanked.BattleId, 1.0, Flanked, Events);
+	}
+	const FWLTacticalUnitState FlankedDefender = FindDefender(Flanked);
+	TestEqual(TEXT("El rodeo tambien gana"),
+		static_cast<int32>(Flanked.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
+	TestFalse(TEXT("Rodeado se ROMPE, no muere"), FlankedDefender.bDestroyed);
+	TestEqual(TEXT("Rodeado termina en desbandada"),
+		static_cast<int32>(FlankedDefender.Order), static_cast<int32>(EWLTacticalUnitOrder::Routing));
+	TestTrue(TEXT("Roto con la mayoria de la salud intacta"), FlankedDefender.Health > 25.0);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

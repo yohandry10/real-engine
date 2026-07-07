@@ -200,6 +200,65 @@ namespace
 	// F3: cadencia de las salvas indirectas; cada salva concentra este tiempo de fuego.
 	constexpr double IndirectVolleyPeriodSeconds = 4.0;
 	constexpr double IndirectShellSpeedUnits = 700.0;
+	// F4: la artilleria SUPRIME — el bombardeo rompe nervios mucho mas que carne.
+	constexpr double IndirectSuppressionMoraleFactor = 2.2;
+	// F4: recuperacion de moral fuera del fuego, y umbral extra para reagruparse tras huir.
+	constexpr double MoraleRecoveryPerSecond = 2.0;
+	constexpr int32 RallyMoraleMargin = 20;
+
+	// F4: encaramiento del contingente — hacia su objetivo de ataque, su destino de
+	// movimiento, o el frente por defecto (atacante mira +X, defensor -X).
+	FVector2D ComputeUnitFacing(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit)
+	{
+		if (Unit.Order == EWLTacticalUnitOrder::Attacking && !Unit.AttackTargetUnitId.IsEmpty())
+		{
+			const FWLTacticalUnitState* Target = Battle.Units.FindByPredicate([&Unit](const FWLTacticalUnitState& U)
+			{
+				return U.TacticalUnitId == Unit.AttackTargetUnitId;
+			});
+			if (Target && !(Target->Position - Unit.Position).IsNearlyZero())
+			{
+				return (Target->Position - Unit.Position).GetSafeNormal();
+			}
+		}
+		if ((Unit.Order == EWLTacticalUnitOrder::Moving || Unit.Order == EWLTacticalUnitOrder::Routing)
+			&& !(Unit.MoveTarget - Unit.Position).IsNearlyZero())
+		{
+			return (Unit.MoveTarget - Unit.Position).GetSafeNormal();
+		}
+		return Unit.OwnerIso == Battle.AttackerIso ? FVector2D(1.0, 0.0) : FVector2D(-1.0, 0.0);
+	}
+
+	// F4: fuera del fuego los nervios se calman — la moral se recupera, y el que huia se
+	// reagrupa al superar el umbral de derrota con margen.
+	void RecoverMorale(
+		FWLTacticalBattleState& Battle,
+		const TArray<double>& HealthBeforeTick,
+		double DeltaSeconds,
+		int32 RoutMoraleThreshold,
+		TArray<FString>& OutEvents)
+	{
+		for (int32 Index = 0; Index < Battle.Units.Num(); ++Index)
+		{
+			FWLTacticalUnitState& Unit = Battle.Units[Index];
+			if (Unit.bDestroyed || Unit.Health <= 0.0 || Unit.Morale >= 100.0)
+			{
+				continue;
+			}
+			if (HealthBeforeTick.IsValidIndex(Index) && Unit.Health < HealthBeforeTick[Index])
+			{
+				continue;   // bajo fuego este tick: nada de calma
+			}
+			Unit.Morale = FMath::Min(100.0, Unit.Morale + MoraleRecoveryPerSecond * DeltaSeconds);
+			if (Unit.Order == EWLTacticalUnitOrder::Routing
+				&& Unit.Morale >= static_cast<double>(RoutMoraleThreshold + RallyMoraleMargin))
+			{
+				Unit.Order = EWLTacticalUnitOrder::Idle;
+				Unit.MoveTarget = Unit.Position;
+				OutEvents.Add(FString::Printf(TEXT("%s se reagrupa."), *Unit.TacticalUnitId));
+			}
+		}
+	}
 
 	// Aplica el dano de un ataque (fuego directo o salva) a un contingente: canal correcto
 	// (AA contra aire, HARD contra blindaje, SOFT contra el resto), matriz con terreno,
@@ -214,8 +273,25 @@ namespace
 		const FWLUnitData& DefenderData,
 		FWLTacticalUnitState& Target,
 		const FString& SourceLabel,
-		TArray<FString>& OutEvents)
+		TArray<FString>& OutEvents,
+		const FVector2D& AttackerPosition,
+		const FVector2D& DefenderFacing,
+		double MoraleFactor = 1.0)
 	{
+		// F4: FLANQUEO — pegar por el flanco o la retaguardia hace mas dano y rompe nervios.
+		// El angulo se mide contra el encaramiento del defensor (los aviones no tienen flanco).
+		double FlankDamage = 1.0;
+		double FlankMorale = 1.0;
+		if (DefenderData.Type != EWLUnitType::Air && !DefenderFacing.IsNearlyZero())
+		{
+			const FVector2D ToAttacker = (AttackerPosition - Target.Position).GetSafeNormal();
+			if (!ToAttacker.IsNearlyZero())
+			{
+				const double Alignment = FVector2D::DotProduct(DefenderFacing, ToAttacker);
+				if (Alignment < -0.35)      { FlankDamage = 1.35; FlankMorale = 1.7; }   // retaguardia
+				else if (Alignment <= 0.35) { FlankDamage = 1.15; FlankMorale = 1.35; }  // flanco
+			}
+		}
 		const double BaseAttack = DefenderData.Type == EWLUnitType::Air
 			? static_cast<double>(AttackerData.EffectiveAAAttack())
 			: (IsArmoredTarget(DefenderData.Type)
@@ -230,7 +306,8 @@ namespace
 			* Counter
 			* Rules.TacticalDamagePerAttackPerSecond
 			* Mitigation
-			* HoldBonus;
+			* HoldBonus
+			* FlankDamage;
 		const double DefenderPool = FMath::Max(1.0,
 			static_cast<double>(FMath::Max(1, DefenderData.Strength)) * static_cast<double>(FMath::Max(1, Target.InitialElementCount)));
 		const double HealthLossPercent = DamagePerSecond * Seconds / DefenderPool * 100.0;
@@ -238,7 +315,7 @@ namespace
 		const double PreviousHealth = Target.Health;
 		Target.Health = FMath::Max(0.0, Target.Health - HealthLossPercent);
 		const double HealthLost = PreviousHealth - Target.Health;
-		Target.Morale = FMath::Max(0.0, Target.Morale - HealthLost * Rules.TacticalMoraleDamagePerHealth);
+		Target.Morale = FMath::Max(0.0, Target.Morale - HealthLost * Rules.TacticalMoraleDamagePerHealth * FlankMorale * MoraleFactor);
 
 		// Las bajas se VEN: los elementos vivos siguen al % de salud del contingente.
 		Target.ElementCount = Target.Health <= 0.0
@@ -585,10 +662,18 @@ bool UWLTacticalBattleSubsystem::AdvanceTacticalBattle(
 
 	const double StepSeconds = FMath::Clamp(DeltaSeconds, 0.0, 60.0);
 	Battle->ElapsedSeconds += StepSeconds;
+	// F4: foto de salud al inicio del tick — solo recupera moral quien NO recibio fuego.
+	TArray<double> HealthBeforeTick;
+	HealthBeforeTick.Reserve(Battle->Units.Num());
+	for (const FWLTacticalUnitState& Unit : Battle->Units)
+	{
+		HealthBeforeTick.Add(Unit.Health);
+	}
 	IssueTacticalAIOrders(*Battle, OutEvents);
 	AdvanceUnitOrders(*Battle, StepSeconds, OutEvents);
 	AdvanceShells(*Battle, OutEvents);
 	AdvanceAutoAirDefense(*Battle, StepSeconds, OutEvents);
+	RecoverMorale(*Battle, HealthBeforeTick, StepSeconds, GetBalanceRules().TacticalRoutMoraleThreshold, OutEvents);
 	AdvanceObjectives(*Battle, StepSeconds, OutEvents);
 	UpdateBattleResult(*Battle, OutEvents);
 	OutBattle = *Battle;
@@ -844,7 +929,8 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 		const EWLTacticalTerrain TerrainAtAttacker = TerrainAtPosition(Battle, Unit.Position);
 		ApplyTacticalDamage(Rules, AttackerData, Unit.ElementCount,
 			TerrainAtAttacker, TerrainAtTarget, DeltaSeconds,
-			DefenderData, *Target, Unit.TacticalUnitId, OutEvents);
+			DefenderData, *Target, Unit.TacticalUnitId, OutEvents,
+			Unit.Position, ComputeUnitFacing(Battle, *Target));
 	}
 }
 
@@ -890,9 +976,11 @@ void UWLTacticalBattleSubsystem::AdvanceShells(FWLTacticalBattleState& Battle, T
 				{
 					continue;
 				}
+				// F4: el bombardeo SUPRIME — moral castigada muy por encima del dano fisico.
 				ApplyTacticalDamage(Rules, AttackerData, Shell.Elements,
 					EWLTacticalTerrain::Open, TerrainAtPosition(Battle, Victim.Position),
-					IndirectVolleyPeriodSeconds, DefenderData, Victim, Shell.ShellId, OutEvents);
+					IndirectVolleyPeriodSeconds, DefenderData, Victim, Shell.ShellId, OutEvents,
+					Shell.FirePosition, ComputeUnitFacing(Battle, Victim), IndirectSuppressionMoraleFactor);
 			}
 		}
 		Battle.Shells.RemoveAt(Index);
@@ -960,7 +1048,8 @@ void UWLTacticalBattleSubsystem::AdvanceAutoAirDefense(FWLTacticalBattleState& B
 		}
 		ApplyTacticalDamage(Rules, SamData, Sam.ElementCount,
 			TerrainAtPosition(Battle, Sam.Position), TerrainAtPosition(Battle, AirTarget->Position),
-			DeltaSeconds, AirData, *AirTarget, Sam.TacticalUnitId, OutEvents);
+			DeltaSeconds, AirData, *AirTarget, Sam.TacticalUnitId, OutEvents,
+			Sam.Position, ComputeUnitFacing(Battle, *AirTarget));
 	}
 }
 
