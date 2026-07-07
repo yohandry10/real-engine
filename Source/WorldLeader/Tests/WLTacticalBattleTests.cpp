@@ -502,4 +502,175 @@ bool FWLTacticalTerrainUrbanFlipTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// F3 capa aerea — CONTRATO del paraguas SAM (Docs/TACTICAL_BATTLE_GAMEPLAY.md): al aire solo
+// le pegan SAM y cazas. Con el SAM vivo, los helos atacantes caen bajo el paraguas ANTES de
+// limpiar los blindados; sin SAM, el helo caza tanques con impunidad (ni lo tocan).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTacticalAirUmbrellaTest,
+	"WorldLeader.Battle.TacticalAirUmbrella",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTacticalAirUmbrellaTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLTacticalBattleSubsystem* Tactical = GameInstance->GetSubsystem<UWLTacticalBattleSubsystem>();
+	TestNotNull(TEXT("Tactical battle subsystem"), Tactical);
+	if (!Tactical)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLArmy HeliSide;
+	HeliSide.Id = TEXT("A-HELI");
+	HeliSide.OwnerIso = TEXT("VE");
+	HeliSide.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 4; ++i) { HeliSide.Units.Add(TEXT("heli")); }
+
+	FWLArmy ArmorWithSam;
+	ArmorWithSam.Id = TEXT("A-DEF");
+	ArmorWithSam.OwnerIso = TEXT("CO");
+	ArmorWithSam.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 3; ++i) { ArmorWithSam.Units.Add(TEXT("mbt")); }
+	for (int32 i = 0; i < 2; ++i) { ArmorWithSam.Units.Add(TEXT("sam")); }
+
+	// --- Batalla A: paraguas SAM activo. El SAM dispara SOLO (sin ordenes) a lo aereo. ---
+	FWLTacticalBattleState BattleA;
+	FString Message;
+	TestTrue(TEXT("Iniciar helos vs blindados con SAM"),
+		Tactical->StartTacticalBattleFromArmies(HeliSide, ArmorWithSam, TEXT("CO-CES"), BattleA, Message));
+
+	FString HeliUnitId, TankUnitId;
+	for (const FWLTacticalUnitState& Unit : BattleA.Units)
+	{
+		if (Unit.UnitId == TEXT("heli")) { HeliUnitId = Unit.TacticalUnitId; }
+		if (Unit.UnitId == TEXT("mbt"))  { TankUnitId = Unit.TacticalUnitId; }
+	}
+	TestTrue(TEXT("Orden helo->blindados"),
+		Tactical->IssueAttackOrder(BattleA.BattleId, HeliUnitId, TankUnitId, Message));
+
+	TArray<FString> Events;
+	for (int32 Step = 0; Step < 300 && BattleA.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(BattleA.BattleId, 1.0, BattleA, Events);
+	}
+	TestEqual(TEXT("Con SAM vivo el atacante aereo pierde"),
+		static_cast<int32>(BattleA.Result), static_cast<int32>(EWLTacticalBattleResult::DefenderVictory));
+
+	// --- Batalla B: mismo ataque sin SAM. Nada toca al helo: limpia blindados al 100%. ---
+	FWLArmy ArmorOnly;
+	ArmorOnly.Id = TEXT("A-DEF2");
+	ArmorOnly.OwnerIso = TEXT("CO");
+	ArmorOnly.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 3; ++i) { ArmorOnly.Units.Add(TEXT("mbt")); }
+
+	FWLTacticalBattleState BattleB;
+	TestTrue(TEXT("Iniciar helos vs blindados sin SAM"),
+		Tactical->StartTacticalBattleFromArmies(HeliSide, ArmorOnly, TEXT("CO-CES"), BattleB, Message));
+	FString HeliUnitIdB, TankUnitIdB;
+	for (const FWLTacticalUnitState& Unit : BattleB.Units)
+	{
+		if (Unit.UnitId == TEXT("heli")) { HeliUnitIdB = Unit.TacticalUnitId; }
+		if (Unit.UnitId == TEXT("mbt"))  { TankUnitIdB = Unit.TacticalUnitId; }
+	}
+	TestTrue(TEXT("Orden helo->blindados sin SAM"),
+		Tactical->IssueAttackOrder(BattleB.BattleId, HeliUnitIdB, TankUnitIdB, Message));
+
+	for (int32 Step = 0; Step < 300 && BattleB.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(BattleB.BattleId, 1.0, BattleB, Events);
+	}
+	TestEqual(TEXT("Sin SAM el helo limpia los blindados"),
+		static_cast<int32>(BattleB.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
+
+	double HeliHealth = 0.0;
+	for (const FWLTacticalUnitState& Unit : BattleB.Units)
+	{
+		if (Unit.UnitId == TEXT("heli"))
+		{
+			HeliHealth = Unit.Health;
+		}
+	}
+	TestTrue(TEXT("Al helo sin SAM enfrente ni lo tocan"), HeliHealth >= 99.0);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
+// F3 fuego indirecto — la artilleria dispara SALVAS con vuelo contra la posicion fijada al
+// disparar: un objetivo ESTATICO es demolido a distancia (2200 vs 300 de alcance).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLTacticalIndirectFireTest,
+	"WorldLeader.Battle.TacticalIndirectFire",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLTacticalIndirectFireTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLTacticalBattleSubsystem* Tactical = GameInstance->GetSubsystem<UWLTacticalBattleSubsystem>();
+	TestNotNull(TEXT("Tactical battle subsystem"), Tactical);
+	if (!Tactical)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FWLArmy ArtillerySide;
+	ArtillerySide.Id = TEXT("A-ART");
+	ArtillerySide.OwnerIso = TEXT("VE");
+	ArtillerySide.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 2; ++i) { ArtillerySide.Units.Add(TEXT("artillery")); }
+
+	FWLArmy StaticInfantry;
+	StaticInfantry.Id = TEXT("A-INF");
+	StaticInfantry.OwnerIso = TEXT("CO");
+	StaticInfantry.ProvinceId = TEXT("CO-CES");
+	for (int32 i = 0; i < 10; ++i) { StaticInfantry.Units.Add(TEXT("infantry")); }
+
+	FWLTacticalBattleState Battle;
+	FString Message;
+	TestTrue(TEXT("Iniciar artilleria vs infanteria estatica"),
+		Tactical->StartTacticalBattleFromArmies(ArtillerySide, StaticInfantry, TEXT("CO-CES"), Battle, Message));
+
+	FString ArtilleryUnitId, InfantryUnitId;
+	for (const FWLTacticalUnitState& Unit : Battle.Units)
+	{
+		if (Unit.UnitId == TEXT("artillery")) { ArtilleryUnitId = Unit.TacticalUnitId; }
+		if (Unit.UnitId == TEXT("infantry"))  { InfantryUnitId = Unit.TacticalUnitId; }
+	}
+	TestTrue(TEXT("Orden artilleria->infanteria"),
+		Tactical->IssueAttackOrder(Battle.BattleId, ArtilleryUnitId, InfantryUnitId, Message));
+
+	TArray<FString> Events;
+	bool bVolleyFired = false;
+	for (int32 Step = 0; Step < 120 && Battle.bActive; ++Step)
+	{
+		Tactical->AdvanceTacticalBattle(Battle.BattleId, 1.0, Battle, Events);
+		bVolleyFired = bVolleyFired || Events.ContainsByPredicate([](const FString& Event)
+		{
+			return Event.Contains(TEXT("salva"));
+		});
+	}
+	TestTrue(TEXT("La artilleria disparo salvas"), bVolleyFired);
+	TestEqual(TEXT("El objetivo estatico es demolido a distancia"),
+		static_cast<int32>(Battle.Result), static_cast<int32>(EWLTacticalBattleResult::AttackerVictory));
+
+	GameInstance->Shutdown();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

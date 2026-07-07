@@ -78,6 +78,10 @@ struct FWLTacticalUnitState
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
 	int32 InitialElementCount = 1;
 
+	// F3: cadencia de fuego indirecto (segundos hasta la proxima salva de artilleria/naval).
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	double IndirectCooldownSeconds = 0.0;
+
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
 	bool bDestroyed = false;
 
@@ -131,6 +135,42 @@ struct FWLTacticalTerrainPatch
 	double Radius = 500.0;
 };
 
+// F3: salva de fuego INDIRECTO en vuelo. Se dispara contra la POSICION del objetivo al
+// momento del disparo — mata estaticos, falla contra moviles (que ya no estan alli).
+USTRUCT(BlueprintType)
+struct FWLTacticalShellState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	FString ShellId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	FString OwnerIso;
+
+	/** Id de DATOS del que dispara (artillery/ship): decide canal de dano y contras al impactar. */
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	FString SourceUnitId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	int32 Elements = 1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	FVector2D FirePosition = FVector2D::ZeroVector;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	FVector2D ImpactPosition = FVector2D::ZeroVector;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	double FiredAtSeconds = 0.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	double ImpactAtSeconds = 0.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	double Radius = 160.0;
+};
+
 USTRUCT(BlueprintType)
 struct FWLTacticalBattleState
 {
@@ -177,6 +217,12 @@ struct FWLTacticalBattleState
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
 	TArray<FWLTacticalTerrainPatch> TerrainPatches;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	TArray<FWLTacticalShellState> Shells;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Battle")
+	int32 NextShellNumber = 1;
 
 	bool IsOwnerAIControlled(const FString& OwnerIso) const
 	{

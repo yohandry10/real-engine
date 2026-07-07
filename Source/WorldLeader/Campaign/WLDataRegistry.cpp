@@ -357,6 +357,7 @@ bool UWLDataRegistry::LoadUnitsFromFile(const FString& FilePath)
 		// Batalla tactica F1: stats de armas combinadas (opcionales; 0 = derivar de attack/defense).
 		if (Obj->TryGetNumberField(TEXT("soft_attack"), Tmp)) U.SoftAttack = FMath::Max(0, Tmp);
 		if (Obj->TryGetNumberField(TEXT("hard_attack"), Tmp)) U.HardAttack = FMath::Max(0, Tmp);
+		if (Obj->TryGetNumberField(TEXT("aa_attack"), Tmp))   U.AAAttack = FMath::Max(0, Tmp);
 		if (Obj->TryGetNumberField(TEXT("armor"), Tmp))       U.Armor = FMath::Max(0, Tmp);
 		double TacticalTmp = 0.0;
 		if (Obj->TryGetNumberField(TEXT("range_units"), TacticalTmp)) U.RangeUnits = FMath::Max(0.0, TacticalTmp);

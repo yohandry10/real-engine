@@ -124,11 +124,19 @@ con variante por terreno donde aplica).
 - Verificado: test `WorldLeader.Battle.TacticalTerrainUrbanFlip` — el MISMO matchup 4 MBT vs
   50 infantería que en abierto gana el tanque, en ciudad lo gana la infantería defensora.
 
-**F3 — Capa indirecta y aérea**
-- Artillería: fuego indirecto con retardo y área (mata estáticos, falla contra móviles).
-- Helo/caza como contingentes aéreos: solo SAM/caza les hace daño; el SAM proyecta un
-  "paraguas" (radio); helo fuera del paraguas caza tanques impunemente.
-- Verificar: con SAM vivo, el helo atacante pierde; muerto el SAM, el helo limpia blindados.
+**F3 — Capa indirecta y aérea** ✅ IMPLEMENTADA
+- Artillería/naval: fuego INDIRECTO por salvas (`FWLTacticalShellState`): cada 4 s dispara
+  contra la POSICIÓN actual del objetivo con tiempo de vuelo (1.2 s + distancia/700); al
+  impactar daña en área (radio 160) a todo enemigo que siga allí — mata estáticos, falla
+  contra móviles. Sin daño directo continuo. La vista dibuja el proyectil en arco balístico
+  y deja cráter.
+- Capa aérea: al aire SOLO le pegan SAM, cazas y buques (canal `aa_attack` en Units.json:
+  sam 30, caza 16, buque 10, helo 4; contras tierra→aire = 0). El SAM dispara AUTOMÁTICO
+  (sin orden) al aéreo enemigo más cercano dentro de su alcance: ese radio ES el paraguas.
+- IA: no persigue lo que no puede dañar (un tanque ya no apunta a un caza).
+- Verificado: `TacticalAirUmbrella` — helos vs blindados+SAM pierde el atacante; sin SAM el
+  helo limpia blindados sin un rasguño. `TacticalIndirectFire` — la artillería demuele a un
+  estático a 2200 de distancia por salvas.
 
 **F4 — Moral, supresión y flanqueo**
 - Moral baja por bajas, fuego de artillería (supresión) y flanqueo; `Routing` al romperse,

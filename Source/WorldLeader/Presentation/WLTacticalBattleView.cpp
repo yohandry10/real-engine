@@ -35,6 +35,9 @@ AWLTacticalBattleView::AWLTacticalBattleView()
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneFinder(TEXT("/Engine/BasicShapes/Plane.Plane"));
 	if (PlaneFinder.Succeeded()) { GroundMesh = PlaneFinder.Object; }
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (SphereFinder.Succeeded()) { SphereMesh = SphereFinder.Object; }
 }
 
 UMaterialInstanceDynamic* AWLTacticalBattleView::MakeColorMaterial(const FLinearColor& Color)
@@ -348,6 +351,80 @@ void AWLTacticalBattleView::UpdateTracer(const FWLTacticalBattleState& Battle, c
 	Tracer->SetVisibility(true);
 }
 
+void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
+{
+	if (!SphereMesh || !RingMesh)
+	{
+		return;
+	}
+
+	// Salvas vivas: sincronizar componentes (arco balistico origen -> punto de impacto).
+	TSet<FString> AliveShells;
+	for (const FWLTacticalShellState& Shell : Battle.Shells)
+	{
+		AliveShells.Add(Shell.ShellId);
+		UStaticMeshComponent** Found = ShellComponents.Find(Shell.ShellId);
+		UStaticMeshComponent* Comp = Found ? *Found : nullptr;
+		if (!Comp)
+		{
+			Comp = NewObject<UStaticMeshComponent>(this);
+			Comp->SetupAttachment(Root);
+			Comp->RegisterComponent();
+			Comp->SetStaticMesh(SphereMesh);
+			Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Comp->SetWorldScale3D(FVector(0.34f, 0.34f, 0.34f));
+			const bool bPlayer = Shell.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
+			if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(
+				bPlayer ? FLinearColor(0.95f, 0.82f, 0.35f) : FLinearColor(0.95f, 0.38f, 0.20f)))
+			{
+				Comp->SetMaterial(0, Mat);
+			}
+			ShellComponents.Add(Shell.ShellId, Comp);
+		}
+
+		const double Flight = FMath::Max(0.1, Shell.ImpactAtSeconds - Shell.FiredAtSeconds);
+		const float T = FMath::Clamp(static_cast<float>((Battle.ElapsedSeconds - Shell.FiredAtSeconds) / Flight), 0.f, 1.f);
+		const FVector From = TacticalToWorld(Shell.FirePosition);
+		const FVector To = TacticalToWorld(Shell.ImpactPosition);
+		FVector Pos = FMath::Lerp(From, To, T);
+		const float ArcPeak = FMath::Min(2800.f, static_cast<float>(FVector::Dist2D(From, To)) * 0.30f);
+		Pos.Z = GroundZ + 120.f + ArcPeak * FMath::Sin(T * PI);
+		Comp->SetWorldLocation(Pos);
+		Comp->SetVisibility(true);
+	}
+
+	// Salvas que ya impactaron: quitar el proyectil y dejar CRATER (quemadura en el campo).
+	for (auto It = ShellComponents.CreateIterator(); It; ++It)
+	{
+		if (AliveShells.Contains(It->Key))
+		{
+			continue;
+		}
+		if (UStaticMeshComponent* Comp = It->Value)
+		{
+			if (ScorchComponents.Num() < 60)
+			{
+				UStaticMeshComponent* Scorch = NewObject<UStaticMeshComponent>(this);
+				Scorch->SetupAttachment(Root);
+				Scorch->RegisterComponent();
+				Scorch->SetStaticMesh(RingMesh);
+				FVector Loc = Comp->GetComponentLocation();
+				Loc.Z = GroundZ + 2.5f;
+				Scorch->SetWorldLocation(Loc);
+				Scorch->SetWorldScale3D(FVector(7.5f, 7.5f, 0.02f));
+				Scorch->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(0.05f, 0.045f, 0.04f)))
+				{
+					Scorch->SetMaterial(0, Mat);
+				}
+				ScorchComponents.Add(Scorch);
+			}
+			Comp->DestroyComponent();
+		}
+		It.RemoveCurrent();
+	}
+}
+
 void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, const FString& InPlayerIso)
 {
 	PlayerIso = InPlayerIso.TrimStartAndEnd().ToUpper();
@@ -608,6 +685,9 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 			SelectionRing->SetVisibility(false);
 		}
 	}
+
+	// F3: salvas indirectas en vuelo y crateres de impacto.
+	UpdateShells(Battle);
 }
 
 FString AWLTacticalBattleView::FindUnitNearWorldPoint(const FVector& WorldPoint) const

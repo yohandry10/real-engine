@@ -72,6 +72,8 @@ private:
 	void BuildTerrainPatches(const FWLTacticalBattleState& Battle);
 	void SpawnWrecks(const FWLTacticalUnitState& Unit, const FVector& Center);
 	void UpdateTracer(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit);
+	/** F3: salvas indirectas en vuelo (arco balistico) y crater al impactar. */
+	void UpdateShells(const FWLTacticalBattleState& Battle);
 
 	UPROPERTY() USceneComponent* Root = nullptr;
 	UPROPERTY() UStaticMeshComponent* Ground = nullptr;
@@ -81,6 +83,7 @@ private:
 
 	UPROPERTY() UStaticMesh* UnitMesh = nullptr;
 	UPROPERTY() UStaticMesh* RingMesh = nullptr;
+	UPROPERTY() UStaticMesh* SphereMesh = nullptr;
 	UPROPERTY() UStaticMesh* GroundMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
 
@@ -91,6 +94,8 @@ private:
 	UPROPERTY() TMap<FString, UStaticMeshComponent*> TracerComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> WreckComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> TerrainComponents;
+	UPROPERTY() TMap<FString, UStaticMeshComponent*> ShellComponents;
+	UPROPERTY() TArray<UStaticMeshComponent*> ScorchComponents;
 
 	// Estado de presentacion por contingente (centro, encaramiento, elementos dibujados).
 	TMap<FString, FVector> ContingentCenters;

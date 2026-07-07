@@ -77,6 +77,10 @@ private:
 	const FWLTacticalObjectiveState* FindBestObjectiveForUnit(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit) const;
 	void IssueTacticalAIOrders(FWLTacticalBattleState& Battle, TArray<FString>& OutEvents);
 	void AdvanceUnitOrders(FWLTacticalBattleState& Battle, double DeltaSeconds, TArray<FString>& OutEvents);
+	/** F3: resuelve impactos de salvas indirectas en vuelo (area sobre la posicion fijada al disparar). */
+	void AdvanceShells(FWLTacticalBattleState& Battle, TArray<FString>& OutEvents);
+	/** F3: paraguas antiaereo — el SAM dispara SOLO a aviacion enemiga en alcance, sin orden. */
+	void AdvanceAutoAirDefense(FWLTacticalBattleState& Battle, double DeltaSeconds, TArray<FString>& OutEvents);
 	void AdvanceObjectives(FWLTacticalBattleState& Battle, double DeltaSeconds, TArray<FString>& OutEvents);
 	void UpdateBattleResult(FWLTacticalBattleState& Battle, TArray<FString>& OutEvents);
 };

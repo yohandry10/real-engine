@@ -69,7 +69,7 @@ namespace
 			case EWLUnitType::Armor:        return 0.3;   // en abierto el fusil no rasca al MBT
 			case EWLUnitType::Artillery:    return 1.6;
 			case EWLUnitType::AirDefense:   return 1.5;
-			case EWLUnitType::Air:          return 0.2;
+			case EWLUnitType::Air:          return 0.0;   // F3: al aire solo le pegan SAM y cazas
 			case EWLUnitType::Naval:        return 0.2;
 			default:                        return 1.0;
 			}
@@ -81,7 +81,7 @@ namespace
 			case EWLUnitType::Armor:        return 0.4;
 			case EWLUnitType::Artillery:    return 1.4;
 			case EWLUnitType::AirDefense:   return 1.3;
-			case EWLUnitType::Air:          return 0.3;
+			case EWLUnitType::Air:          return 0.0;   // F3
 			case EWLUnitType::Naval:        return 0.2;
 			default:                        return 1.0;
 			}
@@ -93,7 +93,7 @@ namespace
 			case EWLUnitType::Armor:        return 1.0;
 			case EWLUnitType::Artillery:    return 1.8;
 			case EWLUnitType::AirDefense:   return 1.6;
-			case EWLUnitType::Air:          return 0.2;
+			case EWLUnitType::Air:          return 0.0;   // F3
 			case EWLUnitType::Naval:        return 0.3;
 			default:                        return 1.0;
 			}
@@ -105,7 +105,7 @@ namespace
 			case EWLUnitType::Armor:        return 0.8;
 			case EWLUnitType::Artillery:    return 1.0;   // contrabateria
 			case EWLUnitType::AirDefense:   return 1.4;
-			case EWLUnitType::Air:          return 0.1;
+			case EWLUnitType::Air:          return 0.0;   // F3
 			case EWLUnitType::Naval:        return 0.5;
 			default:                        return 1.0;
 			}
@@ -195,6 +195,69 @@ namespace
 		return Type == EWLUnitType::Armor
 			|| Type == EWLUnitType::LightVehicle
 			|| Type == EWLUnitType::Naval;
+	}
+
+	// F3: cadencia de las salvas indirectas; cada salva concentra este tiempo de fuego.
+	constexpr double IndirectVolleyPeriodSeconds = 4.0;
+	constexpr double IndirectShellSpeedUnits = 700.0;
+
+	// Aplica el dano de un ataque (fuego directo o salva) a un contingente: canal correcto
+	// (AA contra aire, HARD contra blindaje, SOFT contra el resto), matriz con terreno,
+	// mitigacion por blindaje y bono por mantener posicion; deriva bajas visibles y moral.
+	void ApplyTacticalDamage(
+		const FWLBalanceRules& Rules,
+		const FWLUnitData& AttackerData,
+		int32 AttackerElements,
+		EWLTacticalTerrain TerrainAtAttacker,
+		EWLTacticalTerrain TerrainAtTarget,
+		double Seconds,
+		const FWLUnitData& DefenderData,
+		FWLTacticalUnitState& Target,
+		const FString& SourceLabel,
+		TArray<FString>& OutEvents)
+	{
+		const double BaseAttack = DefenderData.Type == EWLUnitType::Air
+			? static_cast<double>(AttackerData.EffectiveAAAttack())
+			: (IsArmoredTarget(DefenderData.Type)
+				? static_cast<double>(AttackerData.EffectiveHardAttack())
+				: static_cast<double>(AttackerData.EffectiveSoftAttack()));
+		const double Counter = TacticalCounterMultiplier(AttackerData.Type, DefenderData.Type, TerrainAtAttacker, TerrainAtTarget);
+		const double Mitigation = 1.0 / (1.0 + static_cast<double>(DefenderData.EffectiveArmor()) * Rules.TacticalDefenseMitigationPerPoint);
+		// F2: mantener posicion atrinchera — la unidad quieta recibe menos dano.
+		const double HoldBonus = Target.Order == EWLTacticalUnitOrder::Idle ? 0.85 : 1.0;
+		const double DamagePerSecond = BaseAttack
+			* static_cast<double>(FMath::Max(1, AttackerElements))
+			* Counter
+			* Rules.TacticalDamagePerAttackPerSecond
+			* Mitigation
+			* HoldBonus;
+		const double DefenderPool = FMath::Max(1.0,
+			static_cast<double>(FMath::Max(1, DefenderData.Strength)) * static_cast<double>(FMath::Max(1, Target.InitialElementCount)));
+		const double HealthLossPercent = DamagePerSecond * Seconds / DefenderPool * 100.0;
+
+		const double PreviousHealth = Target.Health;
+		Target.Health = FMath::Max(0.0, Target.Health - HealthLossPercent);
+		const double HealthLost = PreviousHealth - Target.Health;
+		Target.Morale = FMath::Max(0.0, Target.Morale - HealthLost * Rules.TacticalMoraleDamagePerHealth);
+
+		// Las bajas se VEN: los elementos vivos siguen al % de salud del contingente.
+		Target.ElementCount = Target.Health <= 0.0
+			? 0
+			: FMath::Clamp(FMath::CeilToInt(static_cast<double>(Target.InitialElementCount) * Target.Health / 100.0), 1, Target.InitialElementCount);
+
+		if (Target.Health <= 0.0 && !Target.bDestroyed)
+		{
+			Target.bDestroyed = true;
+			Target.ElementCount = 0;
+			Target.Order = EWLTacticalUnitOrder::Idle;
+			OutEvents.Add(FString::Printf(TEXT("%s destruida por %s."), *Target.TacticalUnitId, *SourceLabel));
+		}
+		else if (Target.Morale <= Rules.TacticalRoutMoraleThreshold && Target.Order != EWLTacticalUnitOrder::Routing)
+		{
+			Target.Order = EWLTacticalUnitOrder::Routing;
+			Target.AttackTargetUnitId.Reset();
+			OutEvents.Add(FString::Printf(TEXT("%s entra en retirada."), *Target.TacticalUnitId));
+		}
 	}
 }
 
@@ -524,6 +587,8 @@ bool UWLTacticalBattleSubsystem::AdvanceTacticalBattle(
 	Battle->ElapsedSeconds += StepSeconds;
 	IssueTacticalAIOrders(*Battle, OutEvents);
 	AdvanceUnitOrders(*Battle, StepSeconds, OutEvents);
+	AdvanceShells(*Battle, OutEvents);
+	AdvanceAutoAirDefense(*Battle, StepSeconds, OutEvents);
 	AdvanceObjectives(*Battle, StepSeconds, OutEvents);
 	UpdateBattleResult(*Battle, OutEvents);
 	OutBattle = *Battle;
@@ -547,8 +612,17 @@ const FWLTacticalUnitState* UWLTacticalBattleSubsystem::FindNearestEffectiveEnem
 	const FWLTacticalUnitState& Unit,
 	int32 RoutMoraleThreshold) const
 {
-	const FWLTacticalUnitState* BestTarget = nullptr;
-	double BestDistanceSq = TNumericLimits<double>::Max();
+	// F3: la IA no persigue lo que no puede danar (un tanque apuntando a un caza). Prefiere
+	// el enemigo DANABLE mas cercano; solo si no hay ninguno cae al mas cercano a secas
+	// (para seguir maniobrando hacia el frente).
+	const UWLDataRegistry* Registry = GetRegistry();
+	FWLUnitData UnitData;
+	const bool bHasUnitData = Registry && Registry->GetUnit(Unit.UnitId, UnitData);
+
+	const FWLTacticalUnitState* BestDamageable = nullptr;
+	double BestDamageableDistSq = TNumericLimits<double>::Max();
+	const FWLTacticalUnitState* BestAny = nullptr;
+	double BestAnyDistSq = TNumericLimits<double>::Max();
 	for (const FWLTacticalUnitState& Candidate : Battle.Units)
 	{
 		if (Candidate.OwnerIso == Unit.OwnerIso || !Candidate.IsCombatEffective(RoutMoraleThreshold))
@@ -557,14 +631,28 @@ const FWLTacticalUnitState* UWLTacticalBattleSubsystem::FindNearestEffectiveEnem
 		}
 
 		const double DistanceSq = FVector2D::DistSquared(Unit.Position, Candidate.Position);
-		if (DistanceSq < BestDistanceSq
-			|| (FMath::IsNearlyEqual(DistanceSq, BestDistanceSq) && BestTarget && Candidate.TacticalUnitId < BestTarget->TacticalUnitId))
+		if (DistanceSq < BestAnyDistSq
+			|| (FMath::IsNearlyEqual(DistanceSq, BestAnyDistSq) && BestAny && Candidate.TacticalUnitId < BestAny->TacticalUnitId))
 		{
-			BestDistanceSq = DistanceSq;
-			BestTarget = &Candidate;
+			BestAnyDistSq = DistanceSq;
+			BestAny = &Candidate;
+		}
+
+		bool bDamageable = true;
+		FWLUnitData CandidateData;
+		if (bHasUnitData && Registry->GetUnit(Candidate.UnitId, CandidateData))
+		{
+			bDamageable = OpenFieldCounterMultiplier(UnitData.Type, CandidateData.Type) > 0.0;
+		}
+		if (bDamageable
+			&& (DistanceSq < BestDamageableDistSq
+				|| (FMath::IsNearlyEqual(DistanceSq, BestDamageableDistSq) && BestDamageable && Candidate.TacticalUnitId < BestDamageable->TacticalUnitId)))
+		{
+			BestDamageableDistSq = DistanceSq;
+			BestDamageable = &Candidate;
 		}
 	}
-	return BestTarget;
+	return BestDamageable ? BestDamageable : BestAny;
 }
 
 const FWLTacticalObjectiveState* UWLTacticalBattleSubsystem::FindBestObjectiveForUnit(
@@ -708,8 +796,9 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 
 		// F2: contra cobertura no hay francotirador de tanques: el fuego directo obliga a
 		// acercarse al borde del parche. Artilleria/naval tiran por elevacion y no se acercan.
+		const bool bIndirectFire = bHasAttackerData && UsesIndirectFire(AttackerData.Type);
 		const EWLTacticalTerrain TerrainAtTarget = TerrainAtPosition(Battle, Target->Position);
-		const double EngageRange = (bHasAttackerData && UsesIndirectFire(AttackerData.Type))
+		const double EngageRange = bIndirectFire
 			? UnitRange
 			: FMath::Min(UnitRange, GetCoverEngageRange(TerrainAtTarget));
 
@@ -726,53 +815,152 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 			continue;
 		}
 
-		// --- F1 armas combinadas ---
-		// Canal de dano segun el objetivo (HARD vs blindaje, SOFT vs blandos), escalado por los
-		// elementos VIVOS del contingente atacante, multiplicado por la matriz de contras y
-		// mitigado por el blindaje del defensor. El dano se normaliza contra el pool del
-		// contingente defensor (HP por elemento x elementos iniciales) para que 50 fusileros
-		// no tengan la misma vida que 4 tanques.
-		const double BaseAttack = IsArmoredTarget(DefenderData.Type)
-			? static_cast<double>(AttackerData.EffectiveHardAttack())
-			: static_cast<double>(AttackerData.EffectiveSoftAttack());
+		// F3: la artilleria/naval no hace dano directo continuo — dispara SALVAS contra la
+		// POSICION actual del objetivo, con tiempo de vuelo: mata estaticos, falla contra
+		// moviles (que al impacto ya no estan alli).
+		if (bIndirectFire)
+		{
+			Unit.IndirectCooldownSeconds -= DeltaSeconds;
+			if (Unit.IndirectCooldownSeconds <= 0.0)
+			{
+				FWLTacticalShellState Shell;
+				Shell.ShellId = FString::Printf(TEXT("%s-SH-%d"), *Battle.BattleId, Battle.NextShellNumber++);
+				Shell.OwnerIso = Unit.OwnerIso;
+				Shell.SourceUnitId = Unit.UnitId;
+				Shell.Elements = Unit.ElementCount;
+				Shell.FirePosition = Unit.Position;
+				Shell.ImpactPosition = Target->Position;
+				Shell.FiredAtSeconds = Battle.ElapsedSeconds;
+				Shell.ImpactAtSeconds = Battle.ElapsedSeconds + 1.2 + Distance / IndirectShellSpeedUnits;
+				Battle.Shells.Add(Shell);
+				Unit.IndirectCooldownSeconds = IndirectVolleyPeriodSeconds;
+				OutEvents.Add(FString::Printf(TEXT("%s dispara una salva sobre %.0f, %.0f."),
+					*Unit.TacticalUnitId, Shell.ImpactPosition.X, Shell.ImpactPosition.Y));
+			}
+			continue;
+		}
+
+		// --- F1 armas combinadas: fuego directo continuo ---
 		const EWLTacticalTerrain TerrainAtAttacker = TerrainAtPosition(Battle, Unit.Position);
-		const double Counter = TacticalCounterMultiplier(AttackerData.Type, DefenderData.Type, TerrainAtAttacker, TerrainAtTarget);
-		const double Mitigation = 1.0 / (1.0 + static_cast<double>(DefenderData.EffectiveArmor()) * Rules.TacticalDefenseMitigationPerPoint);
-		// F2: mantener posicion atrinchera — la unidad quieta recibe menos dano.
-		const double HoldBonus = Target->Order == EWLTacticalUnitOrder::Idle ? 0.85 : 1.0;
-		const double DamagePerSecond = BaseAttack
-			* static_cast<double>(FMath::Max(1, Unit.ElementCount))
-			* Counter
-			* Rules.TacticalDamagePerAttackPerSecond
-			* Mitigation
-			* HoldBonus;
-		const double DefenderPool = FMath::Max(1.0,
-			static_cast<double>(FMath::Max(1, DefenderData.Strength)) * static_cast<double>(FMath::Max(1, Target->InitialElementCount)));
-		const double HealthLossPercent = DamagePerSecond * DeltaSeconds / DefenderPool * 100.0;
+		ApplyTacticalDamage(Rules, AttackerData, Unit.ElementCount,
+			TerrainAtAttacker, TerrainAtTarget, DeltaSeconds,
+			DefenderData, *Target, Unit.TacticalUnitId, OutEvents);
+	}
+}
 
-		const double PreviousHealth = Target->Health;
-		Target->Health = FMath::Max(0.0, Target->Health - HealthLossPercent);
-		const double HealthLost = PreviousHealth - Target->Health;
-		Target->Morale = FMath::Max(0.0, Target->Morale - HealthLost * Rules.TacticalMoraleDamagePerHealth);
+void UWLTacticalBattleSubsystem::AdvanceShells(FWLTacticalBattleState& Battle, TArray<FString>& OutEvents)
+{
+	if (Battle.Shells.IsEmpty())
+	{
+		return;
+	}
+	const FWLBalanceRules Rules = GetBalanceRules();
+	const UWLDataRegistry* Registry = GetRegistry();
+	if (!Registry)
+	{
+		return;
+	}
 
-		// Las bajas se VEN: los elementos vivos siguen al % de salud del contingente.
-		Target->ElementCount = Target->Health <= 0.0
-			? 0
-			: FMath::Clamp(FMath::CeilToInt(static_cast<double>(Target->InitialElementCount) * Target->Health / 100.0), 1, Target->InitialElementCount);
-
-		if (Target->Health <= 0.0 && !Target->bDestroyed)
+	for (int32 Index = 0; Index < Battle.Shells.Num(); )
+	{
+		if (Battle.ElapsedSeconds < Battle.Shells[Index].ImpactAtSeconds)
 		{
-			Target->bDestroyed = true;
-			Target->ElementCount = 0;
-			Target->Order = EWLTacticalUnitOrder::Idle;
-			OutEvents.Add(FString::Printf(TEXT("%s destruida por %s."), *Target->TacticalUnitId, *Unit.TacticalUnitId));
+			++Index;
+			continue;
 		}
-		else if (Target->Morale <= Rules.TacticalRoutMoraleThreshold && Target->Order != EWLTacticalUnitOrder::Routing)
+		const FWLTacticalShellState Shell = Battle.Shells[Index];
+
+		FWLUnitData AttackerData;
+		if (Registry->GetUnit(Shell.SourceUnitId, AttackerData))
 		{
-			Target->Order = EWLTacticalUnitOrder::Routing;
-			Target->AttackTargetUnitId.Reset();
-			OutEvents.Add(FString::Printf(TEXT("%s entra en retirada."), *Target->TacticalUnitId));
+			// Area: dana a todo contingente ENEMIGO dentro del radio al momento del impacto.
+			// El que se movio ya no esta. La salva concentra IndirectVolleyPeriodSeconds de fuego.
+			for (FWLTacticalUnitState& Victim : Battle.Units)
+			{
+				if (Victim.bDestroyed || Victim.OwnerIso == Shell.OwnerIso)
+				{
+					continue;
+				}
+				if (FVector2D::Distance(Victim.Position, Shell.ImpactPosition) > Shell.Radius)
+				{
+					continue;
+				}
+				FWLUnitData DefenderData;
+				if (!Registry->GetUnit(Victim.UnitId, DefenderData))
+				{
+					continue;
+				}
+				ApplyTacticalDamage(Rules, AttackerData, Shell.Elements,
+					EWLTacticalTerrain::Open, TerrainAtPosition(Battle, Victim.Position),
+					IndirectVolleyPeriodSeconds, DefenderData, Victim, Shell.ShellId, OutEvents);
+			}
 		}
+		Battle.Shells.RemoveAt(Index);
+	}
+}
+
+void UWLTacticalBattleSubsystem::AdvanceAutoAirDefense(FWLTacticalBattleState& Battle, double DeltaSeconds, TArray<FString>& OutEvents)
+{
+	const FWLBalanceRules Rules = GetBalanceRules();
+	const UWLDataRegistry* Registry = GetRegistry();
+	if (!Registry)
+	{
+		return;
+	}
+
+	for (FWLTacticalUnitState& Sam : Battle.Units)
+	{
+		if (!Sam.IsCombatEffective(Rules.TacticalRoutMoraleThreshold))
+		{
+			continue;
+		}
+		FWLUnitData SamData;
+		if (!Registry->GetUnit(Sam.UnitId, SamData) || NormalizeCombatType(SamData.Type) != EWLUnitType::AirDefense)
+		{
+			continue;
+		}
+		const double Range = SamData.RangeUnits > 0.0 ? SamData.RangeUnits : Rules.TacticalAttackRangeUnits;
+
+		// Objetivo aereo enemigo mas cercano dentro del paraguas (desempate deterministico).
+		FWLTacticalUnitState* AirTarget = nullptr;
+		FWLUnitData AirData;
+		double BestDistance = TNumericLimits<double>::Max();
+		for (FWLTacticalUnitState& Candidate : Battle.Units)
+		{
+			if (Candidate.OwnerIso == Sam.OwnerIso || !Candidate.IsCombatEffective(Rules.TacticalRoutMoraleThreshold))
+			{
+				continue;
+			}
+			FWLUnitData CandidateData;
+			if (!Registry->GetUnit(Candidate.UnitId, CandidateData) || CandidateData.Type != EWLUnitType::Air)
+			{
+				continue;
+			}
+			const double CandidateDistance = FVector2D::Distance(Sam.Position, Candidate.Position);
+			if (CandidateDistance > Range)
+			{
+				continue;
+			}
+			if (CandidateDistance < BestDistance
+				|| (FMath::IsNearlyEqual(CandidateDistance, BestDistance) && AirTarget && Candidate.TacticalUnitId < AirTarget->TacticalUnitId))
+			{
+				BestDistance = CandidateDistance;
+				AirTarget = &Candidate;
+				AirData = CandidateData;
+			}
+		}
+		if (!AirTarget)
+		{
+			continue;
+		}
+		// Si ya lo esta atacando por orden explicita, ese fuego ya se resolvio este tick.
+		if (Sam.Order == EWLTacticalUnitOrder::Attacking && Sam.AttackTargetUnitId == AirTarget->TacticalUnitId)
+		{
+			continue;
+		}
+		ApplyTacticalDamage(Rules, SamData, Sam.ElementCount,
+			TerrainAtPosition(Battle, Sam.Position), TerrainAtPosition(Battle, AirTarget->Position),
+			DeltaSeconds, AirData, *AirTarget, Sam.TacticalUnitId, OutEvents);
 	}
 }
 
