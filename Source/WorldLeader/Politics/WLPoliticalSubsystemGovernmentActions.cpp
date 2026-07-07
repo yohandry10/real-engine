@@ -925,7 +925,9 @@ bool UWLPoliticalSubsystem::ExecuteGovernmentActionDirect(const FWLGovernmentAct
 			OutMessage = TEXT("Sistema militar no disponible.");
 			return false;
 		}
-		const EWLBattleResult Result = Military->AutoResolveBattle(Arg1, Arg2, OutMessage);
+		// F5 paridad: auto-resolver corre la MISMA simulacion tactica que la batalla manual
+		// (IA en ambos bandos) — elegir auto no es trampa ni castigo.
+		const EWLBattleResult Result = Military->ResolveTacticalBattleToEnd(Arg1, Arg2, OutMessage);
 		return Result != EWLBattleResult::Invalid;
 	}
 

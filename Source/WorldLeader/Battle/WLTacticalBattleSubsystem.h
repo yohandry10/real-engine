@@ -74,6 +74,8 @@ private:
 	void AddArmyUnits(FWLTacticalBattleState& Battle, const FWLArmy& Army, const FVector2D& Origin, double DirectionSign);
 	bool IsValidAttackTarget(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit, const FString& TargetUnitId, int32 RoutMoraleThreshold) const;
 	const FWLTacticalUnitState* FindNearestEffectiveEnemy(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit, int32 RoutMoraleThreshold) const;
+	/** F5: mejor objetivo para la IA segun la MATRIZ (con terreno) ponderada por distancia; null si no puede danar nada. */
+	const FWLTacticalUnitState* FindBestAITarget(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit, int32 RoutMoraleThreshold) const;
 	const FWLTacticalObjectiveState* FindBestObjectiveForUnit(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit) const;
 	void IssueTacticalAIOrders(FWLTacticalBattleState& Battle, TArray<FString>& OutEvents);
 	void AdvanceUnitOrders(FWLTacticalBattleState& Battle, double DeltaSeconds, TArray<FString>& OutEvents);
@@ -81,6 +83,6 @@ private:
 	void AdvanceShells(FWLTacticalBattleState& Battle, TArray<FString>& OutEvents);
 	/** F3: paraguas antiaereo — el SAM dispara SOLO a aviacion enemiga en alcance, sin orden. */
 	void AdvanceAutoAirDefense(FWLTacticalBattleState& Battle, double DeltaSeconds, TArray<FString>& OutEvents);
-	void AdvanceObjectives(FWLTacticalBattleState& Battle, double DeltaSeconds, TArray<FString>& OutEvents);
+	void AdvanceObjectives(FWLTacticalBattleState& Battle, double DeltaSeconds, const TArray<double>& HealthBeforeTick, TArray<FString>& OutEvents);
 	void UpdateBattleResult(FWLTacticalBattleState& Battle, TArray<FString>& OutEvents);
 };

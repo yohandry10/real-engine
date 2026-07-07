@@ -575,6 +575,20 @@ bool UWLTacticalBattleSubsystem::IssueAttackOrder(const FString& BattleId, const
 		return false;
 	}
 
+	// F5: no se aceptan ordenes IMPOSIBLES (fusiles contra un caza): perseguirian para
+	// siempre haciendo dano cero. La matriz decide que puede danar a que.
+	if (const UWLDataRegistry* Registry = GetRegistry())
+	{
+		FWLUnitData UnitData, TargetData;
+		if (Registry->GetUnit(Unit->UnitId, UnitData) && Registry->GetUnit(Target->UnitId, TargetData)
+			&& OpenFieldCounterMultiplier(UnitData.Type, TargetData.Type) <= 0.0)
+		{
+			OutMessage = FString::Printf(TEXT("%s no puede danar a %s (objetivo aereo: usa SAM o cazas)."),
+				*Unit->DisplayName, *Target->DisplayName);
+			return false;
+		}
+	}
+
 	Unit->AttackTargetUnitId = Target->TacticalUnitId;
 	Unit->Order = EWLTacticalUnitOrder::Attacking;
 	OutMessage = FString::Printf(TEXT("%s ataca a %s."), *Unit->TacticalUnitId, *Target->TacticalUnitId);
@@ -674,7 +688,7 @@ bool UWLTacticalBattleSubsystem::AdvanceTacticalBattle(
 	AdvanceShells(*Battle, OutEvents);
 	AdvanceAutoAirDefense(*Battle, StepSeconds, OutEvents);
 	RecoverMorale(*Battle, HealthBeforeTick, StepSeconds, GetBalanceRules().TacticalRoutMoraleThreshold, OutEvents);
-	AdvanceObjectives(*Battle, StepSeconds, OutEvents);
+	AdvanceObjectives(*Battle, StepSeconds, HealthBeforeTick, OutEvents);
 	UpdateBattleResult(*Battle, OutEvents);
 	OutBattle = *Battle;
 	return true;
@@ -740,6 +754,77 @@ const FWLTacticalUnitState* UWLTacticalBattleSubsystem::FindNearestEffectiveEnem
 	return BestDamageable ? BestDamageable : BestAny;
 }
 
+const FWLTacticalUnitState* UWLTacticalBattleSubsystem::FindBestAITarget(
+	const FWLTacticalBattleState& Battle,
+	const FWLTacticalUnitState& Unit,
+	int32 RoutMoraleThreshold) const
+{
+	// F5: la IA elige por MATRIZ, no por cercania: el mejor matchup (con terreno actual)
+	// ponderado por distancia. La aviacion evita entrar a un paraguas SAM si tiene opcion.
+	const UWLDataRegistry* Registry = GetRegistry();
+	FWLUnitData MyData;
+	if (!Registry || !Registry->GetUnit(Unit.UnitId, MyData))
+	{
+		return FindNearestEffectiveEnemy(Battle, Unit, RoutMoraleThreshold);
+	}
+	const EWLTacticalTerrain MyTerrain = TerrainAtPosition(Battle, Unit.Position);
+
+	auto UnderEnemyUmbrella = [&](const FVector2D& Position) -> bool
+	{
+		for (const FWLTacticalUnitState& Sam : Battle.Units)
+		{
+			if (Sam.OwnerIso == Unit.OwnerIso || !Sam.IsCombatEffective(RoutMoraleThreshold))
+			{
+				continue;
+			}
+			FWLUnitData SamData;
+			if (!Registry->GetUnit(Sam.UnitId, SamData) || NormalizeCombatType(SamData.Type) != EWLUnitType::AirDefense)
+			{
+				continue;
+			}
+			const double Range = SamData.RangeUnits > 0.0 ? SamData.RangeUnits : 1200.0;
+			if (FVector2D::Distance(Sam.Position, Position) <= Range)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	const FWLTacticalUnitState* Best = nullptr;
+	double BestScore = 0.0;
+	for (const FWLTacticalUnitState& Candidate : Battle.Units)
+	{
+		if (Candidate.OwnerIso == Unit.OwnerIso || !Candidate.IsCombatEffective(RoutMoraleThreshold))
+		{
+			continue;
+		}
+		FWLUnitData CandidateData;
+		if (!Registry->GetUnit(Candidate.UnitId, CandidateData))
+		{
+			continue;
+		}
+		double Score = TacticalCounterMultiplier(MyData.Type, CandidateData.Type,
+			MyTerrain, TerrainAtPosition(Battle, Candidate.Position));
+		if (Score <= 0.0)
+		{
+			continue;   // no puede danarlo: no es un objetivo
+		}
+		if (MyData.Type == EWLUnitType::Air && UnderEnemyUmbrella(Candidate.Position))
+		{
+			Score *= 0.25;   // volar al paraguas SAM cuesta caro: solo si no hay nada mejor
+		}
+		Score /= 1.0 + FVector2D::Distance(Unit.Position, Candidate.Position) / 1200.0;
+		if (Score > BestScore
+			|| (FMath::IsNearlyEqual(Score, BestScore) && Best && Candidate.TacticalUnitId < Best->TacticalUnitId))
+		{
+			BestScore = Score;
+			Best = &Candidate;
+		}
+	}
+	return Best;
+}
+
 const FWLTacticalObjectiveState* UWLTacticalBattleSubsystem::FindBestObjectiveForUnit(
 	const FWLTacticalBattleState& Battle,
 	const FWLTacticalUnitState& Unit) const
@@ -769,44 +854,82 @@ void UWLTacticalBattleSubsystem::IssueTacticalAIOrders(FWLTacticalBattleState& B
 	}
 
 	const FWLBalanceRules Rules = GetBalanceRules();
+	const UWLDataRegistry* Registry = GetRegistry();
 	for (FWLTacticalUnitState& Unit : Battle.Units)
 	{
 		if (!Battle.IsOwnerAIControlled(Unit.OwnerIso) || !Unit.IsCombatEffective(Rules.TacticalRoutMoraleThreshold))
 		{
 			continue;
 		}
+
+		FWLUnitData UnitData;
+		const bool bHasUnitData = Registry && Registry->GetUnit(Unit.UnitId, UnitData);
+
+		// F5: el SAM no maniobra por su cuenta — su trabajo es el paraguas (fuego automatico
+		// contra lo aereo); moverlo al frente es regalarlo.
+		if (bHasUnitData && NormalizeCombatType(UnitData.Type) == EWLUnitType::AirDefense)
+		{
+			continue;
+		}
+
 		if (Unit.Order == EWLTacticalUnitOrder::Attacking
 			&& IsValidAttackTarget(Battle, Unit, Unit.AttackTargetUnitId, Rules.TacticalRoutMoraleThreshold))
 		{
 			continue;
 		}
+
+		// F5: la eleccion de objetivo es por MATRIZ (null = no puede danar a nadie).
+		const FWLTacticalUnitState* Target = FindBestAITarget(Battle, Unit, Rules.TacticalRoutMoraleThreshold);
+
 		if (Unit.Order == EWLTacticalUnitOrder::Moving
 			&& FVector2D::Distance(Unit.Position, Unit.MoveTarget) > 1.0)
 		{
-			const FWLTacticalUnitState* EnemyInTransit = FindNearestEffectiveEnemy(Battle, Unit, Rules.TacticalRoutMoraleThreshold);
-			if (!EnemyInTransit || FVector2D::Distance(Unit.Position, EnemyInTransit->Position) > Rules.TacticalAttackRangeUnits)
+			if (!Target || FVector2D::Distance(Unit.Position, Target->Position) > Rules.TacticalAttackRangeUnits)
 			{
-				continue;
+				continue;   // en transito y sin presa buena a tiro: seguir marchando
 			}
 		}
 
-		const FWLTacticalUnitState* Target = FindNearestEffectiveEnemy(Battle, Unit, Rules.TacticalRoutMoraleThreshold);
-		if (Target)
+		if (Target && FVector2D::Distance(Unit.Position, Target->Position) <= Rules.TacticalAttackRangeUnits)
 		{
-			if (FVector2D::Distance(Unit.Position, Target->Position) <= Rules.TacticalAttackRangeUnits)
-			{
-				Unit.AttackTargetUnitId = Target->TacticalUnitId;
-				Unit.Order = EWLTacticalUnitOrder::Attacking;
-				OutEvents.Add(FString::Printf(TEXT("IA tactica: %s ataca a %s."),
-					*Unit.TacticalUnitId, *Target->TacticalUnitId));
-				continue;
-			}
+			Unit.AttackTargetUnitId = Target->TacticalUnitId;
+			Unit.Order = EWLTacticalUnitOrder::Attacking;
+			OutEvents.Add(FString::Printf(TEXT("IA tactica: %s ataca a %s."),
+				*Unit.TacticalUnitId, *Target->TacticalUnitId));
+			continue;
 		}
 
 		const FWLTacticalObjectiveState* Objective = FindBestObjectiveForUnit(Battle, Unit);
 		if (Objective)
 		{
-			Unit.MoveTarget = Objective->Position;
+			// F5: la infanteria busca COBERTURA que domine el objetivo (ATGM al bosque o a
+			// la ciudad) en vez de plantarse en campo abierto: el parche MAS CERCANO a la
+			// unidad de entre los que quedan a tiro del objetivo.
+			FVector2D MoveTarget = Objective->Position;
+			if (bHasUnitData && NormalizeCombatType(UnitData.Type) == EWLUnitType::Infantry)
+			{
+				double BestPatchDistance = TNumericLimits<double>::Max();
+				for (const FWLTacticalTerrainPatch& Patch : Battle.TerrainPatches)
+				{
+					if (FVector2D::Distance(Patch.Position, Objective->Position) > 700.0)
+					{
+						continue;
+					}
+					const double PatchDistance = FVector2D::Distance(Patch.Position, Unit.Position);
+					if (PatchDistance < BestPatchDistance)
+					{
+						BestPatchDistance = PatchDistance;
+						MoveTarget = Patch.Position;
+					}
+				}
+			}
+			// Ya en posicion: QUEDARSE (Idle atrinchera y conserva el encaramiento); nada
+			// de re-ordenar cada tick — eso anulaba el bono defensivo de la propia IA.
+			if (FVector2D::Distance(Unit.Position, MoveTarget) <= 40.0)
+			{
+				continue;
+			}
+			Unit.MoveTarget = MoveTarget;
 			Unit.AttackTargetUnitId.Reset();
 			Unit.Order = EWLTacticalUnitOrder::Moving;
 			OutEvents.Add(FString::Printf(TEXT("IA tactica: %s avanza hacia %s."),
@@ -879,11 +1002,18 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 			continue;
 		}
 
+		FWLUnitData DefenderData;
+		if (!bHasAttackerData || !Registry->GetUnit(Target->UnitId, DefenderData))
+		{
+			continue;
+		}
+
 		// F2: contra cobertura no hay francotirador de tanques: el fuego directo obliga a
-		// acercarse al borde del parche. Artilleria/naval tiran por elevacion y no se acercan.
-		const bool bIndirectFire = bHasAttackerData && UsesIndirectFire(AttackerData.Type);
+		// acercarse al borde del parche. Artilleria/naval tiran por elevacion y no se
+		// acercan; y los objetivos AEREOS no se esconden en edificios (sin recorte).
+		const bool bIndirectFire = UsesIndirectFire(AttackerData.Type);
 		const EWLTacticalTerrain TerrainAtTarget = TerrainAtPosition(Battle, Target->Position);
-		const double EngageRange = bIndirectFire
+		const double EngageRange = (bIndirectFire || DefenderData.Type == EWLUnitType::Air)
 			? UnitRange
 			: FMath::Min(UnitRange, GetCoverEngageRange(TerrainAtTarget));
 
@@ -891,12 +1021,6 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 		if (Distance > EngageRange)
 		{
 			MoveUnitToward(Unit, Target->Position, UnitSpeed, DeltaSeconds);
-			continue;
-		}
-
-		FWLUnitData DefenderData;
-		if (!bHasAttackerData || !Registry->GetUnit(Target->UnitId, DefenderData))
-		{
 			continue;
 		}
 
@@ -977,10 +1101,11 @@ void UWLTacticalBattleSubsystem::AdvanceShells(FWLTacticalBattleState& Battle, T
 					continue;
 				}
 				// F4: el bombardeo SUPRIME — moral castigada muy por encima del dano fisico.
+				// Una explosion de area no tiene angulo: sin bono de flanqueo (facing nulo).
 				ApplyTacticalDamage(Rules, AttackerData, Shell.Elements,
 					EWLTacticalTerrain::Open, TerrainAtPosition(Battle, Victim.Position),
 					IndirectVolleyPeriodSeconds, DefenderData, Victim, Shell.ShellId, OutEvents,
-					Shell.FirePosition, ComputeUnitFacing(Battle, Victim), IndirectSuppressionMoraleFactor);
+					Shell.FirePosition, FVector2D::ZeroVector, IndirectSuppressionMoraleFactor);
 			}
 		}
 		Battle.Shells.RemoveAt(Index);
@@ -1041,10 +1166,18 @@ void UWLTacticalBattleSubsystem::AdvanceAutoAirDefense(FWLTacticalBattleState& B
 		{
 			continue;
 		}
-		// Si ya lo esta atacando por orden explicita, ese fuego ya se resolvio este tick.
-		if (Sam.Order == EWLTacticalUnitOrder::Attacking && Sam.AttackTargetUnitId == AirTarget->TacticalUnitId)
+		// UN canal de tiro: si ya ataca a un AEREO por orden explicita, ese fuego ya se
+		// resolvio este tick — el automatico no duplica la salida del SAM.
+		if (Sam.Order == EWLTacticalUnitOrder::Attacking && !Sam.AttackTargetUnitId.IsEmpty())
 		{
-			continue;
+			if (const FWLTacticalUnitState* Ordered = FindUnit(Battle, Sam.AttackTargetUnitId))
+			{
+				FWLUnitData OrderedData;
+				if (Registry->GetUnit(Ordered->UnitId, OrderedData) && OrderedData.Type == EWLUnitType::Air)
+				{
+					continue;
+				}
+			}
 		}
 		ApplyTacticalDamage(Rules, SamData, Sam.ElementCount,
 			TerrainAtPosition(Battle, Sam.Position), TerrainAtPosition(Battle, AirTarget->Position),
@@ -1053,15 +1186,19 @@ void UWLTacticalBattleSubsystem::AdvanceAutoAirDefense(FWLTacticalBattleState& B
 	}
 }
 
-void UWLTacticalBattleSubsystem::AdvanceObjectives(FWLTacticalBattleState& Battle, double DeltaSeconds, TArray<FString>& OutEvents)
+void UWLTacticalBattleSubsystem::AdvanceObjectives(FWLTacticalBattleState& Battle, double DeltaSeconds, const TArray<double>& HealthBeforeTick, TArray<FString>& OutEvents)
 {
 	const FWLBalanceRules Rules = GetBalanceRules();
+	const UWLDataRegistry* Registry = GetRegistry();
 	for (FWLTacticalObjectiveState& Objective : Battle.Objectives)
 	{
 		bool bAttackerPresent = false;
 		bool bDefenderPresent = false;
-		for (const FWLTacticalUnitState& Unit : Battle.Units)
+		bool bAttackerCalm = false;   // presente y SIN recibir fuego este tick (puede capturar)
+		bool bDefenderCalm = false;
+		for (int32 Index = 0; Index < Battle.Units.Num(); ++Index)
 		{
+			const FWLTacticalUnitState& Unit = Battle.Units[Index];
 			if (!Unit.IsCombatEffective(Rules.TacticalRoutMoraleThreshold))
 			{
 				continue;
@@ -1070,22 +1207,37 @@ void UWLTacticalBattleSubsystem::AdvanceObjectives(FWLTacticalBattleState& Battl
 			{
 				continue;
 			}
+			// F5: el terreno lo toman botas y blindados — la aviacion sobrevolando ni
+			// captura ni disputa el objetivo.
+			if (Registry)
+			{
+				FWLUnitData UnitData;
+				if (Registry->GetUnit(Unit.UnitId, UnitData) && UnitData.Type == EWLUnitType::Air)
+				{
+					continue;
+				}
+			}
+			// Bajo fuego se DISPUTA pero no se CAPTURA: nadie iza bandera mientras lo
+			// estan destrozando (y ganar "por puntos" bajo bombardeo seria un exploit).
+			const bool bUnderFire = HealthBeforeTick.IsValidIndex(Index) && Unit.Health < HealthBeforeTick[Index];
 			if (Unit.OwnerIso == Battle.AttackerIso)
 			{
 				bAttackerPresent = true;
+				bAttackerCalm = bAttackerCalm || !bUnderFire;
 			}
 			else if (Unit.OwnerIso == Battle.DefenderIso)
 			{
 				bDefenderPresent = true;
+				bDefenderCalm = bDefenderCalm || !bUnderFire;
 			}
 		}
 
 		FString CapturingIso;
-		if (bAttackerPresent && !bDefenderPresent)
+		if (bAttackerPresent && !bDefenderPresent && bAttackerCalm)
 		{
 			CapturingIso = Battle.AttackerIso;
 		}
-		else if (bDefenderPresent && !bAttackerPresent)
+		else if (bDefenderPresent && !bAttackerPresent && bDefenderCalm)
 		{
 			CapturingIso = Battle.DefenderIso;
 		}

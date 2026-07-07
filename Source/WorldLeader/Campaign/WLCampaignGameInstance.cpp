@@ -478,7 +478,8 @@ void UWLCampaignGameInstance::WLBattle(const FString& AttackerId, const FString&
 	if (UWLMilitarySubsystem* Mil = GetMilitary())
 	{
 		FString Report;
-		Mil->AutoResolveBattle(AttackerId, DefenderId, Report);
+		// F5 paridad: la batalla automatica corre la MISMA simulacion tactica que la manual.
+		Mil->ResolveTacticalBattleToEnd(AttackerId, DefenderId, Report);
 		UE_LOG(LogWorldLeader, Log, TEXT("WLBattle: %s"), *Report);
 	}
 }
