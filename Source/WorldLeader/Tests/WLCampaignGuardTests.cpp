@@ -446,8 +446,12 @@ bool FWLMilitaryGarrisonSyncPreservesRecoveryTest::RunTest(const FString& Parame
 	FWLArmy Army;
 	TestTrue(TEXT("Ejercito sincronizado consultable"), Military->GetArmy(TEXT("A88"), Army));
 	TestEqual(TEXT("Sync no borra unidades desorganizadas"), Army.RecoveringUnits.Num(), 2);
-	TestEqual(TEXT("Solo unidades nuevas quedan efectivas"), Army.Units.Num(), 1);
-	TestTrue(TEXT("La unidad efectiva nueva es infanteria"), Army.Units.Contains(TEXT("infantry")));
+	// Con el mapeo tactico 1:1 (F1 armas combinadas) un MBT moderno es una unidad NUEVA, distinta
+	// del tanque legado que sigue en recuperacion; solo una de las dos infanterias nuevas queda
+	// absorbida por la infanteria desorganizada, asi que quedan efectivas MBT + 1 infanteria.
+	TestEqual(TEXT("Unidades nuevas efectivas: MBT + infanteria sobrante"), Army.Units.Num(), 2);
+	TestTrue(TEXT("El MBT nuevo queda efectivo"), Army.Units.Contains(TEXT("mbt")));
+	TestTrue(TEXT("La infanteria sobrante queda efectiva"), Army.Units.Contains(TEXT("infantry")));
 
 	GameInstance->Shutdown();
 	return true;
