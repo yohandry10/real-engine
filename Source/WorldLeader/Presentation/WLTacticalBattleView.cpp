@@ -555,6 +555,17 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 					FlashSpawnSeconds.Add(Battle.ElapsedSeconds);
 				}
 			}
+			if (ImpactComponents.Num() < 24)
+			{
+				if (UStaticMeshComponent* Dust = MakeSpriteBillboard())
+				{
+					FVector DustLoc = Comp->GetComponentLocation();
+					DustLoc.Z = GroundZ + 70.f;   // polvo a ras de suelo; se anima en UpdateBattleEffects
+					Dust->SetWorldLocation(DustLoc);
+					ImpactComponents.Add(Dust);
+					ImpactSpawnSeconds.Add(Battle.ElapsedSeconds);
+				}
+			}
 			if (ScorchComponents.Num() < 60)
 			{
 				UStaticMeshComponent* Scorch = NewObject<UStaticMeshComponent>(this);
@@ -634,6 +645,27 @@ void AWLTacticalBattleView::UpdateBattleEffects(const FWLTacticalBattleState& Ba
 		const float Opacity = FMath::Clamp(1.2f - T * 0.5f, 0.25f, 1.0f);
 		UpdateSpriteBillboard(Flash, FString::Printf(TEXT("explosion_0%d"), Frame),
 			FLinearColor(1.f, 1.f, 1.f, 1.f), Opacity, Flash->GetComponentLocation(), Size);
+	}
+
+	// POLVO DE IMPACTO: 3 fotogramas a ras de suelo (impact_01..03) en ~0.45 s.
+	for (int32 Index = ImpactComponents.Num() - 1; Index >= 0; --Index)
+	{
+		UStaticMeshComponent* Dust = ImpactComponents[Index];
+		const double Age = ImpactSpawnSeconds.IsValidIndex(Index)
+			? Battle.ElapsedSeconds - ImpactSpawnSeconds[Index] : 1.0;
+		if (!Dust || Age > 0.45)
+		{
+			if (Dust) { Dust->DestroyComponent(); }
+			ImpactComponents.RemoveAt(Index);
+			ImpactSpawnSeconds.RemoveAt(Index);
+			continue;
+		}
+		const float T = FMath::Clamp(static_cast<float>(Age / 0.45), 0.f, 0.999f);
+		const int32 Frame = FMath::Clamp(1 + FMath::FloorToInt(T * 3.f), 1, 3);
+		const float Size = 360.f + 520.f * T;
+		const float Opacity = FMath::Clamp(1.0f - T, 0.2f, 1.0f);
+		UpdateSpriteBillboard(Dust, FString::Printf(TEXT("impact_0%d"), Frame),
+			FLinearColor(1.f, 1.f, 1.f, 1.f), Opacity, Dust->GetComponentLocation(), Size);
 	}
 }
 

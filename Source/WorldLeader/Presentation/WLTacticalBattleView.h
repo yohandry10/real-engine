@@ -116,6 +116,8 @@ private:
 	UPROPERTY() TMap<FString, UStaticMeshComponent*> SmokeComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> FlashComponents;
 	TArray<double> FlashSpawnSeconds;
+	UPROPERTY() TArray<UStaticMeshComponent*> ImpactComponents;
+	TArray<double> ImpactSpawnSeconds;
 
 	// Estado de presentacion por contingente (centro, encaramiento, elementos dibujados).
 	TMap<FString, FVector> ContingentCenters;
