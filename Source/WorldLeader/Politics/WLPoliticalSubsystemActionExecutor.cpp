@@ -353,6 +353,10 @@ FWLPoliticalActionPreview UWLPoliticalSubsystem::GetPoliticalActionPreview(const
 			}
 			break;
 		}
+		case EWLPoliticalActionType::ResolveEvent:
+			// La resolucion de eventos se valida y cuesta arriba (rama dedicada antes del switch);
+			// aqui es un no-op para NO caer en el default, que bloqueaba TODA resolucion de eventos.
+			break;
 		default:
 			Block(TEXT("Accion politica no soportada."));
 			break;
