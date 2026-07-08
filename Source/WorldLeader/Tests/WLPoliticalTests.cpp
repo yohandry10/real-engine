@@ -1479,4 +1479,74 @@ bool FWLMakePeaceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CONTRATO: la IA no se queda en casa. Antes declaraba guerras pero NUNCA atacaba (su cerebro no
+// tenia seccion ofensiva) — las guerras no tenian dientes del lado enemigo. Ahora, en guerra, la IA
+// marcha sus ejercitos hacia el enemigo, ataca y asalta. VE (bajo IA, jugador=CO) con un ejercito en
+// su frontera debe, al procesar el mes, AVANZAR / combatir / conquistar territorio CO.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLStrategicAIWagesWarTest,
+	"WorldLeader.Politics.StrategicAIWagesWar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLStrategicAIWagesWarTest::RunTest(const FString& Parameters)
+{
+	UWLCampaignGameInstance* GameInstance = NewObject<UWLCampaignGameInstance>();
+	TestNotNull(TEXT("Campaign GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+	// El jugador es CO -> VE queda bajo control de la IA estrategica.
+	TestTrue(TEXT("Campania CO"), GameInstance->StartNewCampaign(TEXT("CO")));
+
+	UWLMilitarySubsystem* Military = GameInstance->GetSubsystem<UWLMilitarySubsystem>();
+	UWLPoliticalSubsystem* Politics = GameInstance->GetSubsystem<UWLPoliticalSubsystem>();
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Military subsystem"), Military);
+	TestNotNull(TEXT("Political subsystem"), Politics);
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	if (!Military || !Politics || !Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	FString Message;
+	// Ejercito blindado de la IA (VE) en su frontera, adyacente a territorio CO.
+	const FString VeArmyId = Military->CreateArmy(TEXT("VE"), TEXT("VE-ZU"), TEXT("mbt"), 4, TEXT("Frontera"));
+	TestFalse(TEXT("Ejercito IA creado"), VeArmyId.IsEmpty());
+	FWLArmy Before;
+	TestTrue(TEXT("Ejercito IA consultable"), Military->GetArmy(VeArmyId, Before));
+	TestEqual(TEXT("Ejercito IA parte de su frontera"), Before.ProvinceId, FString(TEXT("VE-ZU")));
+
+	TestTrue(TEXT("VE (IA) declara la guerra a CO"), Politics->DeclareWar(TEXT("VE"), TEXT("CO"), Message));
+
+	// Procesar meses: la IA debe AVANZAR / combatir / conquistar. Antes del arreglo, nada de esto
+	// ocurriria jamas (el ejercito se quedaba quieto en VE-ZU para siempre).
+	bool bWagedWar = false;
+	for (int32 Month = 0; Month < 6 && !bWagedWar; ++Month)
+	{
+		Politics->ProcessPoliticalMonth();
+		FWLArmy After;
+		const bool bArmyAlive = Military->GetArmy(VeArmyId, After);
+		if (!bArmyAlive)
+		{
+			bWagedWar = true;   // el ejercito se consumio combatiendo (la IA ataco)
+		}
+		else if (After.ProvinceId != TEXT("VE-ZU"))
+		{
+			bWagedWar = true;   // marcho fuera de su frontera hacia el enemigo
+		}
+		if (Tick->GetProvinceControllerIso(TEXT("CO-CES")) == TEXT("VE"))
+		{
+			bWagedWar = true;   // conquisto territorio enemigo
+		}
+	}
+	TestTrue(TEXT("La IA HACE la guerra (marcha/ataca/conquista), no se queda en casa"), bWagedWar);
+
+	GameInstance->Shutdown();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

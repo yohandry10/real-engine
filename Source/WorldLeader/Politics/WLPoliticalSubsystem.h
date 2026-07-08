@@ -430,6 +430,8 @@ private:
 	 * relaciones segun opinion y fuerza, espia al rival y recluta si va por detras. Determinista.
 	 */
 	void RunStrategicAIForNation(const FString& NationIso);
+	/** Ofensiva militar de la IA: en guerra, marcha sus ejercitos hacia el enemigo, ataca ejercitos y asalta provincias. */
+	void RunStrategicAIMilitaryOffensive(const FString& NationIso);
 	void RunGovernmentAIForNation(const FString& NationIso);
 	void ApplyGovernmentAgendaMonthly(const FString& NationIso);
 	void ApplyMinistryProgramsMonthly(const FString& NationIso);

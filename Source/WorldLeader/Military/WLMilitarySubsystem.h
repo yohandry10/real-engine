@@ -120,6 +120,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	EWLBattleResult ResolveTacticalBattleToEnd(const FString& AttackerId, const FString& DefenderId, FString& OutReport);
 
+	/** Como ResolveTacticalBattleToEnd pero ASALTANDO la provincia actual del ejercito (milicia local). */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
+	EWLBattleResult ResolveProvinceAssaultToEnd(const FString& AttackerArmyId, FString& OutReport);
+
 	/** Inicia una batalla tactica oficial desde ejercitos de campania validados. */
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Military")
 	bool StartTacticalBattle(const FString& AttackerId, const FString& DefenderId, FWLTacticalBattleState& OutBattle, FString& OutMessage);
@@ -163,6 +167,8 @@ private:
 	int32 SumUnitStat(const FWLArmy& Army, bool bAttack) const;
 	void ApplyCasualties(FWLArmy& Army, float LossFraction) const;
 	bool ValidateBattlePair(const FWLArmy& Attacker, const FWLArmy& Defender, FString& OutMessage) const;
+	/** Juega hasta el final (IA en ambos bandos) una batalla YA iniciada y aplica el resultado a campania. */
+	EWLBattleResult ResolveStartedBattleToEnd(FWLTacticalBattleState& Battle, FString& OutReport);
 	/** Fuente unica del calculo de poderes de combate (terreno + edificios + skill del general). Llena OutPreview. */
 	void ComputeBattlePower(const FWLArmy& Attacker, const FWLArmy& Defender, FWLBattlePreview& OutPreview) const;
 	void ReconcileArmyFromTacticalBattle(FWLArmy& Army, const FWLTacticalBattleState& Battle, int32& OutDestroyedLosses, int32& OutRoutedUnits) const;

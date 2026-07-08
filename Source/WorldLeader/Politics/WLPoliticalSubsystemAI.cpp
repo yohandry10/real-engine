@@ -197,6 +197,134 @@ void UWLPoliticalSubsystem::RunStrategicAIForNation(const FString& NationIso)
 			UE_LOG(LogWorldLeader, Log, TEXT("IA %s: recluta infanteria (%s)."), *Iso, *Message);
 		}
 	}
+
+	// 6) OFENSIVA: si esta en guerra, la IA no se queda en casa — marcha y ataca.
+	RunStrategicAIMilitaryOffensive(Iso);
+}
+
+void UWLPoliticalSubsystem::RunStrategicAIMilitaryOffensive(const FString& NationIso)
+{
+	UWLMilitarySubsystem* Military = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLMilitarySubsystem>() : nullptr;
+	const UWLStrategicTickSubsystem* Tick = GetTick();
+	const UWLDataRegistry* Registry = GetRegistry();
+	if (!Military || !Tick || !Registry)
+	{
+		return;
+	}
+	const FString Iso = NormalizeIso(NationIso);
+
+	// Naciones con las que Iso esta EN GUERRA (sin guerra no hay ofensiva).
+	TSet<FString> Enemies;
+	for (const FWLNationData& Other : Registry->GetAllNations())
+	{
+		if (Other.Iso == Iso)
+		{
+			continue;
+		}
+		FWLDiplomaticRelationState Relation;
+		if (GetRelation(Iso, Other.Iso, Relation) && Relation.Status == EWLDiplomaticStatus::War)
+		{
+			Enemies.Add(Other.Iso);
+		}
+	}
+	if (Enemies.IsEmpty())
+	{
+		return;
+	}
+
+	// Mapa de distancia por el grafo de provincias desde CUALQUIER provincia enemiga (BFS multi-fuente).
+	// Cada ejercito propio usara este mapa para marchar cuesta abajo hacia el frente.
+	TMap<FString, int32> DistanceToEnemy;
+	TArray<FString> Frontier;
+	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
+	{
+		if (Enemies.Contains(Tick->GetProvinceControllerIso(Province.Id)))
+		{
+			DistanceToEnemy.Add(Province.Id, 0);
+			Frontier.Add(Province.Id);
+		}
+	}
+	for (int32 Head = 0; Head < Frontier.Num(); ++Head)
+	{
+		const FString Current = Frontier[Head];
+		const int32 NextDistance = DistanceToEnemy[Current] + 1;
+		FWLProvinceData ProvinceData;
+		if (!Registry->GetProvince(Current, ProvinceData))
+		{
+			continue;
+		}
+		for (const FString& Neighbor : ProvinceData.Neighbors)
+		{
+			if (!DistanceToEnemy.Contains(Neighbor))
+			{
+				DistanceToEnemy.Add(Neighbor, NextDistance);
+				Frontier.Add(Neighbor);
+			}
+		}
+	}
+
+	// GetArmies() devuelve una copia: iterar es seguro aunque una batalla elimine ejercitos del
+	// estado real (las operaciones revalidan por Id y fallan sin efecto sobre entradas ya muertas).
+	for (const FWLArmy& Army : Military->GetArmies())
+	{
+		if (Army.OwnerIso != Iso || Army.Units.Num() == 0)
+		{
+			continue;
+		}
+
+		// 1) Ejercito enemigo a tiro (misma/adyacente provincia + en guerra): atacarlo.
+		const TArray<FString> Targets = Military->GetAttackableTargetIds(Army.Id);
+		if (Targets.Num() > 0)
+		{
+			FString Report;
+			Military->ResolveTacticalBattleToEnd(Army.Id, Targets[0], Report);
+			AddGovernmentLogEntry(EWLGovernmentLogCategory::Military, Iso, TEXT(""),
+				TEXT("Ofensiva IA"), FString::Printf(TEXT("%s ataca a un ejercito enemigo. %s"), *Army.Id, *Report),
+				TEXT("strategic_ai"), 8, true, false);
+			UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: %s ataca a %s. %s"), *Iso, *Army.Id, *Targets[0], *Report);
+			continue;
+		}
+
+		// 2) Parado en provincia enemiga sin ejercito defensor: asaltar la ciudad (milicia local).
+		FString AssaultReason;
+		if (Military->CanAssaultProvince(Army.Id, AssaultReason))
+		{
+			FString Report;
+			Military->ResolveProvinceAssaultToEnd(Army.Id, Report);
+			AddGovernmentLogEntry(EWLGovernmentLogCategory::Military, Iso, TEXT(""),
+				TEXT("Asalto IA"), FString::Printf(TEXT("%s asalta una provincia enemiga. %s"), *Army.Id, *Report),
+				TEXT("strategic_ai"), 8, true, false);
+			UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: %s asalta %s. %s"), *Iso, *Army.Id, *Army.ProvinceId, *Report);
+			continue;
+		}
+
+		// 3) Marchar hacia el frente: el vecino con MENOR distancia a territorio enemigo, si acerca.
+		FWLProvinceData ProvinceData;
+		if (!Registry->GetProvince(Army.ProvinceId, ProvinceData))
+		{
+			continue;
+		}
+		const int32* MyDistance = DistanceToEnemy.Find(Army.ProvinceId);
+		int32 BestDistance = MyDistance ? *MyDistance : TNumericLimits<int32>::Max();
+		FString BestNeighbor;
+		for (const FString& Neighbor : ProvinceData.Neighbors)
+		{
+			const int32* NeighborDistance = DistanceToEnemy.Find(Neighbor);
+			if (NeighborDistance && *NeighborDistance < BestDistance)
+			{
+				BestDistance = *NeighborDistance;
+				BestNeighbor = Neighbor;
+			}
+		}
+		if (!BestNeighbor.IsEmpty())
+		{
+			FString MoveMessage;
+			if (Military->MoveArmy(Army.Id, BestNeighbor, MoveMessage))
+			{
+				UE_LOG(LogWorldLeader, Log, TEXT("IA %s: %s marcha hacia el frente (%s)."), *Iso, *Army.Id, *BestNeighbor);
+			}
+		}
+	}
 }
 
 void UWLPoliticalSubsystem::RunGovernmentAIForNation(const FString& NationIso)

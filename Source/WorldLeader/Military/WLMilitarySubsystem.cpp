@@ -654,16 +654,8 @@ TArray<FString> UWLMilitarySubsystem::GetAttackableTargetIds(const FString& Atta
 	return Targets;
 }
 
-EWLBattleResult UWLMilitarySubsystem::ResolveTacticalBattleToEnd(const FString& AttackerId, const FString& DefenderId, FString& OutReport)
+EWLBattleResult UWLMilitarySubsystem::ResolveStartedBattleToEnd(FWLTacticalBattleState& Battle, FString& OutReport)
 {
-	FWLTacticalBattleState Battle;
-	FString Message;
-	if (!StartTacticalBattle(AttackerId, DefenderId, Battle, Message))
-	{
-		OutReport = Message;
-		return EWLBattleResult::Invalid;
-	}
-
 	UWLTacticalBattleSubsystem* Tactical = nullptr;
 	if (UGameInstance* GI = GetGameInstance())
 	{
@@ -676,6 +668,7 @@ EWLBattleResult UWLMilitarySubsystem::ResolveTacticalBattleToEnd(const FString& 
 	}
 
 	// IA en ambos bandos: sin vista 3D interactiva, la batalla se juega sola de forma determinista.
+	FString Message;
 	Tactical->SetTacticalAIControl(Battle.BattleId, Battle.AttackerIso, true, Message);
 	Tactical->SetTacticalAIControl(Battle.BattleId, Battle.DefenderIso, true, Message);
 
@@ -713,6 +706,30 @@ EWLBattleResult UWLMilitarySubsystem::ResolveTacticalBattleToEnd(const FString& 
 	case EWLTacticalBattleResult::DefenderVictory: return EWLBattleResult::DefenderVictory;
 	default:                                       return EWLBattleResult::Stalemate;
 	}
+}
+
+EWLBattleResult UWLMilitarySubsystem::ResolveTacticalBattleToEnd(const FString& AttackerId, const FString& DefenderId, FString& OutReport)
+{
+	FWLTacticalBattleState Battle;
+	FString Message;
+	if (!StartTacticalBattle(AttackerId, DefenderId, Battle, Message))
+	{
+		OutReport = Message;
+		return EWLBattleResult::Invalid;
+	}
+	return ResolveStartedBattleToEnd(Battle, OutReport);
+}
+
+EWLBattleResult UWLMilitarySubsystem::ResolveProvinceAssaultToEnd(const FString& AttackerArmyId, FString& OutReport)
+{
+	FWLTacticalBattleState Battle;
+	FString Message;
+	if (!StartProvinceAssault(AttackerArmyId, Battle, Message))
+	{
+		OutReport = Message;
+		return EWLBattleResult::Invalid;
+	}
+	return ResolveStartedBattleToEnd(Battle, OutReport);
 }
 
 EWLBattleResult UWLMilitarySubsystem::AutoResolveBattle(const FString& AttackerId, const FString& DefenderId, FString& OutReport)
