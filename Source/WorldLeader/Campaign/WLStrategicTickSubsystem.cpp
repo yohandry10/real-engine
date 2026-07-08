@@ -7,6 +7,7 @@
 #include "Campaign/WLDataRegistry.h"
 #include "Characters/WLCharacterSubsystem.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Military/WLMilitarySubsystem.h"
 #include "Politics/WLPoliticalSubsystem.h"
 #include "WorldLeader.h"
 #include "Engine/GameInstance.h"
@@ -2291,6 +2292,23 @@ int64 UWLStrategicTickSubsystem::GetNationMilitaryStrength(const FString& Nation
 			Units += FMath::Max(0, Unit.Value);
 		}
 		Strength += Units * 100;
+	}
+	// Ejercitos de CAMPO creados directamente (SourceBaseId vacio): sin esto un ejercito real no
+	// contaba para la fuerza nacional, asi que la IA decidia guerra/paz/reclutamiento ignorandolo.
+	// Los desplegados desde un fuerte (SourceBaseId != vacio) ya se cuentan via su guarnicion arriba
+	// — se saltan aqui para no duplicar. Las fuerzas preubicadas son un numero de datos, no Army.
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UWLMilitarySubsystem* Military = GI->GetSubsystem<UWLMilitarySubsystem>())
+		{
+			for (const FWLArmy& Army : Military->GetArmies())
+			{
+				if (Army.SourceBaseId.IsEmpty() && NormalizeIso(Army.OwnerIso) == Iso)
+				{
+					Strength += static_cast<int64>(Army.Units.Num()) * 100;
+				}
+			}
+		}
 	}
 	return Strength;
 }

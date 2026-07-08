@@ -469,8 +469,23 @@ bool FWLPoliticalStrategicAIDifficultyWarPostureTest::RunTest(const FString& Par
 		Balance->SetRuntimeRules(Rules);
 		TestTrue(TEXT("Iniciar campania VE"), GameInstance->StartNewCampaign(TEXT("VE")));
 
-		const FString CoArmy = Military->CreateArmy(TEXT("CO"), TEXT("CO-DC"), TEXT("infantry"), 10, TEXT(""));
+		// VE recibe una fuerza simbolica; el ejercito de CO se DIMENSIONA para una ventaja MODERADA
+		// (~1.5x la fuerza de VE), robusta al baseline de datos de cada nacion: por encima del umbral
+		// de guerra en Dificil (1.35x) pero por debajo del de Facil (2.0x). Asi el test valida el
+		// ESCALADO por dificultad, no numeros magicos que dependen de los datos.
+		UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+		TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+		if (!Tick)
+		{
+			GameInstance->Shutdown();
+			return false;
+		}
 		const FString VeArmy = Military->CreateArmy(TEXT("VE"), TEXT("VE-ZU"), TEXT("infantry"), 1, TEXT(""));
+		const int64 VeStrength = Tick->GetNationMilitaryStrength(TEXT("VE"));
+		const int64 CoBaseline = Tick->GetNationMilitaryStrength(TEXT("CO"));
+		const int64 TargetCoStrength = static_cast<int64>(static_cast<double>(VeStrength) * 1.5);
+		const int32 CoUnits = FMath::Clamp(static_cast<int32>((TargetCoStrength - CoBaseline) / 100), 5, 800);
+		const FString CoArmy = Military->CreateArmy(TEXT("CO"), TEXT("CO-DC"), TEXT("infantry"), CoUnits, TEXT(""));
 		TestFalse(TEXT("Ejercito CO creado"), CoArmy.IsEmpty());
 		TestFalse(TEXT("Ejercito VE creado"), VeArmy.IsEmpty());
 
