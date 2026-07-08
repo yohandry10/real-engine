@@ -188,6 +188,16 @@ struct FWLBalanceRules
 
 	// --- Condiciones de victoria (F5.3) ---
 
+	/** Dominacion: cuota de provincias que hay que controlar para ganar por conquista militar.
+	 *  1.0 (controlar TODO el continente) es practicamente inalcanzable; una cuota dominante lo
+	 *  vuelve un camino real de conquista, coherente con la Hegemonia economica por cuota de PIB. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Victory", meta = (ClampMin = "0.5", ClampMax = "1.0"))
+	double DominationProvinceShare = 0.6;
+
+	/** Dominacion: meses minimos de campana antes de poder ganar por conquista. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Victory", meta = (ClampMin = "0"))
+	int32 DominationMinMonths = 12;
+
 	/** Hegemonia: cuota del PIB total que hay que concentrar para ganar. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Victory", meta = (ClampMin = "0.5", ClampMax = "1.0"))
 	double HegemonyGDPShare = 0.65;
@@ -657,6 +667,8 @@ struct FWLBalanceRules
 		Out.TariffImportPenaltyPerPoint = FMath::Clamp(Out.TariffImportPenaltyPerPoint, 0.0, 1.0);
 		Out.TariffRelationPenaltyPerPoint = FMath::Max(0.0, Out.TariffRelationPenaltyPerPoint);
 		Out.DefenseMinisterUpkeepEffect = FMath::Clamp(Out.DefenseMinisterUpkeepEffect, 0.0, 0.9);
+		Out.DominationProvinceShare = FMath::Clamp(Out.DominationProvinceShare, 0.5, 1.0);
+		Out.DominationMinMonths = FMath::Max(0, Out.DominationMinMonths);
 		Out.HegemonyGDPShare = FMath::Clamp(Out.HegemonyGDPShare, 0.5, 1.0);
 		Out.HegemonyMinMonths = FMath::Max(0, Out.HegemonyMinMonths);
 		Out.RegimeVictoryMonths = FMath::Max(1, Out.RegimeVictoryMonths);

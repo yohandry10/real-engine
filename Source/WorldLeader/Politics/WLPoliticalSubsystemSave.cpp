@@ -24,6 +24,12 @@ void UWLPoliticalSubsystem::CheckCampaignOutcome()
 		return;
 	}
 
+	// Meses de campana derivados de la fecha (sin estado nuevo que guardar).
+	const FWLBalanceRules Rules = Tick->GetBalanceRules();
+	const int32 MonthsElapsed =
+		(Tick->GetCurrentYear() - Rules.StartYear) * Rules.MonthsPerYear
+		+ (Tick->GetCurrentMonth() - Rules.StartMonth);
+
 	TMap<FString, int32> ControlledByNation;
 	int32 TotalProvinces = 0;
 	for (const FWLProvinceData& Province : Registry->GetAllProvinces())
@@ -35,23 +41,28 @@ void UWLPoliticalSubsystem::CheckCampaignOutcome()
 			ControlledByNation.FindOrAdd(Controller) += 1;
 		}
 	}
-	for (const TPair<FString, int32>& Pair : ControlledByNation)
+	// Dominacion: controlar una CUOTA dominante de provincias (no las 219 del continente entero, que
+	// era inalcanzable). Coherente con la Hegemonia por cuota de PIB, y ahora ruta real de conquista.
+	if (TotalProvinces > 0 && MonthsElapsed >= Rules.DominationMinMonths)
 	{
-		if (TotalProvinces > 0 && Pair.Value == TotalProvinces)
+		const int32 RequiredProvinces = FMath::Max(1,
+			FMath::CeilToInt(static_cast<double>(TotalProvinces) * Rules.DominationProvinceShare));
+		for (const TPair<FString, int32>& Pair : ControlledByNation)
 		{
-			CampaignOutcome.bGameOver = true;
-			CampaignOutcome.OutcomeType = TEXT("Domination");
-			CampaignOutcome.WinningNationIso = Pair.Key;
-			CampaignOutcome.Reason = FString::Printf(TEXT("%s controla todas las provincias."), *Pair.Key);
-			return;
+			if (Pair.Value >= RequiredProvinces)
+			{
+				CampaignOutcome.bGameOver = true;
+				CampaignOutcome.OutcomeType = TEXT("Domination");
+				CampaignOutcome.WinningNationIso = Pair.Key;
+				CampaignOutcome.Reason = FString::Printf(
+					TEXT("%s domina el %.0f%% de las provincias (%d de %d)."),
+					*Pair.Key,
+					static_cast<double>(Pair.Value) / static_cast<double>(TotalProvinces) * 100.0,
+					Pair.Value, TotalProvinces);
+				return;
+			}
 		}
 	}
-
-	// F5.3: victorias no militares. Meses de campana derivados de la fecha (sin estado nuevo que guardar).
-	const FWLBalanceRules Rules = Tick->GetBalanceRules();
-	const int32 MonthsElapsed =
-		(Tick->GetCurrentYear() - Rules.StartYear) * Rules.MonthsPerYear
-		+ (Tick->GetCurrentMonth() - Rules.StartMonth);
 
 	// Hegemonia: concentrar la cuota configurada del PIB total (cualquier nacion puede lograrla).
 	if (MonthsElapsed >= Rules.HegemonyMinMonths)
