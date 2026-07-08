@@ -72,6 +72,10 @@ private:
 	UStaticMesh* ModelForUnit(const FWLTacticalUnitState& Unit) const;
 	/** F6: humo en contingentes danados y fogonazos de impacto de salvas. */
 	void UpdateBattleEffects(const FWLTacticalBattleState& Battle);
+	/** Sprites de combate (Codex, Content/UI/Battle) como billboards que encaran la camara. */
+	UTexture2D* LoadBattleSprite(const FString& Name) const;
+	UStaticMeshComponent* MakeSpriteBillboard();
+	void UpdateSpriteBillboard(UStaticMeshComponent* Comp, const FString& Sprite, const FLinearColor& Tint, float Opacity, const FVector& WorldPos, float SizeCm);
 	/** Offsets locales de la formacion (rejilla ancha centrada, primera fila al frente). */
 	static void BuildFormationOffsets(int32 Count, float Spacing, TArray<FVector2D>& OutOffsets);
 	void RebuildContingentInstances(UInstancedStaticMeshComponent* Mesh, const FWLTacticalUnitState& Unit);
@@ -96,6 +100,8 @@ private:
 	// F6: modelos de unidad reales (gen_vehicle.py) + material unlit vertex-color compartido.
 	UPROPERTY() TMap<FString, UStaticMesh*> UnitModels;
 	UPROPERTY() UMaterialInterface* VehicleMaterial = nullptr;
+	// Sprites de combate: material unlit translucido texturizado (/Game/UI/Battle/M_BattleSprite).
+	UPROPERTY() UMaterialInterface* SpriteMaterial = nullptr;
 
 	// F1b: una FORMACION instanciada por contingente (los elementos vivos se ven y caen).
 	UPROPERTY() TMap<FString, UInstancedStaticMeshComponent*> ContingentMeshes;

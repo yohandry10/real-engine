@@ -77,6 +77,17 @@ void AWLCampaignHUD::DrawTacticalBattleHud(const AWLCampaignPlayerController* PC
 			return WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Units/%s.png"), Render));
 		};
 
+		// Icono de la orden activa del contingente (senaletica militar de Codex, Content/UI/Battle).
+		auto OrderIconFor = [](EWLTacticalUnitOrder Order) -> UTexture2D*
+		{
+			const TCHAR* Icon =
+				Order == EWLTacticalUnitOrder::Attacking ? TEXT("order_attack") :
+				Order == EWLTacticalUnitOrder::Moving    ? TEXT("order_move") :
+				Order == EWLTacticalUnitOrder::Routing   ? TEXT("order_retreat") :
+				                                           TEXT("order_hold");
+			return WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Battle/%s.png"), Icon));
+		};
+
 		for (int32 i = 0; i < PlayerContingents.Num(); ++i)
 		{
 			const FWLTacticalUnitState& U = *PlayerContingents[i];
@@ -101,6 +112,13 @@ void AWLCampaignHUD::DrawTacticalBattleHud(const AWLCampaignPlayerController* PC
 			{
 				const float ImgH = 64.f;
 				DrawTexture(Render, CX + (CW - ImgH) * 0.5f, CY + 8.f, ImgH, ImgH, 0.f, 0.f, 1.f, 1.f);
+			}
+
+			// Icono de orden en la esquina superior derecha de la carta.
+			if (UTexture2D* OrderIcon = OrderIconFor(U.Order))
+			{
+				const float IconS = 22.f;
+				DrawTexture(OrderIcon, CX + CW - IconS - 6.f, CY + 8.f, IconS, IconS, 0.f, 0.f, 1.f, 1.f);
 			}
 
 			// Nombre corto + efectivos.

@@ -14,6 +14,8 @@
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "UI/WLGovAssets.h"
+#include "Engine/Texture2D.h"
 #include "UObject/ConstructorHelpers.h"
 
 AWLTacticalBattleView::AWLTacticalBattleView()
@@ -77,6 +79,67 @@ AWLTacticalBattleView::AWLTacticalBattleView()
 
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> VehMatFinder(TEXT("/Game/GenVehicle/M_VehicleUnlit.M_VehicleUnlit"));
 	if (VehMatFinder.Succeeded()) { VehicleMaterial = VehMatFinder.Object; }
+
+	// Material de sprites de combate (unlit translucido texturizado, creado por create_battle_material.py).
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SpriteMatFinder(TEXT("/Game/UI/Battle/M_BattleSprite.M_BattleSprite"));
+	if (SpriteMatFinder.Succeeded()) { SpriteMaterial = SpriteMatFinder.Object; }
+}
+
+UTexture2D* AWLTacticalBattleView::LoadBattleSprite(const FString& Name) const
+{
+	return WLGovAssetsNS::LoadExternalTexture(FString::Printf(TEXT("UI/Battle/%s.png"), *Name));
+}
+
+UStaticMeshComponent* AWLTacticalBattleView::MakeSpriteBillboard()
+{
+	if (!GroundMesh || !SpriteMaterial)
+	{
+		return nullptr;
+	}
+	UStaticMeshComponent* Comp = NewObject<UStaticMeshComponent>(this);
+	Comp->SetupAttachment(Root);
+	Comp->RegisterComponent();
+	Comp->SetStaticMesh(GroundMesh);   // el Plane 100x100 del Engine, orientado a la camara por frame
+	Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Comp->SetCastShadow(false);
+	if (UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(SpriteMaterial, this))
+	{
+		Comp->SetMaterial(0, Mid);
+	}
+	return Comp;
+}
+
+void AWLTacticalBattleView::UpdateSpriteBillboard(UStaticMeshComponent* Comp, const FString& Sprite,
+	const FLinearColor& Tint, float Opacity, const FVector& WorldPos, float SizeCm)
+{
+	if (!Comp)
+	{
+		return;
+	}
+	if (UMaterialInstanceDynamic* Mid = Cast<UMaterialInstanceDynamic>(Comp->GetMaterial(0)))
+	{
+		if (UTexture2D* Tex = LoadBattleSprite(Sprite))
+		{
+			Mid->SetTextureParameterValue(TEXT("Sprite"), Tex);
+		}
+		Mid->SetVectorParameterValue(TEXT("Tint"), Tint);
+		Mid->SetScalarParameterValue(TEXT("OpacityScale"), Opacity);
+	}
+	Comp->SetWorldLocation(WorldPos);
+	const float S = FMath::Max(0.01f, SizeCm) / 100.f;
+	Comp->SetWorldScale3D(FVector(S, S, S));
+	// Encara la camara: el Plane mira a +Z local; alinear +Z con la direccion hacia la camara.
+	FVector ToCamera(0.f, 0.f, 1.f);
+	if (BattleCamera)
+	{
+		const FVector Dir = BattleCamera->GetActorLocation() - WorldPos;
+		if (!Dir.IsNearlyZero())
+		{
+			ToCamera = Dir.GetSafeNormal();
+		}
+	}
+	Comp->SetWorldRotation(FRotationMatrix::MakeFromZ(ToCamera).Rotator());
+	Comp->SetVisibility(true);
 }
 
 UStaticMesh* AWLTacticalBattleView::ModelForUnit(const FWLTacticalUnitState& Unit) const
@@ -483,21 +546,14 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 		{
 			if (FlashComponents.Num() < 24)
 			{
-				UStaticMeshComponent* Flash = NewObject<UStaticMeshComponent>(this);
-				Flash->SetupAttachment(Root);
-				Flash->RegisterComponent();
-				Flash->SetStaticMesh(SphereMesh);
-				FVector FlashLoc = Comp->GetComponentLocation();
-				FlashLoc.Z = GroundZ + 130.f;
-				Flash->SetWorldLocation(FlashLoc);
-				Flash->SetWorldScale3D(FVector(1.6f));
-				Flash->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-				if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(1.0f, 0.58f, 0.16f)))
+				if (UStaticMeshComponent* Flash = MakeSpriteBillboard())
 				{
-					Flash->SetMaterial(0, Mat);
+					FVector FlashLoc = Comp->GetComponentLocation();
+					FlashLoc.Z = GroundZ + 180.f;   // el sprite de explosion se anima en UpdateBattleEffects
+					Flash->SetWorldLocation(FlashLoc);
+					FlashComponents.Add(Flash);
+					FlashSpawnSeconds.Add(Battle.ElapsedSeconds);
 				}
-				FlashComponents.Add(Flash);
-				FlashSpawnSeconds.Add(Battle.ElapsedSeconds);
 			}
 			if (ScorchComponents.Num() < 60)
 			{
@@ -524,12 +580,12 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 
 void AWLTacticalBattleView::UpdateBattleEffects(const FWLTacticalBattleState& Battle)
 {
-	if (!SphereMesh)
+	if (!SpriteMaterial || !GroundMesh)
 	{
 		return;
 	}
 
-	// HUMO: columna que sube y se recicla sobre contingentes vivos con dano serio.
+	// HUMO: columna de sprites (Codex) que sube, pasa de denso a disperso y se desvanece, reciclando.
 	for (const FWLTacticalUnitState& Unit : Battle.Units)
 	{
 		const bool bSmoking = !Unit.bDestroyed && Unit.Health > 0.0 && Unit.Health < 55.0;
@@ -542,38 +598,42 @@ void AWLTacticalBattleView::UpdateBattleEffects(const FWLTacticalBattleState& Ba
 		}
 		if (!Smoke)
 		{
-			Smoke = NewObject<UStaticMeshComponent>(this);
-			Smoke->SetupAttachment(Root);
-			Smoke->RegisterComponent();
-			Smoke->SetStaticMesh(SphereMesh);
-			Smoke->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(0.16f, 0.15f, 0.145f)))
+			Smoke = MakeSpriteBillboard();
+			if (!Smoke)
 			{
-				Smoke->SetMaterial(0, Mat);
+				continue;
 			}
 			SmokeComponents.Add(Unit.TacticalUnitId, Smoke);
 		}
 		const double Phase = static_cast<double>(GetTypeHash(Unit.TacticalUnitId) % 97) / 97.0;
-		const float Cycle = static_cast<float>(FMath::Fmod(Battle.ElapsedSeconds * 0.55 + Phase, 1.0));
-		Smoke->SetWorldLocation(*Center + FVector(0.f, 0.f, 160.f + 460.f * Cycle));
-		Smoke->SetWorldScale3D(FVector(1.5f + 2.4f * Cycle));
-		Smoke->SetVisibility(true);
+		const float Cycle = static_cast<float>(FMath::Fmod(Battle.ElapsedSeconds * 0.5 + Phase, 1.0));
+		const int32 Frame = FMath::Clamp(1 + FMath::FloorToInt(Cycle * 4.f), 1, 4);   // smoke_01 denso -> _04 disperso
+		const FVector Pos = *Center + FVector(0.f, 0.f, 220.f + 520.f * Cycle);
+		const float Size = 360.f + 560.f * Cycle;
+		const float Opacity = FMath::Clamp(1.15f - Cycle, 0.15f, 1.0f);
+		UpdateSpriteBillboard(Smoke, FString::Printf(TEXT("smoke_0%d"), Frame),
+			FLinearColor(1.f, 1.f, 1.f, 1.f), Opacity, Pos, Size);
 	}
 
-	// FOGONAZOS: crecen y mueren en medio segundo.
+	// EXPLOSIONES: secuencia de 6 fotogramas (fuego -> humo) en ~0.55 s sobre el punto de impacto.
 	for (int32 Index = FlashComponents.Num() - 1; Index >= 0; --Index)
 	{
 		UStaticMeshComponent* Flash = FlashComponents[Index];
 		const double Age = FlashSpawnSeconds.IsValidIndex(Index)
 			? Battle.ElapsedSeconds - FlashSpawnSeconds[Index] : 1.0;
-		if (!Flash || Age > 0.5)
+		if (!Flash || Age > 0.55)
 		{
 			if (Flash) { Flash->DestroyComponent(); }
 			FlashComponents.RemoveAt(Index);
 			FlashSpawnSeconds.RemoveAt(Index);
 			continue;
 		}
-		Flash->SetWorldScale3D(FVector(1.6f + 7.0f * static_cast<float>(Age / 0.5)));
+		const float T = FMath::Clamp(static_cast<float>(Age / 0.55), 0.f, 0.999f);
+		const int32 Frame = FMath::Clamp(1 + FMath::FloorToInt(T * 6.f), 1, 6);
+		const float Size = 460.f + 980.f * T;
+		const float Opacity = FMath::Clamp(1.2f - T * 0.5f, 0.25f, 1.0f);
+		UpdateSpriteBillboard(Flash, FString::Printf(TEXT("explosion_0%d"), Frame),
+			FLinearColor(1.f, 1.f, 1.f, 1.f), Opacity, Flash->GetComponentLocation(), Size);
 	}
 }
 
