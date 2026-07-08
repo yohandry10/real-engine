@@ -1132,6 +1132,14 @@ bool UWLMilitarySubsystem::ApplyTacticalBattleResult(const FString& BattleId, FS
 		AwardBattleRenown(*Attacker, *Defender, bAttackerWins);
 	}
 
+	// F7: la milicia levantada para defender un asalto es una leva de UNA batalla. Se disuelve al
+	// terminar, gane o pierda — si repele el asalto vuelve a la ciudad, no se convierte en un
+	// ejercito de campo movil que la IA pudiera pasear por el mapa.
+	if (DefenderArmyId.StartsWith(TEXT("GAR-")))
+	{
+		Armies.RemoveAll([&DefenderArmyId](const FWLArmy& A) { return A.Id == DefenderArmyId; });
+	}
+
 	Armies.RemoveAll([](const FWLArmy& A) { return A.Units.Num() == 0 && A.RecoveringUnits.Num() == 0; });
 
 	UE_LOG(LogWorldLeader, Log, TEXT("%s"), *OutMessage);
