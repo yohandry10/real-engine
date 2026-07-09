@@ -341,11 +341,21 @@ void DrawCampaignSelectionPanel(
 		const float ButtonX0 = PanelX + 18.f;
 		const float ButtonX1 = ButtonX0 + ButtonW + Gap;
 		const float ActionY = PanelY + 412.f;
-		HUD->DrawText(TEXT("ORDEN DE MOVIMIENTO"), Gold, PanelX + 18.f, ActionY - 24.f, SmallFont, 0.78f);
+		HUD->DrawText(TEXT("ORDENES"), Gold, PanelX + 18.f, ActionY - 24.f, SmallFont, 0.78f);
 		HUD->DrawRect(PC->CanSelectedForceMove() ? FLinearColor(0.50f, 0.40f, 0.18f, 0.96f) : Disabled,
 			ButtonX0, ActionY, ButtonW, ButtonH);
 		HUD->DrawText(PC->IsForceMovementModeActive() ? TEXT("Cambiar destino") : TEXT("Mover"),
 			PC->CanSelectedForceMove() ? Text : Muted, ButtonX0 + 9.f, ActionY + 7.f, SmallFont, 0.66f);
+
+		// COMBATE junto a Mover (donde el jugador lo busca): ATACAR ejercito a tiro o ASALTAR la
+		// ciudad enemiga donde esta parado. Deshabilitado, el clic explica el motivo en pantalla.
+		{
+			FString CombatLabel, CombatReason;
+			const bool bCanCombat = PC->GetSelectedForceCombatAction(CombatLabel, CombatReason);
+			HUD->DrawRect(bCanCombat ? FLinearColor(0.46f, 0.15f, 0.11f, 0.96f) : Disabled,
+				ButtonX1, ActionY, ButtonW, ButtonH);
+			HUD->DrawText(CombatLabel, bCanCombat ? Text : Muted, ButtonX1 + 9.f, ActionY + 7.f, SmallFont, 0.66f);
+		}
 
 		float DisabledStartY = ActionY + 40.f;
 		if (PC->IsForceMovementModeActive())

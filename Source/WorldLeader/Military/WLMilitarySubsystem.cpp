@@ -1039,6 +1039,39 @@ bool UWLMilitarySubsystem::ApplyTacticalBattleResult(const FString& BattleId, FS
 	ReconcileArmyFromTacticalBattle(*Attacker, Battle, AttackerDestroyedLosses, AttackerRoutedUnits);
 	ReconcileArmyFromTacticalBattle(*Defender, Battle, DefenderDestroyedLosses, DefenderRoutedUnits);
 
+	// Los muertos NO resucitan: si el ejercito viene de un fuerte (SourceBaseId), sus bajas
+	// destruidas se descuentan de la guarnicion de esa base — el proximo re-sync del token
+	// refleja la perdida real en vez de reponer el ejercito completo gratis.
+	if (UWLStrategicTickSubsystem* Tick = GetStrategicTick())
+	{
+		auto ConsumeArmyLossesFromGarrison = [&](const FWLArmy& Army)
+		{
+			if (Army.SourceBaseId.IsEmpty())
+			{
+				return;
+			}
+			TMap<FString, int32> DestroyedByUnit;
+			for (const FWLTacticalUnitState& Unit : Battle.Units)
+			{
+				if (!Unit.SourceArmyId.Equals(Army.Id, ESearchCase::IgnoreCase))
+				{
+					continue;
+				}
+				const int32 Destroyed = FMath::Max(0, Unit.InitialElementCount - Unit.ElementCount);
+				if (Destroyed > 0)
+				{
+					DestroyedByUnit.FindOrAdd(Unit.UnitId) += Destroyed;
+				}
+			}
+			for (const TPair<FString, int32>& Loss : DestroyedByUnit)
+			{
+				Tick->ConsumeGarrisonUnits(Army.SourceBaseId, Loss.Key, Loss.Value);
+			}
+		};
+		ConsumeArmyLossesFromGarrison(*Attacker);
+		ConsumeArmyLossesFromGarrison(*Defender);
+	}
+
 	const bool bAttackerWins = Battle.Result == EWLTacticalBattleResult::AttackerVictory;
 	const bool bDefenderWins = Battle.Result == EWLTacticalBattleResult::DefenderVictory;
 	const bool bAttackerCombatEffective = !Attacker->Units.IsEmpty();

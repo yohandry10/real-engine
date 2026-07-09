@@ -6,6 +6,7 @@
 #include "Campaign/WLStrategicTickSubsystem.h"
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Military/WLMilitarySubsystem.h"
 #include "Politics/WLPoliticalSubsystem.h"
 #include "Map/WLWorldMap.h"
 #include "Presentation/WLCampaign3DView.h"
@@ -366,6 +367,94 @@ void AWLCampaignPlayerController::SetEventModalOpen(bool bOpen)
 	}
 }
 
+FString AWLCampaignPlayerController::GetSelectedForceBackendArmyId() const
+{
+	// Los tokens de ejercito del mapa son "ARMY-<fuerte>"; el FWLArmy real se localiza por su base.
+	if (!SelectedForceId.StartsWith(TEXT("ARMY-")))
+	{
+		return FString();
+	}
+	const UWLMilitarySubsystem* Military = GetGameInstance()
+		? GetGameInstance()->GetSubsystem<UWLMilitarySubsystem>()
+		: nullptr;
+	return Military ? Military->FindArmyIdByBase(SelectedForceId.Mid(5)) : FString();
+}
+
+bool AWLCampaignPlayerController::GetSelectedForceCombatAction(FString& OutLabel, FString& OutReason) const
+{
+	OutLabel = TEXT("Atacar");
+	OutReason.Reset();
+
+	// Solo fuerzas del jugador: el panel tambien muestra fuerzas enemigas o marcadores de datos.
+	const UWLCampaignGameInstance* CampaignGI = Cast<UWLCampaignGameInstance>(UGameplayStatics::GetGameInstance(this));
+	const FString PlayerIso = CampaignGI ? CampaignGI->GetSelectedNationIso() : FString();
+	if (PlayerIso.IsEmpty() || !SelectedForceCountryIso.Equals(PlayerIso, ESearchCase::IgnoreCase))
+	{
+		OutReason = TEXT("Solo puedes dar ordenes de combate a tus propias fuerzas.");
+		return false;
+	}
+	const FString ArmyId = GetSelectedForceBackendArmyId();
+	if (ArmyId.IsEmpty())
+	{
+		OutReason = TEXT("Esta fuerza no es un ejercito desplegado (recluta en tu fuerte y despliega).");
+		return false;
+	}
+	UWLMilitarySubsystem* Military = GetGameInstance()
+		? GetGameInstance()->GetSubsystem<UWLMilitarySubsystem>()
+		: nullptr;
+	if (!Military)
+	{
+		OutReason = TEXT("Sistema militar no disponible.");
+		return false;
+	}
+
+	// 1) Ejercito enemigo a tiro (misma o adyacente provincia, en guerra): ATACAR.
+	if (Military->GetAttackableTargetIds(ArmyId).Num() > 0)
+	{
+		OutLabel = TEXT("ATACAR ejercito");
+		return true;
+	}
+	// 2) Parado en provincia enemiga sin defensor (en guerra): ASALTAR la ciudad.
+	FString AssaultReason;
+	if (Military->CanAssaultProvince(ArmyId, AssaultReason))
+	{
+		OutLabel = TEXT("ASALTAR ciudad");
+		return true;
+	}
+	OutReason = AssaultReason;
+	return false;
+}
+
+void AWLCampaignPlayerController::ExecuteSelectedForceCombatAction()
+{
+	const FString ArmyId = GetSelectedForceBackendArmyId();
+	UWLMilitarySubsystem* Military = GetGameInstance()
+		? GetGameInstance()->GetSubsystem<UWLMilitarySubsystem>()
+		: nullptr;
+	if (ArmyId.IsEmpty() || !Military)
+	{
+		FString Label, Reason;
+		GetSelectedForceCombatAction(Label, Reason);
+		SetLastActionMessage(Reason.IsEmpty() ? TEXT("Accion de combate no disponible.") : Reason, false);
+		return;
+	}
+
+	const TArray<FString> Targets = Military->GetAttackableTargetIds(ArmyId);
+	if (Targets.Num() > 0)
+	{
+		EnterTacticalBattle(ArmyId, Targets[0]);
+		return;
+	}
+	FString Reason;
+	if (Military->CanAssaultProvince(ArmyId, Reason))
+	{
+		EnterTacticalBattle(ArmyId, FString());   // sin defensor = asalto (la ciudad levanta milicia)
+		return;
+	}
+	// Motivo claro en pantalla: p. ej. sin guerra declarada, o provincia propia.
+	SetLastActionMessage(Reason, false);
+}
+
 bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 {
 	if (ActivePresentationMode != EWLCampaignPresentationMode::Campaign3D || !HasCampaignSelectionPanel())
@@ -425,6 +514,13 @@ bool AWLCampaignPlayerController::TryHandleSelectionPanelClick()
 		if (IsPointInControllerRect(MouseX, MouseY, ButtonX0, ActionY, ButtonW, ButtonH))
 		{
 			BeginForceMovementOrder();
+			return true;
+		}
+
+		// Boton COMBATE (ATACAR/ASALTAR) junto a Mover — misma geometria que el dibujo del panel.
+		if (IsPointInControllerRect(MouseX, MouseY, ButtonX1, ActionY, ButtonW, ButtonH))
+		{
+			ExecuteSelectedForceCombatAction();
 			return true;
 		}
 

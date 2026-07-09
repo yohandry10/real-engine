@@ -218,6 +218,37 @@ TArray<FWLGarrisonGroup> UWLStrategicTickSubsystem::GetGarrisonRecruited(const F
 	return Out;
 }
 
+int32 UWLStrategicTickSubsystem::ConsumeGarrisonUnits(const FString& BaseId, const FString& UnitType, int32 Count)
+{
+	if (Count <= 0)
+	{
+		return 0;
+	}
+	TMap<FString, int32>* Garrison = GarrisonRecruited.Find(BaseId);
+	if (!Garrison)
+	{
+		// Las claves llegan del despliegue en mayusculas normalizadas; intenta esa variante.
+		Garrison = GarrisonRecruited.Find(BaseId.TrimStartAndEnd().ToUpper());
+	}
+	if (!Garrison)
+	{
+		return 0;
+	}
+	int32* Stock = Garrison->Find(UnitType);
+	if (!Stock)
+	{
+		// El mapeo tactico es 1:1, pero los ids de Units.json van en minusculas.
+		Stock = Garrison->Find(UnitType.ToLower());
+	}
+	if (!Stock || *Stock <= 0)
+	{
+		return 0;
+	}
+	const int32 Consumed = FMath::Min(*Stock, Count);
+	*Stock -= Consumed;
+	return Consumed;
+}
+
 void UWLStrategicTickSubsystem::AdvanceRecruitment()
 {
 	// Construccion SECUENCIAL (como Total War): solo avanza la PRIMERA orden de cada cola por turno.

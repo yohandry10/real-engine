@@ -141,6 +141,13 @@ public:
 	// El jugador SOLO recluta en los fuertes de su pais; los demas son de cada pais (su tesoro, su ejercito).
 	bool IsSelectedForeignFort() const;
 	bool CanSelectedForceMove() const { return bSelectedForceMovable; }
+	// COMBATE desde el panel del mapa (donde el jugador lo busca, no escondido en GOBIERNO):
+	// ejercito del backend enlazado al token seleccionado (tokens ARMY-<fuerte>).
+	FString GetSelectedForceBackendArmyId() const;
+	/** Etiqueta y disponibilidad del boton ATACAR/ASALTAR del panel de fuerza del mapa. */
+	bool GetSelectedForceCombatAction(FString& OutLabel, FString& OutReason) const;
+	/** Ejecuta la accion de combate del panel: ataca al ejercito a tiro o asalta la provincia. */
+	void ExecuteSelectedForceCombatAction();
 	bool IsForceMovementModeActive() const { return ForceMovementOrderMode != EWLCampaignForceMovementOrderMode::None; }
 	bool HasForceMovementDestination() const { return ForceMovementOrderMode == EWLCampaignForceMovementOrderMode::DestinationSelected; }
 	const FString& GetForceMovementDestinationName() const { return PendingForceMoveDestinationName; }

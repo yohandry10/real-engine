@@ -232,6 +232,40 @@ void UWLPoliticalSubsystem::RunStrategicAIMilitaryOffensive(const FString& Natio
 		return;
 	}
 
+	// En guerra y sin ejercitos de campo: la IA DESPLIEGA su guarnicion reclutada (base ISO-AI-HQ)
+	// como ejercito real. El jugador despliega via sus fuertes del mapa; sin esto la IA reclutaba a
+	// guarnicion pero jamas ponia tropas en el campo (el asiento cae a su capital).
+	bool bHasFieldArmy = false;
+	for (const FWLArmy& Army : Military->GetArmies())
+	{
+		if (Army.OwnerIso == Iso && Army.Units.Num() > 0)
+		{
+			bHasFieldArmy = true;
+			break;
+		}
+	}
+	if (!bHasFieldArmy)
+	{
+		const FString BaseId = Iso + TEXT("-AI-HQ");
+		TArray<TPair<FString, int32>> GarrisonUnits;
+		for (const FWLGarrisonGroup& Group : Tick->GetGarrisonRecruited(BaseId))
+		{
+			GarrisonUnits.Add(TPair<FString, int32>(Group.UnitType, Group.Count));
+		}
+		if (GarrisonUnits.Num() > 0)
+		{
+			const FString DeployedId = Military->SyncArmyFromGarrison(BaseId, Iso, FString(), GarrisonUnits);
+			if (!DeployedId.IsEmpty())
+			{
+				AddGovernmentLogEntry(EWLGovernmentLogCategory::Military, Iso, TEXT(""),
+					TEXT("Movilizacion IA"),
+					FString::Printf(TEXT("%s moviliza su guarnicion como ejercito de campo."), *Iso),
+					TEXT("strategic_ai"), 6, true, false);
+				UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: despliega guarnicion como ejercito %s."), *Iso, *DeployedId);
+			}
+		}
+	}
+
 	// Mapa de distancia por el grafo de provincias desde CUALQUIER provincia enemiga (BFS multi-fuente).
 	// Cada ejercito propio usara este mapa para marchar cuesta abajo hacia el frente.
 	TMap<FString, int32> DistanceToEnemy;

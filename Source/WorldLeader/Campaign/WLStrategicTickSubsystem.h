@@ -577,6 +577,9 @@ public:
 	TArray<FWLRecruitOrder> GetRecruitQueue(const FString& BaseId) const;
 	/** Tropa ya producida (acumulada) en una base. */
 	TArray<FWLGarrisonGroup> GetGarrisonRecruited(const FString& BaseId) const;
+	/** Descuenta bajas de la guarnicion de una base (los muertos en batalla NO resucitan al
+	 *  re-sincronizar el ejercito desde su fuerte). Devuelve cuantas unidades consumio. */
+	int32 ConsumeGarrisonUnits(const FString& BaseId, const FString& UnitType, int32 Count);
 
 	/** Efectivos militares totales de una nacion (fuerzas desplegadas + guarniciones reclutadas). */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
