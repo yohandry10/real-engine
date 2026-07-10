@@ -5,6 +5,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Campaign/WLStrategicTickSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Save/WLLocalSaveGame.h"
 
@@ -309,7 +311,7 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Nacion seleccionada"), Loaded->SelectedNationIso, FString(TEXT("VE")));
 	TestEqual(TEXT("Anio"), Loaded->CurrentYear, 2024);
 	TestEqual(TEXT("Mes"), Loaded->CurrentMonth, 2);
-	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 17);
+	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 18);   // v18: +guarnicion y colas de reclutamiento
 	TestEqual(TEXT("Dificultad IA guardada"), static_cast<int32>(Loaded->AIDifficulty),
 		static_cast<int32>(EWLAIDifficulty::Hard));
 	TestEqual(TEXT("Tesoros guardados"), Loaded->NationTreasuries.Num(), 1);
@@ -393,6 +395,68 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 
 	TestTrue(TEXT("Borrar slot temporal"),
 		UGameplayStatics::DeleteGameInSlot(SlotName, UserIndex));
+	return true;
+}
+
+// v18 — CONTRATO: la guarnicion y las colas de reclutamiento SOBREVIVEN al guardar/cargar.
+// Antes NO se persistian: al cargar, las tropas reclutadas (y las ordenes ya pagadas del
+// tesoro) desaparecian, y los tokens de ejercito del mapa no se recreaban.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FWLSaveRecruitmentPersistsTest,
+	"WorldLeader.SaveGame.RecruitmentPersists",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FWLSaveRecruitmentPersistsTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* GameInstance = NewObject<UGameInstance>();
+	TestNotNull(TEXT("GameInstance"), GameInstance);
+	if (!GameInstance)
+	{
+		return false;
+	}
+	GameInstance->Init();
+
+	UWLStrategicTickSubsystem* Tick = GameInstance->GetSubsystem<UWLStrategicTickSubsystem>();
+	TestNotNull(TEXT("Strategic tick subsystem"), Tick);
+	if (!Tick)
+	{
+		GameInstance->Shutdown();
+		return false;
+	}
+
+	// Tropa YA producida en la guarnicion (sembrada via restore) + una orden EN COLA (pagada).
+	FWLGarrisonUnitSave ProducedRow;
+	ProducedRow.BaseId = TEXT("VE-HQ-TEST");
+	ProducedRow.UnitType = TEXT("infantry");
+	ProducedRow.Count = 5;
+	Tick->RestoreRecruitmentSnapshot({ ProducedRow }, TArray<FWLRecruitOrderSave>());
+	FString Message;
+	TestTrue(TEXT("Encolar recluta en la base"),
+		Tick->QueueRecruit(TEXT("VE-HQ-TEST"), TEXT("VE"), TEXT("infantry"), Message));
+
+	TArray<FWLGarrisonUnitSave> SavedGarrison;
+	TArray<FWLRecruitOrderSave> SavedOrders;
+	Tick->WriteRecruitmentSnapshot(SavedGarrison, SavedOrders);
+	TestTrue(TEXT("La guarnicion entra al snapshot"), SavedGarrison.Num() > 0);
+	TestTrue(TEXT("La cola entra al snapshot"), SavedOrders.Num() > 0);
+
+	// Simular CARGAR: estado limpio + restore -> guarnicion y cola vuelven identicas.
+	Tick->RestoreRecruitmentSnapshot(TArray<FWLGarrisonUnitSave>(), TArray<FWLRecruitOrderSave>());
+	TestEqual(TEXT("Estado limpio sin guarnicion"),
+		Tick->GetGarrisonRecruited(TEXT("VE-HQ-TEST")).Num(), 0);
+
+	Tick->RestoreRecruitmentSnapshot(SavedGarrison, SavedOrders);
+	const TArray<FWLGarrisonGroup> RestoredGarrison = Tick->GetGarrisonRecruited(TEXT("VE-HQ-TEST"));
+	TestEqual(TEXT("La guarnicion sobrevive al load"), RestoredGarrison.Num(), 1);
+	if (RestoredGarrison.Num() == 1)
+	{
+		TestEqual(TEXT("Tipo de tropa restaurado"), RestoredGarrison[0].UnitType, FString(TEXT("infantry")));
+		TestEqual(TEXT("Cantidad de tropa restaurada"), RestoredGarrison[0].Count, 5);
+	}
+	TestEqual(TEXT("La cola sobrevive al load"),
+		Tick->GetRecruitQueue(TEXT("VE-HQ-TEST")).Num(), 1);
+
+	GameInstance->Shutdown();
 	return true;
 }
 

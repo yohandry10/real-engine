@@ -310,11 +310,20 @@ void UWLPoliticalSubsystem::RunStrategicAIMilitaryOffensive(const FString& Natio
 		const TArray<FString> Targets = Military->GetAttackableTargetIds(Army.Id);
 		if (Targets.Num() > 0)
 		{
+			// Si la victima es DEL JUGADOR, que se entere por las noticias (no en silencio).
+			FWLArmy TargetArmy;
+			const bool bTargetIsPlayer = Military->GetArmy(Targets[0], TargetArmy)
+				&& TargetArmy.OwnerIso.Equals(GetPlayerNationIso(), ESearchCase::IgnoreCase);
 			FString Report;
 			Military->ResolveTacticalBattleToEnd(Army.Id, Targets[0], Report);
 			AddGovernmentLogEntry(EWLGovernmentLogCategory::Military, Iso, TEXT(""),
 				TEXT("Ofensiva IA"), FString::Printf(TEXT("%s ataca a un ejercito enemigo. %s"), *Army.Id, *Report),
-				TEXT("strategic_ai"), 8, true, false);
+				TEXT("strategic_ai"), 8, true, bTargetIsPlayer);
+			if (bTargetIsPlayer)
+			{
+				AddNews(FString::Printf(TEXT("%s ataca a tu ejercito %s en %s."),
+					*Iso, *TargetArmy.Id, *TargetArmy.ProvinceId));
+			}
 			UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: %s ataca a %s. %s"), *Iso, *Army.Id, *Targets[0], *Report);
 			continue;
 		}
@@ -323,12 +332,19 @@ void UWLPoliticalSubsystem::RunStrategicAIMilitaryOffensive(const FString& Natio
 		FString AssaultReason;
 		if (Military->CanAssaultProvince(Army.Id, AssaultReason))
 		{
+			const FString AssaultedProvince = Army.ProvinceId;
+			const bool bProvinceIsPlayers =
+				Tick->GetProvinceControllerIso(AssaultedProvince).Equals(GetPlayerNationIso(), ESearchCase::IgnoreCase);
 			FString Report;
 			Military->ResolveProvinceAssaultToEnd(Army.Id, Report);
 			AddGovernmentLogEntry(EWLGovernmentLogCategory::Military, Iso, TEXT(""),
 				TEXT("Asalto IA"), FString::Printf(TEXT("%s asalta una provincia enemiga. %s"), *Army.Id, *Report),
-				TEXT("strategic_ai"), 8, true, false);
-			UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: %s asalta %s. %s"), *Iso, *Army.Id, *Army.ProvinceId, *Report);
+				TEXT("strategic_ai"), 8, true, bProvinceIsPlayers);
+			if (bProvinceIsPlayers)
+			{
+				AddNews(FString::Printf(TEXT("%s asalta tu provincia %s."), *Iso, *AssaultedProvince));
+			}
+			UE_LOG(LogWorldLeader, Warning, TEXT("IA %s: %s asalta %s. %s"), *Iso, *Army.Id, *AssaultedProvince, *Report);
 			continue;
 		}
 

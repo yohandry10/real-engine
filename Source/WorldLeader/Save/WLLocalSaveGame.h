@@ -62,7 +62,7 @@ class WORLDLEADER_API UWLLocalSaveGame : public USaveGame
 
 public:
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
-	int32 SaveVersion = 17;
+	int32 SaveVersion = 18;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	FString SelectedNationIso;
@@ -102,6 +102,15 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	int32 NextArmyNumber = 1;
+
+	// v18: guarnicion acumulada y colas de reclutamiento por base. Antes NO se guardaban:
+	// al cargar, las tropas reclutadas (y las ordenes ya pagadas) desaparecian, y los tokens
+	// de ejercito del mapa (que se recrean desde la guarnicion) no volvian a aparecer.
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLGarrisonUnitSave> GarrisonUnits;
+
+	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
+	TArray<FWLRecruitOrderSave> RecruitOrders;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	TArray<FWLCharacter> Characters;

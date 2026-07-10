@@ -581,6 +581,10 @@ public:
 	 *  re-sincronizar el ejercito desde su fuerte). Devuelve cuantas unidades consumio. */
 	int32 ConsumeGarrisonUnits(const FString& BaseId, const FString& UnitType, int32 Count);
 
+	/** v18: guarnicion y colas de reclutamiento al guardado (antes se perdian al cargar). */
+	void WriteRecruitmentSnapshot(TArray<FWLGarrisonUnitSave>& OutGarrison, TArray<FWLRecruitOrderSave>& OutOrders) const;
+	void RestoreRecruitmentSnapshot(const TArray<FWLGarrisonUnitSave>& SavedGarrison, const TArray<FWLRecruitOrderSave>& SavedOrders);
+
 	/** Efectivos militares totales de una nacion (fuerzas desplegadas + guarniciones reclutadas). */
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Economy")
 	int64 GetNationMilitaryStrength(const FString& NationIso) const;

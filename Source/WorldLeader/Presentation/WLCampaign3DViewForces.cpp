@@ -549,6 +549,54 @@ void AWLCampaign3DView::SyncRecruitedArmyTokens()
 	UWLMilitarySubsystem* Military = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLMilitarySubsystem>() : nullptr;
 	UWLCharacterSubsystem* Characters = GetGameInstance() ? GetGameInstance()->GetSubsystem<UWLCharacterSubsystem>() : nullptr;
 
+	// Tokens FANTASMA fuera: un ejercito aniquilado en batalla desaparecia del backend pero su
+	// token seguia clicable en el mapa. Si su fuerte conserva guarnicion, abajo se re-sincroniza
+	// (redespliegue de supervivientes); si no queda nada, se oculta marker, hitbox y nombre.
+	// Los arrays de marcadores son paralelos por indice a ForceViews: se OCULTA, no se elimina.
+	if (Military)
+	{
+		for (int32 Index = 0; Index < ForceViews.Num(); ++Index)
+		{
+			FWLCampaign3DForceView& Force = ForceViews[Index];
+			if (!Force.Id.StartsWith(TEXT("ARMY-")))
+			{
+				continue;
+			}
+			const FString FortId = Force.Id.Mid(5);
+			const FString BackendArmyId = Military->FindArmyIdByBase(FortId);
+			FWLArmy BackendArmy;
+			const bool bAlive = !BackendArmyId.IsEmpty()
+				&& Military->GetArmy(BackendArmyId, BackendArmy)
+				&& (BackendArmy.Units.Num() > 0 || BackendArmy.RecoveringUnits.Num() > 0);
+			const bool bGarrisonLeft = Tick->GetGarrisonRecruited(FortId).Num() > 0;
+			const bool bAnnihilated = !bAlive && !bGarrisonLeft;
+			const bool bWasAnnihilated = Force.OperationalState == TEXT("aniquilado");
+			if (bAnnihilated == bWasAnnihilated)
+			{
+				continue;
+			}
+			Force.OperationalState = bAnnihilated ? TEXT("aniquilado") : TEXT("desplegado");
+			Force.bMovable = !bAnnihilated;
+			if (bAnnihilated)
+			{
+				Force.Composition.Reset();
+			}
+			if (ForceMarkerComponents.IsValidIndex(Index) && ForceMarkerComponents[Index])
+			{
+				ForceMarkerComponents[Index]->SetVisibility(!bAnnihilated && !IsHidden(), true);
+			}
+			if (ForceSelectionMarkers.IsValidIndex(Index) && ForceSelectionMarkers[Index])
+			{
+				ForceSelectionMarkers[Index]->SetCollisionEnabled(
+					bAnnihilated ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryOnly);
+			}
+			if (ForceMarkerLabels.IsValidIndex(Index) && ForceMarkerLabels[Index])
+			{
+				ForceMarkerLabels[Index]->SetVisibility(!bAnnihilated);
+			}
+		}
+	}
+
 	for (const FFortInfo& Fort : Forts)
 	{
 		const TArray<FWLGarrisonGroup> Garrison = Tick->GetGarrisonRecruited(Fort.Id);

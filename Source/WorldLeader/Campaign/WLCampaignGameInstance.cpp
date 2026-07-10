@@ -15,7 +15,7 @@ namespace
 {
 	const FString WLLocalCampaignSlot = TEXT("WorldLeader_LocalCampaign");
 	constexpr int32 WLLocalCampaignUserIndex = 0;
-	constexpr int32 WLLocalCampaignSaveVersion = 17;
+	constexpr int32 WLLocalCampaignSaveVersion = 18;   // v18: +guarnicion y colas de reclutamiento
 }
 
 UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
@@ -147,6 +147,8 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 		&Save->ActiveMarketShocks,
 		&Save->FinancialInstruments,
 		&Save->ForeignSupportStates);
+	// v18: guarnicion y colas de reclutamiento (antes se perdian al cargar).
+	Tick->WriteRecruitmentSnapshot(Save->GarrisonUnits, Save->RecruitOrders);
 	if (const UWLMilitarySubsystem* Military = GetMilitary())
 	{
 		Military->WriteSaveSnapshot(Save->Armies, Save->NextArmyNumber);
@@ -245,6 +247,8 @@ bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 		OutMessage = RestoreMessage;
 		return false;
 	}
+	// v18: guarnicion y colas. Saves anteriores traen los arrays vacios: mismo estado que antes.
+	Tick->RestoreRecruitmentSnapshot(Save->GarrisonUnits, Save->RecruitOrders);
 
 	FString MilitaryMessage;
 	if (UWLMilitarySubsystem* Military = GetMilitary())

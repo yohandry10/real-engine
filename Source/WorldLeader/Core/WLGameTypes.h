@@ -281,6 +281,30 @@ struct FWLArmy
 	bool IsValid() const { return !Id.IsEmpty(); }
 };
 
+/** Fila de guardado: tropa acumulada en la guarnicion de una base de reclutamiento. */
+USTRUCT(BlueprintType)
+struct FWLGarrisonUnitSave
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Save") FString BaseId;
+	UPROPERTY(BlueprintReadOnly, Category = "Save") FString UnitType;
+	UPROPERTY(BlueprintReadOnly, Category = "Save") int32 Count = 0;
+};
+
+/** Fila de guardado: orden pendiente en la cola de reclutamiento de una base. */
+USTRUCT(BlueprintType)
+struct FWLRecruitOrderSave
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Save") FString BaseId;
+	UPROPERTY(BlueprintReadOnly, Category = "Save") FString UnitType;
+	UPROPERTY(BlueprintReadOnly, Category = "Save") int32 Batch = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Save") int32 TurnsRemaining = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Save") int32 TurnsTotal = 0;
+};
+
 /** Resultado de una batalla por auto-resolucion (ver roadmap "Modo A"). */
 UENUM(BlueprintType)
 enum class EWLBattleResult : uint8

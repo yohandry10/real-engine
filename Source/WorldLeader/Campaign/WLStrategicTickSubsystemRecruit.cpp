@@ -249,6 +249,75 @@ int32 UWLStrategicTickSubsystem::ConsumeGarrisonUnits(const FString& BaseId, con
 	return Consumed;
 }
 
+void UWLStrategicTickSubsystem::WriteRecruitmentSnapshot(
+	TArray<FWLGarrisonUnitSave>& OutGarrison,
+	TArray<FWLRecruitOrderSave>& OutOrders) const
+{
+	OutGarrison.Reset();
+	OutOrders.Reset();
+	for (const TPair<FString, TMap<FString, int32>>& Base : GarrisonRecruited)
+	{
+		for (const TPair<FString, int32>& Unit : Base.Value)
+		{
+			if (Unit.Value <= 0)
+			{
+				continue;
+			}
+			FWLGarrisonUnitSave Row;
+			Row.BaseId = Base.Key;
+			Row.UnitType = Unit.Key;
+			Row.Count = Unit.Value;
+			OutGarrison.Add(MoveTemp(Row));
+		}
+	}
+	for (const TPair<FString, TArray<FWLRecruitOrder>>& Queue : RecruitQueues)
+	{
+		for (const FWLRecruitOrder& Order : Queue.Value)
+		{
+			FWLRecruitOrderSave Row;
+			Row.BaseId = Queue.Key;
+			Row.UnitType = Order.UnitType;
+			Row.Batch = Order.Batch;
+			Row.TurnsRemaining = Order.TurnsRemaining;
+			Row.TurnsTotal = Order.TurnsTotal;
+			OutOrders.Add(MoveTemp(Row));
+		}
+	}
+}
+
+void UWLStrategicTickSubsystem::RestoreRecruitmentSnapshot(
+	const TArray<FWLGarrisonUnitSave>& SavedGarrison,
+	const TArray<FWLRecruitOrderSave>& SavedOrders)
+{
+	GarrisonRecruited.Reset();
+	RecruitQueues.Reset();
+	for (const FWLGarrisonUnitSave& Row : SavedGarrison)
+	{
+		if (Row.BaseId.IsEmpty() || Row.UnitType.IsEmpty() || Row.Count <= 0)
+		{
+			continue;
+		}
+		GarrisonRecruited.FindOrAdd(Row.BaseId).FindOrAdd(Row.UnitType) += Row.Count;
+	}
+	for (const FWLRecruitOrderSave& Row : SavedOrders)
+	{
+		if (Row.BaseId.IsEmpty() || Row.UnitType.IsEmpty() || Row.Batch <= 0)
+		{
+			continue;
+		}
+		FWLRecruitOrder Order;
+		Order.UnitType = Row.UnitType;
+		const FWLRecruitOption* Option = FindRecruitOption(Row.UnitType);
+		Order.Label = Option ? Option->Label : Row.UnitType;
+		Order.Batch = Row.Batch;
+		Order.TurnsTotal = FMath::Max(1, Row.TurnsTotal);
+		Order.TurnsRemaining = FMath::Clamp(Row.TurnsRemaining, 0, Order.TurnsTotal);
+		RecruitQueues.FindOrAdd(Row.BaseId).Add(MoveTemp(Order));
+	}
+	UE_LOG(LogWorldLeader, Log, TEXT("Reclutamiento restaurado: %d bases con guarnicion, %d colas."),
+		GarrisonRecruited.Num(), RecruitQueues.Num());
+}
+
 void UWLStrategicTickSubsystem::AdvanceRecruitment()
 {
 	// Construccion SECUENCIAL (como Total War): solo avanza la PRIMERA orden de cada cola por turno.
