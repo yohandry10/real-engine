@@ -49,6 +49,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Save")
 	bool LoadLocalCampaign(FString& OutMessage);
 
+	/** Variantes con slot explicito para QA/automatizacion sin tocar la partida local del jugador. */
+	bool SaveCampaignToSlot(const FString& SlotName, int32 UserIndex, FString& OutMessage) const;
+	bool LoadCampaignFromSlot(const FString& SlotName, int32 UserIndex, FString& OutMessage);
+
 	/** Consola: inicia campania con una nacion. Uso: WLStartCampaign VE */
 	UFUNCTION(Exec)
 	void WLStartCampaign(const FString& NationIso);

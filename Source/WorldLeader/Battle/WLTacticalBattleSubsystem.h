@@ -37,6 +37,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Battle")
 	bool GetTacticalBattleState(const FString& BattleId, FWLTacticalBattleState& OutBattle) const;
 
+	/** Snapshot ordenado para auditoria; no expone el mapa mutable interno. */
+	TArray<FWLTacticalBattleState> GetTacticalBattleStates() const;
+
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Battle")
 	bool IssueMoveOrder(const FString& BattleId, const FString& TacticalUnitId, FVector2D Target, FString& OutMessage);
 
