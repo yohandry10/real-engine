@@ -338,11 +338,12 @@ void AWLCampaignHUD::DrawHUD()
 
 	if (SelectedNation.IsValid())
 	{
-		// El balance es MENSUAL; el avance por dias aplica 1/30 al tesoro cada dia.
+		// El balance es mensual; el calendario de campania define su prorrateo diario.
+		const FWLBalanceRules Rules = Tick->GetBalanceRules();
 		const int64 MonthlyBalance = Tick->GetMonthlyBalance(SelectedNation.Iso);
 		DrawText(FString::Printf(TEXT("Tesoro: %lld   Balance/mes: %+lld (%+lld/dia)"),
 			Tick->GetTreasury(SelectedNation.Iso), MonthlyBalance,
-			static_cast<int64>(FMath::RoundToDouble(static_cast<double>(MonthlyBalance) / 30.0))),
+			static_cast<int64>(FMath::RoundToDouble(static_cast<double>(MonthlyBalance) / static_cast<double>(Rules.DaysPerMonth)))),
 			Text, X, Y, SmallFont);
 		Y += LineHeight;
 	}

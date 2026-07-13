@@ -197,15 +197,6 @@ namespace
 			|| Type == EWLUnitType::Naval;
 	}
 
-	// F3: cadencia de las salvas indirectas; cada salva concentra este tiempo de fuego.
-	constexpr double IndirectVolleyPeriodSeconds = 4.0;
-	constexpr double IndirectShellSpeedUnits = 700.0;
-	// F4: la artilleria SUPRIME — el bombardeo rompe nervios mucho mas que carne.
-	constexpr double IndirectSuppressionMoraleFactor = 2.2;
-	// F4: recuperacion de moral fuera del fuego, y umbral extra para reagruparse tras huir.
-	constexpr double MoraleRecoveryPerSecond = 2.0;
-	constexpr int32 RallyMoraleMargin = 20;
-
 	// F4: encaramiento del contingente — hacia su objetivo de ataque, su destino de
 	// movimiento, o el frente por defecto (atacante mira +X, defensor -X).
 	FVector2D ComputeUnitFacing(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit)
@@ -235,7 +226,7 @@ namespace
 		FWLTacticalBattleState& Battle,
 		const TArray<double>& HealthBeforeTick,
 		double DeltaSeconds,
-		int32 RoutMoraleThreshold,
+		const FWLBalanceRules& Rules,
 		TArray<FString>& OutEvents)
 	{
 		for (int32 Index = 0; Index < Battle.Units.Num(); ++Index)
@@ -249,9 +240,9 @@ namespace
 			{
 				continue;   // bajo fuego este tick: nada de calma
 			}
-			Unit.Morale = FMath::Min(100.0, Unit.Morale + MoraleRecoveryPerSecond * DeltaSeconds);
+			Unit.Morale = FMath::Min(100.0, Unit.Morale + Rules.TacticalMoraleRecoveryPerSecond * DeltaSeconds);
 			if (Unit.Order == EWLTacticalUnitOrder::Routing
-				&& Unit.Morale >= static_cast<double>(RoutMoraleThreshold + RallyMoraleMargin))
+				&& Unit.Morale >= static_cast<double>(Rules.TacticalRoutMoraleThreshold + Rules.TacticalRallyMoraleMargin))
 			{
 				Unit.Order = EWLTacticalUnitOrder::Idle;
 				Unit.MoveTarget = Unit.Position;
@@ -288,8 +279,16 @@ namespace
 			if (!ToAttacker.IsNearlyZero())
 			{
 				const double Alignment = FVector2D::DotProduct(DefenderFacing, ToAttacker);
-				if (Alignment < -0.35)      { FlankDamage = 1.35; FlankMorale = 1.7; }   // retaguardia
-				else if (Alignment <= 0.35) { FlankDamage = 1.15; FlankMorale = 1.35; }  // flanco
+				if (Alignment < Rules.TacticalRearArcDotThreshold)
+				{
+					FlankDamage = Rules.TacticalRearDamageMultiplier;
+					FlankMorale = Rules.TacticalRearMoraleMultiplier;
+				}
+				else if (Alignment <= Rules.TacticalFlankArcDotThreshold)
+				{
+					FlankDamage = Rules.TacticalFlankDamageMultiplier;
+					FlankMorale = Rules.TacticalFlankMoraleMultiplier;
+				}
 			}
 		}
 		const double BaseAttack = DefenderData.Type == EWLUnitType::Air
@@ -537,6 +536,17 @@ bool UWLTacticalBattleSubsystem::GetTacticalBattleState(const FString& BattleId,
 	return false;
 }
 
+TArray<FWLTacticalBattleState> UWLTacticalBattleSubsystem::GetTacticalBattleStates() const
+{
+	TArray<FWLTacticalBattleState> Result;
+	Battles.GenerateValueArray(Result);
+	Result.Sort([](const FWLTacticalBattleState& A, const FWLTacticalBattleState& B)
+	{
+		return A.BattleId < B.BattleId;
+	});
+	return Result;
+}
+
 bool UWLTacticalBattleSubsystem::IssueMoveOrder(const FString& BattleId, const FString& TacticalUnitId, FVector2D Target, FString& OutMessage)
 {
 	FWLTacticalBattleState* Battle = FindBattle(BattleId);
@@ -687,7 +697,7 @@ bool UWLTacticalBattleSubsystem::AdvanceTacticalBattle(
 	AdvanceUnitOrders(*Battle, StepSeconds, OutEvents);
 	AdvanceShells(*Battle, OutEvents);
 	AdvanceAutoAirDefense(*Battle, StepSeconds, OutEvents);
-	RecoverMorale(*Battle, HealthBeforeTick, StepSeconds, GetBalanceRules().TacticalRoutMoraleThreshold, OutEvents);
+	RecoverMorale(*Battle, HealthBeforeTick, StepSeconds, GetBalanceRules(), OutEvents);
 	AdvanceObjectives(*Battle, StepSeconds, HealthBeforeTick, OutEvents);
 	UpdateBattleResult(*Battle, OutEvents);
 	OutBattle = *Battle;
@@ -1024,6 +1034,21 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 			continue;
 		}
 
+		// Un ALA FIJA no se queda suspendida disparando (eso es un helicoptero): el caza ORBITA
+		// a su objetivo dentro del alcance — pasadas continuas — y dispara mientras vuela. El
+		// sentido de giro es estable por contingente; una componente radial suave lo mantiene a
+		// ~70% del alcance sin perder nunca la ventana de fuego.
+		if (AttackerData.Type == EWLUnitType::Air && !Unit.UnitId.Equals(TEXT("heli"), ESearchCase::IgnoreCase)
+			&& Distance > KINDA_SMALL_NUMBER)
+		{
+			const FVector2D ToTarget = (Target->Position - Unit.Position).GetSafeNormal();
+			const double Spin = (GetTypeHash(Unit.TacticalUnitId) % 2 == 0) ? 1.0 : -1.0;
+			const FVector2D Tangent(-ToTarget.Y * Spin, ToTarget.X * Spin);
+			const double RadialError = Distance - EngageRange * 0.7;
+			const FVector2D FlightDir = (Tangent + ToTarget * FMath::Clamp(RadialError / 250.0, -0.6, 0.6)).GetSafeNormal();
+			Unit.Position += FlightDir * UnitSpeed * DeltaSeconds;
+		}
+
 		// F3: la artilleria/naval no hace dano directo continuo — dispara SALVAS contra la
 		// POSICION actual del objetivo, con tiempo de vuelo: mata estaticos, falla contra
 		// moviles (que al impacto ya no estan alli).
@@ -1040,9 +1065,9 @@ void UWLTacticalBattleSubsystem::AdvanceUnitOrders(FWLTacticalBattleState& Battl
 				Shell.FirePosition = Unit.Position;
 				Shell.ImpactPosition = Target->Position;
 				Shell.FiredAtSeconds = Battle.ElapsedSeconds;
-				Shell.ImpactAtSeconds = Battle.ElapsedSeconds + 1.2 + Distance / IndirectShellSpeedUnits;
+				Shell.ImpactAtSeconds = Battle.ElapsedSeconds + 1.2 + Distance / Rules.TacticalIndirectShellSpeedUnits;
 				Battle.Shells.Add(Shell);
-				Unit.IndirectCooldownSeconds = IndirectVolleyPeriodSeconds;
+				Unit.IndirectCooldownSeconds = Rules.TacticalIndirectVolleyPeriodSeconds;
 				OutEvents.Add(FString::Printf(TEXT("%s dispara una salva sobre %.0f, %.0f."),
 					*Unit.TacticalUnitId, Shell.ImpactPosition.X, Shell.ImpactPosition.Y));
 			}
@@ -1084,7 +1109,7 @@ void UWLTacticalBattleSubsystem::AdvanceShells(FWLTacticalBattleState& Battle, T
 		if (Registry->GetUnit(Shell.SourceUnitId, AttackerData))
 		{
 			// Area: dana a todo contingente ENEMIGO dentro del radio al momento del impacto.
-			// El que se movio ya no esta. La salva concentra IndirectVolleyPeriodSeconds de fuego.
+			// El que se movio ya no esta. La salva concentra el periodo configurado de fuego.
 			for (FWLTacticalUnitState& Victim : Battle.Units)
 			{
 				if (Victim.bDestroyed || Victim.OwnerIso == Shell.OwnerIso)
@@ -1104,8 +1129,8 @@ void UWLTacticalBattleSubsystem::AdvanceShells(FWLTacticalBattleState& Battle, T
 				// Una explosion de area no tiene angulo: sin bono de flanqueo (facing nulo).
 				ApplyTacticalDamage(Rules, AttackerData, Shell.Elements,
 					EWLTacticalTerrain::Open, TerrainAtPosition(Battle, Victim.Position),
-					IndirectVolleyPeriodSeconds, DefenderData, Victim, Shell.ShellId, OutEvents,
-					Shell.FirePosition, FVector2D::ZeroVector, IndirectSuppressionMoraleFactor);
+					Rules.TacticalIndirectVolleyPeriodSeconds, DefenderData, Victim, Shell.ShellId, OutEvents,
+					Shell.FirePosition, FVector2D::ZeroVector, Rules.TacticalIndirectSuppressionMoraleFactor);
 			}
 		}
 		Battle.Shells.RemoveAt(Index);

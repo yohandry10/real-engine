@@ -390,6 +390,39 @@ struct FWLBalanceRules
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical Battle", meta = (ClampMin = "1.0"))
 	double TacticalObjectiveCaptureSeconds = 20.0;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "0.01"))
+	double TacticalIndirectVolleyPeriodSeconds = 4.0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "1.0"))
+	double TacticalIndirectShellSpeedUnits = 700.0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "0.0"))
+	double TacticalIndirectSuppressionMoraleFactor = 2.2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "0.0"))
+	double TacticalMoraleRecoveryPerSecond = 2.0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 TacticalRallyMoraleMargin = 20;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	double TacticalRearArcDotThreshold = -0.35;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	double TacticalFlankArcDotThreshold = 0.35;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "0.0"))
+	double TacticalRearDamageMultiplier = 1.35;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "0.0"))
+	double TacticalRearMoraleMultiplier = 1.7;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "0.0"))
+	double TacticalFlankDamageMultiplier = 1.15;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tactical", meta = (ClampMin = "0.0"))
+	double TacticalFlankMoraleMultiplier = 1.35;
+
 	/** Dificultad de la IA de campania: afecta economia, fisco, diplomacia, intriga y reclutamiento. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI Difficulty")
 	EWLAIDifficulty AIDifficulty = EWLAIDifficulty::Medium;
@@ -423,6 +456,10 @@ struct FWLBalanceRules
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Calendar", meta = (ClampMin = "1"))
 	int32 MonthsPerYear = 12;
+
+	/** La campania usa meses abstractos de longitud uniforme para conservar determinismo. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Calendar", meta = (ClampMin = "1"))
+	int32 DaysPerMonth = 30;
 
 	int32 GetEconomicAIMaxBuildsForDifficulty() const
 	{
@@ -721,12 +758,24 @@ struct FWLBalanceRules
 		Out.TacticalMoraleDamagePerHealth = FMath::Max(0.0, Out.TacticalMoraleDamagePerHealth);
 		Out.TacticalRoutMoraleThreshold = FMath::Clamp(Out.TacticalRoutMoraleThreshold, 0, 100);
 		Out.TacticalObjectiveCaptureSeconds = FMath::Max(1.0, Out.TacticalObjectiveCaptureSeconds);
+		Out.TacticalIndirectVolleyPeriodSeconds = FMath::Max(0.01, Out.TacticalIndirectVolleyPeriodSeconds);
+		Out.TacticalIndirectShellSpeedUnits = FMath::Max(1.0, Out.TacticalIndirectShellSpeedUnits);
+		Out.TacticalIndirectSuppressionMoraleFactor = FMath::Max(0.0, Out.TacticalIndirectSuppressionMoraleFactor);
+		Out.TacticalMoraleRecoveryPerSecond = FMath::Max(0.0, Out.TacticalMoraleRecoveryPerSecond);
+		Out.TacticalRallyMoraleMargin = FMath::Clamp(Out.TacticalRallyMoraleMargin, 0, 100);
+		Out.TacticalRearArcDotThreshold = FMath::Clamp(Out.TacticalRearArcDotThreshold, -1.0, 1.0);
+		Out.TacticalFlankArcDotThreshold = FMath::Clamp(Out.TacticalFlankArcDotThreshold, Out.TacticalRearArcDotThreshold, 1.0);
+		Out.TacticalRearDamageMultiplier = FMath::Max(0.0, Out.TacticalRearDamageMultiplier);
+		Out.TacticalRearMoraleMultiplier = FMath::Max(0.0, Out.TacticalRearMoraleMultiplier);
+		Out.TacticalFlankDamageMultiplier = FMath::Max(0.0, Out.TacticalFlankDamageMultiplier);
+		Out.TacticalFlankMoraleMultiplier = FMath::Max(0.0, Out.TacticalFlankMoraleMultiplier);
 		Out.EconomicAIMinTreasuryReserve = FMath::Max<int64>(0, Out.EconomicAIMinTreasuryReserve);
 		Out.EconomicAIMaxBuildsPerNationPerMonth = FMath::Max(0, Out.EconomicAIMaxBuildsPerNationPerMonth);
 		Out.EconomicAIMaxPaybackMonths = FMath::Max(0, Out.EconomicAIMaxPaybackMonths);
 		Out.EconomicAIMinPublicOrderToBuild = FMath::Clamp(Out.EconomicAIMinPublicOrderToBuild, 0, 100);
 		Out.StartYear = FMath::Max(1, Out.StartYear);
 		Out.MonthsPerYear = FMath::Max(1, Out.MonthsPerYear);
+		Out.DaysPerMonth = FMath::Max(1, Out.DaysPerMonth);
 		Out.StartMonth = FMath::Clamp(Out.StartMonth, 1, Out.MonthsPerYear);
 		return Out;
 	}

@@ -2,14 +2,20 @@
 
 #include "Presentation/WLTacticalBattleView.h"
 #include "Battle/WLTacticalBattleSubsystem.h"
+#include "WorldLeader.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Campaign/WLDataRegistry.h"
+#include "Components/ExponentialHeightFogComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SkyAtmosphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 #include "Engine/DirectionalLight.h"
+#include "Engine/ExponentialHeightFog.h"
 #include "Engine/GameInstance.h"
 #include "Engine/SkyLight.h"
+#include "Engine/TextureCube.h"
 #include "Engine/World.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -30,20 +36,20 @@ AWLTacticalBattleView::AWLTacticalBattleView()
 	if (MatFinder.Succeeded()) { BaseMaterial = MatFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> UnitFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
-	if (UnitFinder.Succeeded()) { UnitMesh = UnitFinder.Object; }
+	if (UnitFinder.Succeeded()) { UtilityCubeMesh = UnitFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> RingFinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (RingFinder.Succeeded()) { RingMesh = RingFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneFinder(TEXT("/Engine/BasicShapes/Plane.Plane"));
-	if (PlaneFinder.Succeeded()) { GroundMesh = PlaneFinder.Object; }
+	if (PlaneFinder.Succeeded()) { BillboardPlaneMesh = PlaneFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	if (SphereFinder.Succeeded()) { SphereMesh = SphereFinder.Object; }
 
 	// F6: modelos low-poly reales (gen_vehicle.py -> /Game/GenVehicle), unlit vertex color.
 	// Bando del jugador = camo verde; enemigo = desierto. Caza y buque son neutros (gris).
-	// Si falta un asset, el contingente cae al cubo de reserva (degradacion elegante).
+	// No hay fallback de cubo: una unidad sin modelo se registra como error y no se dibuja.
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> MSoldier(TEXT("/Game/GenVehicle/veh_soldier.veh_soldier"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> MApc(TEXT("/Game/GenVehicle/veh_apc.veh_apc"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> MIfv(TEXT("/Game/GenVehicle/veh_ifv.veh_ifv"));
@@ -83,6 +89,87 @@ AWLTacticalBattleView::AWLTacticalBattleView()
 	// Material de sprites de combate (unlit translucido texturizado, creado por create_battle_material.py).
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SpriteMatFinder(TEXT("/Game/UI/Battle/M_BattleSprite.M_BattleSprite"));
 	if (SpriteMatFinder.Succeeded()) { SpriteMaterial = SpriteMatFinder.Object; }
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> BattleMatFinder(TEXT("/Game/GenBattle/M_BattleUnlit.M_BattleUnlit"));
+	if (BattleMatFinder.Succeeded()) { BattleMaterial = BattleMatFinder.Object; }
+
+	auto LoadBattleMesh = [](const TCHAR* Path) -> UStaticMesh*
+	{
+		ConstructorHelpers::FObjectFinder<UStaticMesh> Finder(Path);
+		return Finder.Succeeded() ? Finder.Object : nullptr;
+	};
+	auto AddMesh = [&LoadBattleMesh](TArray<UStaticMesh*>& Target, const TCHAR* Path)
+	{
+		if (UStaticMesh* Mesh = LoadBattleMesh(Path))
+		{
+			Target.Add(Mesh);
+		}
+	};
+	auto AddNamedMesh = [&LoadBattleMesh](TMap<FString, UStaticMesh*>& Target, const TCHAR* Key, const TCHAR* Path)
+	{
+		if (UStaticMesh* Mesh = LoadBattleMesh(Path))
+		{
+			Target.Add(Key, Mesh);
+		}
+	};
+
+	BattlefieldMesh = LoadBattleMesh(TEXT("/Game/GenBattle/battlefield_grassland.battlefield_grassland"));
+
+	AddMesh(UrbanMeshes, TEXT("/Game/GenBattle/battle_house.battle_house"));
+	AddMesh(UrbanMeshes, TEXT("/Game/GenBattle/battle_block.battle_block"));
+	AddMesh(UrbanMeshes, TEXT("/Game/GenBattle/battle_warehouse.battle_warehouse"));
+	AddMesh(UrbanMeshes, TEXT("/Game/GenBattle/battle_gas_station.battle_gas_station"));
+	AddMesh(UrbanMeshes, TEXT("/Game/GenBattle/battle_house_ruin.battle_house_ruin"));
+	AddMesh(UrbanMeshes, TEXT("/Game/GenBattle/battle_block_ruin.battle_block_ruin"));
+	AddMesh(UrbanMeshes, TEXT("/Game/GenBattle/battle_warehouse_ruin.battle_warehouse_ruin"));
+	AddMesh(UrbanMeshes, TEXT("/Game/GenBattle/battle_gas_station_ruin.battle_gas_station_ruin"));
+
+	AddMesh(NatureMeshes, TEXT("/Game/GenBattle/battle_tree_broadleaf_a.battle_tree_broadleaf_a"));
+	AddMesh(NatureMeshes, TEXT("/Game/GenBattle/battle_tree_broadleaf_b.battle_tree_broadleaf_b"));
+	AddMesh(NatureMeshes, TEXT("/Game/GenBattle/battle_tree_conifer.battle_tree_conifer"));
+	AddMesh(NatureMeshes, TEXT("/Game/GenBattle/battle_shrub_a.battle_shrub_a"));
+	AddMesh(NatureMeshes, TEXT("/Game/GenBattle/battle_shrub_b.battle_shrub_b"));
+	AddMesh(NatureMeshes, TEXT("/Game/GenBattle/battle_fallen_log.battle_fallen_log"));
+
+	AddMesh(FortificationMeshes, TEXT("/Game/GenBattle/battle_fort_sandbags.battle_fort_sandbags"));
+	AddMesh(FortificationMeshes, TEXT("/Game/GenBattle/battle_fort_trench_straight.battle_fort_trench_straight"));
+	AddMesh(FortificationMeshes, TEXT("/Game/GenBattle/battle_fort_trench_corner.battle_fort_trench_corner"));
+	AddMesh(FortificationMeshes, TEXT("/Game/GenBattle/battle_fort_bunker.battle_fort_bunker"));
+	AddMesh(FortificationMeshes, TEXT("/Game/GenBattle/battle_fort_wire.battle_fort_wire"));
+	AddMesh(FortificationMeshes, TEXT("/Game/GenBattle/battle_fort_checkpoint.battle_fort_checkpoint"));
+
+	AddMesh(FieldPropMeshes, TEXT("/Game/GenBattle/battle_prop_rocks_a.battle_prop_rocks_a"));
+	AddMesh(FieldPropMeshes, TEXT("/Game/GenBattle/battle_prop_rocks_b.battle_prop_rocks_b"));
+	AddMesh(FieldPropMeshes, TEXT("/Game/GenBattle/battle_prop_fence.battle_prop_fence"));
+	AddMesh(FieldPropMeshes, TEXT("/Game/GenBattle/battle_prop_utility_pole.battle_prop_utility_pole"));
+	CraterMesh = LoadBattleMesh(TEXT("/Game/GenBattle/battle_prop_crater.battle_prop_crater"));
+	if (CraterMesh) { FieldPropMeshes.Add(CraterMesh); }
+
+	AddNamedMesh(WreckModels, TEXT("mbt"), TEXT("/Game/GenBattle/battle_wreck_mbt.battle_wreck_mbt"));
+	AddNamedMesh(WreckModels, TEXT("ifv"), TEXT("/Game/GenBattle/battle_wreck_ifv.battle_wreck_ifv"));
+	AddNamedMesh(WreckModels, TEXT("apc"), TEXT("/Game/GenBattle/battle_wreck_apc.battle_wreck_apc"));
+	AddNamedMesh(WreckModels, TEXT("artillery"), TEXT("/Game/GenBattle/battle_wreck_artillery.battle_wreck_artillery"));
+	AddNamedMesh(WreckModels, TEXT("sam"), TEXT("/Game/GenBattle/battle_wreck_sam.battle_wreck_sam"));
+	AddNamedMesh(WreckModels, TEXT("heli"), TEXT("/Game/GenBattle/battle_wreck_heli.battle_wreck_heli"));
+
+	AddNamedMesh(SoldierPoseModels, TEXT("kneeling"), TEXT("/Game/GenBattle/battle_soldier_kneeling.battle_soldier_kneeling"));
+	AddNamedMesh(SoldierPoseModels, TEXT("prone"), TEXT("/Game/GenBattle/battle_soldier_prone.battle_soldier_prone"));
+	AddNamedMesh(SoldierPoseModels, TEXT("kneeling_desert"), TEXT("/Game/GenBattle/battle_soldier_kneeling_desert.battle_soldier_kneeling_desert"));
+	AddNamedMesh(SoldierPoseModels, TEXT("prone_desert"), TEXT("/Game/GenBattle/battle_soldier_prone_desert.battle_soldier_prone_desert"));
+
+	AddNamedMesh(BannerModels, TEXT("VE"), TEXT("/Game/GenBattle/battle_banner_ve.battle_banner_ve"));
+	AddNamedMesh(BannerModels, TEXT("CO"), TEXT("/Game/GenBattle/battle_banner_co.battle_banner_co"));
+}
+
+void AWLTacticalBattleView::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (BattleCamera) { BattleCamera->Destroy(); BattleCamera = nullptr; }
+	if (BattleLight) { BattleLight->Destroy(); BattleLight = nullptr; }
+	if (BattleSky) { BattleSky->Destroy(); BattleSky = nullptr; }
+	if (BattleAtmosphere) { BattleAtmosphere->Destroy(); BattleAtmosphere = nullptr; }
+	if (BattleClouds) { BattleClouds->Destroy(); BattleClouds = nullptr; }
+	if (BattleFog) { BattleFog->Destroy(); BattleFog = nullptr; }
+	Super::EndPlay(EndPlayReason);
 }
 
 UTexture2D* AWLTacticalBattleView::LoadBattleSprite(const FString& Name) const
@@ -92,14 +179,14 @@ UTexture2D* AWLTacticalBattleView::LoadBattleSprite(const FString& Name) const
 
 UStaticMeshComponent* AWLTacticalBattleView::MakeSpriteBillboard()
 {
-	if (!GroundMesh || !SpriteMaterial)
+	if (!BillboardPlaneMesh || !SpriteMaterial)
 	{
 		return nullptr;
 	}
 	UStaticMeshComponent* Comp = NewObject<UStaticMeshComponent>(this);
 	Comp->SetupAttachment(Root);
 	Comp->RegisterComponent();
-	Comp->SetStaticMesh(GroundMesh);   // el Plane 100x100 del Engine, orientado a la camara por frame
+	Comp->SetStaticMesh(BillboardPlaneMesh);   // plano tecnico 100x100, orientado a la camara por frame
 	Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Comp->SetCastShadow(false);
 	if (UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(SpriteMaterial, this))
@@ -142,20 +229,33 @@ void AWLTacticalBattleView::UpdateSpriteBillboard(UStaticMeshComponent* Comp, co
 	Comp->SetVisibility(true);
 }
 
-UStaticMesh* AWLTacticalBattleView::ModelForUnit(const FWLTacticalUnitState& Unit) const
+FString AWLTacticalBattleView::UnitKind(const FWLTacticalUnitState& Unit) const
 {
 	const FString Id = Unit.UnitId.ToLower();
-	FString Kind;
-	if (Id == TEXT("infantry"))                              { Kind = TEXT("soldier"); }
-	else if (Id == TEXT("apc"))                              { Kind = TEXT("apc"); }
-	else if (Id == TEXT("ifv"))                              { Kind = TEXT("ifv"); }
-	else if (Id == TEXT("mbt") || Id == TEXT("tank"))        { Kind = TEXT("mbt"); }
-	else if (Id == TEXT("artillery"))                        { Kind = TEXT("artillery"); }
-	else if (Id == TEXT("sam"))                              { Kind = TEXT("sam"); }
-	else if (Id == TEXT("heli"))                             { Kind = TEXT("heli"); }
-	else if (Id == TEXT("aircraft") || Id == TEXT("drone"))  { Kind = TEXT("aircraft"); }
-	else if (Id == TEXT("ship"))                             { Kind = TEXT("ship"); }
-	else                                                     { Kind = TEXT("soldier"); }
+	if (Id == TEXT("infantry"))                             { return TEXT("soldier"); }
+	if (Id == TEXT("apc"))                                  { return TEXT("apc"); }
+	if (Id == TEXT("ifv"))                                  { return TEXT("ifv"); }
+	if (Id == TEXT("mbt") || Id == TEXT("tank"))            { return TEXT("mbt"); }
+	if (Id == TEXT("artillery"))                            { return TEXT("artillery"); }
+	if (Id == TEXT("sam"))                                  { return TEXT("sam"); }
+	if (Id == TEXT("heli"))                                 { return TEXT("heli"); }
+	if (Id == TEXT("aircraft") || Id == TEXT("drone"))      { return TEXT("aircraft"); }
+	if (Id == TEXT("ship"))                                 { return TEXT("ship"); }
+	return TEXT("soldier");
+}
+
+bool AWLTacticalBattleView::IsInfantryUnit(const FWLTacticalUnitState& Unit) const
+{
+	if (const FWLUnitData* Data = UnitDataById.Find(Unit.UnitId.ToLower()))
+	{
+		return Data->Type == EWLUnitType::Infantry || Data->Type == EWLUnitType::SpecialForces;
+	}
+	return UnitKind(Unit) == TEXT("soldier");
+}
+
+UStaticMesh* AWLTacticalBattleView::ModelForUnit(const FWLTacticalUnitState& Unit) const
+{
+	const FString Kind = UnitKind(Unit);
 
 	const bool bPlayer = Unit.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
 	if (!bPlayer && Kind != TEXT("aircraft") && Kind != TEXT("ship"))
@@ -166,6 +266,28 @@ UStaticMesh* AWLTacticalBattleView::ModelForUnit(const FWLTacticalUnitState& Uni
 		}
 	}
 	return UnitModels.FindRef(Kind);
+}
+
+UStaticMesh* AWLTacticalBattleView::WreckForUnit(const FWLTacticalUnitState& Unit) const
+{
+	const FString Kind = UnitKind(Unit);
+	if (Kind == TEXT("soldier"))
+	{
+		const bool bPlayer = Unit.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
+		return SoldierPoseModels.FindRef(bPlayer ? TEXT("prone") : TEXT("prone_desert"));
+	}
+	return WreckModels.FindRef(Kind);
+}
+
+UStaticMesh* AWLTacticalBattleView::BannerForUnit(const FWLTacticalUnitState& Unit) const
+{
+	const FString Iso = Unit.OwnerIso.TrimStartAndEnd().ToUpper();
+	if (UStaticMesh* Exact = BannerModels.FindRef(Iso))
+	{
+		return Exact;
+	}
+	// El paquete actual trae VE/CO. Para otros paises conserva identificacion por lado sin usar placeholders.
+	return BannerModels.FindRef(Unit.OwnerIso.Equals(AttackerIso, ESearchCase::IgnoreCase) ? TEXT("VE") : TEXT("CO"));
 }
 
 UMaterialInstanceDynamic* AWLTacticalBattleView::MakeColorMaterial(const FLinearColor& Color)
@@ -186,12 +308,29 @@ UMaterialInstanceDynamic* AWLTacticalBattleView::MakeColorMaterial(const FLinear
 
 FVector AWLTacticalBattleView::TacticalToWorld(const FVector2D& Tactical) const
 {
-	return FVector(Tactical.X * WorldScale, Tactical.Y * WorldScale, GroundZ);
+	FVector Result(Tactical.X * WorldScale, Tactical.Y * WorldScale, GroundZ);
+	Result.Z = BattlefieldHeightCmAtWorld(FVector2D(Result.X, Result.Y));
+	return Result;
 }
 
 FVector2D AWLTacticalBattleView::WorldToTactical(const FVector& World) const
 {
 	return FVector2D(World.X / WorldScale, World.Y / WorldScale);
+}
+
+float AWLTacticalBattleView::BattlefieldHeightCmAtWorld(const FVector2D& WorldXY) const
+{
+	// Debe mantenerse alineado con terrain_height() de gen_battlefield.py.
+	const double X = WorldXY.X / 100.0;
+	const double Y = WorldXY.Y / 100.0;
+	const double Broad = 0.30 * FMath::Sin((X + 18.0) / 35.0) + 0.24 * FMath::Cos((Y - 9.0) / 29.0);
+	const double HillA = 0.55 * FMath::Exp(-((X + 56.0) * (X + 56.0) + (Y - 44.0) * (Y - 44.0)) / 1800.0);
+	const double HillB = 0.42 * FMath::Exp(-((X - 61.0) * (X - 61.0) + (Y + 48.0) * (Y + 48.0)) / 1500.0);
+	const double Hollow = -0.28 * FMath::Exp(-((X - 12.0) * (X - 12.0) + (Y - 16.0) * (Y - 16.0)) / 900.0);
+	const double Micro = 0.08 * FMath::Sin(X * 0.19 + Y * 0.11) * FMath::Cos(Y * 0.17);
+	const double HeightMeters = Broad + HillA + HillB + Hollow + Micro - 0.28;
+	// El FBX se coloca +28 cm para que su altura media coincida con GroundZ.
+	return static_cast<float>(GroundZ + (HeightMeters + 0.28) * 100.0);
 }
 
 FLinearColor AWLTacticalBattleView::ColorForUnit(const FWLTacticalUnitState& Unit) const
@@ -260,143 +399,221 @@ void AWLTacticalBattleView::BuildFormationOffsets(int32 Count, float Spacing, TA
 	}
 }
 
-void AWLTacticalBattleView::RebuildContingentInstances(UInstancedStaticMeshComponent* Mesh, const FWLTacticalUnitState& Unit)
+void AWLTacticalBattleView::RebuildContingentInstances(const FWLTacticalUnitState& Unit)
 {
+	UInstancedStaticMeshComponent* MainMesh = ContingentMeshes.FindRef(Unit.TacticalUnitId);
+	if (!MainMesh || !MainMesh->GetStaticMesh())
+	{
+		return;
+	}
+	UInstancedStaticMeshComponent* KneelingMesh = KneelingContingentMeshes.FindRef(Unit.TacticalUnitId);
+	UInstancedStaticMeshComponent* ProneMesh = ProneContingentMeshes.FindRef(Unit.TacticalUnitId);
+	MainMesh->ClearInstances();
+	if (KneelingMesh) { KneelingMesh->ClearInstances(); }
+	if (ProneMesh) { ProneMesh->ClearInstances(); }
+
 	const FElementStyle Style = StyleForUnitId(Unit.UnitId);
 	TArray<FVector2D> Offsets;
 	BuildFormationOffsets(Unit.ElementCount, Style.SpacingCm, Offsets);
 
-	// F6: con modelo real la escala sale de sus bounds hacia el tamano objetivo del tipo
-	// (largo X para vehiculos, alto para el soldado); el origen del modelo es z=0 = suelo.
-	FVector InstanceScale = Style.Scale;
-	float BaseZ = Style.Scale.Z * 50.f;   // cubo de reserva: centro apoyado
-	const UStaticMesh* Model = Mesh->GetStaticMesh();
-	if (Model && Model != UnitMesh)
-	{
-		const FBoxSphereBounds Bounds = Model->GetBounds();
-		const float ModelSize = 2.f * (Style.bScaleByHeight ? Bounds.BoxExtent.Z : Bounds.BoxExtent.X);
-		const float Uniform = Style.TargetSizeCm / FMath::Max(1.f, ModelSize);
-		InstanceScale = FVector(Uniform);
-		BaseZ = -(Bounds.Origin.Z - Bounds.BoxExtent.Z) * Uniform;   // punto mas bajo al suelo
-	}
+	const FBoxSphereBounds MainBounds = MainMesh->GetStaticMesh()->GetBounds();
+	const float MainSize = 2.f * (Style.bScaleByHeight ? MainBounds.BoxExtent.Z : MainBounds.BoxExtent.X);
+	const float Uniform = Style.TargetSizeCm / FMath::Max(1.f, MainSize);
 
-	Mesh->ClearInstances();
-	for (const FVector2D& Offset : Offsets)
+	auto AddInstance = [Uniform](UInstancedStaticMeshComponent* Target, const FVector2D& Offset)
 	{
+		if (!Target || !Target->GetStaticMesh())
+		{
+			return;
+		}
+		const FBoxSphereBounds Bounds = Target->GetStaticMesh()->GetBounds();
+		const float BaseZ = -(Bounds.Origin.Z - Bounds.BoxExtent.Z) * Uniform;
 		FTransform Xform;
-		Xform.SetScale3D(InstanceScale);
+		Xform.SetScale3D(FVector(Uniform));
 		Xform.SetLocation(FVector(Offset.X, Offset.Y, BaseZ));
-		Mesh->AddInstance(Xform);
+		Target->AddInstance(Xform);
+	};
+
+	for (int32 Index = 0; Index < Offsets.Num(); ++Index)
+	{
+		// La primera linea mantiene lectura de pie; filas posteriores mezclan rodilla y cuerpo a tierra.
+		if (ProneMesh && Index % 7 == 3)
+		{
+			AddInstance(ProneMesh, Offsets[Index]);
+		}
+		else if (KneelingMesh && Index % 4 == 1)
+		{
+			AddInstance(KneelingMesh, Offsets[Index]);
+		}
+		else
+		{
+			AddInstance(MainMesh, Offsets[Index]);
+		}
 	}
 	ContingentShownElements.Add(Unit.TacticalUnitId, Unit.ElementCount);
 }
 
-void AWLTacticalBattleView::BuildTerrainPatches(const FWLTacticalBattleState& Battle)
+UStaticMeshComponent* AWLTacticalBattleView::SpawnBattleAsset(UStaticMesh* Mesh, const FVector& WorldLocation,
+	const FRotator& WorldRotation, const FVector& AssetScale, TArray<UStaticMeshComponent*>& Bucket)
 {
-	if (!RingMesh || !UnitMesh)
+	if (!Mesh)
+	{
+		return nullptr;
+	}
+	UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(this);
+	Component->SetupAttachment(Root);
+	Component->RegisterComponent();
+	Component->SetStaticMesh(Mesh);
+	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Component->SetWorldRotation(WorldRotation);
+	Component->SetWorldScale3D(AssetScale);
+	FVector AnchoredLocation = WorldLocation;
+	const FBoxSphereBounds Bounds = Mesh->GetBounds();
+	AnchoredLocation.Z -= (Bounds.Origin.Z - Bounds.BoxExtent.Z) * AssetScale.Z;
+	Component->SetWorldLocation(AnchoredLocation);
+	if (BattleMaterial)
+	{
+		Component->SetMaterial(0, BattleMaterial);
+	}
+	Bucket.Add(Component);
+	return Component;
+}
+
+void AWLTacticalBattleView::BuildFieldProps(const FWLTacticalBattleState& Battle)
+{
+	if (FieldPropMeshes.Num() < 5)
 	{
 		return;
 	}
+	struct FFieldPlacement
+	{
+		int32 MeshIndex;
+		FVector2D WorldXY;
+		float Yaw;
+		float Scale;
+	};
+	const FFieldPlacement Placements[] = {
+		{0, FVector2D(-8200.f, -6700.f), 18.f, 0.95f}, {1, FVector2D(7600.f, 6900.f), 72.f, 0.90f},
+		{0, FVector2D(-7200.f, 6100.f), 126.f, 0.80f}, {1, FVector2D(8300.f, -5900.f), 33.f, 0.85f},
+		{2, FVector2D(-6500.f, -2500.f), 12.f, 0.95f}, {2, FVector2D(5900.f, 3100.f), 168.f, 0.90f},
+		{2, FVector2D(-2400.f, 7600.f), 94.f, 0.85f}, {3, FVector2D(-9200.f, 1200.f), 0.f, 0.88f},
+		{3, FVector2D(9100.f, -600.f), 0.f, 0.92f}, {3, FVector2D(1600.f, 9000.f), 0.f, 0.84f},
+		{4, FVector2D(-4900.f, 3900.f), 0.f, 0.68f}, {4, FVector2D(4500.f, -4200.f), 24.f, 0.74f},
+		{4, FVector2D(-1200.f, -8200.f), 61.f, 0.62f}
+	};
 
+	for (const FFieldPlacement& Placement : Placements)
+	{
+		const FVector2D Tactical = Placement.WorldXY / static_cast<float>(WorldScale);
+		const bool bInsidePatch = Battle.TerrainPatches.ContainsByPredicate([&Tactical](const FWLTacticalTerrainPatch& Patch)
+		{
+			return FVector2D::Distance(Tactical, Patch.Position) < Patch.Radius * 0.9;
+		});
+		if (bInsidePatch)
+		{
+			continue;
+		}
+		const FVector Location(Placement.WorldXY.X, Placement.WorldXY.Y, BattlefieldHeightCmAtWorld(Placement.WorldXY));
+		SpawnBattleAsset(FieldPropMeshes[Placement.MeshIndex], Location, FRotator(0.f, Placement.Yaw, 0.f),
+			FVector(Placement.Scale), TerrainComponents);
+	}
+}
+
+void AWLTacticalBattleView::BuildTerrainPatches(const FWLTacticalBattleState& Battle)
+{
 	for (const FWLTacticalTerrainPatch& Patch : Battle.TerrainPatches)
 	{
 		const bool bUrban = Patch.Terrain == EWLTacticalTerrain::Urban;
-
-		// Disco apenas sobre el suelo: la zona se LEE desde la camara (asfalto gris / sotobosque).
-		UStaticMeshComponent* Disc = NewObject<UStaticMeshComponent>(this);
-		Disc->SetupAttachment(Root);
-		Disc->RegisterComponent();
-		Disc->SetStaticMesh(RingMesh);
-		Disc->SetWorldLocation(TacticalToWorld(Patch.Position) + FVector(0.f, 0.f, 1.5f));
-		const float DiscScale = static_cast<float>(Patch.Radius * WorldScale) / 50.f;
-		Disc->SetWorldScale3D(FVector(DiscScale, DiscScale, 0.02f));
-		Disc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(
-			bUrban ? FLinearColor(0.115f, 0.112f, 0.118f) : FLinearColor(0.05f, 0.115f, 0.045f)))
+		const TArray<UStaticMesh*>& Palette = bUrban ? UrbanMeshes : NatureMeshes;
+		if (Patch.Terrain == EWLTacticalTerrain::Open || Palette.IsEmpty())
 		{
-			Disc->SetMaterial(0, Mat);
+			continue;
 		}
-		TerrainComponents.Add(Disc);
 
-		// Props dispersos deterministas: bloques grises (edificios) o pilares verdes (arboles).
-		const int32 PropCount = bUrban ? 10 : 16;
+		const int32 PropCount = bUrban ? FMath::Min(8, Palette.Num()) : 18;
 		const uint32 Hash = GetTypeHash(Patch.PatchId);
-		const float MaxOffset = static_cast<float>(Patch.Radius * WorldScale) * 0.72f;
+		const float MaxOffset = static_cast<float>(Patch.Radius * WorldScale) * (bUrban ? 0.66f : 0.78f);
 		const FVector PatchCenter = TacticalToWorld(Patch.Position);
 		for (int32 i = 0; i < PropCount; ++i)
 		{
 			const uint32 Seed = Hash + static_cast<uint32>(i) * 2654435761u;
-			UStaticMeshComponent* Prop = NewObject<UStaticMeshComponent>(this);
-			Prop->SetupAttachment(Root);
-			Prop->RegisterComponent();
-			Prop->SetStaticMesh(UnitMesh);
-			Prop->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			const float Angle = FMath::DegreesToRadians(static_cast<float>(Seed % 360u) + i * 137.5f);
+			const float RadiusAlpha = 0.24f + 0.70f * (static_cast<float>((Seed / 997u) % 1000u) / 999.f);
+			const FVector2D XY(PatchCenter.X + FMath::Cos(Angle) * MaxOffset * RadiusAlpha,
+				PatchCenter.Y + FMath::Sin(Angle) * MaxOffset * RadiusAlpha);
+			const float Uniform = bUrban
+				? 0.68f + static_cast<float>((Seed / 13u) % 18u) * 0.01f
+				: 0.78f + static_cast<float>((Seed / 17u) % 35u) * 0.01f;
+			const FVector Location(XY.X, XY.Y, BattlefieldHeightCmAtWorld(XY));
+			SpawnBattleAsset(Palette[i % Palette.Num()], Location,
+				FRotator(0.f, static_cast<float>(Seed % 360u), 0.f), FVector(Uniform), TerrainComponents);
+		}
+	}
+}
 
-			const float OffX = (static_cast<float>(Seed % 1000) / 500.f - 1.f) * MaxOffset;
-			const float OffY = (static_cast<float>((Seed / 1000u) % 1000) / 500.f - 1.f) * MaxOffset;
-			FVector Scale;
-			FLinearColor Color;
-			if (bUrban)
-			{
-				Scale = FVector(
-					1.6f + static_cast<float>((Seed / 7u) % 17) * 0.1f,
-					1.6f + static_cast<float>((Seed / 11u) % 17) * 0.1f,
-					2.5f + static_cast<float>((Seed / 13u) % 36) * 0.1f);
-				const float Tint = 0.30f + static_cast<float>((Seed / 17u) % 8) * 0.01f;
-				Color = FLinearColor(Tint, Tint + 0.01f, Tint + 0.03f);
-			}
-			else
-			{
-				Scale = FVector(
-					0.7f + static_cast<float>((Seed / 7u) % 4) * 0.1f,
-					0.7f + static_cast<float>((Seed / 11u) % 4) * 0.1f,
-					2.0f + static_cast<float>((Seed / 13u) % 15) * 0.1f);
-				Color = FLinearColor(0.055f, 0.16f + static_cast<float>((Seed / 17u) % 6) * 0.008f, 0.05f);
-			}
-			Prop->SetWorldLocation(PatchCenter + FVector(OffX, OffY, Scale.Z * 50.f));
-			Prop->SetWorldRotation(FRotator(0.f, static_cast<float>(Seed % 90), 0.f));
-			Prop->SetWorldScale3D(Scale);
-			if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(Color))
-			{
-				Prop->SetMaterial(0, Mat);
-			}
-			TerrainComponents.Add(Prop);
+void AWLTacticalBattleView::BuildObjectiveFortifications(const FWLTacticalBattleState& Battle)
+{
+	if (FortificationMeshes.Num() < 6)
+	{
+		return;
+	}
+	const FVector2D LocalOffsets[] = {
+		FVector2D(-900.f, 0.f), FVector2D(0.f, -950.f), FVector2D(850.f, 720.f),
+		FVector2D(0.f, 850.f), FVector2D(0.f, -1500.f), FVector2D(1500.f, 0.f)
+	};
+	const float Scales[] = {0.86f, 0.88f, 0.72f, 0.82f, 0.88f, 0.84f};
+	const float LocalYaws[] = {0.f, 0.f, 90.f, 180.f, 0.f, 90.f};
+	for (const FWLTacticalObjectiveState& Objective : Battle.Objectives)
+	{
+		const FVector Center = TacticalToWorld(Objective.Position);
+		const float BaseYaw = static_cast<float>((GetTypeHash(Objective.ObjectiveId) % 4u) * 90u);
+		const FRotator Rotation(0.f, BaseYaw, 0.f);
+		for (int32 Index = 0; Index < 6; ++Index)
+		{
+			const FVector Rotated = Rotation.RotateVector(FVector(LocalOffsets[Index].X, LocalOffsets[Index].Y, 0.f));
+			const FVector2D XY(Center.X + Rotated.X, Center.Y + Rotated.Y);
+			const FVector Location(XY.X, XY.Y, BattlefieldHeightCmAtWorld(XY));
+			SpawnBattleAsset(FortificationMeshes[Index], Location,
+				FRotator(0.f, BaseYaw + LocalYaws[Index], 0.f), FVector(Scales[Index]), TerrainComponents);
 		}
 	}
 }
 
 void AWLTacticalBattleView::SpawnWrecks(const FWLTacticalUnitState& Unit, const FVector& Center)
 {
-	if (WreckedContingents.Contains(Unit.TacticalUnitId) || !UnitMesh)
+	if (WreckedContingents.Contains(Unit.TacticalUnitId))
 	{
 		return;
 	}
 	WreckedContingents.Add(Unit.TacticalUnitId);
+	UStaticMesh* WreckModel = WreckForUnit(Unit);
+	if (!WreckModel)
+	{
+		return;   // aeronaves/buques no dejan un cubo sustituto sobre el campo terrestre
+	}
 
-	// Restos oscuros y ladeados: el campo cuenta la historia de la batalla.
 	const FElementStyle Style = StyleForUnitId(Unit.UnitId);
-	const int32 WreckCount = FMath::Clamp(Unit.InitialElementCount, 1, 5);
+	const bool bInfantry = IsInfantryUnit(Unit);
+	const int32 WreckCount = FMath::Clamp(Unit.InitialElementCount, 1, bInfantry ? 5 : 3);
+	const FBoxSphereBounds Bounds = WreckModel->GetBounds();
+	float ReferenceSize = 2.f * Bounds.BoxExtent.X;
+	if (bInfantry)
+	{
+		if (UStaticMesh* Standing = ModelForUnit(Unit))
+		{
+			ReferenceSize = 2.f * Standing->GetBounds().BoxExtent.Z;
+		}
+	}
+	const float Uniform = Style.TargetSizeCm / FMath::Max(1.f, ReferenceSize);
 	const uint32 Hash = GetTypeHash(Unit.TacticalUnitId);
 	for (int32 i = 0; i < WreckCount; ++i)
 	{
-		UStaticMeshComponent* Wreck = NewObject<UStaticMeshComponent>(this);
-		Wreck->SetupAttachment(Root);
-		Wreck->RegisterComponent();
-		Wreck->SetStaticMesh(UnitMesh);
-		Wreck->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		const float OffX = static_cast<float>(((Hash >> (i * 3)) % 7)) * 90.f - 270.f;
 		const float OffY = static_cast<float>(((Hash >> (i * 5)) % 9)) * 90.f - 360.f;
 		const float Yaw = static_cast<float>((Hash >> (i * 2)) % 360);
 		FVector Loc = Center + FVector(OffX, OffY, 0.f);
-		Loc.Z = GroundZ + Style.Scale.Z * 26.f;   // medio hundido: chatarra, no unidad viva
-		Wreck->SetWorldLocation(Loc);
-		Wreck->SetWorldRotation(FRotator(0.f, Yaw, 8.f));
-		Wreck->SetWorldScale3D(Style.Scale * 0.92f);
-		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(0.055f, 0.048f, 0.042f)))
-		{
-			Wreck->SetMaterial(0, Mat);
-		}
-		WreckComponents.Add(Wreck);
+		Loc.Z = BattlefieldHeightCmAtWorld(FVector2D(Loc.X, Loc.Y));
+		SpawnBattleAsset(WreckModel, Loc, FRotator(0.f, Yaw, 0.f), FVector(Uniform), WreckComponents);
 	}
 }
 
@@ -454,14 +671,14 @@ void AWLTacticalBattleView::UpdateTracer(const FWLTacticalBattleState& Battle, c
 
 	if (!Tracer)
 	{
-		if (!UnitMesh)
+		if (!UtilityCubeMesh)
 		{
 			return;
 		}
 		Tracer = NewObject<UStaticMeshComponent>(this);
 		Tracer->SetupAttachment(Root);
 		Tracer->RegisterComponent();
-		Tracer->SetStaticMesh(UnitMesh);
+		Tracer->SetStaticMesh(UtilityCubeMesh);
 		Tracer->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		const bool bPlayer = Unit.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
 		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(
@@ -475,9 +692,9 @@ void AWLTacticalBattleView::UpdateTracer(const FWLTacticalBattleState& Battle, c
 	const FElementStyle FromStyle = StyleForUnitId(Unit.UnitId);
 	const FElementStyle ToStyle = StyleForUnitId(Target->UnitId);
 	FVector From = TacticalToWorld(Unit.Position);
-	From.Z = GroundZ + FromStyle.HoverZCm + FromStyle.Scale.Z * 60.f;
+	From.Z += FromStyle.HoverZCm + FromStyle.Scale.Z * 60.f;
 	FVector To = TacticalToWorld(Target->Position);
-	To.Z = GroundZ + ToStyle.HoverZCm + ToStyle.Scale.Z * 60.f;
+	To.Z += ToStyle.HoverZCm + ToStyle.Scale.Z * 60.f;
 
 	const FVector Mid = (From + To) * 0.5f;
 	const FVector Dir = To - From;
@@ -495,7 +712,7 @@ void AWLTacticalBattleView::UpdateTracer(const FWLTacticalBattleState& Battle, c
 
 void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 {
-	if (!SphereMesh || !RingMesh)
+	if (!SphereMesh)
 	{
 		return;
 	}
@@ -530,7 +747,7 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 		const FVector To = TacticalToWorld(Shell.ImpactPosition);
 		FVector Pos = FMath::Lerp(From, To, T);
 		const float ArcPeak = FMath::Min(2800.f, static_cast<float>(FVector::Dist2D(From, To)) * 0.30f);
-		Pos.Z = GroundZ + 120.f + ArcPeak * FMath::Sin(T * PI);
+		Pos.Z = FMath::Lerp(From.Z, To.Z, T) + 120.f + ArcPeak * FMath::Sin(T * PI);
 		Comp->SetWorldLocation(Pos);
 		Comp->SetVisibility(true);
 	}
@@ -566,22 +783,12 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 					ImpactSpawnSeconds.Add(Battle.ElapsedSeconds);
 				}
 			}
-			if (ScorchComponents.Num() < 60)
+			if (CraterMesh && ScorchComponents.Num() < 60)
 			{
-				UStaticMeshComponent* Scorch = NewObject<UStaticMeshComponent>(this);
-				Scorch->SetupAttachment(Root);
-				Scorch->RegisterComponent();
-				Scorch->SetStaticMesh(RingMesh);
 				FVector Loc = Comp->GetComponentLocation();
-				Loc.Z = GroundZ + 2.5f;
-				Scorch->SetWorldLocation(Loc);
-				Scorch->SetWorldScale3D(FVector(7.5f, 7.5f, 0.02f));
-				Scorch->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-				if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(0.05f, 0.045f, 0.04f)))
-				{
-					Scorch->SetMaterial(0, Mat);
-				}
-				ScorchComponents.Add(Scorch);
+				Loc.Z = BattlefieldHeightCmAtWorld(FVector2D(Loc.X, Loc.Y));
+				SpawnBattleAsset(CraterMesh, Loc, FRotator(0.f, static_cast<float>(ScorchComponents.Num() * 37), 0.f),
+					FVector(0.72f), ScorchComponents);
 			}
 			Comp->DestroyComponent();
 		}
@@ -591,7 +798,7 @@ void AWLTacticalBattleView::UpdateShells(const FWLTacticalBattleState& Battle)
 
 void AWLTacticalBattleView::UpdateBattleEffects(const FWLTacticalBattleState& Battle)
 {
-	if (!SpriteMaterial || !GroundMesh)
+	if (!SpriteMaterial || !BillboardPlaneMesh)
 	{
 		return;
 	}
@@ -699,24 +906,31 @@ void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, con
 		}
 	}
 
-	// Suelo: plano llano centrado en el origen (el plano del Engine mide 100x100 -> escalar a metros).
-	if (GroundMesh)
+	UE_LOG(LogWorldLeader, Display,
+		TEXT("TacticalBattle generated assets: ground=%s urban=%d nature=%d forts=%d props=%d wrecks=%d poses=%d banners=%d"),
+		BattlefieldMesh ? TEXT("ok") : TEXT("missing"), UrbanMeshes.Num(), NatureMeshes.Num(),
+		FortificationMeshes.Num(), FieldPropMeshes.Num(), WreckModels.Num(), SoldierPoseModels.Num(), BannerModels.Num());
+
+	// Campo Blender 220x220 m. El offset compensa el -0.28 m medio del generador.
+	if (BattlefieldMesh)
 	{
 		Ground = NewObject<UStaticMeshComponent>(this);
 		Ground->SetupAttachment(Root);
 		Ground->RegisterComponent();
-		Ground->SetStaticMesh(GroundMesh);
-		Ground->SetWorldLocation(FVector(0.f, 0.f, GroundZ - 2.f));
-		Ground->SetWorldScale3D(FVector(220.f, 220.f, 1.f));   // ~220m de lado
+		Ground->SetStaticMesh(BattlefieldMesh);
+		Ground->SetWorldLocation(FVector(0.f, 0.f, GroundZ + 28.f));
+		Ground->SetWorldScale3D(FVector::OneVector);
 		Ground->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(FLinearColor(0.14f, 0.22f, 0.13f)))
-		{
-			Ground->SetMaterial(0, Mat);
-		}
+		if (BattleMaterial) { Ground->SetMaterial(0, BattleMaterial); }
+	}
+	else
+	{
+		UE_LOG(LogWorldLeader, Error, TEXT("TacticalBattle battlefield_grassland is missing; no placeholder ground will be used."));
 	}
 
-	// F2: los parches de terreno se dibujan antes que nada (quedan bajo unidades y anillos).
+	BuildFieldProps(Battle);
 	BuildTerrainPatches(Battle);
+	BuildObjectiveFortifications(Battle);
 
 	// Anillo de seleccion (oculto hasta seleccionar).
 	if (RingMesh)
@@ -760,49 +974,99 @@ void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, con
 	// Una FORMACION instanciada por contingente: N elementos visibles que caen con las bajas.
 	for (const FWLTacticalUnitState& Unit : Battle.Units)
 	{
-		if (!UnitMesh)
+		UStaticMesh* Model = ModelForUnit(Unit);
+		if (!Model)
 		{
-			break;
+			UE_LOG(LogWorldLeader, Error, TEXT("TacticalBattle unit model missing: unit=%s type=%s"),
+				*Unit.TacticalUnitId, *Unit.UnitId);
+			continue;
 		}
 		UInstancedStaticMeshComponent* Mesh = NewObject<UInstancedStaticMeshComponent>(this);
 		Mesh->SetupAttachment(Root);
 		Mesh->RegisterComponent();
 		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		// F6: modelo real con material unlit vertex-color (el camo distingue los bandos);
-		// sin modelo, cubo tintado por bando/salud como antes.
-		UStaticMesh* Model = ModelForUnit(Unit);
-		if (Model && VehicleMaterial)
-		{
-			Mesh->SetStaticMesh(Model);
-			Mesh->SetMaterial(0, VehicleMaterial);
-		}
-		else
-		{
-			Mesh->SetStaticMesh(UnitMesh);
-			if (UMaterialInstanceDynamic* Mat = MakeColorMaterial(ColorForUnit(Unit)))
-			{
-				Mesh->SetMaterial(0, Mat);
-			}
-		}
+		Mesh->SetStaticMesh(Model);
+		if (VehicleMaterial) { Mesh->SetMaterial(0, VehicleMaterial); }
 		ContingentMeshes.Add(Unit.TacticalUnitId, Mesh);
+
+		if (IsInfantryUnit(Unit))
+		{
+			const bool bPlayer = Unit.OwnerIso.Equals(PlayerIso, ESearchCase::IgnoreCase);
+			auto AddPoseComponent = [this, &Unit](UStaticMesh* PoseModel,
+				TMap<FString, UInstancedStaticMeshComponent*>& TargetMap)
+			{
+				if (!PoseModel)
+				{
+					return;
+				}
+				UInstancedStaticMeshComponent* Pose = NewObject<UInstancedStaticMeshComponent>(this);
+				Pose->SetupAttachment(Root);
+				Pose->RegisterComponent();
+				Pose->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Pose->SetStaticMesh(PoseModel);
+				if (VehicleMaterial) { Pose->SetMaterial(0, VehicleMaterial); }
+				TargetMap.Add(Unit.TacticalUnitId, Pose);
+			};
+			AddPoseComponent(SoldierPoseModels.FindRef(bPlayer ? TEXT("kneeling") : TEXT("kneeling_desert")),
+				KneelingContingentMeshes);
+			AddPoseComponent(SoldierPoseModels.FindRef(bPlayer ? TEXT("prone") : TEXT("prone_desert")),
+				ProneContingentMeshes);
+		}
+
+		if (UStaticMesh* BannerModel = BannerForUnit(Unit))
+		{
+			UStaticMeshComponent* Banner = NewObject<UStaticMeshComponent>(this);
+			Banner->SetupAttachment(Root);
+			Banner->RegisterComponent();
+			Banner->SetStaticMesh(BannerModel);
+			Banner->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Banner->SetCastShadow(false);
+			if (BattleMaterial) { Banner->SetMaterial(0, BattleMaterial); }
+			BannerComponents.Add(Unit.TacticalUnitId, Banner);
+		}
 
 		// Encaramiento inicial: los bandos se miran (atacante desde -X).
 		ContingentYaw.Add(Unit.TacticalUnitId,
 			Unit.OwnerIso.Equals(Battle.AttackerIso, ESearchCase::IgnoreCase) ? 0.f : 180.f);
-		RebuildContingentInstances(Mesh, Unit);
+		RebuildContingentInstances(Unit);
 	}
 
-	// Luces propias: la batalla se ve igual aunque la escena de campana se apague.
+	// Atmosfera y luz calida propias: la batalla no flota sobre el fondo vacio de campana.
 	BattleLight = World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(),
 		FVector::ZeroVector, FRotator(-52.f, 35.f, 0.f));
-	if (BattleLight && BattleLight->GetComponent())
+	if (UDirectionalLightComponent* LightComponent = BattleLight
+		? Cast<UDirectionalLightComponent>(BattleLight->GetLightComponent())
+		: nullptr)
 	{
-		BattleLight->GetComponent()->SetIntensity(3.2f);
+		LightComponent->SetIntensity(4.2f);
+		LightComponent->SetLightColor(FLinearColor(1.0f, 0.89f, 0.73f));
+		LightComponent->SetAtmosphereSunLight(true);
 	}
 	BattleSky = World->SpawnActor<ASkyLight>(ASkyLight::StaticClass());
-	if (BattleSky && BattleSky->GetLightComponent())
+	if (USkyLightComponent* SkyComp = BattleSky ? Cast<USkyLightComponent>(BattleSky->GetLightComponent()) : nullptr)
 	{
-		BattleSky->GetLightComponent()->SetIntensity(1.1f);
+		if (UTextureCube* Ambient = LoadObject<UTextureCube>(nullptr,
+			TEXT("/Engine/MapTemplates/Sky/DaylightAmbientCubemap.DaylightAmbientCubemap")))
+		{
+			SkyComp->SourceType = SLS_SpecifiedCubemap;
+			SkyComp->Cubemap = Ambient;
+		}
+		SkyComp->bLowerHemisphereIsBlack = false;
+		SkyComp->SetLowerHemisphereColor(FLinearColor(0.20f, 0.24f, 0.20f));
+		SkyComp->SetIntensity(1.25f);
+		SkyComp->RecaptureSky();
+	}
+	BattleAtmosphere = World->SpawnActor<ASkyAtmosphere>(ASkyAtmosphere::StaticClass());
+	BattleClouds = World->SpawnActor<AVolumetricCloud>(AVolumetricCloud::StaticClass());
+	BattleFog = World->SpawnActor<AExponentialHeightFog>(AExponentialHeightFog::StaticClass(),
+		FVector(0.f, 0.f, 800.f), FRotator::ZeroRotator);
+	if (BattleFog && BattleFog->GetComponent())
+	{
+		BattleFog->GetComponent()->SetFogDensity(0.0018f);
+		BattleFog->GetComponent()->SetFogHeightFalloff(0.22f);
+		BattleFog->GetComponent()->SetFogMaxOpacity(0.55f);
+		BattleFog->GetComponent()->SetStartDistance(7000.f);
+		BattleFog->GetComponent()->SetFogInscatteringColor(FLinearColor(0.48f, 0.58f, 0.62f));
 	}
 
 	// Camara: por encima del campo, mirando hacia abajo desde el lado del jugador.
@@ -817,6 +1081,11 @@ void AWLTacticalBattleView::Initialize(const FWLTacticalBattleState& Battle, con
 	}
 
 	RefreshFromState(Battle);
+	UE_LOG(LogWorldLeader, Display,
+		TEXT("TacticalBattle scene ready: terrain_assets=%d formations=%d kneeling=%d prone=%d banners=%d objectives=%d atmosphere=%s"),
+		TerrainComponents.Num(), ContingentMeshes.Num(), KneelingContingentMeshes.Num(),
+		ProneContingentMeshes.Num(), BannerComponents.Num(), ObjectiveComponents.Num(),
+		(BattleAtmosphere && BattleClouds && BattleFog) ? TEXT("ok") : TEXT("missing"));
 }
 
 void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battle)
@@ -840,18 +1109,53 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 				SpawnWrecks(Unit, *LastCenter);
 			}
 			Mesh->SetVisibility(false);
+			if (UInstancedStaticMeshComponent* Pose = KneelingContingentMeshes.FindRef(Unit.TacticalUnitId))
+			{
+				Pose->SetVisibility(false);
+			}
+			if (UInstancedStaticMeshComponent* Pose = ProneContingentMeshes.FindRef(Unit.TacticalUnitId))
+			{
+				Pose->SetVisibility(false);
+			}
+			if (UStaticMeshComponent* Banner = BannerComponents.FindRef(Unit.TacticalUnitId))
+			{
+				Banner->SetVisibility(false);
+			}
 			ContingentCenters.Remove(Unit.TacticalUnitId);
 			UpdateTracer(Battle, Unit);
 			continue;
 		}
 		Mesh->SetVisibility(true);
+		if (UInstancedStaticMeshComponent* Pose = KneelingContingentMeshes.FindRef(Unit.TacticalUnitId))
+		{
+			Pose->SetVisibility(true);
+		}
+		if (UInstancedStaticMeshComponent* Pose = ProneContingentMeshes.FindRef(Unit.TacticalUnitId))
+		{
+			Pose->SetVisibility(true);
+		}
 
 		const FElementStyle Style = StyleForUnitId(Unit.UnitId);
 
 		// Encaramiento: hacia el objetivo de ataque, o hacia el destino de movimiento.
 		float Yaw = ContingentYaw.FindRef(Unit.TacticalUnitId);
 		FVector2D Facing = FVector2D::ZeroVector;
-		if (Unit.Order == EWLTacticalUnitOrder::Attacking && !Unit.AttackTargetUnitId.IsEmpty())
+		const bool bFixedWingAir = Style.HoverZCm > 0.f && !Unit.UnitId.Equals(TEXT("heli"), ESearchCase::IgnoreCase);
+		if (bFixedWingAir)
+		{
+			// Un ALA FIJA encara su DIRECCION DE VUELO (el backend lo hace orbitar en pasadas);
+			// apuntar el morro al objetivo mientras vuela tangencialmente = volar de costado.
+			if (const FVector* PrevCenter = ContingentCenters.Find(Unit.TacticalUnitId))
+			{
+				const FVector NewCenter = TacticalToWorld(Unit.Position);
+				const FVector2D Delta(NewCenter.X - PrevCenter->X, NewCenter.Y - PrevCenter->Y);
+				if (Delta.SizeSquared() > 1.0f)
+				{
+					Facing = Delta;
+				}
+			}
+		}
+		if (Facing.IsNearlyZero() && Unit.Order == EWLTacticalUnitOrder::Attacking && !Unit.AttackTargetUnitId.IsEmpty())
 		{
 			if (const FWLTacticalUnitState* Target = Battle.Units.FindByPredicate(
 				[&Unit](const FWLTacticalUnitState& U) { return U.TacticalUnitId == Unit.AttackTargetUnitId; }))
@@ -859,7 +1163,7 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 				Facing = Target->Position - Unit.Position;
 			}
 		}
-		else if (Unit.Order == EWLTacticalUnitOrder::Moving || Unit.Order == EWLTacticalUnitOrder::Routing)
+		else if (Facing.IsNearlyZero() && (Unit.Order == EWLTacticalUnitOrder::Moving || Unit.Order == EWLTacticalUnitOrder::Routing))
 		{
 			Facing = Unit.MoveTarget - Unit.Position;
 		}
@@ -871,16 +1175,33 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 
 		// Mover TODA la formacion (las instancias son relativas al componente).
 		FVector Center = TacticalToWorld(Unit.Position);
-		Center.Z = GroundZ + Style.HoverZCm;
+		Center.Z += Style.HoverZCm;
 		Mesh->SetWorldLocationAndRotation(Center, FRotator(0.f, Yaw, 0.f));
+		if (UInstancedStaticMeshComponent* Pose = KneelingContingentMeshes.FindRef(Unit.TacticalUnitId))
+		{
+			Pose->SetWorldLocationAndRotation(Center, FRotator(0.f, Yaw, 0.f));
+		}
+		if (UInstancedStaticMeshComponent* Pose = ProneContingentMeshes.FindRef(Unit.TacticalUnitId))
+		{
+			Pose->SetWorldLocationAndRotation(Center, FRotator(0.f, Yaw, 0.f));
+		}
 		ContingentCenters.Add(Unit.TacticalUnitId, Center);
 		const float FormationExtent = FMath::Sqrt(static_cast<float>(FMath::Max(1, Unit.ElementCount))) * Style.SpacingCm;
 		ContingentPickRadius.Add(Unit.TacticalUnitId, FMath::Max(UnitPickRadius, FormationExtent * 0.75f));
+		if (UStaticMeshComponent* Banner = BannerComponents.FindRef(Unit.TacticalUnitId))
+		{
+			const FVector LocalOffset(-FormationExtent * 0.30f, -FormationExtent * 0.38f, 0.f);
+			FVector BannerLocation = Center + FRotator(0.f, Yaw, 0.f).RotateVector(LocalOffset);
+			BannerLocation.Z = BattlefieldHeightCmAtWorld(FVector2D(BannerLocation.X, BannerLocation.Y));
+			Banner->SetWorldLocationAndRotation(BannerLocation, FRotator(0.f, Yaw, 0.f));
+			Banner->SetWorldScale3D(FVector(0.72f));
+			Banner->SetVisibility(true);
+		}
 
 		// Las BAJAS se ven: reconstruir instancias cuando cambian los elementos vivos.
 		if (ContingentShownElements.FindRef(Unit.TacticalUnitId) != Unit.ElementCount)
 		{
-			RebuildContingentInstances(Mesh, Unit);
+			RebuildContingentInstances(Unit);
 		}
 
 		if (UMaterialInstanceDynamic* Mat = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0)))
@@ -928,7 +1249,7 @@ void AWLTacticalBattleView::RefreshFromState(const FWLTacticalBattleState& Battl
 		{
 			const FElementStyle Style = StyleForUnitId(Sel->UnitId);
 			FVector Loc = TacticalToWorld(Sel->Position);
-			Loc.Z = GroundZ + 6.f;
+			Loc.Z += 6.f;
 			SelectionRing->SetWorldLocation(Loc);
 			const float Extent = FMath::Sqrt(static_cast<float>(FMath::Max(1, Sel->ElementCount))) * Style.SpacingCm;
 			const float RingScale = FMath::Max(2.6f, (Extent * 1.35f) / 50.f);

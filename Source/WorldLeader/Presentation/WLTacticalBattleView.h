@@ -17,7 +17,10 @@
 
 class ACameraActor;
 class ADirectionalLight;
+class AExponentialHeightFog;
 class ASkyLight;
+class ASkyAtmosphere;
+class AVolumetricCloud;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UInstancedStaticMeshComponent;
@@ -32,11 +35,14 @@ class WORLDLEADER_API AWLTacticalBattleView : public AActor
 
 public:
 	AWLTacticalBattleView();
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** Prepara el escenario (suelo, camara, luces, objetivos) y las formaciones de contingente. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Battle")
 	void Initialize(const FWLTacticalBattleState& Battle, const FString& InPlayerIso);
 
 	/** Actualiza formaciones, trazadoras, restos, objetivos y seleccion desde el estado. */
+	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Battle")
 	void RefreshFromState(const FWLTacticalBattleState& Battle);
 
 	ACameraActor* GetBattleCamera() const { return BattleCamera; }
@@ -68,8 +74,12 @@ private:
 	UMaterialInstanceDynamic* MakeColorMaterial(const FLinearColor& Color);
 	FLinearColor ColorForUnit(const FWLTacticalUnitState& Unit) const;
 	FElementStyle StyleForUnitId(const FString& UnitId) const;
+	FString UnitKind(const FWLTacticalUnitState& Unit) const;
+	bool IsInfantryUnit(const FWLTacticalUnitState& Unit) const;
 	/** F6: modelo low-poly real del contingente (/Game/GenVehicle): camo verde propio, desierto enemigo. */
 	UStaticMesh* ModelForUnit(const FWLTacticalUnitState& Unit) const;
+	UStaticMesh* WreckForUnit(const FWLTacticalUnitState& Unit) const;
+	UStaticMesh* BannerForUnit(const FWLTacticalUnitState& Unit) const;
 	/** F6: humo en contingentes danados y fogonazos de impacto de salvas. */
 	void UpdateBattleEffects(const FWLTacticalBattleState& Battle);
 	/** Sprites de combate (Codex, Content/UI/Battle) como billboards que encaran la camara. */
@@ -78,9 +88,14 @@ private:
 	void UpdateSpriteBillboard(UStaticMeshComponent* Comp, const FString& Sprite, const FLinearColor& Tint, float Opacity, const FVector& WorldPos, float SizeCm);
 	/** Offsets locales de la formacion (rejilla ancha centrada, primera fila al frente). */
 	static void BuildFormationOffsets(int32 Count, float Spacing, TArray<FVector2D>& OutOffsets);
-	void RebuildContingentInstances(UInstancedStaticMeshComponent* Mesh, const FWLTacticalUnitState& Unit);
-	/** F2: dibuja los parches de terreno (disco + edificios/arboles estilizados, dispersion determinista). */
+	void RebuildContingentInstances(const FWLTacticalUnitState& Unit);
+	float BattlefieldHeightCmAtWorld(const FVector2D& WorldXY) const;
+	UStaticMeshComponent* SpawnBattleAsset(UStaticMesh* Mesh, const FVector& WorldLocation,
+		const FRotator& WorldRotation, const FVector& AssetScale, TArray<UStaticMeshComponent*>& Bucket);
+	/** Densidad del campo abierto, parches tacticos y fortificaciones de objetivos. */
+	void BuildFieldProps(const FWLTacticalBattleState& Battle);
 	void BuildTerrainPatches(const FWLTacticalBattleState& Battle);
+	void BuildObjectiveFortifications(const FWLTacticalBattleState& Battle);
 	void SpawnWrecks(const FWLTacticalUnitState& Unit, const FVector& Center);
 	void UpdateTracer(const FWLTacticalBattleState& Battle, const FWLTacticalUnitState& Unit);
 	/** F3: salvas indirectas en vuelo (arco balistico) y crater al impactar. */
@@ -91,20 +106,38 @@ private:
 	UPROPERTY() ACameraActor* BattleCamera = nullptr;
 	UPROPERTY() ADirectionalLight* BattleLight = nullptr;
 	UPROPERTY() ASkyLight* BattleSky = nullptr;
+	UPROPERTY() ASkyAtmosphere* BattleAtmosphere = nullptr;
+	UPROPERTY() AVolumetricCloud* BattleClouds = nullptr;
+	UPROPERTY() AExponentialHeightFog* BattleFog = nullptr;
 
-	UPROPERTY() UStaticMesh* UnitMesh = nullptr;
+	// Primitivas tecnicas para VFX/seleccion; nunca se usan como fallback visual de contenido.
+	UPROPERTY() UStaticMesh* UtilityCubeMesh = nullptr;
 	UPROPERTY() UStaticMesh* RingMesh = nullptr;
 	UPROPERTY() UStaticMesh* SphereMesh = nullptr;
-	UPROPERTY() UStaticMesh* GroundMesh = nullptr;
+	UPROPERTY() UStaticMesh* BillboardPlaneMesh = nullptr;
 	UPROPERTY() UMaterialInterface* BaseMaterial = nullptr;
 	// F6: modelos de unidad reales (gen_vehicle.py) + material unlit vertex-color compartido.
 	UPROPERTY() TMap<FString, UStaticMesh*> UnitModels;
 	UPROPERTY() UMaterialInterface* VehicleMaterial = nullptr;
+	// Paquete /Game/GenBattle: 38 mallas tacticas y material vertex-color opaco.
+	UPROPERTY() UStaticMesh* BattlefieldMesh = nullptr;
+	UPROPERTY() UMaterialInterface* BattleMaterial = nullptr;
+	UPROPERTY() TArray<UStaticMesh*> UrbanMeshes;
+	UPROPERTY() TArray<UStaticMesh*> NatureMeshes;
+	UPROPERTY() TArray<UStaticMesh*> FortificationMeshes;
+	UPROPERTY() TArray<UStaticMesh*> FieldPropMeshes;
+	UPROPERTY() TMap<FString, UStaticMesh*> WreckModels;
+	UPROPERTY() TMap<FString, UStaticMesh*> SoldierPoseModels;
+	UPROPERTY() TMap<FString, UStaticMesh*> BannerModels;
+	UPROPERTY() UStaticMesh* CraterMesh = nullptr;
 	// Sprites de combate: material unlit translucido texturizado (/Game/UI/Battle/M_BattleSprite).
 	UPROPERTY() UMaterialInterface* SpriteMaterial = nullptr;
 
 	// F1b: una FORMACION instanciada por contingente (los elementos vivos se ven y caen).
 	UPROPERTY() TMap<FString, UInstancedStaticMeshComponent*> ContingentMeshes;
+	UPROPERTY() TMap<FString, UInstancedStaticMeshComponent*> KneelingContingentMeshes;
+	UPROPERTY() TMap<FString, UInstancedStaticMeshComponent*> ProneContingentMeshes;
+	UPROPERTY() TMap<FString, UStaticMeshComponent*> BannerComponents;
 	UPROPERTY() TArray<UStaticMeshComponent*> ObjectiveComponents;
 	UPROPERTY() UStaticMeshComponent* SelectionRing = nullptr;
 	UPROPERTY() TMap<FString, UStaticMeshComponent*> TracerComponents;
