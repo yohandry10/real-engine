@@ -216,6 +216,12 @@ protected:
 
 private:
 	void OnAdvanceDay();
+	// Avance rapido: mantener [Space] hace correr los dias (repite con aceleracion en Tick).
+	void OnAdvanceDayPressed();
+	void OnAdvanceDayReleased();
+	bool bAdvanceDayHeld = false;
+	float AdvanceDayHeldSeconds = 0.f;
+	float AdvanceDayRepeatAccumulator = 0.f;
 	void OnPrintState();
 	void OnSaveCampaign();
 	void OnBuildRecommended();

@@ -59,6 +59,21 @@ void AWLCampaignPlayerController::Tick(float DeltaSeconds)
 		TickTacticalBattle(DeltaSeconds);
 		return;   // durante la batalla la camara y el hover del mapa quedan congelados
 	}
+
+	// AVANCE RAPIDO: mantener [Space] hace correr los dias (0.35 s de gracia, luego ~8 dias/s y,
+	// tras 2 s sostenidos, ~20 dias/s). Sin esto, ganar por Regimen eran ~3600 pulsaciones.
+	if (bAdvanceDayHeld && HasCampaignInput())
+	{
+		AdvanceDayHeldSeconds += DeltaSeconds;
+		AdvanceDayRepeatAccumulator += DeltaSeconds;
+		const float RepeatInterval = AdvanceDayHeldSeconds > 2.35f ? 0.05f : 0.125f;
+		if (AdvanceDayHeldSeconds > 0.35f && AdvanceDayRepeatAccumulator >= RepeatInterval)
+		{
+			AdvanceDayRepeatAccumulator = 0.f;
+			OnAdvanceDay();
+		}
+	}
+
 	UpdateMapCamera(DeltaSeconds);
 	if (IsForceMovementModeActive())
 	{
@@ -76,7 +91,8 @@ void AWLCampaignPlayerController::SetupInputComponent()
 
 	if (InputComponent)
 	{
-		InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &AWLCampaignPlayerController::OnAdvanceDay);
+		InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &AWLCampaignPlayerController::OnAdvanceDayPressed);
+		InputComponent->BindKey(EKeys::SpaceBar, IE_Released, this, &AWLCampaignPlayerController::OnAdvanceDayReleased);
 		InputComponent->BindKey(EKeys::P, IE_Pressed, this, &AWLCampaignPlayerController::OnPrintState);
 		InputComponent->BindKey(EKeys::F5, IE_Pressed, this, &AWLCampaignPlayerController::OnSaveCampaign);
 		InputComponent->BindKey(EKeys::B, IE_Pressed, this, &AWLCampaignPlayerController::OnBuildRecommended);
@@ -142,6 +158,22 @@ float AWLCampaignPlayerController::GetCampaignCameraHeight() const
 		: 0.f;
 }
 
+void AWLCampaignPlayerController::OnAdvanceDayPressed()
+{
+	// Primer dia inmediato al pulsar; si se MANTIENE, el Tick repite con aceleracion.
+	bAdvanceDayHeld = true;
+	AdvanceDayHeldSeconds = 0.f;
+	AdvanceDayRepeatAccumulator = 0.f;
+	OnAdvanceDay();
+}
+
+void AWLCampaignPlayerController::OnAdvanceDayReleased()
+{
+	bAdvanceDayHeld = false;
+	AdvanceDayHeldSeconds = 0.f;
+	AdvanceDayRepeatAccumulator = 0.f;
+}
+
 void AWLCampaignPlayerController::OnAdvanceDay()
 {
 	if (!HasCampaignInput())
@@ -161,19 +193,18 @@ void AWLCampaignPlayerController::OnAdvanceDay()
 		}
 	}
 
-	if (UWLStrategicTickSubsystem* Tick = GetTick())
+	if (UWLCampaignGameInstance* CampaignGI = GetGameInstance<UWLCampaignGameInstance>())
 	{
+		UWLStrategicTickSubsystem* Tick = GetTick();
+		if (!Tick)
+		{
+			return;
+		}
 		const int32 PreviousMonth = Tick->GetCurrentMonth();
 		const int32 PreviousYear = Tick->GetCurrentYear();
-		Tick->AdvanceDay();   // avanza UN DIA (economia/reclutamiento cada dia; IA al cerrar mes)
-		if ((Tick->GetCurrentMonth() != PreviousMonth || Tick->GetCurrentYear() != PreviousYear))
+		CampaignGI->WLAdvanceDay();
+		if (Tick && (Tick->GetCurrentMonth() != PreviousMonth || Tick->GetCurrentYear() != PreviousYear))
 		{
-			if (UWLPoliticalSubsystem* Politics = GetPolitics())
-			{
-				Politics->ProcessPoliticalMonth();
-			}
-			// F5: al cerrar el mes, si el nuevo estado dejo eventos sin resolver, el juego los
-			// pone en primer plano con el popup modal (no hay que adivinar que abrir GOBIERNO).
 			ShowEventModalIfPending();
 		}
 		SetLastActionMessage(FString::Printf(TEXT("Dia avanzado: %02d/%02d/%d."),

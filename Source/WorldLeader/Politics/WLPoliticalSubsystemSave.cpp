@@ -41,6 +41,21 @@ void UWLPoliticalSubsystem::CheckCampaignOutcome()
 			ControlledByNation.FindOrAdd(Controller) += 1;
 		}
 	}
+	// DERROTA por conquista total: si el jugador se queda sin NINGUNA provincia, la partida termina
+	// (la IA ya invade y ocupa de verdad; sin esto seguias "jugando" un pais sin territorio, sin
+	// economia y sin salida — un estado zombi sin logica).
+	const FString PlayerIsoForDefeat = GetPlayerNationIso();
+	if (!PlayerIsoForDefeat.IsEmpty() && MonthsElapsed >= 1 && TotalProvinces > 0
+		&& ControlledByNation.FindRef(PlayerIsoForDefeat) == 0)
+	{
+		CampaignOutcome.bGameOver = true;
+		CampaignOutcome.OutcomeType = TEXT("Conquered");
+		CampaignOutcome.LosingNationIso = PlayerIsoForDefeat;
+		CampaignOutcome.Reason = FString::Printf(
+			TEXT("%s perdio todo su territorio: la nacion ha sido conquistada."), *PlayerIsoForDefeat);
+		return;
+	}
+
 	// Dominacion: controlar una CUOTA dominante de provincias (no las 219 del continente entero, que
 	// era inalcanzable). Coherente con la Hegemonia por cuota de PIB, y ahora ruta real de conquista.
 	if (TotalProvinces > 0 && MonthsElapsed >= Rules.DominationMinMonths)
