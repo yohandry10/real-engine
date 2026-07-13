@@ -6,7 +6,12 @@
 #include "Campaign/WLCampaignGameInstance.h"
 #include "Campaign/WLDataRegistry.h"
 #include "Characters/WLCharacterSubsystem.h"
+#include "Campaign/WLCampaignTurnCoordinator.h"
+#include "Campaign/WLProvinceEngine.h"
 #include "Economy/WLEconomyLibrary.h"
+#include "Economy/WLEconomyEngine.h"
+#include "Economy/WLFiscalEngine.h"
+#include "Economy/WLTradeEngine.h"
 #include "Military/WLMilitarySubsystem.h"
 #include "Politics/WLPoliticalSubsystem.h"
 #include "WorldLeader.h"
@@ -15,7 +20,6 @@
 using WLStrategicTickPrivate::ClampPublicOrder;
 using WLStrategicTickPrivate::NormalizeIso;
 using WLStrategicTickPrivate::ProvinceSupportsBuilding;
-using WLStrategicTickPrivate::StepToward;
 
 namespace
 {
@@ -139,24 +143,6 @@ namespace
 			return A.Units == B.Units ? A.GoodId < B.GoodId : A.Units > B.Units;
 		});
 		return Output;
-	}
-
-	double CalculatePriceMultiplier(int64 Demand, int64 Supply, const FWLBalanceRules& Rules)
-	{
-		if (Demand <= 0)
-		{
-			return 1.0;
-		}
-		if (Supply <= 0)
-		{
-			return Rules.MaxMarketPriceMultiplier;
-		}
-
-		const double Ratio = static_cast<double>(Demand) / static_cast<double>(Supply);
-		const double Multiplier = Ratio >= 1.0
-			? 1.0 + (Ratio - 1.0) * Rules.PriceShortageSensitivity
-			: 1.0 - (1.0 - Ratio) * Rules.PriceSurplusSensitivity;
-		return FMath::Clamp(Multiplier, Rules.MinMarketPriceMultiplier, Rules.MaxMarketPriceMultiplier);
 	}
 
 	FString CreditRatingToLabel(EWLCreditRating Rating)
@@ -300,29 +286,60 @@ void UWLStrategicTickSubsystem::ResetCampaignState()
 
 void UWLStrategicTickSubsystem::AdvanceDay()
 {
+	AdvanceDayInternal(TFunction<void()>());
+}
+
+void UWLStrategicTickSubsystem::AdvanceDayWithPoliticalPhase(const TFunction<void()>& ProcessPolitics)
+{
+	AdvanceDayInternal(ProcessPolitics);
+}
+
+void UWLStrategicTickSubsystem::AdvanceDayInternal(const TFunction<void()>& ProcessPolitics)
+{
 	const FWLBalanceRules Rules = GetBalanceRules();
-
-	// Coherencia temporal: un dia aplica 1/30 del balance MENSUAL al tesoro (progreso visible sin acelerar
-	// la economia 30x). Todo lo demas que es mensual (finanzas, provincias, PIB, shocks, IA) corre SOLO al
-	// cerrar el mes. El reclutamiento si avanza por dia (sus "turnos" son dias).
-	ApplyDailyEconomy();
-	AdvanceRecruitment();
-
-	bool bMonthRolled = false;
-	if (++CurrentDay > 30)
+	FWLCampaignTurnRequest Request;
+	Request.Year = CurrentYear;
+	Request.Month = CurrentMonth;
+	Request.Day = CurrentDay;
+	Request.MonthsPerYear = Rules.MonthsPerYear;
+	Request.DaysPerMonth = Rules.DaysPerMonth;
+	Request.ApplyDailyEconomy = [this]() { ApplyDailyEconomy(); };
+	Request.AdvanceRecruitment = [this]() { AdvanceRecruitment(); };
+	Request.AdvanceFinancialMonth = [this]() { AdvanceFinancialMonth(); };
+	Request.ApplyMonthlyProvinceState = [this]() { ApplyMonthlyProvinceState(); };
+	Request.UpdateGDPHistory = [this]() { UpdateGDPHistory(); };
+	Request.AdvanceMarketShocks = [this]() { AdvanceMarketShocks(); };
+	Request.RunEconomicAI = [this]()
 	{
-		CurrentDay = 1;
-		bMonthRolled = true;
-		if (++CurrentMonth > Rules.MonthsPerYear)
+		LastEconomicAIReports.Reset();
+		const FString PlayerNationIso = GetActivePlayerNationIsoForAI();
+		if (!PlayerNationIso.IsEmpty())
 		{
-			CurrentMonth = 1;
-			++CurrentYear;
+			RunEconomicAIInternal(PlayerNationIso, LastEconomicAIReports);
+			for (const FString& Report : LastEconomicAIReports)
+			{
+				UE_LOG(LogWorldLeader, Log, TEXT("IA economica: %s"), *Report);
+			}
 		}
-	}
-
-	if (bMonthRolled)
+	};
+	Request.ProcessPolitics = ProcessPolitics;
+	Request.ValidateState = [this, Rules](int32 Year, int32 Month, int32 Day)
 	{
-		ProcessMonthRollover();
+		return ValidateRuntimeState(Year, Month, Day, Rules);
+	};
+
+	const FWLCampaignTurnResult Result = FWLCampaignTurnCoordinator::ExecuteDay(Request);
+	for (const FString& Error : Result.ValidationErrors)
+	{
+		UE_LOG(LogWorldLeader, Error, TEXT("Invariante de campania violada: %s"), *Error);
+	}
+	CurrentYear = Result.Year;
+	CurrentMonth = Result.Month;
+	CurrentDay = Result.Day;
+	if (Result.bMonthRolled)
+	{
+		UE_LOG(LogWorldLeader, Log, TEXT("Cierre mensual -> %02d/%d | IA economica: %d construcciones"),
+			CurrentMonth, CurrentYear, LastEconomicAIReports.Num());
 		OnMonthAdvanced.Broadcast(CurrentYear, CurrentMonth);
 	}
 
@@ -330,41 +347,64 @@ void UWLStrategicTickSubsystem::AdvanceDay()
 	OnDayAdvanced.Broadcast(CurrentYear, CurrentMonth, CurrentDay);
 }
 
-void UWLStrategicTickSubsystem::ProcessMonthRollover()
+TArray<FString> UWLStrategicTickSubsystem::ValidateRuntimeState(
+	int32 Year,
+	int32 Month,
+	int32 Day,
+	const FWLBalanceRules& Rules) const
 {
-	AdvanceFinancialMonth();
-	ApplyMonthlyProvinceState();
-	UpdateGDPHistory();
-	AdvanceMarketShocks();
-
-	LastEconomicAIReports.Reset();
-	const FString PlayerNationIso = GetActivePlayerNationIsoForAI();
-	if (!PlayerNationIso.IsEmpty())
+	TArray<FString> Errors;
+	if (Year < 1 || Month < 1 || Month > Rules.MonthsPerYear || Day < 1 || Day > Rules.DaysPerMonth)
 	{
-		RunEconomicAIInternal(PlayerNationIso, LastEconomicAIReports);
-		for (const FString& Report : LastEconomicAIReports)
+		Errors.Add(TEXT("fecha fuera del calendario configurado"));
+	}
+	for (const TPair<FString, double>& Pair : DailyTreasuryRemainders)
+	{
+		if (Pair.Key.IsEmpty() || !FMath::IsFinite(Pair.Value))
 		{
-			UE_LOG(LogWorldLeader, Log, TEXT("IA economica: %s"), *Report);
+			Errors.Add(FString::Printf(TEXT("resto diario invalido para '%s'"), *Pair.Key));
 		}
 	}
-
-	UE_LOG(LogWorldLeader, Log, TEXT("Cierre mensual -> %02d/%d | IA economica: %d construcciones"),
-		CurrentMonth, CurrentYear, LastEconomicAIReports.Num());
+	for (const TPair<FString, FWLProvinceRuntimeState>& Pair : ProvinceStates)
+	{
+		const FWLProvinceRuntimeState& State = Pair.Value;
+		if (Pair.Key.IsEmpty() || State.ControllerIso.IsEmpty() || State.Population < 0
+			|| State.PublicOrder < 0 || State.PublicOrder > 100)
+		{
+			Errors.Add(FString::Printf(TEXT("estado provincial invalido para '%s'"), *Pair.Key));
+		}
+	}
+	for (const TPair<FString, TMap<FString, int32>>& Base : GarrisonRecruited)
+	{
+		for (const TPair<FString, int32>& Unit : Base.Value)
+		{
+			if (Base.Key.IsEmpty() || Unit.Key.IsEmpty() || Unit.Value < 0)
+			{
+				Errors.Add(FString::Printf(TEXT("guarnicion invalida en '%s'"), *Base.Key));
+			}
+		}
+	}
+	for (const TPair<FString, TArray<FWLRecruitOrder>>& Base : RecruitQueues)
+	{
+		for (const FWLRecruitOrder& Order : Base.Value)
+		{
+			if (Base.Key.IsEmpty() || Order.UnitType.IsEmpty() || Order.Batch <= 0 || Order.TurnsTotal <= 0
+				|| Order.TurnsRemaining < 0 || Order.TurnsRemaining > Order.TurnsTotal)
+			{
+				Errors.Add(FString::Printf(TEXT("orden de reclutamiento invalida en '%s'"), *Base.Key));
+			}
+		}
+	}
+	return Errors;
 }
 
 void UWLStrategicTickSubsystem::ApplyDailyEconomy()
 {
+	const FWLBalanceRules Rules = GetBalanceRules();
 	for (TPair<FString, int64>& Pair : Treasuries)
 	{
 		double& Remainder = DailyTreasuryRemainders.FindOrAdd(Pair.Key);
-		const double Accrued = static_cast<double>(GetMonthlyBalance(Pair.Key)) / 30.0 + Remainder;
-		const int64 WholeCredits = static_cast<int64>(Accrued);   // trunca hacia cero; la fraccion queda acumulada
-		Pair.Value += WholeCredits;
-		Remainder = Accrued - static_cast<double>(WholeCredits);
-		if (FMath::Abs(Remainder) < 0.000001)
-		{
-			Remainder = 0.0;
-		}
+		WLFiscalEngine::AccrueDailyBalance(GetMonthlyBalance(Pair.Key), Rules.DaysPerMonth, Pair.Value, Remainder);
 	}
 }
 
@@ -397,50 +437,27 @@ void UWLStrategicTickSubsystem::ApplyMonthlyProvinceState()
 			continue;
 		}
 
-		const int32 OrderBeforeDrift = ClampPublicOrder(State->PublicOrder);
-		int32 NextOrder = StepToward(OrderBeforeDrift, Rules.PublicOrderNeutral, Rules.PublicOrderDriftPerMonth);
-
-		if (GetProvinceMonthlyBalance(Province.Id) < 0)
-		{
-			NextOrder -= Rules.PublicOrderDeficitPenalty;
-		}
 		const FString ControllerIso = State->ControllerIso.IsEmpty() ? Province.CountryIso : NormalizeIso(State->ControllerIso);
 		State->ControllerIso = ControllerIso;
-		if (const int64* NationTreasury = Treasuries.Find(ControllerIso); NationTreasury && *NationTreasury < 0)
+		FWLProvinceMonthInput Input;
+		Input.MonthlyBalance = GetProvinceMonthlyBalance(Province.Id);
+		if (const int64* NationTreasury = Treasuries.Find(ControllerIso))
 		{
-			NextOrder -= Rules.PublicOrderBankruptcyPenalty;
+			Input.bControllerBankrupt = *NationTreasury < 0;
 		}
-		NextOrder -= GetTaxPublicOrderPressure(ControllerIso);   // FE1.2: impuestos altos drenan orden, bajos lo recuperan
+		Input.TaxOrderPressure = GetTaxPublicOrderPressure(ControllerIso);
 		// Fase 3 auditoria: el ministro del Interior mueve el orden publico cada mes (+ si es competente).
 		if (const UGameInstance* GI = GetGameInstance())
 		{
 			if (const UWLCharacterSubsystem* Characters = GI->GetSubsystem<UWLCharacterSubsystem>())
 			{
-				NextOrder += FMath::RoundToInt(
+				Input.MinisterOrderEffect = FMath::RoundToInt(
 					Characters->GetMinisterEffectFactor(ControllerIso, EWLMinisterOffice::Interior)
 					* Rules.InteriorMinisterOrderPerMonth);
 			}
 		}
-		NextOrder += GetProvinceBuildingEffects(Province.Id).BonusPublicOrder;
-
-		State->PublicOrder = ClampPublicOrder(NextOrder);
-
-		double GrowthRate = Rules.MonthlyPopulationGrowthRate;
-		if (State->PublicOrder < 30)
-		{
-			GrowthRate *= -0.5;
-		}
-		else
-		{
-			GrowthRate *= FMath::Clamp(
-				static_cast<double>(State->PublicOrder) / static_cast<double>(Rules.PublicOrderNeutral),
-				0.0,
-				1.5);
-		}
-
-		const int64 PopulationDelta = static_cast<int64>(
-			FMath::RoundToDouble(static_cast<double>(State->Population) * GrowthRate));
-		State->Population = FMath::Max<int64>(0, State->Population + PopulationDelta);
+		Input.BuildingOrderEffect = GetProvinceBuildingEffects(Province.Id).BonusPublicOrder;
+		*State = FWLProvinceEngine::AdvanceMonth(*State, Input, Rules);
 	}
 }
 
@@ -484,10 +501,12 @@ FWLNationBudget UWLStrategicTickSubsystem::GetNationBudget(const FString& Nation
 
 	Budget.MilitaryUpkeep = GetNationMilitaryUpkeep(NormalizedIso);   // FE1.1
 	// FE1.3: salarios publicos y gasto social escalan con la poblacion administrada.
-	Budget.PublicWages = static_cast<int64>(
-		FMath::RoundToDouble(static_cast<double>(NationPopulation) * Rules.PublicWagesPerCapita));
-	Budget.SocialSpending = static_cast<int64>(
-		FMath::RoundToDouble(static_cast<double>(NationPopulation) * Rules.SocialSpendingPerCapita));
+	const int64 Treasury = Treasuries.FindRef(NormalizedIso);
+	const FWLEconomyRecurringCosts RecurringCosts = FWLEconomyEngine::CalculateRecurringCosts(
+		NationPopulation, Treasury, Rules.PublicWagesPerCapita,
+		Rules.SocialSpendingPerCapita, Rules.DebtMonthlyInterestRate);
+	Budget.PublicWages = RecurringCosts.PublicWages;
+	Budget.SocialSpending = RecurringCosts.SocialSpending;
 	for (const FWLGoodMarketBalance& GoodBalance : GetNationGoodMarketBalance(NormalizedIso))
 	{
 		Budget.ExportIncome += GoodBalance.ExportRevenue;   // FE4.1
@@ -518,11 +537,7 @@ FWLNationBudget UWLStrategicTickSubsystem::GetNationBudget(const FString& Nation
 		}
 	}
 	// FE1.4: la deuda (tesoro negativo) cobra interes mensual como gasto del presupuesto.
-	if (const int64* Treasury = Treasuries.Find(NormalizedIso); Treasury && *Treasury < 0)
-	{
-		Budget.DebtInterest = static_cast<int64>(
-			FMath::RoundToDouble(static_cast<double>(-*Treasury) * Rules.DebtMonthlyInterestRate));
-	}
+	Budget.DebtInterest = RecurringCosts.DebtInterest;
 	Budget.DebtService = GetNationDebtService(NormalizedIso);   // FE5.1
 	const FWLEconomicGovernanceStats Governance = GetEconomicGovernanceStats(NormalizedIso);
 	Budget.CorruptionLoss = static_cast<int64>(FMath::RoundToDouble(
@@ -1623,8 +1638,6 @@ TArray<FWLGoodMarketBalance> UWLStrategicTickSubsystem::GetNationGoodMarketBalan
 	}
 
 	FWLScopedEconomyPerfLog Perf(TEXT("GetNationGoodMarketBalance"), 5.00, NormalizedIso);
-	const FWLProductionLedger& Domestic = GetCachedNationProductionLedger(NormalizedIso);
-	const TMap<FString, int64>& DomesticDemand = GetCachedNationDemandMap(NormalizedIso);
 	const double DomesticTariffImportMultiplier = GetTariffImportVolumeMultiplier(NormalizedIso);
 	const int32 DomesticTariffRate = GetTariffRate(NormalizedIso);
 
@@ -1650,6 +1663,13 @@ TArray<FWLGoodMarketBalance> UWLStrategicTickSubsystem::GetNationGoodMarketBalan
 		Partner.ImportVolumeMultiplier = GetTariffImportVolumeMultiplier(Nation.Iso);
 		Partners.Add(MoveTemp(Partner));
 	}
+
+	// CRASH FIX (access violation real visto en StartNewCampaign -> GetNationBudget): estas dos
+	// referencias apuntan a ENTRADAS de los cachés TMap. Se toman DESPUES del precalentamiento de
+	// partners de arriba, porque cada Add() de otra nacion puede REALOJAR el mapa e invalidar
+	// referencias tomadas antes (rehash con cache frio y ~20 naciones = referencias colgadas).
+	const FWLProductionLedger& Domestic = GetCachedNationProductionLedger(NormalizedIso);
+	const TMap<FString, int64>& DomesticDemand = GetCachedNationDemandMap(NormalizedIso);
 
 	TArray<FWLGoodMarketBalance> Balances;
 	for (const FWLGoodData& Good : Registry->GetAllGoods())
@@ -1712,18 +1732,17 @@ TArray<FWLGoodMarketBalance> UWLStrategicTickSubsystem::GetNationGoodMarketBalan
 		Balance.TariffImportVolumeMultiplier = DomesticTariffImportMultiplier;
 		Balance.MarketShockMultiplier = GetMarketShockMultiplier(Good.Id);
 		Balance.PriceMultiplier = FMath::Clamp(
-			CalculatePriceMultiplier(Balance.Demand, Balance.Supply, Rules) * Balance.MarketShockMultiplier,
+			FWLTradeEngine::CalculatePriceMultiplier(Balance.Demand, Balance.Supply, Rules) * Balance.MarketShockMultiplier,
 			Rules.MinMarketPriceMultiplier * Rules.MinMarketShockPriceMultiplier,
 			Rules.MaxMarketPriceMultiplier * Rules.MaxMarketShockPriceMultiplier);
 		Balance.UnitPrice = static_cast<double>(Good.BasePrice) * Balance.PriceMultiplier;
 		Balance.ProductionValue = static_cast<int64>(FMath::RoundToDouble(
 			static_cast<double>(Balance.DomesticSupply) * Balance.UnitPrice));
-		Balance.ImportCost = static_cast<int64>(FMath::RoundToDouble(
-			static_cast<double>(Balance.Imports) * Balance.UnitPrice * (1.0 + Rules.ImportPriceMarkup)));
-		Balance.ImportTariffIncome = static_cast<int64>(FMath::RoundToDouble(
-			static_cast<double>(Balance.Imports) * Balance.UnitPrice * (static_cast<double>(DomesticTariffRate) / 100.0)));
-		Balance.ExportRevenue = static_cast<int64>(FMath::RoundToDouble(
-			static_cast<double>(Balance.Exports) * Balance.UnitPrice * (1.0 - Rules.ExportPriceDiscount)));
+		const FWLTradeValues TradeValues = FWLTradeEngine::CalculateTradeValues(
+			Balance.Imports, Balance.Exports, Balance.UnitPrice, DomesticTariffRate, Rules);
+		Balance.ImportCost = TradeValues.ImportCost;
+		Balance.ImportTariffIncome = TradeValues.ImportTariffIncome;
+		Balance.ExportRevenue = TradeValues.ExportRevenue;
 		Balances.Add(MoveTemp(Balance));
 	}
 

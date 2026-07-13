@@ -62,7 +62,7 @@ class WORLDLEADER_API UWLLocalSaveGame : public USaveGame
 
 public:
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
-	int32 SaveVersion = 18;
+	int32 SaveVersion = 19;
 
 	UPROPERTY(BlueprintReadOnly, Category = "WorldLeader|Save")
 	FString SelectedNationIso;

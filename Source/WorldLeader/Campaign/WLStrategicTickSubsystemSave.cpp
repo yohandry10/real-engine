@@ -261,7 +261,7 @@ bool UWLStrategicTickSubsystem::RestoreSaveSnapshot(
 	FString& OutMessage)
 {
 	const FWLBalanceRules Rules = GetBalanceRules();
-	if (SavedYear <= 0 || SavedMonth < 1 || SavedMonth > Rules.MonthsPerYear || SavedDay < 1 || SavedDay > 30)
+	if (SavedYear <= 0 || SavedMonth < 1 || SavedMonth > Rules.MonthsPerYear || SavedDay < 1 || SavedDay > Rules.DaysPerMonth)
 	{
 		OutMessage = FString::Printf(TEXT("Fecha invalida en save: %02d/%02d/%d"), SavedDay, SavedMonth, SavedYear);
 		return false;

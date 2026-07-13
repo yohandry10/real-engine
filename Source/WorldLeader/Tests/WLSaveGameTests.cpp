@@ -9,6 +9,7 @@
 #include "Engine/GameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Save/WLLocalSaveGame.h"
+#include "Save/WLSaveMigration.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FWLLocalSaveGameRoundTripTest,
@@ -311,7 +312,7 @@ bool FWLLocalSaveGameRoundTripTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Nacion seleccionada"), Loaded->SelectedNationIso, FString(TEXT("VE")));
 	TestEqual(TEXT("Anio"), Loaded->CurrentYear, 2024);
 	TestEqual(TEXT("Mes"), Loaded->CurrentMonth, 2);
-	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, 18);   // v18: +guarnicion y colas de reclutamiento
+	TestEqual(TEXT("Version de save"), Loaded->SaveVersion, WLSaveVersion::Current);
 	TestEqual(TEXT("Dificultad IA guardada"), static_cast<int32>(Loaded->AIDifficulty),
 		static_cast<int32>(EWLAIDifficulty::Hard));
 	TestEqual(TEXT("Tesoros guardados"), Loaded->NationTreasuries.Num(), 1);

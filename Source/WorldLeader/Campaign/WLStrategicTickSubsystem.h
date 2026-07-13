@@ -352,6 +352,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldLeader|Campaign")
 	void AdvanceDay();
 
+	/** Entrada de orquestacion: integra politica dentro de la fase mensual autoritativa. */
+	void AdvanceDayWithPoliticalPhase(const TFunction<void()>& ProcessPolitics);
+
 	UFUNCTION(BlueprintPure, Category = "WorldLeader|Campaign")
 	int32 GetCurrentYear() const { return CurrentYear; }
 
@@ -681,6 +684,8 @@ public:
 	FWLOnMonthAdvanced OnMonthAdvanced;
 
 private:
+	void AdvanceDayInternal(const TFunction<void()>& ProcessPolitics);
+	TArray<FString> ValidateRuntimeState(int32 Year, int32 Month, int32 Day, const FWLBalanceRules& Rules) const;
 	int32 CurrentYear = 0;
 	int32 CurrentMonth = 0;
 	int32 CurrentDay = 1;   // dia del mes (1..30) para el avance por dias del jugador
@@ -747,7 +752,6 @@ private:
 	void InitTreasuriesFromData();
 	void InitProvinceStatesFromData();
 	void ApplyDailyEconomy();   // 1/30 del balance mensual (coherencia temporal del avance por dias)
-	void ProcessMonthRollover();
 	void ApplyMonthlyProvinceState();
 	int32 RunEconomicAIInternal(const FString& PlayerNationIso, TArray<FString>& OutReports);
 	bool FindBestEconomicAIBuildCandidate(

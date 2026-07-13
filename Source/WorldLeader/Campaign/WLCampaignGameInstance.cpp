@@ -7,6 +7,7 @@
 #include "Characters/WLCharacterSubsystem.h"
 #include "Military/WLMilitarySubsystem.h"
 #include "Politics/WLPoliticalSubsystem.h"
+#include "Save/WLSaveMigration.h"
 #include "Save/WLLocalSaveGame.h"
 #include "WorldLeader.h"
 #include "Kismet/GameplayStatics.h"
@@ -15,7 +16,7 @@ namespace
 {
 	const FString WLLocalCampaignSlot = TEXT("WorldLeader_LocalCampaign");
 	constexpr int32 WLLocalCampaignUserIndex = 0;
-	constexpr int32 WLLocalCampaignSaveVersion = 18;   // v18: +guarnicion y colas de reclutamiento
+	constexpr int32 WLLocalCampaignSaveVersion = WLSaveVersion::Current;
 }
 
 UWLDataRegistry* UWLCampaignGameInstance::GetRegistry() const
@@ -108,6 +109,19 @@ bool UWLCampaignGameInstance::HasLocalCampaignSave() const
 
 bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 {
+	return SaveCampaignToSlot(WLLocalCampaignSlot, WLLocalCampaignUserIndex, OutMessage);
+}
+
+bool UWLCampaignGameInstance::SaveCampaignToSlot(
+	const FString& SlotName,
+	int32 UserIndex,
+	FString& OutMessage) const
+{
+	if (SlotName.TrimStartAndEnd().IsEmpty() || UserIndex < 0)
+	{
+		OutMessage = TEXT("Slot de guardado invalido.");
+		return false;
+	}
 	if (!bHasActiveCampaign || SelectedNationIso.IsEmpty())
 	{
 		OutMessage = TEXT("No hay campania activa para guardar.");
@@ -189,7 +203,7 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 			&Save->GovernmentLogEntries);
 	}
 
-	const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, WLLocalCampaignSlot, WLLocalCampaignUserIndex);
+	const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, SlotName, UserIndex);
 	OutMessage = bSaved
 		? FString::Printf(TEXT("Campania guardada: %s %02d/%02d/%d."), *Nation.Iso, Save->CurrentDay, Save->CurrentMonth, Save->CurrentYear)
 		: TEXT("SaveGameToSlot fallo.");
@@ -198,22 +212,36 @@ bool UWLCampaignGameInstance::SaveLocalCampaign(FString& OutMessage) const
 
 bool UWLCampaignGameInstance::LoadLocalCampaign(FString& OutMessage)
 {
-	if (!HasLocalCampaignSave())
+	return LoadCampaignFromSlot(WLLocalCampaignSlot, WLLocalCampaignUserIndex, OutMessage);
+}
+
+bool UWLCampaignGameInstance::LoadCampaignFromSlot(
+	const FString& SlotName,
+	int32 UserIndex,
+	FString& OutMessage)
+{
+	if (SlotName.TrimStartAndEnd().IsEmpty() || UserIndex < 0)
 	{
-		OutMessage = TEXT("No hay save local de campania.");
+		OutMessage = TEXT("Slot de guardado invalido.");
+		return false;
+	}
+	if (!UGameplayStatics::DoesSaveGameExist(SlotName, UserIndex))
+	{
+		OutMessage = TEXT("No existe la partida solicitada.");
 		return false;
 	}
 
 	UWLLocalSaveGame* Save = Cast<UWLLocalSaveGame>(
-		UGameplayStatics::LoadGameFromSlot(WLLocalCampaignSlot, WLLocalCampaignUserIndex));
+		UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex));
 	if (!Save)
 	{
 		OutMessage = TEXT("El save local no tiene el formato esperado.");
 		return false;
 	}
-	if (Save->SaveVersion < 1 || Save->SaveVersion > WLLocalCampaignSaveVersion)
+	FString MigrationMessage;
+	if (!FWLSaveMigration::MigrateToCurrent(*Save, MigrationMessage))
 	{
-		OutMessage = FString::Printf(TEXT("Version de save no soportada: %d."), Save->SaveVersion);
+		OutMessage = MigrationMessage;
 		return false;
 	}
 
@@ -359,14 +387,13 @@ void UWLCampaignGameInstance::WLAdvanceDay()
 {
 	if (UWLStrategicTickSubsystem* Tick = GetTick())
 	{
-		const int32 PreviousMonth = Tick->GetCurrentMonth();
-		const int32 PreviousYear = Tick->GetCurrentYear();
-		Tick->AdvanceDay();
-		if ((Tick->GetCurrentMonth() != PreviousMonth || Tick->GetCurrentYear() != PreviousYear)
-			&& GetPolitics())
+		Tick->AdvanceDayWithPoliticalPhase([this]()
 		{
-			GetPolitics()->ProcessPoliticalMonth();
-		}
+			if (UWLPoliticalSubsystem* Politics = GetPolitics())
+			{
+				Politics->ProcessPoliticalMonth();
+			}
+		});
 		WLPrintState();
 	}
 }
