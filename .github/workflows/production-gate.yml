@@ -1,0 +1,32 @@
+name: Production Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: production-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  win64-shipping:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Build, test, smoke and package
+        shell: powershell
+        run: .\Scripts\run_production_gate.ps1 -Package
+
+      - name: Upload Shipping package
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldLeader-Win64-Shipping
+          path: Build/ProductionGate/Windows
+          if-no-files-found: error
+          retention-days: 14

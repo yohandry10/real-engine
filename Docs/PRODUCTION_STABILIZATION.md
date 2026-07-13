@@ -36,6 +36,8 @@ Run from the repository root:
 
 A release is blocked by a compile failure, a failed or empty automation group, a fatal Standalone log, or a failed Win64 Shipping package. The gate intentionally runs expensive government and politics tests separately so their runtime is visible.
 
+Pull requests to `main` run the same command through `.github/workflows/production-gate.yml` on a self-hosted Windows x64 runner with UE 5.8 installed at the repository-standard path. A successful run publishes the Shipping package for 14 days.
+
 ## Save policy
 
 - Current schema: v19.
